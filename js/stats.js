@@ -140,6 +140,56 @@ BT.stats = (function() {
     return rows.slice(0, limit || rows.length);
   }
 
+  function playerAttendanceTimeline(playerId) {
+    const trainings = BT.storage.getTrainings().slice()
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const out = [];
+    for (const t of trainings) {
+      const a = (t.attendance || []).find(x => x.playerId === playerId);
+      if (!a || !a.status) continue;
+      out.push({ date: t.date, status: a.status, late: !!a.late });
+    }
+    return out;
+  }
+
+  function playerFreethrowsTimeline(playerId) {
+    const trainings = BT.storage.getTrainings().slice()
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const out = [];
+    for (const t of trainings) {
+      const e = (t.freethrows || []).find(x => x.playerId === playerId);
+      if (!e || (e.attempted || 0) === 0) continue;
+      out.push({ date: t.date, made: e.made, attempted: e.attempted, pct: pct(e.made, e.attempted) });
+    }
+    return out;
+  }
+
+  function playerShotsTimelineByCategory(playerId, category) {
+    const trainings = BT.storage.getTrainings().slice()
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const out = [];
+    for (const t of trainings) {
+      const cat = (t.shots || []).find(s => s.category === category);
+      if (!cat) continue;
+      const e = (cat.entries || []).find(x => x.playerId === playerId);
+      if (!e || (e.attempted || 0) === 0) continue;
+      out.push({ date: t.date, made: e.made, attempted: e.attempted, pct: pct(e.made, e.attempted) });
+    }
+    return out;
+  }
+
+  function rollingAttendancePct(timeline, window) {
+    const w = window || 5;
+    const out = [];
+    for (let i = 0; i < timeline.length; i++) {
+      const start = Math.max(0, i - w + 1);
+      const slice = timeline.slice(start, i + 1);
+      const present = slice.filter(x => x.status === 'present').length;
+      out.push({ date: timeline[i].date, pct: pct(present, slice.length) });
+    }
+    return out;
+  }
+
   function nextTrainingCountdown() {
     const days = BT.storage.getSetting('regularDays', null);
     const time = BT.storage.getSetting('regularTime', '20:15');
@@ -167,6 +217,8 @@ BT.stats = (function() {
   return {
     pct, countTrainings,
     playerAttendance, playerFreethrows, playerShotsByCategory,
+    playerAttendanceTimeline, playerFreethrowsTimeline, playerShotsTimelineByCategory,
+    rollingAttendancePct,
     teamAttendance, teamFreethrows, teamShotsByCategory,
     topAttenders, topFreethrowShooters, topShootersByCategory,
     nextTrainingCountdown

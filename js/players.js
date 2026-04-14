@@ -178,22 +178,119 @@ BT.players = (function() {
     if (cats.length === 0) {
       empty.classList.remove('hidden');
       wrap.innerHTML = '';
-      return;
+    } else {
+      empty.classList.add('hidden');
+      wrap.innerHTML = '';
+      for (const c of cats) {
+        const div = document.createElement('div');
+        div.className = 'cat-block';
+        div.innerHTML = `
+          <div class="cat-block-head">
+            <span class="cat-name">${escapeHTML(c.category)}</span>
+            <span class="att-chip ok">${c.pct}%</span>
+            <span class="muted-chip">${c.made}/${c.attempted} · ${c.sessions} Sessions</span>
+          </div>
+        `;
+        wrap.appendChild(div);
+      }
     }
-    empty.classList.add('hidden');
+
+    renderPlayerTrends(node, player, cats);
+  }
+
+  function renderPlayerTrends(node, player, shotCats) {
+    const wrap = $('[data-role="player-trends"]', node);
     wrap.innerHTML = '';
-    for (const c of cats) {
-      const div = document.createElement('div');
-      div.className = 'cat-block';
-      div.innerHTML = `
-        <div class="cat-block-head">
-          <span class="cat-name">${escapeHTML(c.category)}</span>
-          <span class="att-chip ok">${c.pct}%</span>
-          <span class="muted-chip">${c.made}/${c.attempted} · ${c.sessions} Sessions</span>
-        </div>
+
+    const attTimeline = BT.stats.playerAttendanceTimeline(player.id);
+    if (attTimeline.length > 0) {
+      const rolling = BT.stats.rollingAttendancePct(attTimeline, 5);
+      const block = document.createElement('div');
+      block.className = 'trend-block';
+      block.innerHTML = `
+        <div class="trend-head">Anwesenheits-Quote (gleitender Schnitt über 5 Trainings)</div>
+        ${renderTrendChart(rolling.map(r => ({ date: r.date, value: r.pct })), { yMin: 0, yMax: 100, unit: '%' })}
       `;
-      wrap.appendChild(div);
+      wrap.appendChild(block);
     }
+
+    const ftTimeline = BT.stats.playerFreethrowsTimeline(player.id);
+    if (ftTimeline.length > 0) {
+      const block = document.createElement('div');
+      block.className = 'trend-block';
+      block.innerHTML = `
+        <div class="trend-head">Freiwurf-Quote pro Training</div>
+        ${renderTrendChart(ftTimeline.map(r => ({ date: r.date, value: r.pct, label: r.made + '/' + r.attempted })), { yMin: 0, yMax: 100, unit: '%' })}
+      `;
+      wrap.appendChild(block);
+    }
+
+    for (const c of shotCats) {
+      const tl = BT.stats.playerShotsTimelineByCategory(player.id, c.category);
+      if (tl.length === 0) continue;
+      const block = document.createElement('div');
+      block.className = 'trend-block';
+      block.innerHTML = `
+        <div class="trend-head">${escapeHTML(c.category)} – Quote pro Training</div>
+        ${renderTrendChart(tl.map(r => ({ date: r.date, value: r.pct, label: r.made + '/' + r.attempted })), { yMin: 0, yMax: 100, unit: '%' })}
+      `;
+      wrap.appendChild(block);
+    }
+
+    if (wrap.children.length === 0) {
+      wrap.innerHTML = '<p class="empty">Noch zu wenig Daten für Trends.</p>';
+    }
+  }
+
+  function renderTrendChart(points, opts) {
+    if (!points || points.length === 0) return '<p class="muted">Keine Daten</p>';
+    const W = 600, H = 180, P = 36;
+    const yMin = opts.yMin != null ? opts.yMin : 0;
+    const yMax = opts.yMax != null ? opts.yMax : 100;
+    const unit = opts.unit || '';
+    const n = points.length;
+    const stepX = n > 1 ? (W - 2 * P) / (n - 1) : 0;
+    const scaleY = v => H - P - ((v - yMin) / (yMax - yMin)) * (H - 2 * P);
+
+    const pts = points.map((p, i) => ({
+      x: P + i * stepX,
+      y: scaleY(p.value),
+      v: p.value,
+      date: p.date,
+      label: p.label
+    }));
+
+    let yAxis = '';
+    const ticks = 4;
+    for (let i = 0; i <= ticks; i++) {
+      const v = Math.round(yMin + (yMax - yMin) * i / ticks);
+      const y = scaleY(v);
+      yAxis += `<line class="axis" x1="${P}" x2="${W - P / 2}" y1="${y}" y2="${y}" stroke-opacity="0.15"/>`;
+      yAxis += `<text class="axis-label" x="4" y="${y + 4}">${v}${unit}</text>`;
+    }
+
+    const pathD = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+    const dots = pts.map(p => {
+      const tooltip = BT.util.formatDate(p.date) + ': ' + p.v + unit + (p.label ? ' (' + p.label + ')' : '');
+      return `<circle class="dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4"><title>${tooltip}</title></circle>`;
+    }).join('');
+
+    const firstDate = BT.util.formatDate(points[0].date);
+    const lastDate = BT.util.formatDate(points[points.length - 1].date);
+
+    return `
+      <div class="chart-wrap">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          ${yAxis}
+          <line class="axis" x1="${P}" x2="${P}" y1="${P / 2}" y2="${H - P}"/>
+          <line class="axis" x1="${P}" x2="${W - P / 2}" y1="${H - P}" y2="${H - P}"/>
+          <path class="line" d="${pathD}"/>
+          ${dots}
+          <text class="axis-label" x="${P}" y="${H - 8}">${firstDate}</text>
+          <text class="axis-label" x="${W - P}" y="${H - 8}" text-anchor="end">${lastDate}</text>
+        </svg>
+      </div>
+    `;
   }
 
   function renderChart(entries) {

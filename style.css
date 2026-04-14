@@ -908,6 +908,19 @@ table.results tr:last-child td { border-bottom: none; }
 
 .cat-name { font-weight: 700; color: var(--cta); }
 
+.trend-block {
+  margin-bottom: 16px;
+}
+
+.trend-head {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .timer-box {
   background: var(--surface);
   border: 1px solid var(--border);
