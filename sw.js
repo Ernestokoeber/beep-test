@@ -1,4 +1,4 @@
-const CACHE = 'beeptest-v5';
+const CACHE = 'beeptest-v6';
 const ASSETS = [
   './',
   './index.html',

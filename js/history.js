@@ -1,12 +1,13 @@
 window.BT = window.BT || {};
 
 BT.history = (function() {
-  const { $, renderTemplate, formatDate, escapeHTML, downloadCSV, downloadJSON, pickFile, readFileAsText, todayISO } = BT.util;
+  const { $, renderTemplate, formatDate, escapeHTML, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, todayISO } = BT.util;
 
   function renderList(target) {
     const root = renderTemplate('tpl-history');
     target.appendChild(root);
 
+    $('[data-action="share-backup"]', root).addEventListener('click', shareBackup);
     $('[data-action="export-backup"]', root).addEventListener('click', exportBackup);
     $('[data-action="import-backup"]', root).addEventListener('click', importBackup);
 
@@ -100,6 +101,16 @@ BT.history = (function() {
     const data = BT.storage.load();
     data.exportedAt = new Date().toISOString();
     downloadJSON('beeptest_backup_' + todayISO() + '.json', data);
+  }
+
+  async function shareBackup() {
+    const data = BT.storage.load();
+    data.exportedAt = new Date().toISOString();
+    const filename = 'beeptest_backup_' + todayISO() + '.json';
+    const result = await shareOrDownloadJSON(filename, data, 'Beep-Test Backup');
+    if (result === 'downloaded') {
+      alert('Teilen wird vom Browser nicht unterstützt — Datei wurde stattdessen heruntergeladen.');
+    }
   }
 
   async function importBackup() {

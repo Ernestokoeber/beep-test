@@ -68,6 +68,35 @@ BT.util = (function() {
       .replace(/'/g, '&#39;');
   }
 
+  async function shareOrDownloadJSON(filename, obj, title) {
+    const text = JSON.stringify(obj, null, 2);
+    const blob = new Blob([text], { type: 'application/json' });
+    const file = new File([blob], filename, { type: 'application/json' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: title || filename });
+        return 'shared';
+      } catch (e) {
+        if (e && e.name === 'AbortError') return 'cancelled';
+        console.warn('Share fehlgeschlagen, falle auf Download zurueck:', e);
+      }
+    }
+    downloadBlob(filename, blob);
+    return 'downloaded';
+  }
+
+  function downloadBlob(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   function downloadJSON(filename, obj) {
     const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -99,5 +128,5 @@ BT.util = (function() {
     });
   }
 
-  return { uuid, $, $$, formatDate, todayISO, ageFrom, renderTemplate, downloadCSV, downloadJSON, pickFile, readFileAsText, escapeHTML };
+  return { uuid, $, $$, formatDate, todayISO, ageFrom, renderTemplate, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, escapeHTML };
 })();
