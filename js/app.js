@@ -24,7 +24,9 @@
 
     setActiveNav(hash);
 
-    if (hash === '#/players' || hash === '#/') {
+    if (hash === '#/dashboard' || hash === '#/' || hash === '') {
+      BT.dashboard.render(app);
+    } else if (hash === '#/players') {
       BT.players.render(app);
     } else if (hash.startsWith('#/player/')) {
       const id = hash.slice('#/player/'.length);
@@ -50,14 +52,16 @@
       const id = hash.slice('#/history/'.length);
       BT.history.renderDetail(app, id);
     } else {
-      location.hash = '#/players';
+      location.hash = '#/dashboard';
     }
   }
 
   function setActiveNav(hash) {
     const links = document.querySelectorAll('.topbar nav a');
     links.forEach(a => a.classList.remove('active'));
-    if (hash.startsWith('#/players') || hash.startsWith('#/player/') || hash === '#/') {
+    if (hash.startsWith('#/dashboard') || hash === '#/' || hash === '') {
+      document.querySelector('[data-nav="dashboard"]').classList.add('active');
+    } else if (hash.startsWith('#/players') || hash.startsWith('#/player/')) {
       document.querySelector('[data-nav="players"]').classList.add('active');
     } else if (hash.startsWith('#/training')) {
       document.querySelector('[data-nav="training"]').classList.add('active');

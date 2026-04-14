@@ -25,6 +25,7 @@
       </button>
     </div>
     <nav data-role="nav">
+      <a href="#/dashboard" data-nav="dashboard">Dashboard</a>
       <a href="#/players" data-nav="players">Spieler</a>
       <a href="#/training" data-nav="training">Training</a>
       <a href="#/test/setup" data-nav="setup">Beep-Test</a>
@@ -34,6 +35,47 @@
   </header>
 
   <main id="app"></main>
+
+  <template id="tpl-dashboard">
+    <section class="view">
+      <div class="section-head">
+        <h2>Dashboard</h2>
+        <div>
+          <button class="btn small" data-action="export-season-csv">Saison CSV</button>
+          <button class="btn small" data-action="export-season-json">Saison JSON</button>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-label">Trainings</div>
+          <div class="dash-big" data-role="trainings-count">0</div>
+          <div class="dash-sub" data-role="next-training">—</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Anwesenheit Team</div>
+          <div class="dash-big"><span data-role="team-att-pct">0</span>%</div>
+          <div class="dash-sub" data-role="team-att-sub">—</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Freiwürfe Team</div>
+          <div class="dash-big"><span data-role="team-ft-pct">0</span>%</div>
+          <div class="dash-sub" data-role="team-ft-sub">—</div>
+        </div>
+      </div>
+
+      <h3>Top Anwesende</h3>
+      <ol class="ranking" data-role="top-att"></ol>
+
+      <h3>Top Freiwurf-Schützen <span class="muted-chip">(min. 10 Versuche)</span></h3>
+      <ol class="ranking" data-role="top-ft"></ol>
+      <p class="empty hidden" data-role="top-ft-empty">Noch keine Schütze mit 10+ Versuchen.</p>
+
+      <h3>Wurfquoten pro Kategorie</h3>
+      <div data-role="shot-cats"></div>
+      <p class="empty hidden" data-role="shot-cats-empty">Noch keine Wurf-Daten.</p>
+    </section>
+  </template>
 
   <template id="tpl-players">
     <section class="view">
@@ -243,11 +285,18 @@
       </div>
       <p class="muted" data-role="meta"></p>
 
-      <h3>Verlauf</h3>
-      <div class="chart-wrap" data-role="chart"></div>
-      <p class="empty hidden" data-role="no-data">Noch keine Testergebnisse für diesen Spieler.</p>
+      <h3>Saison-Statistik</h3>
+      <div class="dash-grid" data-role="player-stats"></div>
 
-      <h3>Alle Ergebnisse</h3>
+      <h3>Wurfquoten pro Kategorie</h3>
+      <div data-role="player-shot-cats"></div>
+      <p class="empty hidden" data-role="player-shot-empty">Noch keine Wurf-Daten.</p>
+
+      <h3>Beep-Test Verlauf</h3>
+      <div class="chart-wrap" data-role="chart"></div>
+      <p class="empty hidden" data-role="no-data">Noch keine Beep-Test-Ergebnisse für diesen Spieler.</p>
+
+      <h3>Beep-Test Ergebnisse</h3>
       <table class="results">
         <thead>
           <tr><th>Datum</th><th>Level</th><th>Shuttle</th><th>Gesamt</th><th>Runde</th></tr>
@@ -283,11 +332,13 @@
   <script src="js/storage.js"></script>
   <script src="js/levels.js"></script>
   <script src="js/audio.js"></script>
+  <script src="js/stats.js"></script>
   <script src="js/players.js"></script>
   <script src="js/test.js"></script>
   <script src="js/training.js"></script>
   <script src="js/notes.js"></script>
   <script src="js/history.js"></script>
+  <script src="js/dashboard.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

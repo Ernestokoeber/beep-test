@@ -112,6 +112,8 @@ BT.players = (function() {
     if (player.archived) metaParts.push('archiviert');
     $('[data-role="meta"]', node).innerHTML = metaParts.join(' · ') || '&nbsp;';
 
+    renderPlayerSeasonStats(node, player);
+
     const sessions = BT.storage.getSessions().slice().reverse();
     const entries = [];
     for (const s of sessions) {
@@ -126,10 +128,9 @@ BT.players = (function() {
     if (entries.length === 0) {
       noData.classList.remove('hidden');
       chart.classList.add('hidden');
-      return;
+    } else {
+      chart.innerHTML = renderChart(entries);
     }
-
-    chart.innerHTML = renderChart(entries);
 
     entries.slice().reverse().forEach(e => {
       const tr = document.createElement('tr');
@@ -142,6 +143,57 @@ BT.players = (function() {
       `;
       rows.appendChild(tr);
     });
+  }
+
+  function renderPlayerSeasonStats(node, player) {
+    const grid = $('[data-role="player-stats"]', node);
+    const att = BT.stats.playerAttendance(player.id);
+    const ft = BT.stats.playerFreethrows(player.id);
+
+    grid.innerHTML = `
+      <div class="dash-card">
+        <div class="dash-label">Anwesenheit</div>
+        <div class="dash-big">${att.pct}%</div>
+        <div class="dash-sub">${att.present}/${att.total} Trainings${att.late ? ' · ' + att.late + 'x zu spät' : ''}</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-label">Freiwürfe</div>
+        <div class="dash-big">${ft.attempted > 0 ? ft.pct + '%' : '–'}</div>
+        <div class="dash-sub">${ft.attempted > 0 ? ft.made + '/' + ft.attempted + ' aus ' + ft.sessions + ' Sessions' : 'Noch keine Daten'}</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-label">Status</div>
+        <div class="dash-mini">
+          <span class="att-chip ok">✓ ${att.present}</span>
+          <span class="att-chip bad">✗ ${att.absent}</span>
+          <span class="att-chip warn">E ${att.excused}</span>
+          <span class="att-chip warn">V ${att.injured}</span>
+        </div>
+      </div>
+    `;
+
+    const wrap = $('[data-role="player-shot-cats"]', node);
+    const empty = $('[data-role="player-shot-empty"]', node);
+    const cats = BT.stats.playerShotsByCategory(player.id);
+    if (cats.length === 0) {
+      empty.classList.remove('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    empty.classList.add('hidden');
+    wrap.innerHTML = '';
+    for (const c of cats) {
+      const div = document.createElement('div');
+      div.className = 'cat-block';
+      div.innerHTML = `
+        <div class="cat-block-head">
+          <span class="cat-name">${escapeHTML(c.category)}</span>
+          <span class="att-chip ok">${c.pct}%</span>
+          <span class="muted-chip">${c.made}/${c.attempted} · ${c.sessions} Sessions</span>
+        </div>
+      `;
+      wrap.appendChild(div);
+    }
   }
 
   function renderChart(entries) {
