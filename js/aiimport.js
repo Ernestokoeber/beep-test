@@ -1,7 +1,7 @@
 window.BT = window.BT || {};
 
 BT.aiimport = (function() {
-  const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
+  const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-2.5-pro'];
   const BASE_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
