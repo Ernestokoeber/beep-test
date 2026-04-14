@@ -92,7 +92,7 @@ html, body {
 }
 
 .brand-logo {
-  height: 44px;
+  height: 32px;
   width: auto;
   display: block;
   flex-shrink: 0;
@@ -100,7 +100,7 @@ html, body {
 
 .brand-text {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 1.5px;
@@ -111,9 +111,9 @@ html, body {
 }
 
 @media (max-width: 480px) {
-  .brand-logo { height: 36px; }
-  .brand-text { font-size: 16px; }
-  .brand { gap: 8px; }
+  .brand-logo { height: 26px; }
+  .brand-text { font-size: 14px; }
+  .brand { gap: 6px; }
 }
 
 .topbar-head {
