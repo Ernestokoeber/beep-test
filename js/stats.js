@@ -12,7 +12,7 @@ BT.stats = (function() {
     const stats = { total: 0, present: 0, late: 0, absent: 0, excused: 0, injured: 0, pct: 0 };
     for (const t of trainings) {
       const a = (t.attendance || []).find(x => x.playerId === playerId);
-      if (!a) continue;
+      if (!a || !a.status) continue;
       stats.total++;
       if (stats[a.status] !== undefined) stats[a.status]++;
       if (a.late && a.status === 'present') stats.late++;
@@ -60,6 +60,7 @@ BT.stats = (function() {
     let slots = 0, present = 0;
     for (const t of trainings) {
       for (const a of (t.attendance || [])) {
+        if (!a.status) continue;
         slots++;
         if (a.status === 'present') present++;
       }

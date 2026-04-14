@@ -238,7 +238,7 @@ Hinweise:
           startTime: time,
           note: planObj.summary || '',
           plan: planObj,
-          attendance: BT.storage.getPlayers().filter(p => !p.archived).map(p => ({ playerId: p.id, status: 'present', late: false, note: '' })),
+          attendance: BT.storage.getPlayers().filter(p => !p.archived).map(p => ({ playerId: p.id, status: null, late: false, note: '' })),
           freethrows: [],
           shots: planObj.shots.map(s => ({ category: s.category, entries: [] }))
         });

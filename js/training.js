@@ -77,11 +77,14 @@ BT.training = (function() {
         <div class="name">${formatDate(t.date)}${t.startTime ? ' · ' + escapeHTML(t.startTime) : ''}${t.note ? ' – ' + escapeHTML(t.note) : ''}</div>
         <div class="meta">
           ${badge}
-          <span class="att-chip ok">✓ ${summary.present}</span>
-          <span class="att-chip bad">✗ ${summary.absent}</span>
-          <span class="att-chip warn">E ${summary.excused}</span>
-          <span class="att-chip warn">V ${summary.injured}</span>
-          ${summary.late > 0 ? '<span class="att-chip">Spät: ' + summary.late + '</span>' : ''}
+          ${summary.pending === summary.total && summary.total > 0
+            ? '<span class="att-chip muted-chip">○ Anwesenheit offen</span>'
+            : `<span class="att-chip ok">✓ ${summary.present}</span>
+               <span class="att-chip bad">✗ ${summary.absent}</span>
+               <span class="att-chip warn">E ${summary.excused}</span>
+               <span class="att-chip warn">V ${summary.injured}</span>
+               ${summary.late > 0 ? '<span class="att-chip">Spät: ' + summary.late + '</span>' : ''}
+               ${summary.pending > 0 ? '<span class="att-chip muted-chip">○ Offen ' + summary.pending + '</span>' : ''}`}
         </div>
       </div>
     `;
@@ -92,7 +95,7 @@ BT.training = (function() {
   function initialAttendance() {
     return BT.storage.getPlayers()
       .filter(p => !p.archived)
-      .map(p => ({ playerId: p.id, status: 'present', late: false, note: '' }));
+      .map(p => ({ playerId: p.id, status: null, late: false, note: '' }));
   }
 
   function presentPlayerIds(training) {
@@ -104,10 +107,12 @@ BT.training = (function() {
   function pct(made, att) { return att ? Math.round((made / att) * 100) : 0; }
 
   function summarize(training) {
-    const s = { present: 0, absent: 0, excused: 0, injured: 0, late: 0 };
+    const s = { present: 0, absent: 0, excused: 0, injured: 0, late: 0, pending: 0, total: 0 };
     for (const a of training.attendance || []) {
+      s.total++;
       if (s[a.status] !== undefined) s[a.status]++;
-      if (a.late) s.late++;
+      else s.pending++;
+      if (a.late && a.status === 'present') s.late++;
     }
     return s;
   }
@@ -164,6 +169,22 @@ BT.training = (function() {
     renderPlanBox();
     setupSubnav();
 
+    const resetBtn = $('[data-action="reset-attendance"]', detailRoot);
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (!confirm('Anwesenheit für alle Spieler auf "offen" zurücksetzen? Notizen bleiben erhalten.')) return;
+        for (const a of (currentTraining.attendance || [])) {
+          a.status = null;
+          a.late = false;
+        }
+        save();
+        renderAttendance();
+        renderSummary();
+        renderFreethrows();
+        renderShots();
+      });
+    }
+
     renderAttendance();
     renderSummary();
     renderFreethrows();
@@ -176,7 +197,7 @@ BT.training = (function() {
     const existingIds = new Set((currentTraining.attendance || []).map(a => a.playerId));
     for (const p of active) {
       if (!existingIds.has(p.id)) {
-        currentTraining.attendance.push({ playerId: p.id, status: 'present', late: false, note: '' });
+        currentTraining.attendance.push({ playerId: p.id, status: null, late: false, note: '' });
       }
     }
     save();
@@ -194,7 +215,7 @@ BT.training = (function() {
 
     for (const { att, player } of entries) {
       const card = document.createElement('li');
-      card.className = 'att-card status-' + att.status;
+      card.className = 'att-card status-' + (att.status || 'pending');
       card.innerHTML = `
         <div class="att-head">
           <span class="name">${escapeHTML(player.name)}</span>
@@ -217,7 +238,7 @@ BT.training = (function() {
           att.status = btn.dataset.status;
           if (att.status !== 'present') att.late = false;
           save();
-          card.className = 'att-card status-' + att.status;
+          card.className = 'att-card status-' + (att.status || 'pending');
           $$('.status-btn', card).forEach(b => b.classList.toggle('active', b.dataset.status === att.status));
           const lateCb = $('[data-role="late"]', card);
           lateCb.checked = att.late;
@@ -242,14 +263,14 @@ BT.training = (function() {
   function renderSummary() {
     const s = summarize(currentTraining);
     const el = $('[data-role="summary"]', detailRoot);
-    const total = s.present + s.absent + s.excused + s.injured;
     el.innerHTML = `
       <span class="att-chip ok">✓ Anwesend ${s.present}</span>
       <span class="att-chip bad">✗ Abwesend ${s.absent}</span>
       <span class="att-chip warn">E Entschuldigt ${s.excused}</span>
       <span class="att-chip warn">V Verletzt ${s.injured}</span>
       ${s.late > 0 ? '<span class="att-chip">Zu spät: ' + s.late + '</span>' : ''}
-      <span class="att-chip muted-chip">Gesamt ${total}</span>
+      ${s.pending > 0 ? '<span class="att-chip muted-chip">○ Offen ' + s.pending + '</span>' : ''}
+      <span class="att-chip muted-chip">Gesamt ${s.total}</span>
     `;
   }
 
@@ -507,13 +528,13 @@ BT.training = (function() {
     for (const p of sorted) {
       let att = (currentTraining.attendance || []).find(a => a.playerId === p.id);
       if (!att) {
-        att = { playerId: p.id, status: 'present', late: false, note: '' };
+        att = { playerId: p.id, status: null, late: false, note: '' };
         currentTraining.attendance.push(att);
       }
       const card = document.createElement('li');
-      card.className = 'pn-card status-' + att.status;
-      const statusLabel = STATUS_LABELS[att.status] || att.status;
-      const statusSym = STATUS_SYMBOL[att.status] || '';
+      card.className = 'pn-card status-' + (att.status || 'pending');
+      const statusLabel = att.status ? (STATUS_LABELS[att.status] || att.status) : 'Offen';
+      const statusSym = att.status ? (STATUS_SYMBOL[att.status] || '') : '○';
       card.innerHTML = `
         <div class="pn-head">
           <span class="name">${escapeHTML(p.name)}</span>
@@ -535,7 +556,8 @@ BT.training = (function() {
   function chipClassFor(status) {
     if (status === 'present') return 'ok';
     if (status === 'absent') return 'bad';
-    return 'warn';
+    if (status === 'excused' || status === 'injured') return 'warn';
+    return 'muted-chip';
   }
 
   function renderPlanBox() {

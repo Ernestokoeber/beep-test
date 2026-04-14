@@ -607,7 +607,8 @@ table.results tr:last-child td { border-bottom: none; }
   box-shadow: var(--shadow-sm);
 }
 
-.att-card.status-present { border-left-color: var(--accent); }
+.att-card.status-pending { border-left-color: var(--border); opacity: 0.85; }
+.att-card.status-present { border-left-color: var(--accent); opacity: 1; }
 .att-card.status-absent { border-left-color: var(--danger); }
 .att-card.status-excused { border-left-color: var(--primary); }
 .att-card.status-injured { border-left-color: var(--primary); }
@@ -1060,9 +1061,16 @@ table.results tr:last-child td { border-bottom: none; }
   box-shadow: var(--shadow-sm);
 }
 
+.pn-card.status-pending { border-left-color: var(--border); }
 .pn-card.status-present { border-left-color: var(--accent); }
 .pn-card.status-absent { border-left-color: var(--danger); }
 .pn-card.status-excused, .pn-card.status-injured { border-left-color: var(--primary); }
+
+.att-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
 
 .pn-head {
   display: flex;
