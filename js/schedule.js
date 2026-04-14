@@ -71,9 +71,11 @@ BT.schedule = (function() {
       const file = await BT.util.pickFile('application/pdf,.pdf');
       if (!file) return;
 
-      status.textContent = '⏳ Plan wird analysiert (kann 10-30 Sekunden dauern) ...';
+      status.textContent = '⏳ Plan wird analysiert (kann 10-60 Sekunden dauern) ...';
       try {
-        const parsed = await BT.aiimport.parseWithGemini(file, apiKey);
+        const parsed = await BT.aiimport.parseWithGemini(file, apiKey, (msg) => {
+          status.textContent = '⏳ ' + msg;
+        });
         const summary = parsed.trainings.map((t, i) => {
           const parts = [(i + 1) + '. ' + (t.weekday || '?') + (t.date ? ' (' + t.date + ')' : '')];
           if (t.summary) parts.push('   → ' + t.summary);

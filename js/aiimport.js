@@ -1,8 +1,10 @@
 window.BT = window.BT || {};
 
 BT.aiimport = (function() {
-  const MODEL = 'gemini-2.5-flash';
-  const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent';
+  const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
+  const BASE_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   const PROMPT = `Du bekommst einen Basketball-Trainingsplan als PDF.
 Trainings finden Dienstag und Freitag jeweils 20:15-22:00 Uhr statt.
@@ -45,14 +47,11 @@ Hinweise:
     });
   }
 
-  async function parseWithGemini(file, apiKey) {
-    if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key in den Einstellungen eintragen.');
-    const base64 = await fileToBase64(file);
-
+  async function callOnce(model, apiKey, base64, mimeType) {
     const body = {
       contents: [{
         parts: [
-          { inline_data: { mime_type: file.type || 'application/pdf', data: base64 } },
+          { inline_data: { mime_type: mimeType || 'application/pdf', data: base64 } },
           { text: PROMPT }
         ]
       }],
@@ -61,24 +60,22 @@ Hinweise:
         temperature: 0.1
       }
     };
-
-    const res = await fetch(ENDPOINT + '?key=' + encodeURIComponent(apiKey), {
+    const res = await fetch(BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error('Gemini API Fehler ' + res.status + ': ' + errText.slice(0, 300));
+      const err = new Error('HTTP ' + res.status + ': ' + errText.slice(0, 300));
+      err.status = res.status;
+      throw err;
     }
-
     const data = await res.json();
     const text = data && data.candidates && data.candidates[0]
       && data.candidates[0].content && data.candidates[0].content.parts
       && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-    if (!text) throw new Error('Keine Antwort von Gemini.');
-
+    if (!text) throw new Error('Leere Antwort.');
     let parsed;
     try { parsed = JSON.parse(text); }
     catch (e) { throw new Error('Antwort war kein gültiges JSON: ' + text.slice(0, 200)); }
@@ -86,6 +83,37 @@ Hinweise:
       throw new Error('Antwort enthält keine "trainings"-Liste.');
     }
     return parsed;
+  }
+
+  async function parseWithGemini(file, apiKey, onProgress) {
+    if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key eintragen.');
+    const base64 = await fileToBase64(file);
+    const mime = file.type || 'application/pdf';
+
+    let lastErr = null;
+    for (let i = 0; i < MODELS.length; i++) {
+      const model = MODELS[i];
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          if (onProgress) onProgress('Modell ' + model + ' (Versuch ' + attempt + '/' + maxAttempts + ') ...');
+          return await callOnce(model, apiKey, base64, mime);
+        } catch (e) {
+          lastErr = e;
+          const transient = e.status === 503 || e.status === 429 || e.status === 500;
+          const notFound = e.status === 404;
+          if (notFound) break;
+          if (!transient || attempt === maxAttempts) {
+            if (i < MODELS.length - 1) break;
+            throw e;
+          }
+          const wait = 1500 * Math.pow(2, attempt - 1);
+          if (onProgress) onProgress('Modell überlastet, nächster Versuch in ' + Math.round(wait / 1000) + 's ...');
+          await sleep(wait);
+        }
+      }
+    }
+    throw lastErr || new Error('Alle Modelle fehlgeschlagen.');
   }
 
   function dayKeyToNum(key) {
