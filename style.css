@@ -921,6 +921,100 @@ table.results tr:last-child td { border-bottom: none; }
   letter-spacing: 0.5px;
 }
 
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+
+  body, html {
+    background: white !important;
+    color: black !important;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  .topbar, .section-head .btn, .section-head a.btn,
+  [data-action="print-report"], main > .view > .section-head > div:last-child {
+    display: none !important;
+  }
+
+  main {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .view { padding: 0; }
+
+  .section-head {
+    border-bottom: 2px solid #004b2b;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+  }
+
+  .section-head .head-left h2 {
+    color: #004b2b !important;
+    font-size: 24px !important;
+  }
+
+  h3 {
+    color: #004b2b !important;
+    margin-top: 16px !important;
+    font-size: 12px !important;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 4px;
+  }
+
+  .dash-card, .cat-block, .trend-block, .chart-wrap, table.results {
+    background: white !important;
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  .dash-big {
+    color: #004b2b !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .dash-label, .dash-sub, .muted, .muted-chip {
+    color: #555 !important;
+  }
+
+  .att-chip {
+    background: #f0f0f0 !important;
+    color: #333 !important;
+    border: 1px solid #ddd;
+  }
+
+  .att-chip.ok { background: #e6f4ea !important; color: #1b5e20 !important; }
+  .att-chip.bad { background: #fce8e6 !important; color: #b71c1c !important; }
+  .att-chip.warn { background: #fff4e0 !important; color: #8a4d00 !important; }
+
+  .chart-wrap .line { stroke: #004b2b !important; }
+  .chart-wrap .dot { fill: rgb(232, 161, 77) !important; stroke: #004b2b !important; }
+  .chart-wrap .axis-label { fill: #555 !important; }
+
+  table.results th { background: #f0f0f0 !important; color: #555 !important; }
+  table.results td, table.results th { border-color: #ddd !important; }
+
+  .brand, .topbar-actions { display: none !important; }
+
+  /* Print header on first page */
+  body::before {
+    content: "TSV Lindau Basketball – Spieler-Bericht";
+    display: block;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    color: #004b2b;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #ddd;
+  }
+}
+
 .timer-box {
   background: var(--surface);
   border: 1px solid var(--border);

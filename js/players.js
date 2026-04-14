@@ -104,6 +104,17 @@ BT.players = (function() {
     const player = BT.storage.getPlayer(playerId);
     if (!player) { location.hash = '#/players'; return; }
 
+    const printBtn = $('[data-action="print-report"]', node);
+    if (printBtn) {
+      printBtn.addEventListener('click', () => {
+        document.body.classList.add('print-mode');
+        setTimeout(() => {
+          window.print();
+          setTimeout(() => document.body.classList.remove('print-mode'), 100);
+        }, 50);
+      });
+    }
+
     $('[data-role="name"]', node).textContent = player.name;
     const age = ageFrom(player.birthDate);
     const metaParts = [];
