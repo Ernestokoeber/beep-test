@@ -25,7 +25,11 @@ html, body {
 
 .topbar {
   background: var(--surface);
-  padding: 12px 16px;
+  padding:
+    calc(12px + env(safe-area-inset-top))
+    calc(16px + env(safe-area-inset-right))
+    12px
+    calc(16px + env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -46,9 +50,16 @@ html, body {
 .topbar nav a {
   color: var(--muted);
   text-decoration: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  flex: 1;
+  text-align: center;
+  background: var(--bg);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .topbar nav a.active {
@@ -57,7 +68,11 @@ html, body {
 }
 
 main {
-  padding: 16px;
+  padding:
+    16px
+    calc(16px + env(safe-area-inset-right))
+    calc(16px + env(safe-area-inset-bottom))
+    calc(16px + env(safe-area-inset-left));
   max-width: 900px;
   margin: 0 auto;
 }
