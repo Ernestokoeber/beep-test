@@ -107,7 +107,7 @@ BT.history = (function() {
     const data = BT.storage.load();
     data.exportedAt = new Date().toISOString();
     const filename = 'beeptest_backup_' + todayISO() + '.json';
-    const result = await shareOrDownloadJSON(filename, data, 'Beep-Test Backup');
+    const result = await shareOrDownloadJSON(filename, data, 'TSVLindau Train-APP Backup');
     if (result === 'downloaded') {
       alert('Teilen wird vom Browser nicht unterstützt — Datei wurde stattdessen heruntergeladen.');
     }

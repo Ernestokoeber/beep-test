@@ -84,12 +84,17 @@ html, body {
 
 .topbar h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 22px;
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 1px;
   color: var(--cta);
   text-transform: uppercase;
+  line-height: 1.1;
+}
+
+@media (max-width: 480px) {
+  .topbar h1 { font-size: 18px; }
 }
 
 .topbar-head {

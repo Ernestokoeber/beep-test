@@ -1,7 +1,7 @@
 {
-  "name": "Beep-Test",
-  "short_name": "BeepTest",
-  "description": "Bleep-Test / Shuttle-Run für dein Team",
+  "name": "TSVLindau Train-APP",
+  "short_name": "TSV Train",
+  "description": "Trainings-App für TSV Lindau Basketball: Anwesenheit, Freiwürfe, Wurfquoten, Beep-Test",
   "lang": "de",
   "start_url": "./index.html",
   "scope": "./",
