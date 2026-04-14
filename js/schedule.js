@@ -93,7 +93,8 @@ BT.schedule = (function() {
         const results = BT.aiimport.applyPlanToTrainings(parsed);
         const created = results.filter(r => r.action === 'created').length;
         const updated = results.filter(r => r.action === 'updated').length;
-        status.textContent = '✓ Fertig: ' + created + ' angelegt, ' + updated + ' aktualisiert.';
+        const meta = parsed._meta || {};
+        status.innerHTML = '✓ Fertig (' + (meta.model || '?') + ', ' + (meta.elapsedSec || '?') + 's): ' + created + ' angelegt, ' + updated + ' aktualisiert.';
         renderUpcoming(root);
       } catch (e) {
         console.error(e);

@@ -47,7 +47,7 @@ Hinweise:
     });
   }
 
-  async function callOnce(model, apiKey, base64, mimeType) {
+  async function callOnce(model, apiKey, base64, mimeType, onProgress) {
     const body = {
       contents: [{
         parts: [
@@ -60,18 +60,38 @@ Hinweise:
         temperature: 0.1
       }
     };
-    const res = await fetch(BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+    const url = BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey);
+    console.log('[Gemini] POST', model, '— PDF', Math.round(base64.length * 0.75 / 1024), 'KB');
+    const t0 = Date.now();
+
+    const ticker = startTicker((sec) => {
+      if (onProgress) onProgress(model + ' wartet auf Antwort … ' + sec + 's');
     });
+
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } finally {
+      stopTicker(ticker);
+    }
+
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log('[Gemini] Antwort nach', elapsed + 's', 'Status:', res.status);
+
     if (!res.ok) {
       const errText = await res.text();
+      console.warn('[Gemini] Fehler-Body:', errText);
       const err = new Error('HTTP ' + res.status + ': ' + errText.slice(0, 300));
       err.status = res.status;
       throw err;
     }
+    if (onProgress) onProgress(model + ' antwortet (' + elapsed + 's), wird geparst …');
     const data = await res.json();
+    console.log('[Gemini] Roh-Antwort:', data);
     const text = data && data.candidates && data.candidates[0]
       && data.candidates[0].content && data.candidates[0].content.parts
       && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
@@ -82,13 +102,30 @@ Hinweise:
     if (!parsed.trainings || !Array.isArray(parsed.trainings)) {
       throw new Error('Antwort enthält keine "trainings"-Liste.');
     }
+    parsed._meta = { model, elapsedSec: parseFloat(elapsed), trainingsFound: parsed.trainings.length };
     return parsed;
   }
 
+  function startTicker(callback) {
+    const startTs = Date.now();
+    const id = setInterval(() => {
+      const sec = Math.floor((Date.now() - startTs) / 1000);
+      callback(sec);
+    }, 500);
+    callback(0);
+    return id;
+  }
+
+  function stopTicker(id) { clearInterval(id); }
+
   async function parseWithGemini(file, apiKey, onProgress) {
     if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key eintragen.');
+    if (onProgress) onProgress('PDF wird gelesen …');
     const base64 = await fileToBase64(file);
     const mime = file.type || 'application/pdf';
+    const sizeKB = Math.round(base64.length * 0.75 / 1024);
+    console.log('[Gemini] PDF geladen:', file.name, sizeKB + ' KB, MIME:', mime);
+    if (onProgress) onProgress('PDF (' + sizeKB + ' KB) wird gesendet …');
 
     let lastErr = null;
     for (let i = 0; i < MODELS.length; i++) {
@@ -96,19 +133,28 @@ Hinweise:
       const maxAttempts = 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          if (onProgress) onProgress('Modell ' + model + ' (Versuch ' + attempt + '/' + maxAttempts + ') ...');
-          return await callOnce(model, apiKey, base64, mime);
+          if (onProgress) onProgress(model + ' — Versuch ' + attempt + '/' + maxAttempts + ' …');
+          const result = await callOnce(model, apiKey, base64, mime, onProgress);
+          console.log('[Gemini] Erfolg mit', model, '— ' + result._meta.trainingsFound + ' Trainings, ' + result._meta.elapsedSec + 's');
+          return result;
         } catch (e) {
           lastErr = e;
+          console.warn('[Gemini]', model, 'Versuch', attempt, 'fehlgeschlagen:', e.message);
           const transient = e.status === 503 || e.status === 429 || e.status === 500;
           const notFound = e.status === 404;
-          if (notFound) break;
+          if (notFound) {
+            if (onProgress) onProgress(model + ' nicht verfügbar, wechsle …');
+            break;
+          }
           if (!transient || attempt === maxAttempts) {
-            if (i < MODELS.length - 1) break;
+            if (i < MODELS.length - 1) {
+              if (onProgress) onProgress(model + ' nicht erreichbar, wechsle zum nächsten …');
+              break;
+            }
             throw e;
           }
           const wait = 1500 * Math.pow(2, attempt - 1);
-          if (onProgress) onProgress('Modell überlastet, nächster Versuch in ' + Math.round(wait / 1000) + 's ...');
+          if (onProgress) onProgress(model + ' überlastet (Status ' + (e.status || '?') + '), warte ' + Math.round(wait / 1000) + 's …');
           await sleep(wait);
         }
       }
