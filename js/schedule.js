@@ -150,7 +150,8 @@ BT.schedule = (function() {
         </div>
         <div class="actions">
           ${existing
-            ? `<a class="btn small" href="#/training/${existing.id}">Öffnen</a>`
+            ? `<a class="btn small" href="#/training/${existing.id}">Öffnen</a>
+               <button class="btn small danger" data-delete="${existing.id}" data-date="${iso}">Löschen</button>`
             : `<button class="btn small primary" data-create="${iso}" data-time="${time}">+ Anlegen</button>`}
         </div>
       `;
@@ -166,6 +167,16 @@ BT.schedule = (function() {
             shots: []
           });
           location.hash = '#/training/' + t.id;
+        });
+      }
+      const deleteBtn = li.querySelector('[data-delete]');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+          const id = deleteBtn.dataset.delete;
+          const dateStr = deleteBtn.dataset.date;
+          if (!confirm('Training vom ' + BT.util.formatDate(dateStr) + ' wirklich löschen? Anwesenheit, Würfe, Notizen — alles weg.')) return;
+          BT.storage.deleteTraining(id);
+          renderUpcoming(root);
         });
       }
       list.appendChild(li);
