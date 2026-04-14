@@ -208,48 +208,67 @@
         </div>
       </div>
 
-      <div class="form-row">
-        <label>Datum<input type="date" data-role="date" required></label>
-        <label>Startzeit<input type="time" data-role="time" required></label>
+      <div class="subnav" data-role="subnav">
+        <button class="subnav-btn active" type="button" data-pane="overview">Übersicht</button>
+        <button class="subnav-btn" type="button" data-pane="attendance">Anwesenheit</button>
+        <button class="subnav-btn" type="button" data-pane="ft">Freiwürfe</button>
+        <button class="subnav-btn" type="button" data-pane="shots">Würfe</button>
+        <button class="subnav-btn" type="button" data-pane="notes">Notizen</button>
       </div>
 
-      <div class="plan-box hidden" data-role="plan-box">
-        <div class="plan-head">📋 Plan</div>
-        <div data-role="plan-summary"></div>
-        <ol class="plan-drills" data-role="plan-drills"></ol>
-      </div>
-
-      <div class="timer-box" data-role="timer-box">
-        <div class="timer-display" data-role="timer-display">00:00</div>
-        <div class="timer-controls">
-          <button class="btn small" data-timer="60">1 min</button>
-          <button class="btn small" data-timer="180">3 min</button>
-          <button class="btn small" data-timer="300">5 min</button>
-          <button class="btn small" data-timer="600">10 min</button>
-          <input type="number" class="timer-custom" data-role="timer-custom" min="1" max="60" placeholder="min" step="1">
-          <button class="btn small primary" data-timer-action="start">Start</button>
-          <button class="btn small" data-timer-action="stop">Stop</button>
+      <div class="pane" data-pane="overview">
+        <div class="form-row">
+          <label>Datum<input type="date" data-role="date" required></label>
+          <label>Startzeit<input type="time" data-role="time" required></label>
         </div>
+
+        <div class="plan-box hidden" data-role="plan-box">
+          <div class="plan-head">📋 Plan</div>
+          <div data-role="plan-summary"></div>
+          <ol class="plan-drills" data-role="plan-drills"></ol>
+        </div>
+
+        <div class="timer-box" data-role="timer-box">
+          <div class="timer-display" data-role="timer-display">00:00</div>
+          <div class="timer-controls">
+            <button class="btn small" data-timer="60">1 min</button>
+            <button class="btn small" data-timer="180">3 min</button>
+            <button class="btn small" data-timer="300">5 min</button>
+            <button class="btn small" data-timer="600">10 min</button>
+            <input type="number" class="timer-custom" data-role="timer-custom" min="1" max="60" placeholder="min" step="1">
+            <button class="btn small primary" data-timer-action="start">Start</button>
+            <button class="btn small" data-timer-action="stop">Stop</button>
+          </div>
+        </div>
+
+        <label class="block-label">Notiz zum Training
+          <textarea data-role="note" rows="2" placeholder="z.B. Schwerpunkt Verteidigung"></textarea>
+        </label>
+
+        <div class="att-summary" data-role="summary"></div>
       </div>
-      <label class="block-label">Notiz zum Training
-        <textarea data-role="note" rows="2" placeholder="z.B. Schwerpunkt Verteidigung"></textarea>
-      </label>
 
-      <div class="att-summary" data-role="summary"></div>
+      <div class="pane hidden" data-pane="attendance">
+        <ul class="attendance-list" data-role="attendance"></ul>
+      </div>
 
-      <h3>Anwesenheit</h3>
-      <ul class="attendance-list" data-role="attendance"></ul>
+      <div class="pane hidden" data-pane="ft">
+        <div class="ft-summary" data-role="ft-summary"></div>
+        <ul class="ft-list" data-role="freethrows"></ul>
+        <p class="empty hidden" data-role="ft-empty">Keine anwesenden Spieler — Freiwürfe werden aktiv, sobald jemand als „Anwesend" markiert ist.</p>
+      </div>
 
-      <h3>Freiwürfe</h3>
-      <div class="ft-summary" data-role="ft-summary"></div>
-      <ul class="ft-list" data-role="freethrows"></ul>
-      <p class="empty hidden" data-role="ft-empty">Keine anwesenden Spieler — Freiwürfe werden aktiv, sobald jemand als „Anwesend" markiert ist.</p>
+      <div class="pane hidden" data-pane="shots">
+        <div class="shot-categories" data-role="shot-tabs"></div>
+        <div class="ft-summary" data-role="shot-summary"></div>
+        <ul class="ft-list" data-role="shots"></ul>
+        <p class="empty hidden" data-role="shot-empty">Keine anwesenden Spieler.</p>
+      </div>
 
-      <h3>Würfe</h3>
-      <div class="shot-categories" data-role="shot-tabs"></div>
-      <div class="ft-summary" data-role="shot-summary"></div>
-      <ul class="ft-list" data-role="shots"></ul>
-      <p class="empty hidden" data-role="shot-empty">Keine anwesenden Spieler.</p>
+      <div class="pane hidden" data-pane="notes">
+        <p class="muted">Persönliche Notiz pro Spieler für dieses Training (z.B. Gespräche, Auffälligkeiten, Hausaufgaben). Wird in der CSV mit exportiert.</p>
+        <ul class="player-notes-list" data-role="player-notes"></ul>
+      </div>
 
       <p class="muted" data-role="saved-info">Änderungen werden automatisch gespeichert.</p>
     </section>

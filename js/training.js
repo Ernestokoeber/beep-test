@@ -137,6 +137,7 @@ BT.training = (function() {
 
     setupTimer();
     renderPlanBox();
+    setupSubnav();
 
     renderAttendance();
     renderSummary();
@@ -184,7 +185,6 @@ BT.training = (function() {
             </button>
           `).join('')}
         </div>
-        <input type="text" class="att-note" data-role="note" value="${escapeHTML(att.note || '')}" placeholder="Notiz (optional)" maxlength="120">
       `;
 
       $$('.status-btn', card).forEach(btn => {
@@ -208,11 +208,6 @@ BT.training = (function() {
         att.late = e.target.checked;
         save();
         renderSummary();
-      });
-
-      $('[data-role="note"]', card).addEventListener('input', e => {
-        att.note = e.target.value;
-        save();
       });
 
       list.appendChild(card);
@@ -464,6 +459,58 @@ BT.training = (function() {
 
   function save() {
     BT.storage.upsertTraining(currentTraining);
+  }
+
+  function setupSubnav() {
+    $$('.subnav-btn', detailRoot).forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.pane;
+        $$('.subnav-btn', detailRoot).forEach(b => b.classList.toggle('active', b === btn));
+        $$('.pane', detailRoot).forEach(p => p.classList.toggle('hidden', p.dataset.pane !== target));
+        if (target === 'notes') renderPlayerNotes();
+        if (detailRoot && detailRoot.scrollIntoView) detailRoot.scrollIntoView({ block: 'start', behavior: 'instant' });
+      });
+    });
+  }
+
+  function renderPlayerNotes() {
+    const list = $('[data-role="player-notes"]', detailRoot);
+    list.innerHTML = '';
+    const allPlayers = BT.storage.getPlayers().filter(p => !p.archived);
+    const sorted = allPlayers.slice().sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
+    for (const p of sorted) {
+      let att = (currentTraining.attendance || []).find(a => a.playerId === p.id);
+      if (!att) {
+        att = { playerId: p.id, status: 'present', late: false, note: '' };
+        currentTraining.attendance.push(att);
+      }
+      const card = document.createElement('li');
+      card.className = 'pn-card status-' + att.status;
+      const statusLabel = STATUS_LABELS[att.status] || att.status;
+      const statusSym = STATUS_SYMBOL[att.status] || '';
+      card.innerHTML = `
+        <div class="pn-head">
+          <span class="name">${escapeHTML(p.name)}</span>
+          <span class="att-chip ${chipClassFor(att.status)}">${statusSym} ${statusLabel}${att.late ? ' · zu spät' : ''}</span>
+        </div>
+        <textarea class="pn-text" data-role="pn-note" rows="3" maxlength="500" placeholder="Notiz für dieses Training …">${escapeHTML(att.note || '')}</textarea>
+      `;
+      const ta = $('[data-role="pn-note"]', card);
+      let saveTimer = null;
+      ta.addEventListener('input', () => {
+        att.note = ta.value;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(save, 300);
+      });
+      list.appendChild(card);
+    }
+  }
+
+  function chipClassFor(status) {
+    if (status === 'present') return 'ok';
+    if (status === 'absent') return 'bad';
+    return 'warn';
   }
 
   function renderPlanBox() {
