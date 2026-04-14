@@ -11,10 +11,16 @@
   "theme_color": "#ffffff",
   "icons": [
     {
+      "src": "TSVLindauLogo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ]
 }

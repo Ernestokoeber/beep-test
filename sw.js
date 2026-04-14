@@ -1,9 +1,10 @@
-const CACHE = 'beeptest-v22';
+const CACHE = 'beeptest-v23';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './manifest.webmanifest',
+  './TSVLindauLogo.png',
   './icon.svg',
   './js/util.js',
   './js/storage.js',

@@ -82,19 +82,38 @@ html, body {
   box-shadow: var(--shadow-sm);
 }
 
-.topbar h1 {
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--cta);
+  min-width: 0;
+}
+
+.brand-logo {
+  height: 44px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+}
+
+.brand-text {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-family: var(--font-display);
   font-weight: 400;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   color: var(--cta);
   text-transform: uppercase;
-  line-height: 1.1;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 @media (max-width: 480px) {
-  .topbar h1 { font-size: 18px; }
+  .brand-logo { height: 36px; }
+  .brand-text { font-size: 16px; }
+  .brand { gap: 8px; }
 }
 
 .topbar-head {
