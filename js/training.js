@@ -342,14 +342,14 @@ BT.training = (function() {
   }
 
   function renderShotTabs() {
-    const cats = BT.storage.getShotCategories();
-    if (!currentShotCategory || !cats.includes(currentShotCategory)) {
-      currentShotCategory = cats[0] || null;
+    const trainingCats = (currentTraining.shots || []).map(s => s.category);
+    if (!currentShotCategory || !trainingCats.includes(currentShotCategory)) {
+      currentShotCategory = trainingCats[0] || null;
     }
     const tabs = $('[data-role="shot-tabs"]', detailRoot);
     tabs.innerHTML = '';
 
-    for (const cat of cats) {
+    for (const cat of trainingCats) {
       const tab = document.createElement('button');
       tab.type = 'button';
       tab.className = 'shot-tab' + (cat === currentShotCategory ? ' active' : '');
@@ -362,15 +362,10 @@ BT.training = (function() {
       const del = document.createElement('span');
       del.className = 'shot-tab-del';
       del.textContent = '×';
-      del.title = 'Kategorie löschen';
+      del.title = 'Aus diesem Training entfernen';
       del.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!confirm('Kategorie „' + cat + '" entfernen? (Die bereits erfassten Daten bleiben in Backups erhalten, aber diese Kategorie wird nirgends mehr angezeigt.)')) return;
-        const updated = BT.storage.getShotCategories().filter(c => c !== cat);
-        BT.storage.setShotCategories(updated);
-        if (currentShotCategory === cat) currentShotCategory = updated[0] || null;
-        renderShotTabs();
-        renderShots();
+        removeCategoryFromTraining(cat);
       });
       tab.appendChild(del);
       tabs.appendChild(tab);
@@ -380,17 +375,112 @@ BT.training = (function() {
     addBtn.type = 'button';
     addBtn.className = 'shot-tab add';
     addBtn.textContent = '+ Kategorie';
-    addBtn.addEventListener('click', () => {
-      const name = (prompt('Name der neuen Kategorie (z.B. „Korbleger", „3er links"):', '') || '').trim();
-      if (!name) return;
-      const existing = BT.storage.getShotCategories();
-      if (existing.includes(name)) { alert('Diese Kategorie gibt es schon.'); return; }
-      BT.storage.setShotCategories(existing.concat([name]));
-      currentShotCategory = name;
-      renderShotTabs();
-      renderShots();
-    });
+    addBtn.addEventListener('click', toggleAddPanel);
     tabs.appendChild(addBtn);
+
+    renderAddPanel();
+  }
+
+  function renderAddPanel() {
+    let panel = detailRoot.querySelector('.shot-add-panel');
+    const tabsContainer = $('[data-role="shot-tabs"]', detailRoot);
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'shot-add-panel hidden';
+      tabsContainer.parentNode.insertBefore(panel, tabsContainer.nextSibling);
+    }
+
+    const trainingCatNames = new Set((currentTraining.shots || []).map(s => s.category));
+    const globalCats = BT.storage.getShotCategories();
+    const available = globalCats.filter(c => !trainingCatNames.has(c));
+
+    let html = '';
+    if (available.length > 0) {
+      html += '<div class="shot-add-suggestions"><span class="muted-label">Schnellauswahl:</span>';
+      for (const c of available) {
+        html += `<button type="button" class="shot-suggestion" data-suggest="${escapeHTML(c)}">+ ${escapeHTML(c)}</button>`;
+      }
+      html += '</div>';
+    }
+    html += `
+      <div class="shot-add-input">
+        <input type="text" placeholder="Neue Kategorie eingeben …" data-role="shot-new-name" maxlength="40">
+        <button type="button" class="btn small primary" data-action="add-new-cat">Hinzufügen</button>
+        <button type="button" class="btn small" data-action="cancel-add">Abbrechen</button>
+      </div>
+    `;
+    panel.innerHTML = html;
+
+    $$('.shot-suggestion', panel).forEach(btn => {
+      btn.addEventListener('click', () => {
+        addCategoryToTraining(btn.dataset.suggest, false);
+        panel.classList.add('hidden');
+      });
+    });
+
+    $('[data-action="add-new-cat"]', panel).addEventListener('click', () => {
+      const inp = $('[data-role="shot-new-name"]', panel);
+      const name = (inp.value || '').trim();
+      if (!name) return;
+      addCategoryToTraining(name, true);
+      panel.classList.add('hidden');
+      inp.value = '';
+    });
+
+    $('[data-action="cancel-add"]', panel).addEventListener('click', () => {
+      panel.classList.add('hidden');
+    });
+
+    const inp = $('[data-role="shot-new-name"]', panel);
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('[data-action="add-new-cat"]', panel).click();
+      }
+    });
+  }
+
+  function toggleAddPanel() {
+    const panel = detailRoot.querySelector('.shot-add-panel');
+    if (!panel) return;
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+      const inp = $('[data-role="shot-new-name"]', panel);
+      if (inp) setTimeout(() => inp.focus(), 50);
+    }
+  }
+
+  function addCategoryToTraining(name, addToGlobal) {
+    if (!currentTraining.shots) currentTraining.shots = [];
+    if (currentTraining.shots.find(s => s.category === name)) return;
+    currentTraining.shots.push({ category: name, entries: [] });
+    if (addToGlobal) {
+      const globals = BT.storage.getShotCategories();
+      if (!globals.includes(name)) {
+        globals.push(name);
+        BT.storage.setShotCategories(globals);
+      }
+    }
+    save();
+    currentShotCategory = name;
+    renderShotTabs();
+    renderShots();
+  }
+
+  function removeCategoryFromTraining(name) {
+    const cat = (currentTraining.shots || []).find(s => s.category === name);
+    const hasData = cat && (cat.entries || []).some(en => (en.attempted || 0) > 0);
+    const msg = hasData
+      ? 'Kategorie „' + name + '" aus diesem Training entfernen? Die bereits erfassten Daten gehen verloren!'
+      : 'Kategorie „' + name + '" aus diesem Training entfernen?';
+    if (!confirm(msg)) return;
+    currentTraining.shots = (currentTraining.shots || []).filter(s => s.category !== name);
+    save();
+    if (currentShotCategory === name) {
+      currentShotCategory = ((currentTraining.shots[0] || {}).category) || null;
+    }
+    renderShotTabs();
+    renderShots();
   }
 
   function renderShots() {
@@ -402,7 +492,7 @@ BT.training = (function() {
 
     if (!currentShotCategory) {
       empty.classList.remove('hidden');
-      empty.textContent = 'Bitte zuerst eine Wurf-Kategorie anlegen.';
+      empty.textContent = 'Keine Wurf-Kategorie für dieses Training. Tippe oben auf „+ Kategorie", um eine hinzuzufügen.';
       return;
     }
 
