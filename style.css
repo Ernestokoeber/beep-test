@@ -731,6 +731,52 @@ table.results tr:last-child td { border-bottom: none; }
 
 .ft-input:focus { outline: 2px solid var(--primary); }
 
+.shot-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px 0;
+}
+
+.shot-tab {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.shot-tab:hover { background: var(--border); }
+
+.shot-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.shot-tab.add {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+}
+
+.shot-tab-del {
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.7;
+  padding: 0 2px;
+  border-radius: 4px;
+}
+
+.shot-tab-del:hover { opacity: 1; background: rgba(0,0,0,0.2); }
+
 @media (max-width: 500px) {
   .level-box .value { font-size: 44px; }
   .shuttle-box .value, .speed-box .value { font-size: 24px; }

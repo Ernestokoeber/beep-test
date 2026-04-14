@@ -157,6 +157,18 @@ BT.storage = (function() {
     save(data);
   }
 
+  const DEFAULT_SHOT_CATEGORIES = ['Layup', 'Mitteldistanz', '3er'];
+
+  function getShotCategories() {
+    const cats = getSetting('shotCategories', null);
+    if (!Array.isArray(cats) || cats.length === 0) return DEFAULT_SHOT_CATEGORIES.slice();
+    return cats.slice();
+  }
+
+  function setShotCategories(list) {
+    setSetting('shotCategories', list.slice());
+  }
+
   function getFreethrows() {
     return load().freethrows.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }
@@ -190,6 +202,7 @@ BT.storage = (function() {
     getTrainings, getTraining, upsertTraining, deleteTraining,
     getNotes, getNote, upsertNote, deleteNote,
     getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,
+    getShotCategories, setShotCategories,
     getSetting, setSetting
   };
 })();

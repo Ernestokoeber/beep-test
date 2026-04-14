@@ -39,11 +39,6 @@
     } else if (hash.startsWith('#/training/')) {
       const id = hash.slice('#/training/'.length);
       BT.training.renderDetail(app, id);
-    } else if (hash === '#/freethrows') {
-      BT.freethrows.renderList(app);
-    } else if (hash.startsWith('#/freethrows/')) {
-      const id = hash.slice('#/freethrows/'.length);
-      BT.freethrows.renderDetail(app, id);
     } else if (hash === '#/notes') {
       BT.notes.renderList(app);
     } else if (hash.startsWith('#/notes/')) {
@@ -68,8 +63,6 @@
       document.querySelector('[data-nav="training"]').classList.add('active');
     } else if (hash.startsWith('#/test')) {
       document.querySelector('[data-nav="setup"]').classList.add('active');
-    } else if (hash.startsWith('#/freethrows')) {
-      document.querySelector('[data-nav="freethrows"]').classList.add('active');
     } else if (hash.startsWith('#/notes')) {
       document.querySelector('[data-nav="notes"]').classList.add('active');
     } else if (hash.startsWith('#/history')) {
