@@ -126,6 +126,7 @@ BT.training = (function() {
       save();
     });
 
+    $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
     $('[data-action="export-csv"]', detailRoot).addEventListener('click', () => exportCSV(currentTraining));
     $('[data-action="export-json"]', detailRoot).addEventListener('click', () => exportJSON(currentTraining));
     $('[data-action="delete"]', detailRoot).addEventListener('click', () => {
@@ -133,6 +134,8 @@ BT.training = (function() {
       BT.storage.deleteTraining(currentTraining.id);
       location.hash = '#/training';
     });
+
+    setupTimer();
 
     renderAttendance();
     renderSummary();
@@ -456,6 +459,139 @@ BT.training = (function() {
 
   function save() {
     BT.storage.upsertTraining(currentTraining);
+  }
+
+  let timerEndTs = 0, timerRaf = 0, timerSelectedSec = 0;
+
+  function setupTimer() {
+    const display = $('[data-role="timer-display"]', detailRoot);
+    const customInput = $('[data-role="timer-custom"]', detailRoot);
+
+    $$('[data-timer]', detailRoot).forEach(btn => {
+      btn.addEventListener('click', () => {
+        timerSelectedSec = parseInt(btn.dataset.timer, 10) || 0;
+        customInput.value = '';
+        display.textContent = formatTime(timerSelectedSec);
+      });
+    });
+
+    customInput.addEventListener('input', () => {
+      const min = parseInt(customInput.value, 10) || 0;
+      timerSelectedSec = Math.max(0, min) * 60;
+      display.textContent = formatTime(timerSelectedSec);
+    });
+
+    $('[data-timer-action="start"]', detailRoot).addEventListener('click', () => {
+      if (timerSelectedSec <= 0) return;
+      BT.audio.ensureContext();
+      timerEndTs = performance.now() + timerSelectedSec * 1000;
+      tickTimer();
+    });
+    $('[data-timer-action="stop"]', detailRoot).addEventListener('click', stopTimer);
+  }
+
+  function tickTimer() {
+    const display = $('[data-role="timer-display"]', detailRoot);
+    if (!display) { stopTimer(); return; }
+    const remainMs = timerEndTs - performance.now();
+    if (remainMs <= 0) {
+      display.textContent = '00:00';
+      display.classList.add('done');
+      BT.audio.startBeep();
+      setTimeout(() => BT.audio.startBeep(), 250);
+      setTimeout(() => BT.audio.startBeep(), 500);
+      stopTimer();
+      setTimeout(() => display.classList.remove('done'), 2500);
+      return;
+    }
+    display.textContent = formatTime(Math.ceil(remainMs / 1000));
+    timerRaf = requestAnimationFrame(tickTimer);
+  }
+
+  function stopTimer() {
+    if (timerRaf) cancelAnimationFrame(timerRaf);
+    timerRaf = 0;
+  }
+
+  function formatTime(totalSec) {
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function buildSummaryText(training) {
+    const allPlayers = BT.storage.getPlayers();
+    const nameOf = id => (allPlayers.find(p => p.id === id) || {}).name || '?';
+    const att = (training.attendance || []);
+    const present = att.filter(a => a.status === 'present');
+    const absent = att.filter(a => a.status === 'absent');
+    const excused = att.filter(a => a.status === 'excused');
+    const injured = att.filter(a => a.status === 'injured');
+    const late = att.filter(a => a.late && a.status === 'present');
+
+    const lines = [];
+    lines.push('🏀 Training ' + formatDate(training.date) + (training.startTime ? ' · ' + training.startTime : ''));
+    lines.push('');
+    lines.push('Anwesend: ' + present.length + '/' + att.length);
+    if (excused.length) lines.push('Entschuldigt: ' + excused.map(a => nameOf(a.playerId)).join(', '));
+    if (injured.length) lines.push('Verletzt: ' + injured.map(a => nameOf(a.playerId)).join(', '));
+    if (absent.length) lines.push('Abwesend: ' + absent.map(a => nameOf(a.playerId)).join(', '));
+    if (late.length) lines.push('Zu spät: ' + late.map(a => nameOf(a.playerId)).join(', '));
+
+    const presentIds = new Set(present.map(a => a.playerId));
+    const fts = (training.freethrows || []).filter(e => presentIds.has(e.playerId) && (e.attempted || 0) > 0);
+    if (fts.length > 0) {
+      let m = 0, a = 0;
+      for (const e of fts) { m += e.made; a += e.attempted; }
+      lines.push('');
+      lines.push('Freiwürfe: ' + m + '/' + a + ' (' + pct(m, a) + '%)');
+      const top = fts.slice().sort((x, y) => pct(y.made, y.attempted) - pct(x.made, x.attempted)).slice(0, 3);
+      const topStr = top.map(e => nameOf(e.playerId) + ' ' + e.made + '/' + e.attempted).join(', ');
+      if (topStr) lines.push('Top: ' + topStr);
+    }
+
+    const shotLines = [];
+    for (const cat of (training.shots || [])) {
+      const entries = (cat.entries || []).filter(e => presentIds.has(e.playerId) && (e.attempted || 0) > 0);
+      if (entries.length === 0) continue;
+      let m = 0, a = 0;
+      for (const e of entries) { m += e.made; a += e.attempted; }
+      shotLines.push('· ' + cat.category + ': ' + m + '/' + a + ' (' + pct(m, a) + '%)');
+    }
+    if (shotLines.length > 0) {
+      lines.push('');
+      lines.push('Würfe:');
+      lines.push.apply(lines, shotLines);
+    }
+
+    if (training.note) {
+      lines.push('');
+      lines.push('📝 ' + training.note);
+    }
+
+    return lines.join('\n');
+  }
+
+  async function shareSummary(training) {
+    const text = buildSummaryText(training);
+    const title = 'Training ' + formatDate(training.date);
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('In Zwischenablage kopiert — kannst du jetzt in WhatsApp einfügen.');
+        return;
+      } catch (e) {}
+    }
+    prompt('Kopiere den Text:', text);
   }
 
   function exportCSV(training) {

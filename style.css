@@ -827,6 +827,57 @@ table.results tr:last-child td { border-bottom: none; }
 
 .cat-name { font-weight: 700; color: var(--cta); }
 
+.timer-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+
+.timer-display {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 400;
+  letter-spacing: 4px;
+  color: var(--cta);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 12px;
+}
+
+.timer-display.done {
+  color: var(--primary);
+  animation: pulse 0.5s ease-in-out 5;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.timer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+}
+
+.timer-custom {
+  width: 70px;
+  background: var(--surface);
+  border: 1px solid #d1d5db;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  text-align: center;
+}
+
 @media (max-width: 480px) {
   .ranking li { grid-template-columns: 24px 1fr 60px auto; gap: 6px; font-size: 13px; }
   .dash-big { font-size: 30px; }

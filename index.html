@@ -197,6 +197,7 @@
           <h2 data-role="title">Training</h2>
         </div>
         <div>
+          <button class="btn small primary" data-action="share-summary">📤 Teilen</button>
           <button class="btn small" data-action="export-csv">CSV</button>
           <button class="btn small" data-action="export-json">JSON</button>
           <button class="btn small danger" data-action="delete">Löschen</button>
@@ -206,6 +207,19 @@
       <div class="form-row">
         <label>Datum<input type="date" data-role="date" required></label>
         <label>Startzeit<input type="time" data-role="time" required></label>
+      </div>
+
+      <div class="timer-box" data-role="timer-box">
+        <div class="timer-display" data-role="timer-display">00:00</div>
+        <div class="timer-controls">
+          <button class="btn small" data-timer="60">1 min</button>
+          <button class="btn small" data-timer="180">3 min</button>
+          <button class="btn small" data-timer="300">5 min</button>
+          <button class="btn small" data-timer="600">10 min</button>
+          <input type="number" class="timer-custom" data-role="timer-custom" min="1" max="60" placeholder="min" step="1">
+          <button class="btn small primary" data-timer-action="start">Start</button>
+          <button class="btn small" data-timer-action="stop">Stop</button>
+        </div>
       </div>
       <label class="block-label">Notiz zum Training
         <textarea data-role="note" rows="2" placeholder="z.B. Schwerpunkt Verteidigung"></textarea>
