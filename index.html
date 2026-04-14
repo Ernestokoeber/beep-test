@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BeepTest">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>Beep-Test</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Beep-Test</h1>
+    <nav>
+      <a href="#/players" data-nav="players">Spieler</a>
+      <a href="#/test/setup" data-nav="setup">Test starten</a>
+      <a href="#/history" data-nav="history">Historie</a>
+    </nav>
+  </header>
+
+  <main id="app"></main>
+
+  <template id="tpl-players">
+    <section class="view">
+      <div class="section-head">
+        <h2>Spielerverwaltung</h2>
+        <button class="btn primary" data-action="new-player">+ Neuer Spieler</button>
+      </div>
+
+      <form class="player-form hidden" data-role="player-form">
+        <input type="hidden" name="id">
+        <div class="form-row">
+          <label>Name *<input name="name" type="text" required maxlength="60"></label>
+          <label>Geburtsdatum<input name="birthDate" type="date"></label>
+          <label>Position<input name="position" type="text" maxlength="40" placeholder="z.B. Mittelfeld"></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Speichern</button>
+          <button type="button" class="btn" data-action="cancel">Abbrechen</button>
+        </div>
+      </form>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="active">Aktiv</button>
+        <button class="tab" data-tab="archived">Archiv</button>
+      </div>
+
+      <ul class="player-list" data-role="player-list"></ul>
+      <p class="empty hidden" data-role="empty">Noch keine Spieler angelegt.</p>
+    </section>
+  </template>
+
+  <template id="tpl-setup">
+    <section class="view">
+      <div class="section-head">
+        <h2>Test vorbereiten</h2>
+        <a href="#/players" class="btn">← Zurück</a>
+      </div>
+      <form class="setup-form" data-role="setup-form">
+        <div class="form-row">
+          <label>Datum<input name="date" type="date" required></label>
+          <label>Rundenlänge (m)<input name="distance" type="number" min="5" max="50" step="0.5" required></label>
+          <label class="grow">Notiz<input name="note" type="text" maxlength="100" placeholder="z.B. Vorbereitungstraining"></label>
+        </div>
+        <p class="muted">Standard: 20 m. Bei anderer Länge werden die Beep-Intervalle automatisch angepasst.</p>
+
+        <div class="select-head">
+          <h3>Teilnehmer auswählen</h3>
+          <div>
+            <button type="button" class="btn small" data-action="select-all">Alle</button>
+            <button type="button" class="btn small" data-action="select-none">Keinen</button>
+          </div>
+        </div>
+        <ul class="select-list" data-role="select-list"></ul>
+        <p class="empty hidden" data-role="no-players">Bitte zuerst Spieler anlegen.</p>
+
+        <div class="form-actions">
+          <button type="submit" class="btn primary big" data-role="start-btn">Test starten</button>
+        </div>
+      </form>
+    </section>
+  </template>
+
+  <template id="tpl-run">
+    <section class="view test-run">
+      <div class="section-head">
+        <button class="btn" data-action="back">← Verlassen</button>
+        <label class="toggle"><input type="checkbox" data-role="voice" checked> Sprachansage</label>
+      </div>
+      <div class="test-display">
+        <div class="level-box">
+          <div class="label">Level</div>
+          <div class="value" data-role="level">1</div>
+        </div>
+        <div class="shuttle-box">
+          <div class="label">Shuttle</div>
+          <div class="value"><span data-role="shuttle">0</span>/<span data-role="shuttle-max">7</span></div>
+        </div>
+        <div class="speed-box">
+          <div class="label">Tempo</div>
+          <div class="value"><span data-role="speed">8.0</span> km/h</div>
+        </div>
+      </div>
+
+      <div class="progress">
+        <div class="bar" data-role="progress-bar"></div>
+      </div>
+      <div class="next-beep">Nächster Beep in <span data-role="countdown">0.0</span> s · Runde: <span data-role="distance">20</span> m</div>
+
+      <div class="test-controls">
+        <button class="btn primary big" data-action="start">Start</button>
+        <button class="btn big" data-action="pause" disabled>Pause</button>
+        <button class="btn danger" data-action="stop" disabled>Stop</button>
+      </div>
+
+      <h3>Aktive Läufer (<span data-role="active-count">0</span>)</h3>
+      <ul class="runner-list" data-role="active-runners"></ul>
+
+      <h3>Ausgeschieden (<span data-role="out-count">0</span>)</h3>
+      <ul class="runner-list out" data-role="out-runners"></ul>
+    </section>
+  </template>
+
+  <template id="tpl-history">
+    <section class="view">
+      <div class="section-head">
+        <h2>Historie</h2>
+        <div>
+          <button class="btn small" data-action="export-backup">Backup exportieren</button>
+          <button class="btn small" data-action="import-backup">Backup importieren</button>
+        </div>
+      </div>
+      <ul class="session-list" data-role="session-list"></ul>
+      <p class="empty hidden" data-role="empty">Noch keine Tests absolviert.</p>
+    </section>
+  </template>
+
+  <template id="tpl-player-detail">
+    <section class="view">
+      <div class="section-head">
+        <div class="head-left">
+          <a href="#/players" class="btn">← Zurück</a>
+          <h2 data-role="name">Spieler</h2>
+        </div>
+      </div>
+      <p class="muted" data-role="meta"></p>
+
+      <h3>Verlauf</h3>
+      <div class="chart-wrap" data-role="chart"></div>
+      <p class="empty hidden" data-role="no-data">Noch keine Testergebnisse für diesen Spieler.</p>
+
+      <h3>Alle Ergebnisse</h3>
+      <table class="results">
+        <thead>
+          <tr><th>Datum</th><th>Level</th><th>Shuttle</th><th>Gesamt</th><th>Runde</th></tr>
+        </thead>
+        <tbody data-role="rows"></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-session">
+    <section class="view">
+      <div class="section-head">
+        <div class="head-left">
+          <a href="#/history" class="btn">← Zurück</a>
+          <h2 data-role="title">Test</h2>
+        </div>
+        <div>
+          <button class="btn" data-action="export-csv">CSV exportieren</button>
+          <button class="btn danger" data-action="delete">Löschen</button>
+        </div>
+      </div>
+      <p class="muted" data-role="meta"></p>
+      <table class="results">
+        <thead>
+          <tr><th>#</th><th>Spieler</th><th>Level</th><th>Shuttle</th><th>Gesamt-Shuttles</th></tr>
+        </thead>
+        <tbody data-role="rows"></tbody>
+      </table>
+    </section>
+  </template>
+
+  <script src="js/util.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/players.js"></script>
+  <script src="js/test.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

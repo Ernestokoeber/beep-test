@@ -1,0 +1,384 @@
+window.BT = window.BT || {};
+
+BT.test = (function() {
+  const { $, $$, renderTemplate, todayISO, escapeHTML } = BT.util;
+
+  let setupRoot, runRoot;
+  let selectedIds = new Set();
+  let wakeLock = null;
+
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      }
+    } catch (e) { console.warn('Wake Lock nicht verfügbar:', e.message); }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && runState && runState.running && !wakeLock) {
+      requestWakeLock();
+    }
+  });
+
+  // === SETUP VIEW ===
+  function renderSetup(target) {
+    setupRoot = renderTemplate('tpl-setup');
+    target.appendChild(setupRoot);
+
+    const form = $('[data-role="setup-form"]', setupRoot);
+    form.elements.date.value = todayISO();
+    form.elements.distance.value = BT.storage.getSetting('lastDistance', BT.levels.DEFAULT_DISTANCE_M);
+    form.addEventListener('submit', onStart);
+
+    $('[data-action="select-all"]', setupRoot).addEventListener('click', () => {
+      BT.storage.getPlayers().filter(p => !p.archived).forEach(p => selectedIds.add(p.id));
+      renderSelectList();
+    });
+    $('[data-action="select-none"]', setupRoot).addEventListener('click', () => {
+      selectedIds.clear();
+      renderSelectList();
+    });
+
+    selectedIds = new Set();
+    renderSelectList();
+  }
+
+  function renderSelectList() {
+    const list = $('[data-role="select-list"]', setupRoot);
+    const noPlayers = $('[data-role="no-players"]', setupRoot);
+    const startBtn = $('[data-role="start-btn"]', setupRoot);
+    const players = BT.storage.getPlayers()
+      .filter(p => !p.archived)
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
+    list.innerHTML = '';
+    if (players.length === 0) {
+      noPlayers.classList.remove('hidden');
+      startBtn.disabled = true;
+      return;
+    }
+    noPlayers.classList.add('hidden');
+
+    for (const p of players) {
+      const li = document.createElement('li');
+      const checked = selectedIds.has(p.id);
+      if (checked) li.classList.add('selected');
+      li.innerHTML = `
+        <input type="checkbox" ${checked ? 'checked' : ''}>
+        <span>${escapeHTML(p.name)}${p.position ? ' <span class="muted">(' + escapeHTML(p.position) + ')</span>' : ''}</span>
+      `;
+      const cb = li.querySelector('input');
+      const toggle = (e) => {
+        if (e.target !== cb) cb.checked = !cb.checked;
+        if (cb.checked) selectedIds.add(p.id); else selectedIds.delete(p.id);
+        li.classList.toggle('selected', cb.checked);
+        updateStartBtn();
+      };
+      li.addEventListener('click', toggle);
+      list.appendChild(li);
+    }
+    updateStartBtn();
+  }
+
+  function updateStartBtn() {
+    const startBtn = $('[data-role="start-btn"]', setupRoot);
+    startBtn.disabled = selectedIds.size === 0;
+    startBtn.textContent = selectedIds.size === 0
+      ? 'Test starten'
+      : `Test starten (${selectedIds.size} Teilnehmer)`;
+  }
+
+  function onStart(e) {
+    e.preventDefault();
+    if (selectedIds.size === 0) return;
+    const f = e.target;
+    const distanceM = parseFloat(f.elements.distance.value) || BT.levels.DEFAULT_DISTANCE_M;
+    BT.storage.setSetting('lastDistance', distanceM);
+    const session = BT.storage.createSession({
+      date: f.elements.date.value,
+      note: f.elements.note.value.trim() || null,
+      distanceM,
+      participants: Array.from(selectedIds),
+      results: []
+    });
+    location.hash = '#/test/run/' + session.id;
+  }
+
+  // === RUN VIEW ===
+  let runState = null;
+
+  function renderRun(target, sessionId) {
+    runRoot = renderTemplate('tpl-run');
+    target.appendChild(runRoot);
+
+    const session = BT.storage.getSession(sessionId);
+    if (!session) { location.hash = '#/history'; return; }
+
+    runState = {
+      sessionId,
+      session,
+      running: false,
+      paused: false,
+      startTime: 0,
+      pauseOffset: 0,
+      pausedAt: 0,
+      currentLevel: 1,
+      currentShuttle: 0,
+      nextShuttleTime: 0,
+      totalShuttlesDone: 0,
+      active: new Map(),
+      out: [],
+      rafId: null
+    };
+
+    const players = BT.storage.getPlayers();
+    for (const pid of session.participants) {
+      const p = players.find(x => x.id === pid);
+      if (p) runState.active.set(pid, p);
+    }
+
+    if (session.results && session.results.length > 0) {
+      for (const r of session.results) {
+        runState.active.delete(r.playerId);
+        runState.out.push(r);
+      }
+    }
+
+    $('[data-action="start"]', runRoot).addEventListener('click', start);
+    $('[data-action="pause"]', runRoot).addEventListener('click', togglePause);
+    $('[data-action="stop"]', runRoot).addEventListener('click', stop);
+    $('[data-action="back"]', runRoot).addEventListener('click', () => {
+      if (runState && runState.running) {
+        if (!confirm('Der Test läuft noch. Wirklich verlassen? Aktive Läufer werden als "Test beendet" gespeichert.')) return;
+        finishTest();
+      } else {
+        location.hash = '#/history';
+      }
+    });
+
+    const distanceEl = $('[data-role="distance"]', runRoot);
+    if (distanceEl) distanceEl.textContent = (runState.session.distanceM || BT.levels.DEFAULT_DISTANCE_M);
+
+    const voiceToggle = $('[data-role="voice"]', runRoot);
+    voiceToggle.checked = BT.storage.getSetting('voiceEnabled', true);
+    voiceToggle.addEventListener('change', () => {
+      BT.storage.setSetting('voiceEnabled', voiceToggle.checked);
+    });
+
+    updateDisplay();
+    renderRunners();
+  }
+
+  function start() {
+    if (runState.running) return;
+    BT.audio.ensureContext();
+    BT.audio.startBeep();
+    requestWakeLock();
+
+    runState.running = true;
+    runState.paused = false;
+    const level = BT.levels.get(runState.currentLevel);
+    const now = performance.now() / 1000;
+    runState.startTime = now + 3;
+    runState.nextShuttleTime = runState.startTime + BT.levels.shuttleDuration(level, runState.session.distanceM);
+    runState.currentShuttle = 0;
+    runState.pauseOffset = 0;
+
+    $('[data-action="start"]', runRoot).disabled = true;
+    $('[data-action="pause"]', runRoot).disabled = false;
+    $('[data-action="stop"]', runRoot).disabled = false;
+
+    setTimeout(() => {
+      if (runState && runState.running) BT.audio.shuttleBeep();
+    }, 3000);
+
+    tick();
+  }
+
+  function togglePause() {
+    const btn = $('[data-action="pause"]', runRoot);
+    if (runState.paused) {
+      const now = performance.now() / 1000;
+      const delta = now - runState.pausedAt;
+      runState.nextShuttleTime += delta;
+      runState.startTime += delta;
+      runState.paused = false;
+      btn.textContent = 'Pause';
+      tick();
+    } else {
+      runState.paused = true;
+      runState.pausedAt = performance.now() / 1000;
+      btn.textContent = 'Weiter';
+      if (runState.rafId) cancelAnimationFrame(runState.rafId);
+    }
+  }
+
+  function stop() {
+    if (!confirm('Test wirklich beenden?')) return;
+    finishTest();
+  }
+
+  function finishTest() {
+    runState.running = false;
+    releaseWakeLock();
+    if (runState.rafId) cancelAnimationFrame(runState.rafId);
+
+    for (const [pid] of runState.active) {
+      recordResult(pid, 'dnf');
+    }
+    runState.active.clear();
+
+    const session = BT.storage.getSession(runState.sessionId);
+    if (session) {
+      session.endedAt = new Date().toISOString();
+      BT.storage.updateSession(session);
+    }
+
+    $('[data-action="start"]', runRoot).disabled = true;
+    $('[data-action="pause"]', runRoot).disabled = true;
+    $('[data-action="stop"]', runRoot).disabled = true;
+
+    renderRunners();
+    setTimeout(() => { location.hash = '#/history/' + runState.sessionId; }, 600);
+  }
+
+  function tick() {
+    if (!runState.running || runState.paused) return;
+    const now = performance.now() / 1000;
+
+    while (now >= runState.nextShuttleTime && runState.running) {
+      onShuttleEnd();
+      if (!runState.running) break;
+    }
+
+    updateCountdown(now);
+    runState.rafId = requestAnimationFrame(tick);
+  }
+
+  function onShuttleEnd() {
+    const level = BT.levels.get(runState.currentLevel);
+    runState.currentShuttle += 1;
+    runState.totalShuttlesDone += 1;
+
+    if (runState.currentShuttle >= level.shuttles) {
+      const nextLevelNum = runState.currentLevel + 1;
+      const nextLevel = BT.levels.get(nextLevelNum);
+      if (!nextLevel) {
+        BT.audio.levelBeep();
+        finishTest();
+        return;
+      }
+      runState.currentLevel = nextLevelNum;
+      runState.currentShuttle = 0;
+      runState.nextShuttleTime += BT.levels.shuttleDuration(nextLevel, runState.session.distanceM);
+      BT.audio.levelBeep();
+      if (BT.storage.getSetting('voiceEnabled', true)) {
+        setTimeout(() => BT.audio.announceLevel(nextLevelNum), 500);
+      }
+    } else {
+      runState.nextShuttleTime += BT.levels.shuttleDuration(level, runState.session.distanceM);
+      BT.audio.shuttleBeep();
+    }
+
+    updateDisplay();
+  }
+
+  function updateDisplay() {
+    const level = BT.levels.get(runState.currentLevel);
+    $('[data-role="level"]', runRoot).textContent = runState.currentLevel;
+    $('[data-role="shuttle"]', runRoot).textContent = runState.currentShuttle;
+    $('[data-role="shuttle-max"]', runRoot).textContent = level.shuttles;
+    $('[data-role="speed"]', runRoot).textContent = level.speedKmh.toFixed(1);
+  }
+
+  function updateCountdown(now) {
+    const level = BT.levels.get(runState.currentLevel);
+    const duration = BT.levels.shuttleDuration(level, runState.session.distanceM);
+    const remaining = Math.max(0, runState.nextShuttleTime - now);
+    const progress = Math.max(0, Math.min(100, (1 - remaining / duration) * 100));
+    $('[data-role="progress-bar"]', runRoot).style.width = progress + '%';
+    $('[data-role="countdown"]', runRoot).textContent = remaining.toFixed(1);
+  }
+
+  function recordResult(playerId, reason) {
+    const level = runState.currentLevel;
+    const shuttle = runState.currentShuttle;
+    const totalShuttles = BT.levels.totalShuttlesBefore(level) + shuttle;
+    const result = {
+      playerId,
+      level,
+      shuttle,
+      totalShuttles,
+      reason: reason || 'out',
+      droppedAtSec: runState.running
+        ? Math.round((performance.now() / 1000 - runState.startTime) * 10) / 10
+        : null
+    };
+    runState.out.push(result);
+
+    const session = BT.storage.getSession(runState.sessionId);
+    if (session) {
+      session.results.push(result);
+      BT.storage.updateSession(session);
+    }
+  }
+
+  function markOut(playerId) {
+    if (!runState.active.has(playerId)) return;
+    recordResult(playerId, 'out');
+    runState.active.delete(playerId);
+    renderRunners();
+    if (runState.active.size === 0 && runState.running) {
+      finishTest();
+    }
+  }
+
+  function renderRunners() {
+    const activeList = $('[data-role="active-runners"]', runRoot);
+    const outList = $('[data-role="out-runners"]', runRoot);
+    $('[data-role="active-count"]', runRoot).textContent = runState.active.size;
+    $('[data-role="out-count"]', runRoot).textContent = runState.out.length;
+
+    activeList.innerHTML = '';
+    const activeSorted = Array.from(runState.active.values())
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    for (const p of activeSorted) {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span class="name">${escapeHTML(p.name)}</span>
+        <button class="out-btn" data-pid="${p.id}">Raus</button>
+      `;
+      li.querySelector('.out-btn').addEventListener('click', () => markOut(p.id));
+      activeList.appendChild(li);
+    }
+
+    outList.innerHTML = '';
+    const allPlayers = BT.storage.getPlayers();
+    const outSorted = runState.out.slice()
+      .sort((a, b) => b.totalShuttles - a.totalShuttles);
+    for (const r of outSorted) {
+      const p = allPlayers.find(x => x.id === r.playerId);
+      const li = document.createElement('li');
+      const reasonLabel = r.reason === 'dnf' ? ' (Test beendet)' : '';
+      li.innerHTML = `
+        <span class="name">${escapeHTML(p ? p.name : '?')}</span>
+        <span class="result">Level ${r.level} · Shuttle ${r.shuttle}${reasonLabel}</span>
+      `;
+      outList.appendChild(li);
+    }
+  }
+
+  function cleanup() {
+    if (runState && runState.rafId) cancelAnimationFrame(runState.rafId);
+    releaseWakeLock();
+    runState = null;
+  }
+
+  return { renderSetup, renderRun, cleanup };
+})();
