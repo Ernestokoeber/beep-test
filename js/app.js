@@ -18,6 +18,11 @@
     } else if (hash.startsWith('#/test/run/')) {
       const id = hash.slice('#/test/run/'.length);
       BT.test.renderRun(app, id);
+    } else if (hash === '#/training') {
+      BT.training.renderList(app);
+    } else if (hash.startsWith('#/training/')) {
+      const id = hash.slice('#/training/'.length);
+      BT.training.renderDetail(app, id);
     } else if (hash === '#/history') {
       BT.history.renderList(app);
     } else if (hash.startsWith('#/history/')) {
@@ -33,6 +38,8 @@
     links.forEach(a => a.classList.remove('active'));
     if (hash.startsWith('#/players') || hash.startsWith('#/player/') || hash === '#/') {
       document.querySelector('[data-nav="players"]').classList.add('active');
+    } else if (hash.startsWith('#/training')) {
+      document.querySelector('[data-nav="training"]').classList.add('active');
     } else if (hash.startsWith('#/test')) {
       document.querySelector('[data-nav="setup"]').classList.add('active');
     } else if (hash.startsWith('#/history')) {

@@ -18,7 +18,8 @@
     <h1>Beep-Test</h1>
     <nav>
       <a href="#/players" data-nav="players">Spieler</a>
-      <a href="#/test/setup" data-nav="setup">Test starten</a>
+      <a href="#/training" data-nav="training">Training</a>
+      <a href="#/test/setup" data-nav="setup">Beep-Test</a>
       <a href="#/history" data-nav="history">Historie</a>
     </nav>
   </header>
@@ -126,6 +127,48 @@
     </section>
   </template>
 
+  <template id="tpl-training-list">
+    <section class="view">
+      <div class="section-head">
+        <h2>Training</h2>
+        <button class="btn primary" data-action="new-training">+ Neues Training</button>
+      </div>
+      <ul class="session-list" data-role="list"></ul>
+      <p class="empty hidden" data-role="empty">Noch keine Trainings erfasst.</p>
+    </section>
+  </template>
+
+  <template id="tpl-training-detail">
+    <section class="view">
+      <div class="section-head">
+        <div class="head-left">
+          <a href="#/training" class="btn">← Zurück</a>
+          <h2 data-role="title">Training</h2>
+        </div>
+        <div>
+          <button class="btn small" data-action="export-csv">CSV</button>
+          <button class="btn small" data-action="export-json">JSON</button>
+          <button class="btn small danger" data-action="delete">Löschen</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Datum<input type="date" data-role="date" required></label>
+        <label>Startzeit<input type="time" data-role="time" required></label>
+      </div>
+      <label class="block-label">Notiz zum Training
+        <textarea data-role="note" rows="2" placeholder="z.B. Schwerpunkt Verteidigung"></textarea>
+      </label>
+
+      <div class="att-summary" data-role="summary"></div>
+
+      <h3>Anwesenheit</h3>
+      <ul class="attendance-list" data-role="attendance"></ul>
+
+      <p class="muted" data-role="saved-info">Änderungen werden automatisch gespeichert.</p>
+    </section>
+  </template>
+
   <template id="tpl-history">
     <section class="view">
       <div class="section-head">
@@ -192,6 +235,7 @@
   <script src="js/audio.js"></script>
   <script src="js/players.js"></script>
   <script src="js/test.js"></script>
+  <script src="js/training.js"></script>
   <script src="js/history.js"></script>
   <script src="js/app.js"></script>
 </body>

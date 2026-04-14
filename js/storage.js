@@ -11,6 +11,7 @@ BT.storage = (function() {
       if (!data.schemaVersion) return empty();
       data.players = data.players || [];
       data.sessions = data.sessions || [];
+      data.trainings = data.trainings || [];
       return data;
     } catch (e) {
       console.error('Storage load failed', e);
@@ -23,7 +24,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: 1, players: [], sessions: [], settings: {} };
+    return { schemaVersion: 1, players: [], sessions: [], trainings: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -98,10 +99,37 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getTrainings() {
+    return load().trainings.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }
+
+  function getTraining(id) { return load().trainings.find(t => t.id === id); }
+
+  function upsertTraining(training) {
+    const data = load();
+    if (training.id) {
+      const i = data.trainings.findIndex(t => t.id === training.id);
+      if (i >= 0) { data.trainings[i] = training; }
+    } else {
+      training.id = BT.util.uuid('tr_');
+      training.createdAt = new Date().toISOString();
+      data.trainings.push(training);
+    }
+    save(data);
+    return training;
+  }
+
+  function deleteTraining(id) {
+    const data = load();
+    data.trainings = data.trainings.filter(t => t.id !== id);
+    save(data);
+  }
+
   return {
     load, save,
     getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer,
     getSessions, getSession, createSession, updateSession, deleteSession,
+    getTrainings, getTraining, upsertTraining, deleteTraining,
     getSetting, setSetting
   };
 })();
