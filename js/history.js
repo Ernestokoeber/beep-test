@@ -163,5 +163,5 @@ BT.history = (function() {
     return Array.from(map.values());
   }
 
-  return { renderList, renderDetail };
+  return { renderList, renderDetail, shareBackup, exportBackup, importBackup };
 })();

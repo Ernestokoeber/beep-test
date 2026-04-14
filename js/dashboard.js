@@ -7,6 +7,8 @@ BT.dashboard = (function() {
     const root = renderTemplate('tpl-dashboard');
     target.appendChild(root);
 
+    $('[data-action="share-backup"]', root).addEventListener('click', () => BT.history.shareBackup());
+    $('[data-action="import-backup"]', root).addEventListener('click', () => BT.history.importBackup());
     $('[data-action="export-season-csv"]', root).addEventListener('click', exportSeasonCSV);
     $('[data-action="export-season-json"]', root).addEventListener('click', exportSeasonJSON);
 
