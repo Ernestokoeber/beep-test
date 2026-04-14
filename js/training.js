@@ -168,6 +168,7 @@ BT.training = (function() {
     setupTimer();
     renderPlanBox();
     setupSubnav();
+    setupShotMap();
 
     const resetBtn = $('[data-action="reset-attendance"]', detailRoot);
     if (resetBtn) {
@@ -604,9 +605,115 @@ BT.training = (function() {
         $$('.subnav-btn', detailRoot).forEach(b => b.classList.toggle('active', b === btn));
         $$('.pane', detailRoot).forEach(p => p.classList.toggle('hidden', p.dataset.pane !== target));
         if (target === 'notes') renderPlayerNotes();
+        if (target === 'map') renderShotMap();
         if (detailRoot && detailRoot.scrollIntoView) detailRoot.scrollIntoView({ block: 'start', behavior: 'instant' });
       });
     });
+  }
+
+  let mapMode = 'hit';
+
+  function setupShotMap() {
+    currentTraining.shotMap = currentTraining.shotMap || [];
+
+    const playerSelect = $('[data-role="map-player"]', detailRoot);
+    if (!playerSelect) return;
+
+    $$('[data-map-mode]', detailRoot).forEach(btn => {
+      btn.addEventListener('click', () => {
+        mapMode = btn.dataset.mapMode;
+        $$('[data-map-mode]', detailRoot).forEach(b => {
+          b.classList.toggle('primary', b === btn);
+          b.classList.toggle('danger', b !== btn && b.dataset.mapMode === 'miss');
+        });
+      });
+    });
+
+    const hit = $('[data-role="court-hit"]', detailRoot);
+    hit.addEventListener('click', (e) => {
+      const svg = $('[data-role="court-svg"]', detailRoot);
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      const local = pt.matrixTransform(ctm.inverse());
+      const playerId = playerSelect.value;
+      if (!playerId) { alert('Bitte zuerst einen Spieler wählen.'); return; }
+      currentTraining.shotMap.push({
+        playerId,
+        x: Math.round(local.x * 10) / 10,
+        y: Math.round(local.y * 10) / 10,
+        made: mapMode === 'hit',
+        ts: Date.now()
+      });
+      save();
+      renderShotMap();
+    });
+
+    $('[data-action="map-undo"]', detailRoot).addEventListener('click', () => {
+      const playerId = playerSelect.value;
+      const filtered = currentTraining.shotMap.filter(s => s.playerId === playerId);
+      if (filtered.length === 0) return;
+      const last = filtered[filtered.length - 1];
+      currentTraining.shotMap = currentTraining.shotMap.filter(s => s !== last);
+      save();
+      renderShotMap();
+    });
+
+    $('[data-action="map-clear"]', detailRoot).addEventListener('click', () => {
+      const playerId = playerSelect.value;
+      const playerName = (BT.storage.getPlayer(playerId) || {}).name || 'Spieler';
+      if (!confirm('Alle Würfe von ' + playerName + ' in diesem Training löschen?')) return;
+      currentTraining.shotMap = currentTraining.shotMap.filter(s => s.playerId !== playerId);
+      save();
+      renderShotMap();
+    });
+
+    playerSelect.addEventListener('change', renderShotMap);
+  }
+
+  function renderShotMap() {
+    const playerSelect = $('[data-role="map-player"]', detailRoot);
+    if (!playerSelect) return;
+
+    const presentIds = presentPlayerIds(currentTraining);
+    const allPlayers = BT.storage.getPlayers();
+    const presentPlayers = presentIds
+      .map(id => allPlayers.find(p => p.id === id))
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
+    const prev = playerSelect.value;
+    playerSelect.innerHTML = presentPlayers.length === 0
+      ? '<option value="">— Keine anwesenden Spieler —</option>'
+      : presentPlayers.map(p => `<option value="${p.id}">${escapeHTML(p.name)}</option>`).join('');
+    if (prev && presentPlayers.find(p => p.id === prev)) playerSelect.value = prev;
+
+    const playerId = playerSelect.value;
+    const shotsLayer = $('[data-role="court-shots"]', detailRoot);
+    shotsLayer.innerHTML = '';
+
+    const playerShots = (currentTraining.shotMap || []).filter(s => s.playerId === playerId);
+    let hits = 0, misses = 0;
+    for (const s of playerShots) {
+      if (s.made) {
+        shotsLayer.insertAdjacentHTML('beforeend', `<circle cx="${s.x}" cy="${s.y}" r="7" fill="rgba(0,128,0,0.7)" stroke="#004b2b" stroke-width="2"/>`);
+        hits++;
+      } else {
+        const x = s.x, y = s.y, r = 6;
+        shotsLayer.insertAdjacentHTML('beforeend',
+          `<line x1="${x-r}" y1="${y-r}" x2="${x+r}" y2="${y+r}" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>` +
+          `<line x1="${x-r}" y1="${y+r}" x2="${x+r}" y2="${y-r}" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>`
+        );
+        misses++;
+      }
+    }
+    const total = hits + misses;
+    const pctVal = total ? Math.round((hits / total) * 100) : 0;
+    const stats = $('[data-role="map-stats"]', detailRoot);
+    stats.innerHTML = total === 0
+      ? '<span class="muted">Tippe auf die Karte, um einen Wurf zu setzen. Modus oben umschalten (Treffer/Fehlwurf).</span>'
+      : `<span class="att-chip ok">✓ Treffer ${hits}</span><span class="att-chip bad">✗ Fehlwurf ${misses}</span><span class="att-chip">${pctVal}% (${hits}/${total})</span>`;
   }
 
   function renderPlayerNotes() {
