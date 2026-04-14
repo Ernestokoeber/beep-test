@@ -635,6 +635,102 @@ table.results tr:last-child td { border-bottom: none; }
 
 .note-body:focus { outline: 2px solid var(--primary); }
 
+.ft-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.ft-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ft-card {
+  background: var(--surface);
+  padding: 12px;
+  border-radius: 10px;
+  border-left: 4px solid var(--primary);
+}
+
+.ft-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.ft-head .name { font-weight: 600; font-size: 16px; }
+
+.ft-pct {
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-2);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.ft-row {
+  display: grid;
+  grid-template-columns: 80px 48px 1fr 48px;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.ft-label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.ft-btn {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 20px;
+  font-weight: 600;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  height: 44px;
+  user-select: none;
+}
+
+.ft-btn:active { background: var(--border); }
+.ft-btn.plus { background: var(--primary); border-color: var(--primary); color: white; }
+.ft-btn.plus:active { background: var(--primary-hover); }
+
+.ft-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+  height: 44px;
+  -moz-appearance: textfield;
+}
+
+.ft-input::-webkit-outer-spin-button,
+.ft-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ft-input:focus { outline: 2px solid var(--primary); }
+
 @media (max-width: 500px) {
   .level-box .value { font-size: 44px; }
   .shuttle-box .value, .speed-box .value { font-size: 24px; }

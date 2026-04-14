@@ -13,6 +13,7 @@ BT.storage = (function() {
       data.sessions = data.sessions || [];
       data.trainings = data.trainings || [];
       data.notes = data.notes || [];
+      data.freethrows = data.freethrows || [];
       return data;
     } catch (e) {
       console.error('Storage load failed', e);
@@ -25,7 +26,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: 1, players: [], sessions: [], trainings: [], notes: [], settings: {} };
+    return { schemaVersion: 1, players: [], sessions: [], trainings: [], notes: [], freethrows: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -156,12 +157,39 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getFreethrows() {
+    return load().freethrows.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }
+
+  function getFreethrow(id) { return load().freethrows.find(f => f.id === id); }
+
+  function upsertFreethrow(ft) {
+    const data = load();
+    if (ft.id) {
+      const i = data.freethrows.findIndex(f => f.id === ft.id);
+      if (i >= 0) data.freethrows[i] = ft;
+    } else {
+      ft.id = BT.util.uuid('ft_');
+      ft.createdAt = new Date().toISOString();
+      data.freethrows.push(ft);
+    }
+    save(data);
+    return ft;
+  }
+
+  function deleteFreethrow(id) {
+    const data = load();
+    data.freethrows = data.freethrows.filter(f => f.id !== id);
+    save(data);
+  }
+
   return {
     load, save,
     getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer,
     getSessions, getSession, createSession, updateSession, deleteSession,
     getTrainings, getTraining, upsertTraining, deleteTraining,
     getNotes, getNote, upsertNote, deleteNote,
+    getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,
     getSetting, setSetting
   };
 })();

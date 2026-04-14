@@ -24,6 +24,7 @@
     <nav data-role="nav">
       <a href="#/players" data-nav="players">Spieler</a>
       <a href="#/training" data-nav="training">Training</a>
+      <a href="#/freethrows" data-nav="freethrows">Freiwürfe</a>
       <a href="#/test/setup" data-nav="setup">Beep-Test</a>
       <a href="#/notes" data-nav="notes">Notizen</a>
       <a href="#/history" data-nav="history">Historie</a>
@@ -175,6 +176,45 @@
     </section>
   </template>
 
+  <template id="tpl-freethrows-list">
+    <section class="view">
+      <div class="section-head">
+        <h2>Freiwürfe</h2>
+        <button class="btn primary" data-action="new-ft">+ Neue Session</button>
+      </div>
+      <ul class="session-list" data-role="list"></ul>
+      <p class="empty hidden" data-role="empty">Noch keine Freiwurf-Session.</p>
+    </section>
+  </template>
+
+  <template id="tpl-freethrow-detail">
+    <section class="view">
+      <div class="section-head">
+        <div class="head-left">
+          <a href="#/freethrows" class="btn">← Zurück</a>
+          <h2 data-role="title">Freiwürfe</h2>
+        </div>
+        <div>
+          <button class="btn small" data-action="export-csv">CSV</button>
+          <button class="btn small" data-action="export-json">JSON</button>
+          <button class="btn small danger" data-action="delete">Löschen</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Datum<input type="date" data-role="date" required></label>
+        <label class="grow">Notiz<input type="text" data-role="note" maxlength="100" placeholder="z.B. Ende Training"></label>
+      </div>
+
+      <div class="ft-summary" data-role="summary"></div>
+
+      <h3>Spieler</h3>
+      <ul class="ft-list" data-role="entries"></ul>
+
+      <p class="muted">Änderungen werden automatisch gespeichert.</p>
+    </section>
+  </template>
+
   <template id="tpl-notes-list">
     <section class="view">
       <div class="section-head">
@@ -272,6 +312,7 @@
   <script src="js/players.js"></script>
   <script src="js/test.js"></script>
   <script src="js/training.js"></script>
+  <script src="js/freethrows.js"></script>
   <script src="js/notes.js"></script>
   <script src="js/history.js"></script>
   <script src="js/app.js"></script>
