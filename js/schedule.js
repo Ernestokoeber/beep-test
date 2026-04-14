@@ -48,6 +48,56 @@ BT.schedule = (function() {
     });
 
     renderUpcoming(root);
+    setupAIImport(root);
+  }
+
+  function setupAIImport(root) {
+    const keyInput = $('[data-role="api-key"]', root);
+    const status = $('[data-role="ai-status"]', root);
+    keyInput.value = BT.storage.getSetting('geminiApiKey', '');
+
+    $('[data-action="save-key"]', root).addEventListener('click', () => {
+      BT.storage.setSetting('geminiApiKey', keyInput.value.trim());
+      status.textContent = '✓ API Key gespeichert.';
+      setTimeout(() => { status.textContent = ''; }, 3000);
+    });
+
+    $('[data-action="upload-pdf"]', root).addEventListener('click', async () => {
+      const apiKey = (keyInput.value || BT.storage.getSetting('geminiApiKey', '')).trim();
+      if (!apiKey) {
+        alert('Bitte zuerst den Gemini API Key oben eintragen und speichern.');
+        return;
+      }
+      const file = await BT.util.pickFile('application/pdf,.pdf');
+      if (!file) return;
+
+      status.textContent = '⏳ Plan wird analysiert (kann 10-30 Sekunden dauern) ...';
+      try {
+        const parsed = await BT.aiimport.parseWithGemini(file, apiKey);
+        const summary = parsed.trainings.map((t, i) => {
+          const parts = [(i + 1) + '. ' + (t.weekday || '?') + (t.date ? ' (' + t.date + ')' : '')];
+          if (t.summary) parts.push('   → ' + t.summary);
+          if (t.freethrows && t.freethrows.attempted) parts.push('   FT: ' + t.freethrows.attempted + ' pro Spieler');
+          if (t.shots && t.shots.length) parts.push('   Würfe: ' + t.shots.map(s => s.category + ' ' + s.attempted).join(', '));
+          if (t.drills && t.drills.length) parts.push('   Drills: ' + t.drills.length);
+          return parts.join('\n');
+        }).join('\n\n');
+
+        if (!confirm('Gemini hat ' + parsed.trainings.length + ' Training(s) erkannt:\n\n' + summary + '\n\nAuf die nächsten Termine anwenden?')) {
+          status.textContent = 'Abgebrochen.';
+          return;
+        }
+
+        const results = BT.aiimport.applyPlanToTrainings(parsed);
+        const created = results.filter(r => r.action === 'created').length;
+        const updated = results.filter(r => r.action === 'updated').length;
+        status.textContent = '✓ Fertig: ' + created + ' angelegt, ' + updated + ' aktualisiert.';
+        renderUpcoming(root);
+      } catch (e) {
+        console.error(e);
+        status.textContent = '✗ Fehler: ' + e.message;
+      }
+    });
   }
 
   function renderUpcoming(root) {

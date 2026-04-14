@@ -136,6 +136,7 @@ BT.training = (function() {
     });
 
     setupTimer();
+    renderPlanBox();
 
     renderAttendance();
     renderSummary();
@@ -235,7 +236,8 @@ BT.training = (function() {
   function getOrCreateFT(playerId) {
     let e = currentTraining.freethrows.find(x => x.playerId === playerId);
     if (!e) {
-      e = { playerId, made: 0, attempted: 0 };
+      const planAtt = (currentTraining.plan && currentTraining.plan.freethrows && currentTraining.plan.freethrows.attempted) || 0;
+      e = { playerId, made: 0, attempted: planAtt };
       currentTraining.freethrows.push(e);
     }
     return e;
@@ -289,7 +291,10 @@ BT.training = (function() {
     const cat = getOrCreateShotCategory(catName);
     let e = cat.entries.find(x => x.playerId === playerId);
     if (!e) {
-      e = { playerId, made: 0, attempted: 0 };
+      const planCat = currentTraining.plan && Array.isArray(currentTraining.plan.shots)
+        ? currentTraining.plan.shots.find(s => s.category === catName) : null;
+      const planAtt = planCat && planCat.attempted ? planCat.attempted : 0;
+      e = { playerId, made: 0, attempted: planAtt };
       cat.entries.push(e);
     }
     return e;
@@ -461,7 +466,54 @@ BT.training = (function() {
     BT.storage.upsertTraining(currentTraining);
   }
 
+  function renderPlanBox() {
+    const box = $('[data-role="plan-box"]', detailRoot);
+    const plan = currentTraining.plan;
+    if (!plan || (!plan.summary && !(plan.drills && plan.drills.length))) {
+      box.classList.add('hidden');
+      return;
+    }
+    box.classList.remove('hidden');
+    const sumEl = $('[data-role="plan-summary"]', detailRoot);
+    const parts = [];
+    if (plan.summary) parts.push('<p>' + escapeHTML(plan.summary) + '</p>');
+    const targets = [];
+    if (plan.freethrows && plan.freethrows.attempted) targets.push('Freiwürfe ' + plan.freethrows.attempted);
+    for (const s of (plan.shots || [])) targets.push(s.category + ' ' + s.attempted);
+    if (targets.length) parts.push('<p class="muted">Vorgaben pro Spieler: ' + targets.join(' · ') + '</p>');
+    sumEl.innerHTML = parts.join('');
+
+    const drillsEl = $('[data-role="plan-drills"]', detailRoot);
+    drillsEl.innerHTML = '';
+    for (const d of (plan.drills || [])) {
+      const li = document.createElement('li');
+      const minLabel = d.minutes ? ' (' + d.minutes + ' min)' : '';
+      li.innerHTML = `
+        <span class="drill-name">${escapeHTML(d.name)}${minLabel}</span>
+        ${d.description ? '<div class="muted">' + escapeHTML(d.description) + '</div>' : ''}
+        ${d.minutes ? '<button class="btn small primary" data-drill-min="' + d.minutes + '">▶ Timer</button>' : ''}
+      `;
+      const startBtn = li.querySelector('[data-drill-min]');
+      if (startBtn) {
+        startBtn.addEventListener('click', () => {
+          const sec = parseInt(startBtn.dataset.drillMin, 10) * 60;
+          startTimerWithSec(sec);
+        });
+      }
+      drillsEl.appendChild(li);
+    }
+  }
+
   let timerEndTs = 0, timerRaf = 0, timerSelectedSec = 0;
+
+  function startTimerWithSec(sec) {
+    timerSelectedSec = sec;
+    BT.audio.ensureContext();
+    timerEndTs = performance.now() + sec * 1000;
+    const display = $('[data-role="timer-display"]', detailRoot);
+    if (display) display.textContent = formatTime(sec);
+    tickTimer();
+  }
 
   function setupTimer() {
     const display = $('[data-role="timer-display"]', detailRoot);

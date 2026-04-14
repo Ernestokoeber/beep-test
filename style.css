@@ -963,6 +963,41 @@ table.results tr:last-child td { border-bottom: none; }
 
 .wd-btn:hover { transform: scale(1.05); }
 
+.plan-box {
+  background: var(--primary-light);
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.plan-head {
+  font-weight: 700;
+  color: var(--cta);
+  margin-bottom: 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.plan-box p { margin: 0 0 6px 0; }
+
+.plan-drills {
+  list-style: decimal;
+  padding-left: 20px;
+  margin: 8px 0 0 0;
+}
+
+.plan-drills li {
+  margin-bottom: 8px;
+  display: block;
+}
+
+.drill-name { font-weight: 600; }
+
+.plan-drills .btn { margin-top: 4px; }
+
 @media (max-width: 480px) {
   .ranking li { grid-template-columns: 24px 1fr 60px auto; gap: 6px; font-size: 13px; }
   .dash-big { font-size: 30px; }

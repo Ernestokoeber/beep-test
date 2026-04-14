@@ -213,6 +213,12 @@
         <label>Startzeit<input type="time" data-role="time" required></label>
       </div>
 
+      <div class="plan-box hidden" data-role="plan-box">
+        <div class="plan-head">📋 Plan</div>
+        <div data-role="plan-summary"></div>
+        <ol class="plan-drills" data-role="plan-drills"></ol>
+      </div>
+
       <div class="timer-box" data-role="timer-box">
         <div class="timer-display" data-role="timer-display">00:00</div>
         <div class="timer-controls">
@@ -269,6 +275,20 @@
       <h3>Nächste Termine</h3>
       <ul class="session-list" data-role="upcoming"></ul>
       <p class="empty hidden" data-role="upcoming-empty">Bitte zuerst Wochentage auswählen.</p>
+
+      <h3>KI-Import (Plan aus PDF)</h3>
+      <div class="player-form">
+        <p class="muted">Lade einen Trainingsplan als PDF hoch — Gemini extrahiert Inhalte und füllt die nächsten Termine vor (Notiz, Freiwürfe, Wurf-Kategorien, Drill-Liste).</p>
+        <label class="block-label">Gemini API Key
+          <input type="password" data-role="api-key" placeholder="AIza..." autocomplete="off">
+        </label>
+        <p class="muted">Kostenlos bei <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> anlegen. Wird nur lokal in deinem Browser gespeichert.</p>
+        <div class="form-actions">
+          <button class="btn" data-action="save-key">Key speichern</button>
+          <button class="btn primary" data-action="upload-pdf">📄 Plan-PDF hochladen</button>
+        </div>
+        <p class="muted" data-role="ai-status"></p>
+      </div>
     </section>
   </template>
 
@@ -379,6 +399,7 @@
   <script src="js/training.js"></script>
   <script src="js/notes.js"></script>
   <script src="js/history.js"></script>
+  <script src="js/aiimport.js"></script>
   <script src="js/schedule.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/app.js"></script>
