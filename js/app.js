@@ -1,6 +1,22 @@
 (function() {
   const app = document.getElementById('app');
 
+  function setupHamburger() {
+    const btn = document.querySelector('[data-role="hamburger"]');
+    const nav = document.querySelector('[data-role="nav"]');
+    if (!btn || !nav) return;
+    btn.addEventListener('click', () => {
+      const open = nav.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    nav.addEventListener('click', (e) => {
+      if (e.target.tagName === 'A') {
+        nav.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
   function route() {
     const hash = location.hash || '#/players';
     app.innerHTML = '';
@@ -23,6 +39,11 @@
     } else if (hash.startsWith('#/training/')) {
       const id = hash.slice('#/training/'.length);
       BT.training.renderDetail(app, id);
+    } else if (hash === '#/notes') {
+      BT.notes.renderList(app);
+    } else if (hash.startsWith('#/notes/')) {
+      const id = hash.slice('#/notes/'.length);
+      BT.notes.renderDetail(app, id);
     } else if (hash === '#/history') {
       BT.history.renderList(app);
     } else if (hash.startsWith('#/history/')) {
@@ -42,14 +63,16 @@
       document.querySelector('[data-nav="training"]').classList.add('active');
     } else if (hash.startsWith('#/test')) {
       document.querySelector('[data-nav="setup"]').classList.add('active');
+    } else if (hash.startsWith('#/notes')) {
+      document.querySelector('[data-nav="notes"]').classList.add('active');
     } else if (hash.startsWith('#/history')) {
       document.querySelector('[data-nav="history"]').classList.add('active');
     }
   }
 
   window.addEventListener('hashchange', route);
-  window.addEventListener('DOMContentLoaded', route);
-  if (document.readyState !== 'loading') route();
+  window.addEventListener('DOMContentLoaded', () => { setupHamburger(); route(); });
+  if (document.readyState !== 'loading') { setupHamburger(); route(); }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => {

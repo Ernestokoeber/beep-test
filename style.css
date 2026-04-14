@@ -41,10 +41,56 @@ html, body {
 
 .topbar h1 { margin: 0; font-size: 20px; }
 
+.topbar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hamburger {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 4px;
+  width: 44px;
+  height: 44px;
+  justify-content: center;
+  align-items: center;
+}
+
+.hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 1px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.hamburger[aria-expanded="true"] span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.hamburger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+.hamburger[aria-expanded="true"] span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
 .topbar nav {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+@media (max-width: 700px) {
+  .hamburger { display: flex; }
+  .topbar nav {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .topbar nav.open { display: flex; }
+  .topbar nav a { flex: none; width: 100%; }
 }
 
 .topbar nav a {
@@ -523,6 +569,71 @@ table.results tr:last-child td { border-bottom: none; }
   .status-row { grid-template-columns: repeat(2, 1fr); }
   .status-btn { font-size: 13px; padding: 10px 4px; }
 }
+
+.search-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.search-input:focus { outline: 2px solid var(--primary); }
+
+.notes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notes-list a {
+  display: block;
+  background: var(--surface);
+  padding: 12px 14px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.notes-list a:hover { background: var(--surface-2); }
+.notes-list .name { font-weight: 600; margin-bottom: 4px; }
+.notes-list .meta { font-size: 13px; color: var(--muted); }
+
+.note-title {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.note-title:focus { outline: 2px solid var(--primary); }
+
+.note-body {
+  width: 100%;
+  min-height: 300px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.note-body:focus { outline: 2px solid var(--primary); }
 
 @media (max-width: 500px) {
   .level-box .value { font-size: 44px; }

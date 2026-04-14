@@ -12,6 +12,7 @@ BT.storage = (function() {
       data.players = data.players || [];
       data.sessions = data.sessions || [];
       data.trainings = data.trainings || [];
+      data.notes = data.notes || [];
       return data;
     } catch (e) {
       console.error('Storage load failed', e);
@@ -24,7 +25,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: 1, players: [], sessions: [], trainings: [], settings: {} };
+    return { schemaVersion: 1, players: [], sessions: [], trainings: [], notes: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -125,11 +126,42 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getNotes() {
+    return load().notes.slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  }
+
+  function getNote(id) { return load().notes.find(n => n.id === id); }
+
+  function upsertNote(note) {
+    const data = load();
+    const now = new Date().toISOString();
+    if (note.id) {
+      const i = data.notes.findIndex(n => n.id === note.id);
+      if (i >= 0) {
+        data.notes[i] = Object.assign({}, data.notes[i], note, { updatedAt: now });
+      }
+    } else {
+      note.id = BT.util.uuid('n_');
+      note.createdAt = now;
+      note.updatedAt = now;
+      data.notes.push(note);
+    }
+    save(data);
+    return note;
+  }
+
+  function deleteNote(id) {
+    const data = load();
+    data.notes = data.notes.filter(n => n.id !== id);
+    save(data);
+  }
+
   return {
     load, save,
     getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer,
     getSessions, getSession, createSession, updateSession, deleteSession,
     getTrainings, getTraining, upsertTraining, deleteTraining,
+    getNotes, getNote, upsertNote, deleteNote,
     getSetting, setSetting
   };
 })();

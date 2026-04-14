@@ -15,11 +15,17 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>Beep-Test</h1>
-    <nav>
+    <div class="topbar-head">
+      <h1>Beep-Test</h1>
+      <button class="hamburger" type="button" aria-label="Menü" aria-expanded="false" data-role="hamburger">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <nav data-role="nav">
       <a href="#/players" data-nav="players">Spieler</a>
       <a href="#/training" data-nav="training">Training</a>
       <a href="#/test/setup" data-nav="setup">Beep-Test</a>
+      <a href="#/notes" data-nav="notes">Notizen</a>
       <a href="#/history" data-nav="history">Historie</a>
     </nav>
   </header>
@@ -169,6 +175,35 @@
     </section>
   </template>
 
+  <template id="tpl-notes-list">
+    <section class="view">
+      <div class="section-head">
+        <h2>Notizen</h2>
+        <button class="btn primary" data-action="new-note">+ Neue Notiz</button>
+      </div>
+      <input type="search" class="search-input" data-role="search" placeholder="Suchen …">
+      <ul class="notes-list" data-role="list"></ul>
+      <p class="empty hidden" data-role="empty">Noch keine Notizen.</p>
+    </section>
+  </template>
+
+  <template id="tpl-note-detail">
+    <section class="view">
+      <div class="section-head">
+        <div class="head-left">
+          <a href="#/notes" class="btn">← Zurück</a>
+        </div>
+        <div>
+          <button class="btn small" data-action="export">Exportieren</button>
+          <button class="btn small danger" data-action="delete">Löschen</button>
+        </div>
+      </div>
+      <input type="text" class="note-title" data-role="title" placeholder="Titel (optional)" maxlength="120">
+      <textarea class="note-body" data-role="body" placeholder="Notiz schreiben …" rows="14"></textarea>
+      <p class="muted" data-role="meta"></p>
+    </section>
+  </template>
+
   <template id="tpl-history">
     <section class="view">
       <div class="section-head">
@@ -236,6 +271,7 @@
   <script src="js/players.js"></script>
   <script src="js/test.js"></script>
   <script src="js/training.js"></script>
+  <script src="js/notes.js"></script>
   <script src="js/history.js"></script>
   <script src="js/app.js"></script>
 </body>
