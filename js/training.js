@@ -42,26 +42,51 @@ BT.training = (function() {
       return;
     }
 
-    for (const t of trainings) {
-      const summary = summarize(t);
-      const li = document.createElement('li');
-      const a = document.createElement('a');
-      a.href = '#/training/' + t.id;
-      a.innerHTML = `
-        <div class="info">
-          <div class="name">${formatDate(t.date)}${t.startTime ? ' · ' + escapeHTML(t.startTime) : ''}${t.note ? ' – ' + escapeHTML(t.note) : ''}</div>
-          <div class="meta">
-            <span class="att-chip ok">✓ ${summary.present}</span>
-            <span class="att-chip bad">✗ ${summary.absent}</span>
-            <span class="att-chip warn">E ${summary.excused}</span>
-            <span class="att-chip warn">V ${summary.injured}</span>
-            ${summary.late > 0 ? '<span class="att-chip">Spät: ' + summary.late + '</span>' : ''}
-          </div>
-        </div>
-      `;
-      li.appendChild(a);
-      list.appendChild(li);
+    const today = todayISO();
+    const upcoming = trainings.filter(t => (t.date || '') >= today)
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const past = trainings.filter(t => (t.date || '') < today)
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    if (upcoming.length > 0) {
+      const head = document.createElement('li');
+      head.className = 'list-section-head';
+      head.textContent = 'Anstehend (' + upcoming.length + ')';
+      list.appendChild(head);
+      for (const t of upcoming) list.appendChild(buildTrainingItem(t, false));
     }
+
+    if (past.length > 0) {
+      const head = document.createElement('li');
+      head.className = 'list-section-head past';
+      head.textContent = 'Absolviert (' + past.length + ')';
+      list.appendChild(head);
+      for (const t of past) list.appendChild(buildTrainingItem(t, true));
+    }
+  }
+
+  function buildTrainingItem(t, isPast) {
+    const summary = summarize(t);
+    const li = document.createElement('li');
+    if (isPast) li.classList.add('past');
+    const a = document.createElement('a');
+    a.href = '#/training/' + t.id;
+    const badge = isPast ? '<span class="att-chip muted-chip">Absolviert</span> ' : '';
+    a.innerHTML = `
+      <div class="info">
+        <div class="name">${formatDate(t.date)}${t.startTime ? ' · ' + escapeHTML(t.startTime) : ''}${t.note ? ' – ' + escapeHTML(t.note) : ''}</div>
+        <div class="meta">
+          ${badge}
+          <span class="att-chip ok">✓ ${summary.present}</span>
+          <span class="att-chip bad">✗ ${summary.absent}</span>
+          <span class="att-chip warn">E ${summary.excused}</span>
+          <span class="att-chip warn">V ${summary.injured}</span>
+          ${summary.late > 0 ? '<span class="att-chip">Spät: ' + summary.late + '</span>' : ''}
+        </div>
+      </div>
+    `;
+    li.appendChild(a);
+    return li;
   }
 
   function initialAttendance() {
