@@ -1,6 +1,37 @@
 (function() {
   const app = document.getElementById('app');
 
+  function setupTheme() {
+    const stored = localStorage.getItem('beeptest_theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = stored || (prefersDark ? 'dark' : 'light');
+    applyTheme(theme);
+
+    const btn = document.querySelector('[data-role="theme-toggle"]');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme') || 'light';
+        const next = cur === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('beeptest_theme', next);
+        applyTheme(next);
+      });
+    }
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = '#0f172a';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = '#ffffff';
+    }
+    const btn = document.querySelector('[data-role="theme-toggle"]');
+    if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  }
+
   function setupHamburger() {
     const btn = document.querySelector('[data-role="hamburger"]');
     const nav = document.querySelector('[data-role="nav"]');
@@ -41,6 +72,8 @@
     } else if (hash.startsWith('#/training/')) {
       const id = hash.slice('#/training/'.length);
       BT.training.renderDetail(app, id);
+    } else if (hash === '#/schedule') {
+      BT.schedule.render(app);
     } else if (hash === '#/notes') {
       BT.notes.renderList(app);
     } else if (hash.startsWith('#/notes/')) {
@@ -67,6 +100,8 @@
       document.querySelector('[data-nav="training"]').classList.add('active');
     } else if (hash.startsWith('#/test')) {
       document.querySelector('[data-nav="setup"]').classList.add('active');
+    } else if (hash.startsWith('#/schedule')) {
+      document.querySelector('[data-nav="schedule"]').classList.add('active');
     } else if (hash.startsWith('#/notes')) {
       document.querySelector('[data-nav="notes"]').classList.add('active');
     } else if (hash.startsWith('#/history')) {
@@ -75,8 +110,8 @@
   }
 
   window.addEventListener('hashchange', route);
-  window.addEventListener('DOMContentLoaded', () => { setupHamburger(); route(); });
-  if (document.readyState !== 'loading') { setupHamburger(); route(); }
+  window.addEventListener('DOMContentLoaded', () => { setupTheme(); setupHamburger(); route(); });
+  if (document.readyState !== 'loading') { setupTheme(); setupHamburger(); route(); }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => {

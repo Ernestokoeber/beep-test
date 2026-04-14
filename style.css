@@ -22,6 +22,39 @@
   --font-display: 'Monoton', cursive;
 }
 
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #334155;
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --primary: rgb(232, 161, 77);
+  --primary-hover: #f0b968;
+  --primary-light: rgba(232, 161, 77, 0.2);
+  --cta: rgb(232, 161, 77);
+  --cta-dark: #f0b968;
+  --accent: #4ade80;
+  --success: #4ade80;
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --border: #334155;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .form-row input,
+[data-theme="dark"] .status-btn,
+[data-theme="dark"] .att-note,
+[data-theme="dark"] .ft-input,
+[data-theme="dark"] .ft-btn,
+[data-theme="dark"] .search-input,
+[data-theme="dark"] .note-title,
+[data-theme="dark"] .note-body,
+[data-theme="dark"] .block-label textarea,
+[data-theme="dark"] .timer-custom,
+[data-theme="dark"] .wd-btn,
+[data-theme="dark"] .shot-tab.add { border-color: var(--border); }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -63,7 +96,30 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.theme-toggle:hover { background: var(--surface-2); }
 
 .hamburger {
   display: none;
@@ -877,6 +933,35 @@ table.results tr:last-child td { border-bottom: none; }
   font-family: inherit;
   text-align: center;
 }
+
+.weekday-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.wd-btn {
+  background: var(--surface);
+  border: 1px solid #d1d5db;
+  color: var(--text);
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wd-btn.active {
+  background: var(--cta);
+  border-color: var(--cta);
+  color: white;
+}
+
+.wd-btn:hover { transform: scale(1.05); }
 
 @media (max-width: 480px) {
   .ranking li { grid-template-columns: 24px 1fr 60px auto; gap: 6px; font-size: 13px; }
