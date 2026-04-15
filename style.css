@@ -722,6 +722,32 @@ table.results tr:last-child td { border-bottom: none; }
 }
 .heatmap-controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 
+.shot-spot-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.spot-status { font-size: 12px; }
+.shot-spot-editor {
+  margin: 8px 0 16px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.shot-spot-editor .court { max-width: 320px; margin: 0 auto; display: block; cursor: crosshair; }
+.spot-editor-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.spot-editor-controls input[type="range"] { width: 140px; vertical-align: middle; }
+
 .attendance-list {
   list-style: none;
   padding: 0;

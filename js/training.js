@@ -170,6 +170,7 @@ BT.training = (function() {
     renderPlanBox();
     setupSubnav();
     setupShotMap();
+    setupSpotEditor();
 
     const resetBtn = $('[data-action="reset-attendance"]', detailRoot);
     if (resetBtn) {
@@ -525,6 +526,105 @@ BT.training = (function() {
     save();
 
     sumEl.innerHTML = `<span class="att-chip ok">${currentShotCategory}: ${totalMade}/${totalAtt}</span><span class="att-chip">${pct(totalMade, totalAtt)}%</span>`;
+    renderSpotBar();
+  }
+
+  function renderSpotBar() {
+    const bar = $('[data-role="spot-bar"]', detailRoot);
+    const editor = $('[data-role="spot-editor"]', detailRoot);
+    if (!bar) return;
+    if (!currentShotCategory) {
+      bar.classList.add('hidden');
+      editor.classList.add('hidden');
+      return;
+    }
+    bar.classList.remove('hidden');
+    const cat = getOrCreateShotCategory(currentShotCategory);
+    const status = $('[data-role="spot-status"]', detailRoot);
+    const hasCustom = typeof cat.spotX === 'number' && typeof cat.spotY === 'number';
+    if (status) status.textContent = hasCustom
+      ? `eigener Spot gesetzt (Streuung ${cat.spotR || 22})`
+      : 'Spot wird aus Kategorie-Namen geraten';
+  }
+
+  function setupSpotEditor() {
+    const btn = $('[data-action="toggle-spot"]', detailRoot);
+    const editor = $('[data-role="spot-editor"]', detailRoot);
+    const svg = $('[data-role="spot-svg"]', detailRoot);
+    const hit = $('[data-role="spot-hit"]', detailRoot);
+    const nameEl = $('[data-role="spot-cat-name"]', detailRoot);
+    const radiusInput = $('[data-role="spot-radius"]', detailRoot);
+    const clearBtn = $('[data-action="clear-spot"]', detailRoot);
+    if (!btn || !editor || !svg || !hit) return;
+
+    function drawMarker() {
+      const layer = $('[data-role="spot-marker"]', detailRoot);
+      if (!layer) return;
+      layer.innerHTML = '';
+      if (!currentShotCategory) return;
+      const cat = getOrCreateShotCategory(currentShotCategory);
+      if (typeof cat.spotX !== 'number') return;
+      const r = cat.spotR || 22;
+      layer.insertAdjacentHTML('beforeend',
+        `<circle cx="${cat.spotX}" cy="${cat.spotY}" r="${r}" fill="rgba(232,161,77,0.25)" stroke="rgba(232,161,77,0.7)" stroke-width="2" stroke-dasharray="4 3"/>` +
+        `<circle cx="${cat.spotX}" cy="${cat.spotY}" r="5" fill="#e8a14d" stroke="#004b2b" stroke-width="1.5"/>`
+      );
+      if (radiusInput) radiusInput.value = r;
+    }
+
+    function openEditor() {
+      if (!currentShotCategory) return;
+      nameEl.textContent = currentShotCategory;
+      editor.classList.remove('hidden');
+      drawMarker();
+    }
+
+    btn.addEventListener('click', () => {
+      if (editor.classList.contains('hidden')) openEditor();
+      else editor.classList.add('hidden');
+    });
+
+    hit.addEventListener('click', (e) => {
+      if (!currentShotCategory) return;
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      const local = pt.matrixTransform(ctm.inverse());
+      const cat = getOrCreateShotCategory(currentShotCategory);
+      cat.spotX = Math.round(local.x * 10) / 10;
+      cat.spotY = Math.round(local.y * 10) / 10;
+      if (cat.spotR == null) cat.spotR = parseInt((radiusInput && radiusInput.value) || 22, 10);
+      save();
+      drawMarker();
+      renderSpotBar();
+    });
+
+    if (radiusInput) {
+      radiusInput.addEventListener('input', () => {
+        if (!currentShotCategory) return;
+        const cat = getOrCreateShotCategory(currentShotCategory);
+        cat.spotR = parseInt(radiusInput.value, 10);
+        if (typeof cat.spotX === 'number') {
+          save();
+          drawMarker();
+          renderSpotBar();
+        }
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (!currentShotCategory) return;
+        const cat = getOrCreateShotCategory(currentShotCategory);
+        delete cat.spotX;
+        delete cat.spotY;
+        delete cat.spotR;
+        save();
+        drawMarker();
+        renderSpotBar();
+      });
+    }
   }
 
   function buildShotCard(player, entry, kind) {
@@ -768,17 +868,20 @@ BT.training = (function() {
     playerSelect.addEventListener('change', renderShotMap);
   }
 
-  function spotForCategory(name) {
+  function spotForCategory(name, cat) {
+    if (cat && typeof cat.spotX === 'number' && typeof cat.spotY === 'number') {
+      return { x: cat.spotX, y: cat.spotY, r: cat.spotR || 22 };
+    }
     const n = (name || '').toLowerCase();
-    if (/(corner|ecke).*(l\b|links)|linke.*(corner|ecke)/.test(n)) return { x: 75, y: 80, r: 22 };
-    if (/(corner|ecke).*(r\b|rechts)|rechte.*(corner|ecke)/.test(n)) return { x: 425, y: 80, r: 22 };
-    if (/(wing|flügel|fluegel).*(l\b|links)|linke.*(wing|flügel|fluegel)/.test(n)) return { x: 100, y: 180, r: 22 };
-    if (/(wing|flügel|fluegel).*(r\b|rechts)|rechte.*(wing|flügel|fluegel)/.test(n)) return { x: 400, y: 180, r: 22 };
-    if (/top.*3|zentr.*3|3.*top|3.*zentr|head of key/.test(n)) return { x: 250, y: 130, r: 20 };
-    if (/3er|3pt|dreier|3-punkt|3\s*pkt|three/.test(n)) return { x: 250, y: 130, r: 40 };
-    if (/(elbow|ellenbogen).*(l\b|links)/.test(n)) return { x: 180, y: 200, r: 18 };
-    if (/(elbow|ellenbogen).*(r\b|rechts)/.test(n)) return { x: 320, y: 200, r: 18 };
-    if (/elbow|ellenbogen/.test(n)) return { x: 250, y: 205, r: 28 };
+    if (/(corner|ecke).*(l\b|links)|linke.*(corner|ecke)/.test(n)) return { x: 30, y: 75, r: 18 };
+    if (/(corner|ecke).*(r\b|rechts)|rechte.*(corner|ecke)/.test(n)) return { x: 470, y: 75, r: 18 };
+    if (/(wing|flügel|fluegel).*(l\b|links)|linke.*(wing|flügel|fluegel)/.test(n)) return { x: 100, y: 275, r: 22 };
+    if (/(wing|flügel|fluegel).*(r\b|rechts)|rechte.*(wing|flügel|fluegel)/.test(n)) return { x: 400, y: 275, r: 22 };
+    if (/top.*3|zentr.*3|3.*top|3.*zentr|head of key/.test(n)) return { x: 250, y: 355, r: 20 };
+    if (/3er|3pt|dreier|3-punkt|3\s*pkt|three/.test(n)) return { x: 250, y: 355, r: 35 };
+    if (/(elbow|ellenbogen).*(l\b|links)/.test(n)) return { x: 170, y: 175, r: 18 };
+    if (/(elbow|ellenbogen).*(r\b|rechts)/.test(n)) return { x: 330, y: 175, r: 18 };
+    if (/elbow|ellenbogen/.test(n)) return { x: 250, y: 175, r: 25 };
     if (/mitteldistanz|midrange|mid\b/.test(n)) return { x: 250, y: 230, r: 45 };
     if (/layup|korbleger/.test(n)) return { x: 250, y: 75, r: 18 };
     if (/post.*(l\b|links)/.test(n)) return { x: 195, y: 130, r: 16 };
@@ -786,7 +889,7 @@ BT.training = (function() {
     if (/post|block/.test(n)) return { x: 250, y: 130, r: 22 };
     if (/zone|paint|unterm.*korb|short/.test(n)) return { x: 250, y: 105, r: 30 };
     if (/frei|freethrow|ft\b/.test(n)) return { x: 250, y: 200, r: 14 };
-    return { x: 250, y: 250, r: 45 };
+    return { x: 250, y: 230, r: 40 };
   }
 
   function addSyntheticShots(playerId, cx, cy, attempted, made, radius, ts) {
@@ -824,7 +927,7 @@ BT.training = (function() {
       addSyntheticShots(e.playerId, ftSpot.x, ftSpot.y, e.attempted, e.made, ftSpot.r, ts);
     }
     for (const cat of (currentTraining.shots || [])) {
-      const spot = spotForCategory(cat.category);
+      const spot = spotForCategory(cat.category, cat);
       for (const e of (cat.entries || [])) {
         if (!presentIds.includes(e.playerId)) continue;
         addSyntheticShots(e.playerId, spot.x, spot.y, e.attempted, e.made, spot.r, ts);
