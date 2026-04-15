@@ -57,6 +57,7 @@ BT.history = (function() {
     $('[data-role="meta"]', root).innerHTML = metaParts.join(' · ');
 
     const rows = $('[data-role="rows"]', root);
+    const distanceM = session.distanceM || 20;
     const ranked = session.results.slice().sort((a, b) => b.totalShuttles - a.totalShuttles);
     ranked.forEach((r, i) => {
       const p = allPlayers.find(x => x.id === r.playerId);
@@ -67,12 +68,13 @@ BT.history = (function() {
         <td>${r.level}</td>
         <td>${r.shuttle}</td>
         <td>${r.totalShuttles}</td>
+        <td>${r.totalShuttles * distanceM} m</td>
       `;
       rows.appendChild(tr);
     });
 
     $('[data-action="export-csv"]', root).addEventListener('click', () => {
-      const csvRows = [['Rang', 'Spieler', 'Position', 'Level', 'Shuttle', 'Gesamt-Shuttles', 'Rundenlänge (m)', 'Grund']];
+      const csvRows = [['Rang', 'Spieler', 'Position', 'Level', 'Shuttle', 'Gesamt-Shuttles', 'Rundenlänge (m)', 'Meter', 'Grund']];
       ranked.forEach((r, i) => {
         const p = allPlayers.find(x => x.id === r.playerId);
         csvRows.push([
@@ -83,6 +85,7 @@ BT.history = (function() {
           r.shuttle,
           r.totalShuttles,
           session.distanceM || 20,
+          r.totalShuttles * (session.distanceM || 20),
           r.reason
         ]);
       });

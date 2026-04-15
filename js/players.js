@@ -145,12 +145,14 @@ BT.players = (function() {
 
     entries.slice().reverse().forEach(e => {
       const tr = document.createElement('tr');
+      const distM = e.session.distanceM || 20;
       tr.innerHTML = `
         <td><a href="#/history/${e.session.id}">${BT.util.formatDate(e.session.date)}</a></td>
         <td>${e.result.level}</td>
         <td>${e.result.shuttle}</td>
         <td>${e.result.totalShuttles}</td>
-        <td>${e.session.distanceM || 20} m</td>
+        <td>${distM} m</td>
+        <td>${e.result.totalShuttles * distM} m</td>
       `;
       rows.appendChild(tr);
     });

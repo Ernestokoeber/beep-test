@@ -362,13 +362,15 @@ BT.test = (function() {
     const allPlayers = BT.storage.getPlayers();
     const outSorted = runState.out.slice()
       .sort((a, b) => b.totalShuttles - a.totalShuttles);
+    const distanceM = runState.session.distanceM || BT.levels.DEFAULT_DISTANCE_M;
     for (const r of outSorted) {
       const p = allPlayers.find(x => x.id === r.playerId);
       const li = document.createElement('li');
       const reasonLabel = r.reason === 'dnf' ? ' (Test beendet)' : '';
+      const meters = r.totalShuttles * distanceM;
       li.innerHTML = `
         <span class="name">${escapeHTML(p ? p.name : '?')}</span>
-        <span class="result">Level ${r.level} · Shuttle ${r.shuttle}${reasonLabel}</span>
+        <span class="result">Level ${r.level} · Shuttle ${r.shuttle} · ${meters} m${reasonLabel}</span>
       `;
       outList.appendChild(li);
     }
