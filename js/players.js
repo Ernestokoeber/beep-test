@@ -162,6 +162,32 @@ BT.players = (function() {
     });
   }
 
+  const ZONES = {
+    rim:      { label: 'Korb',       cx: 250, cy: 65 },
+    paint:    { label: 'Zone',       cx: 250, cy: 130 },
+    ft:       { label: 'FW/Mitte',   cx: 250, cy: 205 },
+    mid_l:    { label: 'Mittel L',   cx: 110, cy: 160 },
+    mid_r:    { label: 'Mittel R',   cx: 390, cy: 160 },
+    corner_l: { label: '3er Ecke L', cx: 30,  cy: 75 },
+    corner_r: { label: '3er Ecke R', cx: 470, cy: 75 },
+    arc_3:    { label: '3er Bogen',  cx: 250, cy: 395 }
+  };
+
+  function zoneOf(x, y) {
+    const distRim = Math.hypot(x - 250, y - 50);
+    const distFT = Math.hypot(x - 250, y - 200);
+    const distArc = Math.hypot(x - 250, y - 135);
+    const is3Corner = y <= 135 && (x < 50 || x > 450);
+    const is3Arc = y > 135 && distArc > 200;
+    if (is3Corner) return x < 50 ? 'corner_l' : 'corner_r';
+    if (is3Arc) return 'arc_3';
+    if (distRim < 42) return 'rim';
+    if (distFT < 55) return 'ft';
+    const inPaint = x >= 160 && x <= 340 && y >= 10 && y <= 200;
+    if (inPaint) return 'paint';
+    return x < 250 ? 'mid_l' : 'mid_r';
+  }
+
   function renderPlayerHeatmap(node, player) {
     const trainings = (BT.storage.getTrainings && BT.storage.getTrainings()) || [];
     const shots = [];
@@ -209,31 +235,25 @@ BT.players = (function() {
           }
         }
       } else {
-        const cols = 8, rows = 8;
-        const x0 = 10, y0 = 10, w = 480, h = 450;
-        const cellW = w / cols, cellH = h / rows;
-        const grid = {};
+        const byZone = {};
         for (const s of shots) {
-          const cx = Math.min(cols - 1, Math.max(0, Math.floor((s.x - x0) / cellW)));
-          const cy = Math.min(rows - 1, Math.max(0, Math.floor((s.y - y0) / cellH)));
-          const key = cx + ',' + cy;
-          if (!grid[key]) grid[key] = { hits: 0, total: 0, cx, cy };
-          grid[key].total++;
-          if (s.made) grid[key].hits++;
+          const z = zoneOf(s.x, s.y);
+          if (!byZone[z]) byZone[z] = { hits: 0, total: 0 };
+          byZone[z].total++;
+          if (s.made) byZone[z].hits++;
         }
-        const maxTotal = Math.max(1, ...Object.values(grid).map(c => c.total));
-        for (const c of Object.values(grid)) {
-          const p = c.hits / c.total;
-          const r = Math.round(255 * (1 - p));
-          const g = Math.round(180 * p + 60);
-          const opacity = 0.3 + 0.55 * (c.total / maxTotal);
-          const cellX = x0 + c.cx * cellW;
-          const cellY = y0 + c.cy * cellH;
+        for (const [zkey, data] of Object.entries(byZone)) {
+          const zone = ZONES[zkey];
+          if (!zone) continue;
+          const p = data.hits / data.total;
+          const red = Math.round(220 * (1 - p)) + 20;
+          const green = Math.round(160 * p + 60);
+          const radius = 30;
           const pctTxt = Math.round(p * 100) + '%';
           cellsLayer.insertAdjacentHTML('beforeend',
-            `<rect x="${cellX}" y="${cellY}" width="${cellW}" height="${cellH}" fill="rgb(${r},${g},0)" fill-opacity="${opacity.toFixed(2)}" stroke="rgba(0,0,0,0.08)"><title>${pctTxt} (${c.hits}/${c.total} Würfe)</title></rect>` +
-            `<text x="${cellX + cellW/2}" y="${cellY + cellH/2 - 2}" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1a1a" pointer-events="none">${pctTxt}</text>` +
-            `<text x="${cellX + cellW/2}" y="${cellY + cellH/2 + 12}" text-anchor="middle" font-size="9" fill="#1a1a1a" pointer-events="none">${c.hits}/${c.total}</text>`
+            `<circle cx="${zone.cx}" cy="${zone.cy}" r="${radius}" fill="rgb(${red},${green},30)" fill-opacity="0.82" stroke="rgba(0,0,0,0.35)" stroke-width="1.5"><title>${zone.label}: ${data.hits}/${data.total} (${pctTxt})</title></circle>` +
+            `<text x="${zone.cx}" y="${zone.cy - 3}" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" pointer-events="none" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:2">${pctTxt}</text>` +
+            `<text x="${zone.cx}" y="${zone.cy + 12}" text-anchor="middle" font-size="10" font-weight="600" fill="#fff" pointer-events="none" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:2">${data.hits}/${data.total}</text>`
           );
         }
       }
