@@ -623,14 +623,14 @@ BT.training = (function() {
     { key: 'sprint', label: 'Sprint (s)', step: '0.01', mode: 'decimal' },
     { key: 'rimTouches', label: 'Rim Touches', step: '1', mode: 'numeric' },
     { key: 'laneAgility', label: 'Lane Agility (s)', step: '0.01', mode: 'decimal' },
-    { key: 'jumpHeight', label: 'Sprungkraft (cm)', step: '0.1', mode: 'decimal' }
+    { key: 'pushUps', label: 'Liegestütze (60s)', step: '1', mode: 'numeric' }
   ];
 
   function getOrCreateFitness(playerId) {
     if (!currentTraining.fitness) currentTraining.fitness = [];
     let e = currentTraining.fitness.find(x => x.playerId === playerId);
     if (!e) {
-      e = { playerId, sprint: null, rimTouches: null, laneAgility: null, jumpHeight: null };
+      e = { playerId, sprint: null, rimTouches: null, laneAgility: null, pushUps: null };
       currentTraining.fitness.push(e);
     }
     return e;
@@ -1374,7 +1374,7 @@ BT.training = (function() {
 
     const fitnessEntries = (training.fitness || []).filter(e =>
       presentIds.has(e.playerId) &&
-      (e.sprint != null || e.rimTouches != null || e.laneAgility != null || e.jumpHeight != null)
+      (e.sprint != null || e.rimTouches != null || e.laneAgility != null || e.pushUps != null)
     );
     if (fitnessEntries.length > 0) {
       heading('Fitness-Test');
@@ -1388,7 +1388,7 @@ BT.training = (function() {
           e.sprint != null ? fmt(e.sprint, 2) + ' s' : '–',
           e.rimTouches != null ? String(e.rimTouches) : '–',
           e.laneAgility != null ? fmt(e.laneAgility, 2) + ' s' : '–',
-          e.jumpHeight != null ? fmt(e.jumpHeight, 1) + ' cm' : '–'
+          e.pushUps != null ? String(e.pushUps) : '–'
         ]);
 
       const nameW2 = 140;
@@ -1396,7 +1396,7 @@ BT.training = (function() {
       ensureSpace((fitRows.length + 1) * 18 + 8);
       y = drawTable(doc, margin, y,
         [nameW2, colW2, colW2, colW2, colW2],
-        ['Spieler', 'Sprint', 'Rim Touches', 'Lane Agility', 'Sprungkraft'],
+        ['Spieler', 'Sprint', 'Rim Touches', 'Lane Agility', 'Liegestütze'],
         fitRows, { header: orange });
       y += 8;
     }
