@@ -220,6 +220,7 @@
         <button class="subnav-btn" type="button" data-pane="attendance">Anwesenheit</button>
         <button class="subnav-btn" type="button" data-pane="ft">Freiwürfe</button>
         <button class="subnav-btn" type="button" data-pane="shots">Würfe</button>
+        <button class="subnav-btn" type="button" data-pane="fitness">Fitness</button>
         <button class="subnav-btn" type="button" data-pane="map">Karte</button>
         <button class="subnav-btn" type="button" data-pane="notes">Notizen</button>
       </div>
@@ -274,6 +275,12 @@
         <div class="ft-summary" data-role="shot-summary"></div>
         <ul class="ft-list" data-role="shots"></ul>
         <p class="empty hidden" data-role="shot-empty">Keine anwesenden Spieler.</p>
+      </div>
+
+      <div class="pane hidden" data-pane="fitness">
+        <p class="muted">Sprint, Rim Touches, Lane Agility, Sprungkraft — je Spieler ein Messwert pro Training. Leer lassen wenn nicht getestet.</p>
+        <ul class="ft-list" data-role="fitness"></ul>
+        <p class="empty hidden" data-role="fitness-empty">Keine anwesenden Spieler.</p>
       </div>
 
       <div class="pane hidden" data-pane="map">

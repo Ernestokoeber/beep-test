@@ -184,6 +184,7 @@ BT.training = (function() {
         renderSummary();
         renderFreethrows();
         renderShots();
+        renderFitness();
       });
     }
 
@@ -192,6 +193,7 @@ BT.training = (function() {
     renderFreethrows();
     renderShotTabs();
     renderShots();
+    renderFitness();
   }
 
   function syncAttendanceWithPlayers() {
@@ -249,6 +251,7 @@ BT.training = (function() {
           renderSummary();
           renderFreethrows();
           renderShots();
+          renderFitness();
         });
       });
 
@@ -616,6 +619,77 @@ BT.training = (function() {
     BT.storage.upsertTraining(currentTraining);
   }
 
+  const FITNESS_FIELDS = [
+    { key: 'sprint', label: 'Sprint (s)', step: '0.01', mode: 'decimal' },
+    { key: 'rimTouches', label: 'Rim Touches', step: '1', mode: 'numeric' },
+    { key: 'laneAgility', label: 'Lane Agility (s)', step: '0.01', mode: 'decimal' },
+    { key: 'jumpHeight', label: 'Sprungkraft (cm)', step: '0.1', mode: 'decimal' }
+  ];
+
+  function getOrCreateFitness(playerId) {
+    if (!currentTraining.fitness) currentTraining.fitness = [];
+    let e = currentTraining.fitness.find(x => x.playerId === playerId);
+    if (!e) {
+      e = { playerId, sprint: null, rimTouches: null, laneAgility: null, jumpHeight: null };
+      currentTraining.fitness.push(e);
+    }
+    return e;
+  }
+
+  function renderFitness() {
+    const list = $('[data-role="fitness"]', detailRoot);
+    const empty = $('[data-role="fitness-empty"]', detailRoot);
+    if (!list) return;
+    list.innerHTML = '';
+
+    const allPlayers = BT.storage.getPlayers();
+    const presentIds = presentPlayerIds(currentTraining);
+    if (presentIds.length === 0) {
+      if (empty) empty.classList.remove('hidden');
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+
+    const presentPlayers = presentIds
+      .map(id => allPlayers.find(p => p.id === id))
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
+    for (const p of presentPlayers) {
+      const e = getOrCreateFitness(p.id);
+      list.appendChild(buildFitnessCard(p, e));
+    }
+    save();
+  }
+
+  function buildFitnessCard(player, entry) {
+    const card = document.createElement('li');
+    card.className = 'ft-card';
+    const fieldsHtml = FITNESS_FIELDS.map(f => {
+      const val = entry[f.key];
+      const v = (val === null || val === undefined) ? '' : val;
+      return `<label>${f.label}<input type="number" step="${f.step}" min="0" inputmode="${f.mode}" data-field="${f.key}" value="${v}"></label>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="ft-head"><span class="name">${escapeHTML(player.name)}</span></div>
+      <div class="fit-grid">${fieldsHtml}</div>
+    `;
+    $$('[data-field]', card).forEach(input => {
+      input.addEventListener('input', () => {
+        const field = input.dataset.field;
+        const raw = input.value.trim();
+        if (raw === '') entry[field] = null;
+        else {
+          const num = parseFloat(raw);
+          entry[field] = isNaN(num) ? null : num;
+        }
+        save();
+      });
+      input.addEventListener('focus', () => input.select());
+    });
+    return card;
+  }
+
   function setupSubnav() {
     $$('.subnav-btn', detailRoot).forEach(btn => {
       btn.addEventListener('click', () => {
@@ -624,6 +698,7 @@ BT.training = (function() {
         $$('.pane', detailRoot).forEach(p => p.classList.toggle('hidden', p.dataset.pane !== target));
         if (target === 'notes') renderPlayerNotes();
         if (target === 'map') renderShotMap();
+        if (target === 'fitness') renderFitness();
         if (detailRoot && detailRoot.scrollIntoView) detailRoot.scrollIntoView({ block: 'start', behavior: 'instant' });
       });
     });
@@ -1294,6 +1369,35 @@ BT.training = (function() {
 
       ensureSpace(36);
       y = drawTable(doc, margin, y, widths, cols, rows, { header: green });
+      y += 8;
+    }
+
+    const fitnessEntries = (training.fitness || []).filter(e =>
+      presentIds.has(e.playerId) &&
+      (e.sprint != null || e.rimTouches != null || e.laneAgility != null || e.jumpHeight != null)
+    );
+    if (fitnessEntries.length > 0) {
+      heading('Fitness-Test');
+      const fmt = (v, digits) => (v == null || isNaN(v)) ? '–' : Number(v).toFixed(digits);
+      const fitRows = fitnessEntries.slice()
+        .map(e => ({ e, p: allPlayers.find(p => p.id === e.playerId) }))
+        .filter(x => x.p)
+        .sort((x, y) => x.p.name.localeCompare(y.p.name, 'de'))
+        .map(({ e, p }) => [
+          p.name,
+          e.sprint != null ? fmt(e.sprint, 2) + ' s' : '–',
+          e.rimTouches != null ? String(e.rimTouches) : '–',
+          e.laneAgility != null ? fmt(e.laneAgility, 2) + ' s' : '–',
+          e.jumpHeight != null ? fmt(e.jumpHeight, 1) + ' cm' : '–'
+        ]);
+
+      const nameW2 = 140;
+      const colW2 = (pageW - 2 * margin - nameW2) / 4;
+      ensureSpace((fitRows.length + 1) * 18 + 8);
+      y = drawTable(doc, margin, y,
+        [nameW2, colW2, colW2, colW2, colW2],
+        ['Spieler', 'Sprint', 'Rim Touches', 'Lane Agility', 'Sprungkraft'],
+        fitRows, { header: orange });
       y += 8;
     }
 

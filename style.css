@@ -1367,6 +1367,43 @@ table.results tr:last-child td { border-bottom: none; }
 
 .ft-input:focus { outline: 2px solid var(--primary); }
 
+.fit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+.fit-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.fit-grid input {
+  background: var(--surface);
+  border: 1px solid #d1d5db;
+  color: var(--text);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  height: 44px;
+  font-family: inherit;
+  -moz-appearance: textfield;
+  touch-action: manipulation;
+}
+.fit-grid input::-webkit-outer-spin-button,
+.fit-grid input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.fit-grid input:focus { outline: 2px solid var(--primary); }
+[data-theme="dark"] .fit-grid input { border-color: var(--border); }
+
 .shot-categories {
   display: flex;
   flex-wrap: wrap;
