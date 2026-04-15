@@ -1,4 +1,4 @@
-const CACHE = 'beeptest-v51';
+const CACHE = 'beeptest-v52';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './js/storage.js',
   './js/levels.js',
   './js/ratings.js',
+  './js/heatmap.js',
   './js/audio.js',
   './js/stats.js',
   './js/players.js',

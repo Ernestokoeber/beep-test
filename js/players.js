@@ -162,32 +162,6 @@ BT.players = (function() {
     });
   }
 
-  const ZONES = {
-    rim:      { label: 'Korb',       cx: 250, cy: 65 },
-    paint:    { label: 'Zone',       cx: 250, cy: 130 },
-    ft:       { label: 'FW/Mitte',   cx: 250, cy: 205 },
-    mid_l:    { label: 'Mittel L',   cx: 110, cy: 160 },
-    mid_r:    { label: 'Mittel R',   cx: 390, cy: 160 },
-    corner_l: { label: '3er Ecke L', cx: 30,  cy: 75 },
-    corner_r: { label: '3er Ecke R', cx: 470, cy: 75 },
-    arc_3:    { label: '3er Bogen',  cx: 250, cy: 395 }
-  };
-
-  function zoneOf(x, y) {
-    const distRim = Math.hypot(x - 250, y - 50);
-    const distFT = Math.hypot(x - 250, y - 200);
-    const distArc = Math.hypot(x - 250, y - 135);
-    const is3Corner = y <= 135 && (x < 50 || x > 450);
-    const is3Arc = y > 135 && distArc > 200;
-    if (is3Corner) return x < 50 ? 'corner_l' : 'corner_r';
-    if (is3Arc) return 'arc_3';
-    if (distRim < 42) return 'rim';
-    if (distFT < 55) return 'ft';
-    const inPaint = x >= 160 && x <= 340 && y >= 10 && y <= 200;
-    if (inPaint) return 'paint';
-    return x < 250 ? 'mid_l' : 'mid_r';
-  }
-
   function renderPlayerHeatmap(node, player) {
     const trainings = (BT.stats.endedTrainings && BT.stats.endedTrainings()) || [];
     const shots = [];
@@ -220,46 +194,12 @@ BT.players = (function() {
       const shotsLayer = $('[data-role="player-heatmap-shots"]', node);
       if (cellsLayer) cellsLayer.innerHTML = '';
       if (shotsLayer) shotsLayer.innerHTML = '';
-
-      if (view === 'shots') {
-        for (const s of shots) {
-          if (s.made) {
-            shotsLayer.insertAdjacentHTML('beforeend',
-              `<circle cx="${s.x}" cy="${s.y}" r="5" fill="rgba(0,140,60,0.7)" stroke="#004b2b" stroke-width="1"/>`);
-          } else {
-            const x = s.x, y = s.y, r = 4;
-            shotsLayer.insertAdjacentHTML('beforeend',
-              `<line x1="${x-r}" y1="${y-r}" x2="${x+r}" y2="${y+r}" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>` +
-              `<line x1="${x-r}" y1="${y+r}" x2="${x+r}" y2="${y-r}" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>`
-            );
-          }
-        }
-      } else {
-        const byZone = {};
-        for (const s of shots) {
-          const z = zoneOf(s.x, s.y);
-          if (!byZone[z]) byZone[z] = { hits: 0, total: 0 };
-          byZone[z].total++;
-          if (s.made) byZone[z].hits++;
-        }
-        for (const [zkey, data] of Object.entries(byZone)) {
-          const zone = ZONES[zkey];
-          if (!zone) continue;
-          const p = data.hits / data.total;
-          const red = Math.round(220 * (1 - p)) + 20;
-          const green = Math.round(160 * p + 60);
-          const radius = 30;
-          const pctTxt = Math.round(p * 100) + '%';
-          cellsLayer.insertAdjacentHTML('beforeend',
-            `<circle cx="${zone.cx}" cy="${zone.cy}" r="${radius}" fill="rgb(${red},${green},30)" fill-opacity="0.82" stroke="rgba(0,0,0,0.35)" stroke-width="1.5"><title>${zone.label}: ${data.hits}/${data.total} (${pctTxt})</title></circle>` +
-            `<text x="${zone.cx}" y="${zone.cy - 3}" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" pointer-events="none" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:2">${pctTxt}</text>` +
-            `<text x="${zone.cx}" y="${zone.cy + 12}" text-anchor="middle" font-size="10" font-weight="600" fill="#fff" pointer-events="none" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:2">${data.hits}/${data.total}</text>`
-          );
-        }
-      }
+      if (view === 'shots') BT.heatmap.renderShots(shotsLayer, shots);
+      else if (view === 'hex') BT.heatmap.renderHexbin(cellsLayer, shots);
+      else BT.heatmap.renderZones(cellsLayer, shots);
     }
 
-    render('heat');
+    render('zones');
     $$('input[name="heatmap-view"]', node).forEach(r => {
       r.addEventListener('change', () => render(r.value));
     });
