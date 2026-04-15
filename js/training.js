@@ -1020,6 +1020,47 @@ BT.training = (function() {
     return jsPDFPromise;
   }
 
+  function drawCourt(doc, x, y, w) {
+    const h = w * 470 / 500;
+    const sx = v => x + v * w / 500;
+    const sy = v => y + v * h / 470;
+    const sL = v => v * w / 500;
+
+    doc.setLineWidth(0.8);
+    doc.setDrawColor(122, 74, 26);
+    doc.setFillColor(245, 230, 200);
+    doc.rect(sx(10), sy(10), sL(480), sL(450), 'FD');
+
+    doc.setFillColor(250, 220, 180);
+    doc.rect(sx(160), sy(10), sL(180), sL(190), 'FD');
+
+    doc.setLineWidth(0.6);
+    doc.circle(sx(250), sy(200), sL(60), 'S');
+    doc.line(sx(160), sy(200), sx(340), sy(200));
+
+    doc.setDrawColor(204, 51, 0);
+    doc.setLineWidth(1);
+    doc.circle(sx(250), sy(50), sL(8), 'S');
+    doc.setLineWidth(1.5);
+    doc.line(sx(220), sy(40), sx(280), sy(40));
+
+    doc.setDrawColor(122, 74, 26);
+    doc.setLineWidth(0.8);
+    doc.line(sx(50), sy(10), sx(50), sy(135));
+    doc.line(sx(450), sy(10), sx(450), sy(135));
+
+    const cx = 250, cy = 135, r = 200;
+    let prev = null;
+    for (let i = 0; i <= 24; i++) {
+      const theta = Math.PI - (Math.PI * i / 24);
+      const ax = cx + r * Math.cos(theta);
+      const ay = cy + r * Math.sin(theta);
+      if (prev) doc.line(sx(prev.x), sy(prev.y), sx(ax), sy(ay));
+      prev = { x: ax, y: ay };
+    }
+    return h;
+  }
+
   function drawTable(doc, x, startY, widths, headers, rows, colors) {
     const margin = 40;
     const rowH = 18;
@@ -1116,12 +1157,12 @@ BT.training = (function() {
     }
 
     if (training.note) {
-      ensureSpace(20);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'italic');
       const lines = doc.splitTextToSize(training.note, pageW - 2 * margin);
+      ensureSpace(lines.length * 12 + 10);
       doc.text(lines, margin, y);
-      y += lines.length * 12 + 6;
+      y += lines.length * 12 + 10;
       doc.setFont('helvetica', 'normal');
     }
 
@@ -1134,31 +1175,16 @@ BT.training = (function() {
       ['Verletzt', String(injuredList.length)],
       ['Zu spät', String(lateList.length)]
     ];
+    const labelW = 110;
     for (const [k, v] of overview) {
       ensureSpace(14);
       doc.setFont('helvetica', 'bold');
       doc.text(k + ':', margin, y);
       doc.setFont('helvetica', 'normal');
-      doc.text(v, margin + 100, y);
+      doc.text(v, margin + labelW, y);
       y += 14;
     }
-    y += 4;
-
-    const bullets = [];
-    if (excusedList.length) bullets.push(['Entschuldigt', excusedList.map(a => nameOf(a.playerId)).sort().join(', ')]);
-    if (injuredList.length) bullets.push(['Verletzt', injuredList.map(a => nameOf(a.playerId)).sort().join(', ')]);
-    if (absentList.length) bullets.push(['Abwesend', absentList.map(a => nameOf(a.playerId)).sort().join(', ')]);
-    if (lateList.length) bullets.push(['Zu spät', lateList.map(a => nameOf(a.playerId)).sort().join(', ')]);
-    for (const [label, names] of bullets) {
-      ensureSpace(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text(label + ':', margin, y);
-      doc.setFont('helvetica', 'normal');
-      const lines = doc.splitTextToSize(names, pageW - 2 * margin - 100);
-      doc.text(lines, margin + 100, y);
-      y += Math.max(14, lines.length * 12 + 2);
-    }
-    y += 6;
+    y += 10;
 
     heading('Team-Statistik');
     const teamRows = [];
@@ -1189,7 +1215,49 @@ BT.training = (function() {
         [pageW - 2 * margin - 160, 80, 80],
         ['Kategorie', 'Treffer/Versuche', 'Quote'],
         teamRows, { header: orange });
-      y += 8;
+      y += 14;
+    }
+
+    const allShots = (training.shotMap || []).filter(s => presentIds.has(s.playerId));
+    if (allShots.length > 0) {
+      heading('Team-Wurfkarte');
+      const courtW = Math.min(360, pageW - 2 * margin);
+      const courtH = courtW * 470 / 500;
+      ensureSpace(courtH + 30);
+      const courtX = margin + ((pageW - 2 * margin) - courtW) / 2;
+      drawCourt(doc, courtX, y, courtW);
+      for (const s of allShots) {
+        const sx = courtX + (s.x / 500) * courtW;
+        const sy = y + (s.y / 470) * courtH;
+        if (s.made) {
+          doc.setFillColor(0, 140, 60);
+          doc.setDrawColor(0, 75, 43);
+          doc.setLineWidth(0.5);
+          doc.circle(sx, sy, 3, 'FD');
+        } else {
+          doc.setDrawColor(220, 38, 38);
+          doc.setLineWidth(1);
+          doc.line(sx - 2.5, sy - 2.5, sx + 2.5, sy + 2.5);
+          doc.line(sx - 2.5, sy + 2.5, sx + 2.5, sy - 2.5);
+        }
+      }
+      y += courtH + 8;
+      const hits = allShots.filter(s => s.made).length;
+      const misses = allShots.length - hits;
+      doc.setFontSize(9);
+      doc.setTextColor(20);
+      doc.setFont('helvetica', 'normal');
+      doc.setFillColor(0, 140, 60);
+      doc.circle(courtX, y + 4, 3, 'F');
+      doc.text('Treffer: ' + hits, courtX + 10, y + 7);
+      const missLabelX = courtX + 80;
+      doc.setDrawColor(220, 38, 38);
+      doc.setLineWidth(1);
+      doc.line(missLabelX - 2.5, y + 1.5, missLabelX + 2.5, y + 6.5);
+      doc.line(missLabelX - 2.5, y + 6.5, missLabelX + 2.5, y + 1.5);
+      doc.text('Fehlwurf: ' + misses, missLabelX + 10, y + 7);
+      doc.text('Quote: ' + pct(hits, allShots.length) + '%', courtX + 180, y + 7);
+      y += 20;
     }
 
     if (presentList.length > 0) {
@@ -1212,7 +1280,7 @@ BT.training = (function() {
 
       const rows = sorted.map(({ p }) => {
         const isLate = lateList.some(l => l.playerId === p.id);
-        const row = [p.name + (isLate ? ' ⏱' : '')];
+        const row = [p.name + (isLate ? ' (spät)' : '')];
         if (hasFT) {
           const e = fts.find(f => f.playerId === p.id);
           row.push(e ? e.made + '/' + e.attempted + ' (' + pct(e.made, e.attempted) + '%)' : '–');
