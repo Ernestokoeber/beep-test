@@ -58,6 +58,27 @@ BT.audio = (function() {
     beep(800, 0.25);
   }
 
+  function restStartBeep() {
+    const c = ensureContext();
+    if (!c) return;
+    const now = c.currentTime;
+    beep(1100, 0.14, now);
+    beep(700, 0.18, now + 0.22);
+  }
+
+  function restEndBeep() {
+    const c = ensureContext();
+    if (!c) return;
+    const now = c.currentTime;
+    beep(700, 0.1, now);
+    beep(1100, 0.12, now + 0.15);
+    beep(1500, 0.18, now + 0.33);
+  }
+
+  function tick() {
+    beep(1400, 0.06);
+  }
+
   function speak(text) {
     if (!('speechSynthesis' in window)) return;
     try {
@@ -75,5 +96,5 @@ BT.audio = (function() {
     speak('Level ' + levelNum);
   }
 
-  return { ensureContext, shuttleBeep, levelBeep, startBeep, speak, announceLevel };
+  return { ensureContext, shuttleBeep, levelBeep, startBeep, restStartBeep, restEndBeep, tick, speak, announceLevel };
 })();

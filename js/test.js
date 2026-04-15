@@ -231,6 +231,7 @@ BT.test = (function() {
       const delta = now - runState.pausedAt;
       runState.nextShuttleTime += delta;
       runState.startTime += delta;
+      if (runState.restEndAt) runState.restEndAt += delta;
       runState.paused = false;
       btn.textContent = 'Pause';
       tick();
@@ -239,6 +240,7 @@ BT.test = (function() {
       runState.pausedAt = performance.now() / 1000;
       btn.textContent = 'Weiter';
       if (runState.rafId) cancelAnimationFrame(runState.rafId);
+      clearRestTimeouts();
     }
   }
 
@@ -250,6 +252,7 @@ BT.test = (function() {
   function finishTest() {
     runState.running = false;
     releaseWakeLock();
+    clearRestTimeouts();
     if (runState.rafId) cancelAnimationFrame(runState.rafId);
 
     for (const [pid] of runState.active) {
@@ -293,6 +296,9 @@ BT.test = (function() {
     const isYoyo = testType === 'yoyoIR1';
     const restBreak = isYoyo && runState.totalShuttlesDone % BT.levels.YOYO_ROUND_SIZE === 0;
 
+    const voice = BT.storage.getSetting('voiceEnabled', true);
+    let levelAnnounce = null;
+
     if (runState.currentShuttle >= level.shuttles) {
       const nextLevelNum = runState.currentLevel + 1;
       const nextLevel = BT.levels.get(nextLevelNum, testType);
@@ -304,20 +310,50 @@ BT.test = (function() {
       runState.currentLevel = nextLevelNum;
       runState.currentShuttle = 0;
       runState.nextShuttleTime += BT.levels.shuttleDuration(nextLevel, runState.session.distanceM, testType, runState.totalShuttlesDone);
-      BT.audio.levelBeep();
-      if (BT.storage.getSetting('voiceEnabled', true)) {
-        setTimeout(() => BT.audio.announceLevel(nextLevelNum), 500);
-      }
+      levelAnnounce = nextLevelNum;
+      if (restBreak) BT.audio.restStartBeep();
+      else BT.audio.levelBeep();
     } else {
       runState.nextShuttleTime += BT.levels.shuttleDuration(level, runState.session.distanceM, testType, runState.totalShuttlesDone);
-      BT.audio.shuttleBeep();
+      if (restBreak) BT.audio.restStartBeep();
+      else BT.audio.shuttleBeep();
     }
 
     if (restBreak) {
-      runState.restEndAt = performance.now() / 1000 + BT.levels.YOYO_REST_SEC;
+      const restSec = BT.levels.YOYO_REST_SEC;
+      runState.restEndAt = performance.now() / 1000 + restSec;
+      if (voice) {
+        scheduleRestTimeout(() => BT.audio.speak('Pause'), 250);
+      }
+      for (let i = 3; i >= 1; i--) {
+        scheduleRestTimeout(() => BT.audio.tick(), (restSec - i) * 1000);
+      }
+      scheduleRestTimeout(() => BT.audio.restEndBeep(), restSec * 1000);
+      if (voice) {
+        scheduleRestTimeout(() => BT.audio.speak('Los'), restSec * 1000 + 200);
+      }
+      if (levelAnnounce != null && voice) {
+        scheduleRestTimeout(() => BT.audio.announceLevel(levelAnnounce), 1200);
+      }
+    } else if (levelAnnounce != null && voice) {
+      setTimeout(() => BT.audio.announceLevel(levelAnnounce), 500);
     }
 
     updateDisplay();
+  }
+
+  function scheduleRestTimeout(fn, ms) {
+    if (!runState.restTimeoutIds) runState.restTimeoutIds = [];
+    const id = setTimeout(() => {
+      if (runState && runState.running && !runState.paused) fn();
+    }, ms);
+    runState.restTimeoutIds.push(id);
+  }
+
+  function clearRestTimeouts() {
+    if (!runState || !runState.restTimeoutIds) return;
+    runState.restTimeoutIds.forEach(id => clearTimeout(id));
+    runState.restTimeoutIds = [];
   }
 
   function updateDisplay() {
@@ -423,6 +459,7 @@ BT.test = (function() {
 
   function cleanup() {
     if (runState && runState.rafId) cancelAnimationFrame(runState.rafId);
+    clearRestTimeouts();
     releaseWakeLock();
     runState = null;
   }
