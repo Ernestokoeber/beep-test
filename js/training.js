@@ -71,12 +71,13 @@ BT.training = (function() {
     if (isPast) li.classList.add('past');
     const a = document.createElement('a');
     a.href = '#/training/' + t.id;
-    const badge = isPast ? '<span class="att-chip muted-chip">Absolviert</span> ' : '';
+    const endedBadge = t.endedAt ? '<span class="att-chip ok">🏁 Beendet</span> ' : '';
+    const badge = isPast && !t.endedAt ? '<span class="att-chip muted-chip">Absolviert</span> ' : '';
     a.innerHTML = `
       <div class="info">
         <div class="name">${formatDate(t.date)}${t.startTime ? ' · ' + escapeHTML(t.startTime) : ''}${t.note ? ' – ' + escapeHTML(t.note) : ''}</div>
         <div class="meta">
-          ${badge}
+          ${endedBadge}${badge}
           ${summary.pending === summary.total && summary.total > 0
             ? '<span class="att-chip muted-chip">○ Anwesenheit offen</span>'
             : `<span class="att-chip ok">✓ ${summary.present}</span>
@@ -268,7 +269,12 @@ BT.training = (function() {
   function renderSummary() {
     const s = summarize(currentTraining);
     const el = $('[data-role="summary"]', detailRoot);
+    const ended = !!currentTraining.endedAt;
+    const statusChip = ended
+      ? '<span class="att-chip ok">🏁 Beendet</span>'
+      : '<span class="att-chip muted-chip">⏺ Läuft / Offen</span>';
     el.innerHTML = `
+      ${statusChip}
       <span class="att-chip ok">✓ Anwesend ${s.present}</span>
       <span class="att-chip bad">✗ Abwesend ${s.absent}</span>
       <span class="att-chip warn">E Entschuldigt ${s.excused}</span>
@@ -276,7 +282,19 @@ BT.training = (function() {
       ${s.late > 0 ? '<span class="att-chip">Zu spät: ' + s.late + '</span>' : ''}
       ${s.pending > 0 ? '<span class="att-chip muted-chip">○ Offen ' + s.pending + '</span>' : ''}
       <span class="att-chip muted-chip">Gesamt ${s.total}</span>
+      <button type="button" class="btn small" data-action="toggle-ended">${ended ? 'Wieder öffnen' : 'Als beendet markieren'}</button>
     `;
+    const toggleBtn = $('[data-action="toggle-ended"]', el);
+    if (toggleBtn) toggleBtn.addEventListener('click', () => {
+      if (currentTraining.endedAt) {
+        if (!confirm('Training wieder öffnen? Es fällt dann aus der Spielerstatistik heraus, bis es erneut beendet wird.')) return;
+        delete currentTraining.endedAt;
+      } else {
+        currentTraining.endedAt = new Date().toISOString();
+      }
+      save();
+      renderSummary();
+    });
   }
 
   function getOrCreateFT(playerId) {
@@ -1442,11 +1460,16 @@ BT.training = (function() {
   }
 
   async function endTrainingAndShare(training) {
-    if (!confirm('Training beenden und Bericht als PDF teilen?')) return;
+    if (!confirm('Training beenden und Bericht als PDF teilen?\n\nDas Training wird als abgeschlossen markiert und fliesst ab sofort in die Spielerstatistik ein.')) return;
     const btn = $('[data-action="end-training"]', detailRoot);
     const orig = btn ? btn.textContent : '';
     try {
       if (btn) { btn.disabled = true; btn.textContent = '⏳ PDF wird erstellt…'; }
+      if (!training.endedAt) {
+        training.endedAt = new Date().toISOString();
+        BT.storage.upsertTraining(training);
+        renderSummary();
+      }
       const JsPDFCtor = await loadJsPDF();
       const doc = new JsPDFCtor({ unit: 'pt', format: 'a4' });
       buildTrainingPDF(doc, training);

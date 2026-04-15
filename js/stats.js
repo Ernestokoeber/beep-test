@@ -3,12 +3,28 @@ window.BT = window.BT || {};
 BT.stats = (function() {
   function pct(made, att) { return att ? Math.round((made / att) * 100) : 0; }
 
+  function isEnded(t) {
+    if (!t) return false;
+    if (t.endedAt) return true;
+    // Fallback fuer Altdaten ohne explizites endedAt:
+    // Trainings deren Datum in der Vergangenheit liegt gelten als abgeschlossen.
+    if (t.date) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (t.date < today) return true;
+    }
+    return false;
+  }
+
+  function endedTrainings() {
+    return BT.storage.getTrainings().filter(isEnded);
+  }
+
   function countTrainings() {
-    return BT.storage.getTrainings().length;
+    return endedTrainings().length;
   }
 
   function playerAttendance(playerId) {
-    const trainings = BT.storage.getTrainings();
+    const trainings = endedTrainings();
     const stats = { total: 0, present: 0, late: 0, absent: 0, excused: 0, injured: 0, pct: 0 };
     for (const t of trainings) {
       const a = (t.attendance || []).find(x => x.playerId === playerId);
@@ -22,7 +38,7 @@ BT.stats = (function() {
   }
 
   function playerFreethrows(playerId) {
-    const trainings = BT.storage.getTrainings();
+    const trainings = endedTrainings();
     let made = 0, att = 0, sessions = 0;
     for (const t of trainings) {
       const e = (t.freethrows || []).find(x => x.playerId === playerId);
@@ -36,7 +52,7 @@ BT.stats = (function() {
   }
 
   function playerShotsByCategory(playerId) {
-    const trainings = BT.storage.getTrainings();
+    const trainings = endedTrainings();
     const byCat = new Map();
     for (const t of trainings) {
       for (const cat of (t.shots || [])) {
@@ -56,7 +72,7 @@ BT.stats = (function() {
   }
 
   function teamAttendance() {
-    const trainings = BT.storage.getTrainings();
+    const trainings = endedTrainings();
     let slots = 0, present = 0;
     for (const t of trainings) {
       for (const a of (t.attendance || [])) {
@@ -69,7 +85,7 @@ BT.stats = (function() {
   }
 
   function teamFreethrows() {
-    const trainings = BT.storage.getTrainings();
+    const trainings = endedTrainings();
     let made = 0, att = 0, sessions = 0;
     for (const t of trainings) {
       let tMade = 0, tAtt = 0, any = false;
@@ -82,7 +98,7 @@ BT.stats = (function() {
   }
 
   function teamShotsByCategory() {
-    const trainings = BT.storage.getTrainings();
+    const trainings = endedTrainings();
     const byCat = new Map();
     for (const t of trainings) {
       for (const cat of (t.shots || [])) {
@@ -141,7 +157,7 @@ BT.stats = (function() {
   }
 
   function playerAttendanceTimeline(playerId) {
-    const trainings = BT.storage.getTrainings().slice()
+    const trainings = endedTrainings().slice()
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const out = [];
     for (const t of trainings) {
@@ -153,7 +169,7 @@ BT.stats = (function() {
   }
 
   function playerFreethrowsTimeline(playerId) {
-    const trainings = BT.storage.getTrainings().slice()
+    const trainings = endedTrainings().slice()
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const out = [];
     for (const t of trainings) {
@@ -165,7 +181,7 @@ BT.stats = (function() {
   }
 
   function playerShotsTimelineByCategory(playerId, category) {
-    const trainings = BT.storage.getTrainings().slice()
+    const trainings = endedTrainings().slice()
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const out = [];
     for (const t of trainings) {
@@ -215,7 +231,7 @@ BT.stats = (function() {
   }
 
   return {
-    pct, countTrainings,
+    pct, countTrainings, isEnded, endedTrainings,
     playerAttendance, playerFreethrows, playerShotsByCategory,
     playerAttendanceTimeline, playerFreethrowsTimeline, playerShotsTimelineByCategory,
     rollingAttendancePct,

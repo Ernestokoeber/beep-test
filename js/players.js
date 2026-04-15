@@ -189,7 +189,7 @@ BT.players = (function() {
   }
 
   function renderPlayerHeatmap(node, player) {
-    const trainings = (BT.storage.getTrainings && BT.storage.getTrainings()) || [];
+    const trainings = (BT.stats.endedTrainings && BT.stats.endedTrainings()) || [];
     const shots = [];
     for (const t of trainings) {
       for (const s of (t.shotMap || [])) {
