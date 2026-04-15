@@ -454,6 +454,37 @@ h3 { margin: 28px 0 10px 0; font-size: 13px; color: var(--muted); text-transform
 .rest-indicator.active { display: block; }
 [data-theme="dark"] .rest-indicator { background: rgba(232, 161, 77, 0.22); }
 
+.start-countdown {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-family: 'Monoton', 'Inter', sans-serif;
+  font-size: clamp(140px, 35vw, 280px);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  z-index: 1000;
+  pointer-events: none;
+  animation: countdown-pop 0.4s ease-out;
+}
+.start-countdown.final {
+  color: var(--primary);
+  font-size: clamp(80px, 18vw, 160px);
+  animation: countdown-final 0.8s ease-out forwards;
+}
+@keyframes countdown-pop {
+  from { transform: scale(1.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes countdown-final {
+  0% { transform: scale(0.8); opacity: 0; }
+  30% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
 .session-list a {
   color: var(--text);
   text-decoration: none;

@@ -200,7 +200,6 @@ BT.test = (function() {
   function start() {
     if (runState.running) return;
     BT.audio.ensureContext();
-    BT.audio.startBeep();
     requestWakeLock();
 
     runState.running = true;
@@ -217,9 +216,13 @@ BT.test = (function() {
     $('[data-action="pause"]', runRoot).disabled = false;
     $('[data-action="stop"]', runRoot).disabled = false;
 
-    setTimeout(() => {
-      if (runState && runState.running) BT.audio.shuttleBeep();
-    }, 3000);
+    const voice = BT.storage.getSetting('voiceEnabled', true);
+    showStartCountdown('3');
+    BT.audio.tick();
+    if (voice) BT.audio.speak('Drei');
+    scheduleRestTimeout(() => { showStartCountdown('2'); BT.audio.tick(); if (voice) BT.audio.speak('Zwei'); }, 1000);
+    scheduleRestTimeout(() => { showStartCountdown('1'); BT.audio.tick(); if (voice) BT.audio.speak('Eins'); }, 2000);
+    scheduleRestTimeout(() => { showStartCountdown('LOS!', true); BT.audio.restEndBeep(); if (voice) BT.audio.speak('Los'); }, 3000);
 
     tick();
   }
@@ -354,6 +357,22 @@ BT.test = (function() {
     if (!runState || !runState.restTimeoutIds) return;
     runState.restTimeoutIds.forEach(id => clearTimeout(id));
     runState.restTimeoutIds = [];
+  }
+
+  function showStartCountdown(text, fadeOut) {
+    if (!runRoot) return;
+    let el = $('[data-role="start-countdown"]', runRoot);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'start-countdown';
+      el.setAttribute('data-role', 'start-countdown');
+      runRoot.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.toggle('final', !!fadeOut);
+    if (fadeOut) {
+      setTimeout(() => { if (el && el.parentNode) el.remove(); }, 800);
+    }
   }
 
   function updateDisplay() {

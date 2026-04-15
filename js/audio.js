@@ -3,6 +3,7 @@ window.BT = window.BT || {};
 BT.audio = (function() {
   let ctx = null;
   let unlocked = false;
+  let ttsUnlocked = false;
 
   function ensureContext() {
     if (!ctx) {
@@ -19,6 +20,17 @@ BT.audio = (function() {
         src.connect(ctx.destination);
         src.start(0);
         unlocked = true;
+      } catch (e) { /* ignore */ }
+    }
+    if (!ttsUnlocked && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.getVoices();
+        const u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0;
+        u.rate = 1;
+        u.lang = 'de-DE';
+        window.speechSynthesis.speak(u);
+        ttsUnlocked = true;
       } catch (e) { /* ignore */ }
     }
     return ctx;
@@ -79,16 +91,27 @@ BT.audio = (function() {
     beep(1400, 0.06);
   }
 
+  function pickGermanVoice() {
+    if (!('speechSynthesis' in window)) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    return voices.find(v => v.lang === 'de-DE')
+      || voices.find(v => v.lang && v.lang.toLowerCase().startsWith('de'))
+      || null;
+  }
+
   function speak(text) {
     if (!('speechSynthesis' in window)) return;
     try {
+      const s = window.speechSynthesis;
+      if (s.paused) s.resume();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'de-DE';
-      u.rate = 1.0;
+      u.rate = 1.1;
       u.pitch = 1.0;
       u.volume = 1.0;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
+      const v = pickGermanVoice();
+      if (v) u.voice = v;
+      s.speak(u);
     } catch (e) { console.warn('TTS fehlgeschlagen:', e.message); }
   }
 
