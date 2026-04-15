@@ -549,17 +549,7 @@ BT.training = (function() {
     const attInput = $('[data-role="att"]', card);
     const pctLabel = $('[data-role="pct"]', card);
 
-    function normalize() {
-      entry.made = Math.max(0, Math.floor(entry.made || 0));
-      entry.attempted = Math.max(0, Math.floor(entry.attempted || 0));
-      if (entry.made > entry.attempted) entry.attempted = entry.made;
-      madeInput.value = entry.made;
-      attInput.value = entry.attempted;
-    }
-    function update() {
-      normalize();
-      pctLabel.textContent = pct(entry.made, entry.attempted) + '% (' + entry.made + '/' + entry.attempted + ')';
-      save();
+    function refreshSummary() {
       if (kind === 'ft') {
         const ids = presentPlayerIds(currentTraining);
         const entries = ids.map(id => getOrCreateFT(id));
@@ -576,9 +566,36 @@ BT.training = (function() {
         sumEl.innerHTML = `<span class="att-chip ok">${currentShotCategory}: ${m}/${a}</span><span class="att-chip">${pct(m, a)}%</span>`;
       }
     }
+    function refreshPct() {
+      pctLabel.textContent = pct(entry.made, entry.attempted) + '% (' + entry.made + '/' + entry.attempted + ')';
+    }
+    function commit() {
+      entry.made = Math.max(0, Math.floor(entry.made || 0));
+      entry.attempted = Math.max(0, Math.floor(entry.attempted || 0));
+      if (entry.made > entry.attempted) entry.attempted = entry.made;
+      madeInput.value = entry.made;
+      attInput.value = entry.attempted;
+      refreshPct();
+      save();
+      refreshSummary();
+    }
 
-    madeInput.addEventListener('input', () => { entry.made = parseInt(madeInput.value, 10) || 0; update(); });
-    attInput.addEventListener('input', () => { entry.attempted = parseInt(attInput.value, 10) || 0; update(); });
+    madeInput.addEventListener('input', () => {
+      entry.made = parseInt(madeInput.value, 10) || 0;
+      refreshPct();
+      save();
+      refreshSummary();
+    });
+    attInput.addEventListener('input', () => {
+      entry.attempted = parseInt(attInput.value, 10) || 0;
+      refreshPct();
+      save();
+      refreshSummary();
+    });
+    madeInput.addEventListener('blur', commit);
+    attInput.addEventListener('blur', commit);
+    madeInput.addEventListener('focus', () => madeInput.select());
+    attInput.addEventListener('focus', () => attInput.select());
 
     $$('[data-act]', card).forEach(btn => {
       btn.addEventListener('click', () => {
@@ -587,7 +604,7 @@ BT.training = (function() {
         else if (act === 'm-') { entry.made = Math.max(0, entry.made - 1); }
         else if (act === 'a+') { entry.attempted++; }
         else if (act === 'a-') { entry.attempted = Math.max(entry.made, entry.attempted - 1); }
-        update();
+        commit();
       });
     });
 
