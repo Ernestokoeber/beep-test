@@ -170,7 +170,6 @@ BT.training = (function() {
     renderPlanBox();
     setupSubnav();
     setupShotMap();
-    setupSpotEditor();
 
     const resetBtn = $('[data-action="reset-attendance"]', detailRoot);
     if (resetBtn) {
@@ -531,100 +530,18 @@ BT.training = (function() {
 
   function renderSpotBar() {
     const bar = $('[data-role="spot-bar"]', detailRoot);
-    const editor = $('[data-role="spot-editor"]', detailRoot);
     if (!bar) return;
     if (!currentShotCategory) {
       bar.classList.add('hidden');
-      editor.classList.add('hidden');
       return;
     }
     bar.classList.remove('hidden');
-    const cat = getOrCreateShotCategory(currentShotCategory);
     const status = $('[data-role="spot-status"]', detailRoot);
-    const hasCustom = typeof cat.spotX === 'number' && typeof cat.spotY === 'number';
-    if (status) status.textContent = hasCustom
-      ? `eigener Spot gesetzt (Streuung ${cat.spotR || 22})`
-      : 'Spot wird aus Kategorie-Namen geraten';
-  }
-
-  function setupSpotEditor() {
-    const btn = $('[data-action="toggle-spot"]', detailRoot);
-    const editor = $('[data-role="spot-editor"]', detailRoot);
-    const svg = $('[data-role="spot-svg"]', detailRoot);
-    const hit = $('[data-role="spot-hit"]', detailRoot);
-    const nameEl = $('[data-role="spot-cat-name"]', detailRoot);
-    const radiusInput = $('[data-role="spot-radius"]', detailRoot);
-    const clearBtn = $('[data-action="clear-spot"]', detailRoot);
-    if (!btn || !editor || !svg || !hit) return;
-
-    function drawMarker() {
-      const layer = $('[data-role="spot-marker"]', detailRoot);
-      if (!layer) return;
-      layer.innerHTML = '';
-      if (!currentShotCategory) return;
-      const cat = getOrCreateShotCategory(currentShotCategory);
-      if (typeof cat.spotX !== 'number') return;
-      const r = cat.spotR || 22;
-      layer.insertAdjacentHTML('beforeend',
-        `<circle cx="${cat.spotX}" cy="${cat.spotY}" r="${r}" fill="rgba(232,161,77,0.25)" stroke="rgba(232,161,77,0.7)" stroke-width="2" stroke-dasharray="4 3"/>` +
-        `<circle cx="${cat.spotX}" cy="${cat.spotY}" r="5" fill="#e8a14d" stroke="#004b2b" stroke-width="1.5"/>`
-      );
-      if (radiusInput) radiusInput.value = r;
-    }
-
-    function openEditor() {
-      if (!currentShotCategory) return;
-      nameEl.textContent = currentShotCategory;
-      editor.classList.remove('hidden');
-      drawMarker();
-    }
-
-    btn.addEventListener('click', () => {
-      if (editor.classList.contains('hidden')) openEditor();
-      else editor.classList.add('hidden');
-    });
-
-    hit.addEventListener('click', (e) => {
-      if (!currentShotCategory) return;
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX; pt.y = e.clientY;
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return;
-      const local = pt.matrixTransform(ctm.inverse());
-      const cat = getOrCreateShotCategory(currentShotCategory);
-      cat.spotX = Math.round(local.x * 10) / 10;
-      cat.spotY = Math.round(local.y * 10) / 10;
-      if (cat.spotR == null) cat.spotR = parseInt((radiusInput && radiusInput.value) || 22, 10);
-      save();
-      drawMarker();
-      renderSpotBar();
-    });
-
-    if (radiusInput) {
-      radiusInput.addEventListener('input', () => {
-        if (!currentShotCategory) return;
-        const cat = getOrCreateShotCategory(currentShotCategory);
-        cat.spotR = parseInt(radiusInput.value, 10);
-        if (typeof cat.spotX === 'number') {
-          save();
-          drawMarker();
-          renderSpotBar();
-        }
-      });
-    }
-
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        if (!currentShotCategory) return;
-        const cat = getOrCreateShotCategory(currentShotCategory);
-        delete cat.spotX;
-        delete cat.spotY;
-        delete cat.spotR;
-        save();
-        drawMarker();
-        renderSpotBar();
-      });
-    }
+    const globalSpots = BT.storage.getSetting('shotSpots', {}) || {};
+    const hasSpot = globalSpots[currentShotCategory] && typeof globalSpots[currentShotCategory].x === 'number';
+    if (status) status.textContent = hasSpot
+      ? `📍 Globaler Spot gesetzt (Streuung ${globalSpots[currentShotCategory].r || 22})`
+      : 'Kein Spot gesetzt — wird aus Kategorie-Namen geraten';
   }
 
   function buildShotCard(player, entry, kind) {
@@ -869,6 +786,11 @@ BT.training = (function() {
   }
 
   function spotForCategory(name, cat) {
+    const globalSpots = BT.storage.getSetting('shotSpots', {}) || {};
+    if (globalSpots[name] && typeof globalSpots[name].x === 'number') {
+      const g = globalSpots[name];
+      return { x: g.x, y: g.y, r: g.r || 22 };
+    }
     if (cat && typeof cat.spotX === 'number' && typeof cat.spotY === 'number') {
       return { x: cat.spotX, y: cat.spotY, r: cat.spotR || 22 };
     }

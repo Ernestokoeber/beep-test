@@ -748,6 +748,39 @@ table.results tr:last-child td { border-bottom: none; }
 }
 .spot-editor-controls input[type="range"] { width: 140px; vertical-align: middle; }
 
+.settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 20px;
+  text-decoration: none;
+  background: transparent;
+  transition: background 0.15s;
+}
+.settings-btn:hover { background: var(--surface-2); }
+
+.settings-spots { display: flex; flex-direction: column; gap: 12px; }
+.spot-cat-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.spot-cat-tab {
+  padding: 6px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.spot-cat-tab:hover { background: var(--surface-2); }
+.spot-cat-tab.has-spot { border-color: var(--primary); }
+.spot-cat-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.settings-spots .court { max-width: 380px; margin: 0 auto; display: block; cursor: crosshair; }
+
 .attendance-list {
   list-style: none;
   padding: 0;

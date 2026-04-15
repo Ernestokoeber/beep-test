@@ -79,6 +79,8 @@
     } else if (hash.startsWith('#/notes/')) {
       const id = hash.slice('#/notes/'.length);
       BT.notes.renderDetail(app, id);
+    } else if (hash === '#/settings') {
+      BT.settings.render(app);
     } else if (hash === '#/history') {
       BT.history.renderList(app);
     } else if (hash.startsWith('#/history/')) {

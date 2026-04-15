@@ -26,6 +26,7 @@
       </a>
       <div class="topbar-actions">
         <button class="theme-toggle" type="button" aria-label="Theme wechseln" data-role="theme-toggle">🌙</button>
+        <a class="settings-btn" href="#/settings" aria-label="Einstellungen" title="Einstellungen">⚙️</a>
         <button class="hamburger" type="button" aria-label="Menü" aria-expanded="false" data-role="hamburger">
           <span></span><span></span><span></span>
         </button>
@@ -291,31 +292,8 @@
         <div class="shot-categories" data-role="shot-tabs"></div>
         <div class="ft-summary" data-role="shot-summary"></div>
         <div class="shot-spot-bar hidden" data-role="spot-bar">
-          <button type="button" class="btn small" data-action="toggle-spot">📍 Spot festlegen</button>
           <span class="muted spot-status" data-role="spot-status"></span>
-        </div>
-        <div class="shot-spot-editor hidden" data-role="spot-editor">
-          <p class="muted">Tippe auf die Karte wo die Spieler für <strong data-role="spot-cat-name">…</strong> werfen. Die automatische Wurfkarte setzt dann die Punkte hier.</p>
-          <div class="court-wrap">
-            <svg class="court" viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" data-role="spot-svg">
-              <rect x="10" y="10" width="480" height="450" fill="#f5e6c8" stroke="#7a4a1a" stroke-width="2"/>
-              <rect x="160" y="10" width="180" height="190" fill="#e8a14d" fill-opacity="0.3" stroke="#7a4a1a" stroke-width="2"/>
-              <circle cx="250" cy="200" r="60" fill="none" stroke="#7a4a1a" stroke-width="2"/>
-              <line x1="160" y1="200" x2="340" y2="200" stroke="#7a4a1a" stroke-width="2"/>
-              <path d="M 210 50 A 40 40 0 0 0 290 50" fill="none" stroke="#7a4a1a" stroke-width="1.5"/>
-              <line x1="220" y1="40" x2="280" y2="40" stroke="#333" stroke-width="3"/>
-              <circle cx="250" cy="50" r="8" fill="none" stroke="#cc3300" stroke-width="2.5"/>
-              <line x1="50" y1="10" x2="50" y2="135" stroke="#7a4a1a" stroke-width="2"/>
-              <line x1="450" y1="10" x2="450" y2="135" stroke="#7a4a1a" stroke-width="2"/>
-              <path d="M 50 135 A 200 200 0 0 0 450 135" fill="none" stroke="#7a4a1a" stroke-width="2"/>
-              <g data-role="spot-marker"></g>
-              <rect x="10" y="10" width="480" height="450" fill="transparent" data-role="spot-hit"/>
-            </svg>
-          </div>
-          <div class="spot-editor-controls">
-            <label class="muted">Streuung: <input type="range" min="6" max="60" step="2" data-role="spot-radius" value="22"></label>
-            <button type="button" class="btn small danger" data-action="clear-spot">Spot löschen</button>
-          </div>
+          <a class="btn small" href="#/settings">📍 Spot in Einstellungen bearbeiten</a>
         </div>
         <ul class="ft-list" data-role="shots"></ul>
         <p class="empty hidden" data-role="shot-empty">Keine anwesenden Spieler.</p>
@@ -543,6 +521,45 @@
     </section>
   </template>
 
+  <template id="tpl-settings">
+    <section class="view">
+      <div class="section-head">
+        <div class="head-left">
+          <a href="#/dashboard" class="btn">← Zurück</a>
+          <h2>Einstellungen</h2>
+        </div>
+      </div>
+
+      <h3>Wurf-Spots (global)</h3>
+      <p class="muted">Wähle eine Kategorie und tippe auf die Karte wo die Spieler dafür werfen. Gilt für alle Trainings, wird beim automatischen Befüllen der Wurfkarte benutzt.</p>
+
+      <div class="settings-spots">
+        <div class="spot-cat-list" data-role="spot-cat-list"></div>
+        <div class="court-wrap">
+          <svg class="court" viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" data-role="settings-spot-svg">
+            <rect x="10" y="10" width="480" height="450" fill="#f5e6c8" stroke="#7a4a1a" stroke-width="2"/>
+            <rect x="160" y="10" width="180" height="190" fill="#e8a14d" fill-opacity="0.3" stroke="#7a4a1a" stroke-width="2"/>
+            <circle cx="250" cy="200" r="60" fill="none" stroke="#7a4a1a" stroke-width="2"/>
+            <line x1="160" y1="200" x2="340" y2="200" stroke="#7a4a1a" stroke-width="2"/>
+            <path d="M 210 50 A 40 40 0 0 0 290 50" fill="none" stroke="#7a4a1a" stroke-width="1.5"/>
+            <line x1="220" y1="40" x2="280" y2="40" stroke="#333" stroke-width="3"/>
+            <circle cx="250" cy="50" r="8" fill="none" stroke="#cc3300" stroke-width="2.5"/>
+            <line x1="50" y1="10" x2="50" y2="135" stroke="#7a4a1a" stroke-width="2"/>
+            <line x1="450" y1="10" x2="450" y2="135" stroke="#7a4a1a" stroke-width="2"/>
+            <path d="M 50 135 A 200 200 0 0 0 450 135" fill="none" stroke="#7a4a1a" stroke-width="2"/>
+            <g data-role="settings-spot-markers"></g>
+            <rect x="10" y="10" width="480" height="450" fill="transparent" data-role="settings-spot-hit"/>
+          </svg>
+        </div>
+        <div class="spot-editor-controls">
+          <label class="muted">Streuung (Radius): <input type="range" min="6" max="60" step="2" data-role="settings-spot-radius" value="22"> <span data-role="settings-spot-radius-val">22</span></label>
+          <button type="button" class="btn small danger" data-action="settings-clear-spot">Spot der Kategorie löschen</button>
+          <button type="button" class="btn small" data-action="settings-add-cat">+ Neue Kategorie</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
   <script src="js/util.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/levels.js"></script>
@@ -557,6 +574,7 @@
   <script src="js/aiimport.js"></script>
   <script src="js/schedule.js"></script>
   <script src="js/dashboard.js"></script>
+  <script src="js/settings.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
