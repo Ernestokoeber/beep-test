@@ -686,7 +686,77 @@ BT.training = (function() {
       renderShotMap();
     });
 
+    const genBtn = $('[data-action="map-generate"]', detailRoot);
+    if (genBtn) genBtn.addEventListener('click', generateShotMapFromCounts);
+
     playerSelect.addEventListener('change', renderShotMap);
+  }
+
+  function spotForCategory(name) {
+    const n = (name || '').toLowerCase();
+    if (/(corner|ecke).*(l\b|links)|linke.*(corner|ecke)/.test(n)) return { x: 75, y: 80, r: 22 };
+    if (/(corner|ecke).*(r\b|rechts)|rechte.*(corner|ecke)/.test(n)) return { x: 425, y: 80, r: 22 };
+    if (/(wing|flügel|fluegel).*(l\b|links)|linke.*(wing|flügel|fluegel)/.test(n)) return { x: 100, y: 180, r: 22 };
+    if (/(wing|flügel|fluegel).*(r\b|rechts)|rechte.*(wing|flügel|fluegel)/.test(n)) return { x: 400, y: 180, r: 22 };
+    if (/top.*3|zentr.*3|3.*top|3.*zentr|head of key/.test(n)) return { x: 250, y: 130, r: 20 };
+    if (/3er|3pt|dreier|3-punkt|3\s*pkt|three/.test(n)) return { x: 250, y: 130, r: 40 };
+    if (/(elbow|ellenbogen).*(l\b|links)/.test(n)) return { x: 180, y: 200, r: 18 };
+    if (/(elbow|ellenbogen).*(r\b|rechts)/.test(n)) return { x: 320, y: 200, r: 18 };
+    if (/elbow|ellenbogen/.test(n)) return { x: 250, y: 205, r: 28 };
+    if (/mitteldistanz|midrange|mid\b/.test(n)) return { x: 250, y: 230, r: 45 };
+    if (/layup|korbleger/.test(n)) return { x: 250, y: 75, r: 18 };
+    if (/post.*(l\b|links)/.test(n)) return { x: 195, y: 130, r: 16 };
+    if (/post.*(r\b|rechts)/.test(n)) return { x: 305, y: 130, r: 16 };
+    if (/post|block/.test(n)) return { x: 250, y: 130, r: 22 };
+    if (/zone|paint|unterm.*korb|short/.test(n)) return { x: 250, y: 105, r: 30 };
+    if (/frei|freethrow|ft\b/.test(n)) return { x: 250, y: 200, r: 14 };
+    return { x: 250, y: 250, r: 45 };
+  }
+
+  function addSyntheticShots(playerId, cx, cy, attempted, made, radius, ts) {
+    const att = Math.max(0, Math.floor(attempted || 0));
+    const hits = Math.max(0, Math.min(Math.floor(made || 0), att));
+    for (let i = 0; i < att; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.sqrt(Math.random()) * radius;
+      const x = Math.round((cx + Math.cos(angle) * dist) * 10) / 10;
+      const y = Math.round((cy + Math.sin(angle) * dist) * 10) / 10;
+      currentTraining.shotMap.push({
+        playerId,
+        x, y,
+        made: i < hits,
+        ts: ts + i,
+        synthetic: true
+      });
+    }
+  }
+
+  function generateShotMapFromCounts() {
+    const presentIds = presentPlayerIds(currentTraining);
+    if (presentIds.length === 0) { alert('Keine anwesenden Spieler.'); return; }
+    const hasFT = (currentTraining.freethrows || []).some(e => presentIds.includes(e.playerId) && (e.attempted || 0) > 0);
+    const hasShots = (currentTraining.shots || []).some(cat => (cat.entries || []).some(e => presentIds.includes(e.playerId) && (e.attempted || 0) > 0));
+    if (!hasFT && !hasShots) { alert('Keine Freiwurf- oder Wurfzahlen vorhanden.'); return; }
+    if (!confirm('Karte für alle anwesenden Spieler aus Zahlen neu generieren? Bestehende Punkte dieser Spieler werden ersetzt.')) return;
+
+    currentTraining.shotMap = (currentTraining.shotMap || []).filter(s => !presentIds.includes(s.playerId));
+    const ts = Date.now();
+    const ftSpot = { x: 250, y: 200, r: 14 };
+
+    for (const e of (currentTraining.freethrows || [])) {
+      if (!presentIds.includes(e.playerId)) continue;
+      addSyntheticShots(e.playerId, ftSpot.x, ftSpot.y, e.attempted, e.made, ftSpot.r, ts);
+    }
+    for (const cat of (currentTraining.shots || [])) {
+      const spot = spotForCategory(cat.category);
+      for (const e of (cat.entries || [])) {
+        if (!presentIds.includes(e.playerId)) continue;
+        addSyntheticShots(e.playerId, spot.x, spot.y, e.attempted, e.made, spot.r, ts);
+      }
+    }
+    save();
+    renderShotMap();
+    alert('Karte generiert.');
   }
 
   function renderShotMap() {
