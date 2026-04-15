@@ -124,6 +124,7 @@ BT.players = (function() {
     $('[data-role="meta"]', node).innerHTML = metaParts.join(' · ') || '&nbsp;';
 
     renderPlayerSeasonStats(node, player);
+    renderPlayerHeatmap(node, player);
 
     const sessions = BT.storage.getSessions().slice().reverse();
     const entries = [];
@@ -158,6 +159,89 @@ BT.players = (function() {
         <td><span class="rating-chip tier-${rating.tier}">${rating.label}</span></td>
       `;
       rows.appendChild(tr);
+    });
+  }
+
+  function renderPlayerHeatmap(node, player) {
+    const trainings = (BT.storage.getTrainings && BT.storage.getTrainings()) || [];
+    const shots = [];
+    for (const t of trainings) {
+      for (const s of (t.shotMap || [])) {
+        if (s.playerId === player.id) shots.push(s);
+      }
+    }
+
+    const meta = $('[data-role="heatmap-meta"]', node);
+    const empty = $('[data-role="heatmap-empty"]', node);
+    const wrap = $('[data-role="player-heatmap-wrap"]', node);
+
+    if (shots.length === 0) {
+      if (empty) empty.classList.remove('hidden');
+      if (meta) meta.textContent = '';
+      if (wrap) wrap.style.display = 'none';
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+    if (wrap) wrap.style.display = '';
+
+    const totalHits = shots.filter(s => s.made).length;
+    const totalMisses = shots.length - totalHits;
+    const totalPct = Math.round((totalHits / shots.length) * 100);
+    if (meta) meta.textContent = shots.length + ' Würfe insgesamt · ' + totalHits + ' Treffer · ' + totalMisses + ' Fehlwürfe · ' + totalPct + '%';
+
+    function render(view) {
+      const cellsLayer = $('[data-role="player-heatmap-cells"]', node);
+      const shotsLayer = $('[data-role="player-heatmap-shots"]', node);
+      if (cellsLayer) cellsLayer.innerHTML = '';
+      if (shotsLayer) shotsLayer.innerHTML = '';
+
+      if (view === 'shots') {
+        for (const s of shots) {
+          if (s.made) {
+            shotsLayer.insertAdjacentHTML('beforeend',
+              `<circle cx="${s.x}" cy="${s.y}" r="5" fill="rgba(0,140,60,0.7)" stroke="#004b2b" stroke-width="1"/>`);
+          } else {
+            const x = s.x, y = s.y, r = 4;
+            shotsLayer.insertAdjacentHTML('beforeend',
+              `<line x1="${x-r}" y1="${y-r}" x2="${x+r}" y2="${y+r}" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>` +
+              `<line x1="${x-r}" y1="${y+r}" x2="${x+r}" y2="${y-r}" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>`
+            );
+          }
+        }
+      } else {
+        const cols = 8, rows = 8;
+        const x0 = 10, y0 = 10, w = 480, h = 450;
+        const cellW = w / cols, cellH = h / rows;
+        const grid = {};
+        for (const s of shots) {
+          const cx = Math.min(cols - 1, Math.max(0, Math.floor((s.x - x0) / cellW)));
+          const cy = Math.min(rows - 1, Math.max(0, Math.floor((s.y - y0) / cellH)));
+          const key = cx + ',' + cy;
+          if (!grid[key]) grid[key] = { hits: 0, total: 0, cx, cy };
+          grid[key].total++;
+          if (s.made) grid[key].hits++;
+        }
+        const maxTotal = Math.max(1, ...Object.values(grid).map(c => c.total));
+        for (const c of Object.values(grid)) {
+          const p = c.hits / c.total;
+          const r = Math.round(255 * (1 - p));
+          const g = Math.round(180 * p + 60);
+          const opacity = 0.3 + 0.55 * (c.total / maxTotal);
+          const cellX = x0 + c.cx * cellW;
+          const cellY = y0 + c.cy * cellH;
+          const pctTxt = Math.round(p * 100) + '%';
+          cellsLayer.insertAdjacentHTML('beforeend',
+            `<rect x="${cellX}" y="${cellY}" width="${cellW}" height="${cellH}" fill="rgb(${r},${g},0)" fill-opacity="${opacity.toFixed(2)}" stroke="rgba(0,0,0,0.08)"><title>${pctTxt} (${c.hits}/${c.total} Würfe)</title></rect>` +
+            `<text x="${cellX + cellW/2}" y="${cellY + cellH/2 - 2}" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1a1a" pointer-events="none">${pctTxt}</text>` +
+            `<text x="${cellX + cellW/2}" y="${cellY + cellH/2 + 12}" text-anchor="middle" font-size="9" fill="#1a1a1a" pointer-events="none">${c.hits}/${c.total}</text>`
+          );
+        }
+      }
+    }
+
+    render('heat');
+    $$('input[name="heatmap-view"]', node).forEach(r => {
+      r.addEventListener('change', () => render(r.value));
     });
   }
 

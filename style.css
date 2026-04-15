@@ -713,6 +713,15 @@ table.results tr:last-child td { border-bottom: none; }
 [data-theme="dark"] .rating-chip.tier-5 { background: #1d4ed8; color: #dbeafe; }
 [data-theme="dark"] .rating-chip.tier-6 { background: #5b21b6; color: #ddd6fe; }
 
+.heatmap-controls {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 14px;
+}
+.heatmap-controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
 .attendance-list {
   list-style: none;
   padding: 0;
