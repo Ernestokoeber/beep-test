@@ -1,7 +1,7 @@
 window.BT = window.BT || {};
 
 BT.training = (function() {
-  const { $, $$, renderTemplate, formatDate, todayISO, escapeHTML, downloadCSV, downloadJSON } = BT.util;
+  const { $, $$, renderTemplate, formatDate, todayISO, escapeHTML, downloadCSV, downloadJSON, downloadBlob } = BT.util;
 
   const STATUS_LABELS = {
     present: 'Anwesend',
@@ -157,6 +157,7 @@ BT.training = (function() {
     });
 
     $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
+    $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTrainingAndShare(currentTraining));
     $('[data-action="export-csv"]', detailRoot).addEventListener('click', () => exportCSV(currentTraining));
     $('[data-action="export-json"]', detailRoot).addEventListener('click', () => exportJSON(currentTraining));
     $('[data-action="delete"]', detailRoot).addEventListener('click', () => {
@@ -1000,6 +1001,273 @@ BT.training = (function() {
     }
 
     return lines.join('\n');
+  }
+
+  let jsPDFPromise = null;
+  function loadJsPDF() {
+    if (jsPDFPromise) return jsPDFPromise;
+    jsPDFPromise = new Promise((resolve, reject) => {
+      if (window.jspdf && window.jspdf.jsPDF) { resolve(window.jspdf.jsPDF); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+      s.onload = () => {
+        if (window.jspdf && window.jspdf.jsPDF) resolve(window.jspdf.jsPDF);
+        else { jsPDFPromise = null; reject(new Error('jsPDF konnte nicht initialisiert werden')); }
+      };
+      s.onerror = () => { jsPDFPromise = null; reject(new Error('PDF-Bibliothek konnte nicht geladen werden (Internet nötig)')); };
+      document.head.appendChild(s);
+    });
+    return jsPDFPromise;
+  }
+
+  function drawTable(doc, x, startY, widths, headers, rows, colors) {
+    const margin = 40;
+    const rowH = 18;
+    const pageH = doc.internal.pageSize.getHeight();
+    const totalW = widths.reduce((a, b) => a + b, 0);
+    let y = startY;
+
+    function drawHeader() {
+      doc.setFillColor(colors.header[0], colors.header[1], colors.header[2]);
+      doc.rect(x, y, totalW, rowH, 'F');
+      doc.setTextColor(255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      let cx = x;
+      for (let i = 0; i < headers.length; i++) {
+        doc.text(String(headers[i]), cx + 5, y + 12);
+        cx += widths[i];
+      }
+      y += rowH;
+      doc.setTextColor(20);
+      doc.setFont('helvetica', 'normal');
+    }
+
+    drawHeader();
+    for (let r = 0; r < rows.length; r++) {
+      if (y + rowH > pageH - margin) {
+        doc.addPage();
+        y = margin;
+        drawHeader();
+      }
+      if (r % 2 === 1) {
+        doc.setFillColor(245, 240, 232);
+        doc.rect(x, y, totalW, rowH, 'F');
+      }
+      let cx = x;
+      for (let i = 0; i < rows[r].length; i++) {
+        doc.text(String(rows[r][i]), cx + 5, y + 12);
+        cx += widths[i];
+      }
+      y += rowH;
+    }
+    return y;
+  }
+
+  function buildTrainingPDF(doc, training) {
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    let y = margin;
+
+    const allPlayers = BT.storage.getPlayers();
+    const nameOf = id => (allPlayers.find(p => p.id === id) || {}).name || '?';
+    const att = training.attendance || [];
+    const presentList = att.filter(a => a.status === 'present');
+    const absentList = att.filter(a => a.status === 'absent');
+    const excusedList = att.filter(a => a.status === 'excused');
+    const injuredList = att.filter(a => a.status === 'injured');
+    const lateList = att.filter(a => a.late && a.status === 'present');
+    const presentIds = new Set(presentList.map(a => a.playerId));
+
+    const orange = [232, 161, 77];
+    const green = [0, 75, 43];
+
+    doc.setFillColor(orange[0], orange[1], orange[2]);
+    doc.rect(0, 0, pageW, 70, 'F');
+    doc.setTextColor(255);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TSV Lindau Basketball', margin, 30);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Trainingsbericht', margin, 48);
+    doc.setFontSize(11);
+    let sub = formatDate(training.date);
+    if (training.startTime) sub += ' · ' + training.startTime + ' Uhr';
+    doc.text(sub, pageW - margin, 30, { align: 'right' });
+    y = 90;
+    doc.setTextColor(20);
+
+    function ensureSpace(n) {
+      if (y + n > pageH - margin) { doc.addPage(); y = margin; }
+    }
+    function heading(text) {
+      ensureSpace(30);
+      doc.setFillColor(green[0], green[1], green[2]);
+      doc.rect(margin, y, pageW - 2 * margin, 20, 'F');
+      doc.setTextColor(255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(text, margin + 8, y + 14);
+      doc.setTextColor(20);
+      doc.setFont('helvetica', 'normal');
+      y += 28;
+    }
+
+    if (training.note) {
+      ensureSpace(20);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      const lines = doc.splitTextToSize(training.note, pageW - 2 * margin);
+      doc.text(lines, margin, y);
+      y += lines.length * 12 + 6;
+      doc.setFont('helvetica', 'normal');
+    }
+
+    heading('Team-Übersicht');
+    doc.setFontSize(10);
+    const overview = [
+      ['Anwesend', presentList.length + ' / ' + att.length],
+      ['Abwesend', String(absentList.length)],
+      ['Entschuldigt', String(excusedList.length)],
+      ['Verletzt', String(injuredList.length)],
+      ['Zu spät', String(lateList.length)]
+    ];
+    for (const [k, v] of overview) {
+      ensureSpace(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(k + ':', margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(v, margin + 100, y);
+      y += 14;
+    }
+    y += 4;
+
+    const bullets = [];
+    if (excusedList.length) bullets.push(['Entschuldigt', excusedList.map(a => nameOf(a.playerId)).sort().join(', ')]);
+    if (injuredList.length) bullets.push(['Verletzt', injuredList.map(a => nameOf(a.playerId)).sort().join(', ')]);
+    if (absentList.length) bullets.push(['Abwesend', absentList.map(a => nameOf(a.playerId)).sort().join(', ')]);
+    if (lateList.length) bullets.push(['Zu spät', lateList.map(a => nameOf(a.playerId)).sort().join(', ')]);
+    for (const [label, names] of bullets) {
+      ensureSpace(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(label + ':', margin, y);
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(names, pageW - 2 * margin - 100);
+      doc.text(lines, margin + 100, y);
+      y += Math.max(14, lines.length * 12 + 2);
+    }
+    y += 6;
+
+    heading('Team-Statistik');
+    const teamRows = [];
+    const fts = (training.freethrows || []).filter(e => presentIds.has(e.playerId) && (e.attempted || 0) > 0);
+    if (fts.length > 0) {
+      let m = 0, a = 0;
+      for (const e of fts) { m += e.made; a += e.attempted; }
+      teamRows.push(['Freiwürfe', m + '/' + a, pct(m, a) + '%']);
+    }
+    const activeCats = [];
+    for (const cat of (training.shots || [])) {
+      const entries = (cat.entries || []).filter(e => presentIds.has(e.playerId) && (e.attempted || 0) > 0);
+      if (entries.length === 0) continue;
+      activeCats.push(cat);
+      let m = 0, a = 0;
+      for (const e of entries) { m += e.made; a += e.attempted; }
+      teamRows.push([cat.category, m + '/' + a, pct(m, a) + '%']);
+    }
+    if (teamRows.length === 0) {
+      ensureSpace(14);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Keine Wurf-Daten erfasst.', margin, y);
+      doc.setFont('helvetica', 'normal');
+      y += 14;
+    } else {
+      ensureSpace((teamRows.length + 1) * 18 + 4);
+      y = drawTable(doc, margin, y,
+        [pageW - 2 * margin - 160, 80, 80],
+        ['Kategorie', 'Treffer/Versuche', 'Quote'],
+        teamRows, { header: orange });
+      y += 8;
+    }
+
+    if (presentList.length > 0) {
+      heading('Spieler-Statistik');
+      const hasFT = fts.length > 0;
+      const cols = ['Spieler'];
+      if (hasFT) cols.push('FT');
+      for (const c of activeCats) cols.push(c.category);
+
+      const nameW = 120;
+      const statCount = cols.length - 1;
+      const statW = statCount > 0 ? (pageW - 2 * margin - nameW) / statCount : 0;
+      const widths = [nameW];
+      for (let i = 0; i < statCount; i++) widths.push(statW);
+
+      const sorted = presentList.slice()
+        .map(a => ({ a, p: allPlayers.find(p => p.id === a.playerId) }))
+        .filter(x => x.p)
+        .sort((x, y) => x.p.name.localeCompare(y.p.name, 'de'));
+
+      const rows = sorted.map(({ p }) => {
+        const isLate = lateList.some(l => l.playerId === p.id);
+        const row = [p.name + (isLate ? ' ⏱' : '')];
+        if (hasFT) {
+          const e = fts.find(f => f.playerId === p.id);
+          row.push(e ? e.made + '/' + e.attempted + ' (' + pct(e.made, e.attempted) + '%)' : '–');
+        }
+        for (const cat of activeCats) {
+          const e = (cat.entries || []).find(x => x.playerId === p.id && (x.attempted || 0) > 0);
+          row.push(e ? e.made + '/' + e.attempted + ' (' + pct(e.made, e.attempted) + '%)' : '–');
+        }
+        return row;
+      });
+
+      ensureSpace(36);
+      y = drawTable(doc, margin, y, widths, cols, rows, { header: green });
+      y += 8;
+    }
+
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text('TSV Lindau Basketball · Erstellt ' + formatDate(new Date().toISOString().slice(0, 10)),
+        margin, pageH - 20);
+      doc.text('Seite ' + i + ' / ' + totalPages, pageW - margin, pageH - 20, { align: 'right' });
+    }
+  }
+
+  async function endTrainingAndShare(training) {
+    if (!confirm('Training beenden und Bericht als PDF teilen?')) return;
+    const btn = $('[data-action="end-training"]', detailRoot);
+    const orig = btn ? btn.textContent : '';
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ PDF wird erstellt…'; }
+      const JsPDFCtor = await loadJsPDF();
+      const doc = new JsPDFCtor({ unit: 'pt', format: 'a4' });
+      buildTrainingPDF(doc, training);
+      const blob = doc.output('blob');
+      const filename = 'Trainingsbericht_' + training.date + '.pdf';
+      const file = new File([blob], filename, { type: 'application/pdf' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Trainingsbericht ' + formatDate(training.date) });
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;
+        }
+      }
+      downloadBlob(filename, blob);
+      alert('Teilen wird vom Browser nicht unterstützt — PDF wurde heruntergeladen.');
+    } catch (e) {
+      alert('Fehler beim PDF-Erstellen: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = orig; }
+    }
   }
 
   async function shareSummary(training) {

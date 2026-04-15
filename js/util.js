@@ -128,5 +128,5 @@ BT.util = (function() {
     });
   }
 
-  return { uuid, $, $$, formatDate, todayISO, ageFrom, renderTemplate, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, escapeHTML };
+  return { uuid, $, $$, formatDate, todayISO, ageFrom, renderTemplate, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, escapeHTML, downloadBlob };
 })();
