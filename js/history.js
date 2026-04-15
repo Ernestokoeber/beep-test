@@ -124,7 +124,7 @@ BT.history = (function() {
         return;
       }
       const current = BT.storage.load();
-      const hasData = current.players.length > 0 || current.sessions.length > 0;
+      const hasData = current.players.length > 0 || current.sessions.length > 0 || (current.trainings || []).length > 0;
       const choice = hasData
         ? prompt('Backup importieren:\n  "m" = Mergen (bestehende Daten behalten, neue ergänzen)\n  "r" = Ersetzen (alle aktuellen Daten löschen)\n  Abbrechen = leer lassen', 'm')
         : 'r';
@@ -134,15 +134,19 @@ BT.history = (function() {
           schemaVersion: 1,
           players: data.players,
           sessions: data.sessions,
+          trainings: Array.isArray(data.trainings) ? data.trainings : [],
+          notes: Array.isArray(data.notes) ? data.notes : [],
+          freethrows: Array.isArray(data.freethrows) ? data.freethrows : [],
           settings: data.settings || {}
         });
       } else if (choice === 'm') {
-        const merged = mergeById(current.players, data.players);
-        const mergedSessions = mergeById(current.sessions, data.sessions);
         BT.storage.save({
           schemaVersion: 1,
-          players: merged,
-          sessions: mergedSessions,
+          players: mergeById(current.players, data.players),
+          sessions: mergeById(current.sessions, data.sessions),
+          trainings: mergeById(current.trainings || [], data.trainings || []),
+          notes: mergeById(current.notes || [], data.notes || []),
+          freethrows: mergeById(current.freethrows || [], data.freethrows || []),
           settings: Object.assign({}, current.settings || {}, data.settings || {})
         });
       } else {

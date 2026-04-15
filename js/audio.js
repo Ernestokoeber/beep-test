@@ -2,6 +2,7 @@ window.BT = window.BT || {};
 
 BT.audio = (function() {
   let ctx = null;
+  let unlocked = false;
 
   function ensureContext() {
     if (!ctx) {
@@ -10,6 +11,16 @@ BT.audio = (function() {
       ctx = new AC();
     }
     if (ctx.state === 'suspended') ctx.resume();
+    if (!unlocked) {
+      try {
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        unlocked = true;
+      } catch (e) { /* ignore */ }
+    }
     return ctx;
   }
 
