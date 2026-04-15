@@ -593,7 +593,11 @@ BT.training = (function() {
     function commit() {
       entry.made = Math.max(0, Math.floor(entry.made || 0));
       entry.attempted = Math.max(0, Math.floor(entry.attempted || 0));
-      if (entry.made > entry.attempted) entry.attempted = entry.made;
+      if (entry.attempted === 0) {
+        entry.made = 0;
+      } else if (entry.made > entry.attempted) {
+        entry.attempted = entry.made;
+      }
       madeInput.value = entry.made;
       attInput.value = entry.attempted;
       refreshPct();
