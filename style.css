@@ -613,6 +613,10 @@ table.results tr:last-child td { border-bottom: none; }
 .att-chip.warn { background: rgba(232, 161, 77, 0.18); color: #92400e; }
 .att-chip.muted-chip { color: var(--muted); }
 
+[data-theme="dark"] .att-chip.ok { background: rgba(34, 197, 94, 0.22); color: #86efac; }
+[data-theme="dark"] .att-chip.bad { background: rgba(248, 113, 113, 0.22); color: #fca5a5; }
+[data-theme="dark"] .att-chip.warn { background: rgba(232, 161, 77, 0.28); color: #fcd9a8; }
+
 .attendance-list {
   list-style: none;
   padding: 0;
