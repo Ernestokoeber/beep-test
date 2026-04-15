@@ -842,7 +842,7 @@ BT.training = (function() {
 
     currentTraining.shotMap = (currentTraining.shotMap || []).filter(s => !presentIds.includes(s.playerId));
     const ts = Date.now();
-    const ftSpot = { x: 250, y: 200, r: 14 };
+    const ftSpot = spotForCategory('Freiwürfe');
 
     for (const e of (currentTraining.freethrows || [])) {
       if (!presentIds.includes(e.playerId)) continue;
