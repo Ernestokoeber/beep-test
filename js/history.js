@@ -64,6 +64,7 @@ BT.history = (function() {
     const ranked = session.results.slice().sort((a, b) => b.totalShuttles - a.totalShuttles);
     ranked.forEach((r, i) => {
       const p = allPlayers.find(x => x.id === r.playerId);
+      const rating = BT.ratings.rateResult(session, r);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${i + 1}</td>
@@ -72,14 +73,17 @@ BT.history = (function() {
         <td>${r.shuttle}</td>
         <td>${r.totalShuttles}</td>
         <td>${r.totalShuttles * distanceM} m</td>
+        <td>${rating.vo2max.toFixed(1)}</td>
+        <td><span class="rating-chip tier-${rating.tier}">${rating.label}</span></td>
       `;
       rows.appendChild(tr);
     });
 
     $('[data-action="export-csv"]', root).addEventListener('click', () => {
-      const csvRows = [['Rang', 'Spieler', 'Position', 'Level', 'Shuttle', 'Gesamt-Shuttles', 'Rundenlänge (m)', 'Meter', 'Grund']];
+      const csvRows = [['Rang', 'Spieler', 'Position', 'Level', 'Shuttle', 'Gesamt-Shuttles', 'Rundenlänge (m)', 'Meter', 'VO2max (ml/min/kg)', 'Bewertung', 'Grund']];
       ranked.forEach((r, i) => {
         const p = allPlayers.find(x => x.id === r.playerId);
+        const rating = BT.ratings.rateResult(session, r);
         csvRows.push([
           i + 1,
           p ? p.name : '?',
@@ -89,6 +93,8 @@ BT.history = (function() {
           r.totalShuttles,
           session.distanceM || 20,
           r.totalShuttles * (session.distanceM || 20),
+          rating.vo2max.toFixed(1),
+          rating.label,
           r.reason
         ]);
       });

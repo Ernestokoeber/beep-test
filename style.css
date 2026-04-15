@@ -690,6 +690,29 @@ table.results tr:last-child td { border-bottom: none; }
 [data-theme="dark"] .att-chip.bad { background: rgba(248, 113, 113, 0.22); color: #fca5a5; }
 [data-theme="dark"] .att-chip.warn { background: rgba(232, 161, 77, 0.28); color: #fcd9a8; }
 
+.rating-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.rating-chip.tier-1 { background: #e5e7eb; color: #374151; }
+.rating-chip.tier-2 { background: #fde68a; color: #713f12; }
+.rating-chip.tier-3 { background: #fbbf24; color: #451a03; }
+.rating-chip.tier-4 { background: #34d399; color: #064e3b; }
+.rating-chip.tier-5 { background: #3b82f6; color: #ffffff; }
+.rating-chip.tier-6 { background: #7c3aed; color: #ffffff; }
+
+[data-theme="dark"] .rating-chip.tier-1 { background: #374151; color: #e5e7eb; }
+[data-theme="dark"] .rating-chip.tier-2 { background: #92400e; color: #fde68a; }
+[data-theme="dark"] .rating-chip.tier-3 { background: #b45309; color: #fef3c7; }
+[data-theme="dark"] .rating-chip.tier-4 { background: #065f46; color: #a7f3d0; }
+[data-theme="dark"] .rating-chip.tier-5 { background: #1d4ed8; color: #dbeafe; }
+[data-theme="dark"] .rating-chip.tier-6 { background: #5b21b6; color: #ddd6fe; }
+
 .attendance-list {
   list-style: none;
   padding: 0;

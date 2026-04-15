@@ -146,6 +146,7 @@ BT.players = (function() {
     entries.slice().reverse().forEach(e => {
       const tr = document.createElement('tr');
       const distM = e.session.distanceM || 20;
+      const rating = BT.ratings.rateResult(e.session, e.result);
       tr.innerHTML = `
         <td><a href="#/history/${e.session.id}">${BT.util.formatDate(e.session.date)}</a></td>
         <td>${e.result.level}</td>
@@ -153,6 +154,8 @@ BT.players = (function() {
         <td>${e.result.totalShuttles}</td>
         <td>${distM} m</td>
         <td>${e.result.totalShuttles * distM} m</td>
+        <td>${rating.vo2max.toFixed(1)}</td>
+        <td><span class="rating-chip tier-${rating.tier}">${rating.label}</span></td>
       `;
       rows.appendChild(tr);
     });
