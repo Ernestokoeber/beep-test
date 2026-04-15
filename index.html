@@ -129,7 +129,23 @@
           <label>Rundenlänge (m)<input name="distance" type="number" min="5" max="50" step="0.5" required></label>
           <label class="grow">Notiz<input name="note" type="text" maxlength="100" placeholder="z.B. Vorbereitungstraining"></label>
         </div>
-        <p class="muted">Standard: 20 m. Bei anderer Länge werden die Beep-Intervalle automatisch angepasst.</p>
+        <div class="test-type-row">
+          <label class="test-type-opt">
+            <input type="radio" name="testType" value="leger" checked>
+            <div>
+              <div class="tt-name">Beep-Test (Léger)</div>
+              <div class="tt-desc">Standard Multistage Shuttle Run · Start 8 km/h · Dauer-Beep ohne Pausen</div>
+            </div>
+          </label>
+          <label class="test-type-opt">
+            <input type="radio" name="testType" value="yoyoIR1">
+            <div>
+              <div class="tt-name">Yo-Yo IR1</div>
+              <div class="tt-desc">Intermittent Recovery · Start 10 km/h · 10 s Gehpause nach jeder Round (40 m)</div>
+            </div>
+          </label>
+        </div>
+        <p class="muted" data-role="type-hint">Standard: 20 m. Bei anderer Länge werden die Beep-Intervalle automatisch angepasst.</p>
 
         <div class="select-head">
           <h3>Teilnehmer auswählen</h3>
@@ -172,7 +188,8 @@
       <div class="progress">
         <div class="bar" data-role="progress-bar"></div>
       </div>
-      <div class="next-beep">Nächster Beep in <span data-role="countdown">0.0</span> s · Runde: <span data-role="distance">20</span> m</div>
+      <div class="next-beep"><span data-role="test-type-label">Beep-Test</span> · Nächster Beep in <span data-role="countdown">0.0</span> s · Runde: <span data-role="distance">20</span> m</div>
+      <div class="rest-indicator" data-role="rest-indicator">⏸ Gehzone · <span data-role="rest-countdown">10</span> s</div>
 
       <div class="test-controls">
         <button class="btn primary big" data-action="start">Start</button>

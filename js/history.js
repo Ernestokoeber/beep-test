@@ -27,10 +27,12 @@ BT.history = (function() {
       const li = document.createElement('li');
       const a = document.createElement('a');
       a.href = '#/history/' + s.id;
+      const typeLabel = s.testType === 'yoyoIR1' ? 'Yo-Yo IR1' : 'Léger';
       a.innerHTML = `
         <div class="info">
           <div class="name">${formatDate(s.date)}${s.note ? ' – ' + escapeHTML(s.note) : ''}</div>
           <div class="meta">
+            <span class="att-chip">${typeLabel}</span>
             ${s.participants.length} Teilnehmer
             ${best ? ' · Beste: ' + escapeHTML(bestPlayer ? bestPlayer.name : '?') + ' (Level ' + best.level + ')' : ''}
           </div>
@@ -51,6 +53,7 @@ BT.history = (function() {
     const allPlayers = BT.storage.getPlayers();
     $('[data-role="title"]', root).textContent = 'Test vom ' + formatDate(session.date);
     const metaParts = [];
+    metaParts.push(session.testType === 'yoyoIR1' ? 'Yo-Yo IR1' : 'Léger Beep-Test');
     metaParts.push(session.participants.length + ' Teilnehmer');
     metaParts.push('Runde: ' + (session.distanceM || 20) + ' m');
     if (session.note) metaParts.push(escapeHTML(session.note));

@@ -36,6 +36,23 @@ BT.test = (function() {
     form.elements.distance.value = BT.storage.getSetting('lastDistance', BT.levels.DEFAULT_DISTANCE_M);
     form.addEventListener('submit', onStart);
 
+    const hintEl = $('[data-role="type-hint"]', setupRoot);
+    const distanceInput = form.elements.distance;
+    function updateTypeUI() {
+      const type = form.elements.testType.value;
+      if (type === 'yoyoIR1') {
+        distanceInput.value = 20;
+        distanceInput.disabled = true;
+        if (hintEl) hintEl.textContent = 'Yo-Yo IR1: fixe 20 m Strecke. Start bei 10 km/h, 10 s Gehpause nach je 40 m (hin & zurück).';
+      } else {
+        distanceInput.disabled = false;
+        distanceInput.value = BT.storage.getSetting('lastDistance', BT.levels.DEFAULT_DISTANCE_M);
+        if (hintEl) hintEl.textContent = 'Standard: 20 m. Bei anderer Länge werden die Beep-Intervalle automatisch angepasst.';
+      }
+    }
+    Array.from(form.elements.testType || []).forEach(r => r.addEventListener('change', updateTypeUI));
+    updateTypeUI();
+
     $('[data-action="select-all"]', setupRoot).addEventListener('click', () => {
       BT.storage.getPlayers().filter(p => !p.archived).forEach(p => selectedIds.add(p.id));
       renderSelectList();
@@ -98,11 +115,13 @@ BT.test = (function() {
     e.preventDefault();
     if (selectedIds.size === 0) return;
     const f = e.target;
-    const distanceM = parseFloat(f.elements.distance.value) || BT.levels.DEFAULT_DISTANCE_M;
-    BT.storage.setSetting('lastDistance', distanceM);
+    const testType = (f.elements.testType && f.elements.testType.value) === 'yoyoIR1' ? 'yoyoIR1' : 'leger';
+    const distanceM = testType === 'yoyoIR1' ? 20 : (parseFloat(f.elements.distance.value) || BT.levels.DEFAULT_DISTANCE_M);
+    if (testType === 'leger') BT.storage.setSetting('lastDistance', distanceM);
     const session = BT.storage.createSession({
       date: f.elements.date.value,
       note: f.elements.note.value.trim() || null,
+      testType,
       distanceM,
       participants: Array.from(selectedIds),
       results: []
@@ -165,6 +184,9 @@ BT.test = (function() {
     const distanceEl = $('[data-role="distance"]', runRoot);
     if (distanceEl) distanceEl.textContent = (runState.session.distanceM || BT.levels.DEFAULT_DISTANCE_M);
 
+    const typeLabel = $('[data-role="test-type-label"]', runRoot);
+    if (typeLabel) typeLabel.textContent = runState.session.testType === 'yoyoIR1' ? 'Yo-Yo IR1' : 'Beep-Test';
+
     const voiceToggle = $('[data-role="voice"]', runRoot);
     voiceToggle.checked = BT.storage.getSetting('voiceEnabled', true);
     voiceToggle.addEventListener('change', () => {
@@ -183,12 +205,13 @@ BT.test = (function() {
 
     runState.running = true;
     runState.paused = false;
-    const level = BT.levels.get(runState.currentLevel);
+    const level = BT.levels.get(runState.currentLevel, runState.session.testType);
     const now = performance.now() / 1000;
     runState.startTime = now + 3;
-    runState.nextShuttleTime = runState.startTime + BT.levels.shuttleDuration(level, runState.session.distanceM);
+    runState.nextShuttleTime = runState.startTime + BT.levels.shuttleDuration(level, runState.session.distanceM, runState.session.testType, 0);
     runState.currentShuttle = 0;
     runState.pauseOffset = 0;
+    runState.restEndAt = 0;
 
     $('[data-action="start"]', runRoot).disabled = true;
     $('[data-action="pause"]', runRoot).disabled = false;
@@ -262,13 +285,17 @@ BT.test = (function() {
   }
 
   function onShuttleEnd() {
-    const level = BT.levels.get(runState.currentLevel);
+    const testType = runState.session.testType;
+    const level = BT.levels.get(runState.currentLevel, testType);
     runState.currentShuttle += 1;
     runState.totalShuttlesDone += 1;
 
+    const isYoyo = testType === 'yoyoIR1';
+    const restBreak = isYoyo && runState.totalShuttlesDone % BT.levels.YOYO_ROUND_SIZE === 0;
+
     if (runState.currentShuttle >= level.shuttles) {
       const nextLevelNum = runState.currentLevel + 1;
-      const nextLevel = BT.levels.get(nextLevelNum);
+      const nextLevel = BT.levels.get(nextLevelNum, testType);
       if (!nextLevel) {
         BT.audio.levelBeep();
         finishTest();
@@ -276,21 +303,26 @@ BT.test = (function() {
       }
       runState.currentLevel = nextLevelNum;
       runState.currentShuttle = 0;
-      runState.nextShuttleTime += BT.levels.shuttleDuration(nextLevel, runState.session.distanceM);
+      runState.nextShuttleTime += BT.levels.shuttleDuration(nextLevel, runState.session.distanceM, testType, runState.totalShuttlesDone);
       BT.audio.levelBeep();
       if (BT.storage.getSetting('voiceEnabled', true)) {
         setTimeout(() => BT.audio.announceLevel(nextLevelNum), 500);
       }
     } else {
-      runState.nextShuttleTime += BT.levels.shuttleDuration(level, runState.session.distanceM);
+      runState.nextShuttleTime += BT.levels.shuttleDuration(level, runState.session.distanceM, testType, runState.totalShuttlesDone);
       BT.audio.shuttleBeep();
+    }
+
+    if (restBreak) {
+      runState.restEndAt = performance.now() / 1000 + BT.levels.YOYO_REST_SEC;
     }
 
     updateDisplay();
   }
 
   function updateDisplay() {
-    const level = BT.levels.get(runState.currentLevel);
+    const testType = runState.session.testType;
+    const level = BT.levels.get(runState.currentLevel, testType);
     $('[data-role="level"]', runRoot).textContent = runState.currentLevel;
     $('[data-role="shuttle"]', runRoot).textContent = runState.currentShuttle;
     $('[data-role="shuttle-max"]', runRoot).textContent = level.shuttles;
@@ -298,18 +330,31 @@ BT.test = (function() {
   }
 
   function updateCountdown(now) {
-    const level = BT.levels.get(runState.currentLevel);
-    const duration = BT.levels.shuttleDuration(level, runState.session.distanceM);
+    const testType = runState.session.testType;
+    const level = BT.levels.get(runState.currentLevel, testType);
+    const duration = BT.levels.shuttleDuration(level, runState.session.distanceM, testType, runState.totalShuttlesDone);
     const remaining = Math.max(0, runState.nextShuttleTime - now);
     const progress = Math.max(0, Math.min(100, (1 - remaining / duration) * 100));
     $('[data-role="progress-bar"]', runRoot).style.width = progress + '%';
     $('[data-role="countdown"]', runRoot).textContent = remaining.toFixed(1);
+
+    const restIndicator = $('[data-role="rest-indicator"]', runRoot);
+    if (restIndicator) {
+      if (runState.restEndAt && now < runState.restEndAt) {
+        restIndicator.classList.add('active');
+        const restRemaining = Math.max(0, runState.restEndAt - now);
+        const rc = $('[data-role="rest-countdown"]', runRoot);
+        if (rc) rc.textContent = restRemaining.toFixed(1);
+      } else {
+        restIndicator.classList.remove('active');
+      }
+    }
   }
 
   function recordResult(playerId, reason) {
     const level = runState.currentLevel;
     const shuttle = runState.currentShuttle;
-    const totalShuttles = BT.levels.totalShuttlesBefore(level) + shuttle;
+    const totalShuttles = BT.levels.totalShuttlesBefore(level, runState.session.testType) + shuttle;
     const result = {
       playerId,
       level,
