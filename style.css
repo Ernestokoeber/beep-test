@@ -595,6 +595,16 @@ h3 { margin: 28px 0 10px 0; font-size: 13px; color: var(--muted); text-transform
 
 .runner-list .out-btn:hover { background: #b91c1c; }
 
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  margin-top: 12px;
+}
+
 table.results {
   width: 100%;
   border-collapse: collapse;
@@ -606,10 +616,19 @@ table.results {
   border: 1px solid var(--border);
 }
 
+.table-scroll > table.results {
+  margin-top: 0;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  min-width: 540px;
+}
+
 table.results th, table.results td {
   padding: 10px 12px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 table.results th {
@@ -1730,4 +1749,67 @@ table.results tr:last-child td { border-bottom: none; }
   .level-box .value { font-size: 44px; }
   .shuttle-box .value, .speed-box .value { font-size: 24px; }
   .btn.big { padding: 14px 18px; font-size: 16px; }
+}
+
+@media (max-width: 600px) {
+  main {
+    padding:
+      14px
+      calc(12px + env(safe-area-inset-right))
+      calc(14px + env(safe-area-inset-bottom))
+      calc(12px + env(safe-area-inset-left));
+  }
+  h2 { font-size: 20px; }
+  h3 { margin-top: 22px; }
+
+  /* iOS Safari zoomt auf <16px Inputs beim Fokus rein */
+  .form-row input,
+  .search-input,
+  .note-title,
+  .note-body,
+  .block-label textarea,
+  .att-note,
+  .ft-input,
+  .timer-custom,
+  .shot-add-input input,
+  .fit-grid input { font-size: 16px; }
+
+  .section-head { gap: 6px; row-gap: 8px; }
+  .section-head > div { display: flex; flex-wrap: wrap; gap: 6px; }
+  .section-head .btn,
+  .section-head .btn.small { padding: 7px 10px; font-size: 12px; }
+
+  table.results th,
+  table.results td { padding: 8px 10px; font-size: 13px; }
+  table.results th { font-size: 11px; letter-spacing: 0.3px; }
+
+  .form-row { gap: 8px; }
+  .form-row label { min-width: 120px; }
+
+  .heatmap-controls { gap: 12px; font-size: 13px; }
+  .heatmap-controls label { min-height: 32px; }
+
+  .player-list li,
+  .session-list li,
+  .session-list a { padding: 12px 14px; }
+  .player-list .name,
+  .runner-list .name,
+  .rank-name { overflow-wrap: anywhere; }
+
+  .att-card { padding: 12px; }
+  .ft-card { padding: 12px; }
+
+  .dash-grid { gap: 10px; }
+  .dash-card { padding: 14px; }
+  .dash-big { font-size: 30px; }
+
+  .cat-block { padding: 10px 12px; }
+  .trend-block { margin-bottom: 12px; }
+}
+
+@media (max-width: 420px) {
+  h2 { font-size: 18px; }
+  .section-head .btn,
+  .section-head .btn.small { padding: 6px 8px; font-size: 11px; }
+  .ranking li { padding: 8px 10px; }
 }
