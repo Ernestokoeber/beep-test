@@ -11,9 +11,11 @@ BT.notes = (function() {
     const empty = $('[data-role="empty"]', root);
     const search = $('[data-role="search"]', root);
 
-    $('[data-action="new-note"]', root).addEventListener('click', () => {
-      const n = BT.storage.upsertNote({ title: '', body: '' });
-      location.hash = '#/notes/' + n.id;
+    root.addEventListener('click', e => {
+      if (e.target.closest('[data-action="new-note"]')) {
+        const n = BT.storage.upsertNote({ title: '', body: '' });
+        location.hash = '#/notes/' + n.id;
+      }
     });
 
     function draw() {
@@ -26,7 +28,11 @@ BT.notes = (function() {
       list.innerHTML = '';
       if (notes.length === 0) {
         empty.classList.remove('hidden');
-        empty.textContent = q ? 'Keine Treffer.' : 'Noch keine Notizen.';
+        if (q) {
+          empty.innerHTML = '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><p class="empty-body">Keine Treffer.</p>';
+        } else {
+          empty.innerHTML = '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg><p class="empty-headline">Noch keine Notizen</p><p class="empty-body">Halte Trainingsideen, Drills oder Beobachtungen fest.</p><button class="btn primary" data-action="new-note">+ Neue Notiz</button>';
+        }
         return;
       }
       empty.classList.add('hidden');
@@ -100,10 +106,11 @@ BT.notes = (function() {
     titleEl.addEventListener('input', scheduleSave);
     bodyEl.addEventListener('input', scheduleSave);
 
-    $('[data-action="delete"]', root).addEventListener('click', () => {
-      if (!confirm('Notiz wirklich löschen?')) return;
-      BT.storage.deleteNote(note.id);
-      location.hash = '#/notes';
+    $('[data-action="delete"]', root).addEventListener('click', function() {
+      BT.util.confirmBtn(this, () => {
+        BT.storage.deleteNote(note.id);
+        location.hash = '#/notes';
+      });
     });
 
     $('[data-action="export"]', root).addEventListener('click', () => {

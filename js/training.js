@@ -21,16 +21,18 @@ BT.training = (function() {
     const root = renderTemplate('tpl-training-list');
     target.appendChild(root);
 
-    $('[data-action="new-training"]', root).addEventListener('click', () => {
-      const t = BT.storage.upsertTraining({
-        date: todayISO(),
-        startTime: BT.storage.getSetting('trainingStartTime', '20:15'),
-        note: '',
-        attendance: initialAttendance(),
-        freethrows: [],
-        shots: []
-      });
-      location.hash = '#/training/' + t.id;
+    root.addEventListener('click', e => {
+      if (e.target.closest('[data-action="new-training"]')) {
+        const t = BT.storage.upsertTraining({
+          date: todayISO(),
+          startTime: BT.storage.getSetting('trainingStartTime', '20:15'),
+          note: '',
+          attendance: initialAttendance(),
+          freethrows: [],
+          shots: []
+        });
+        location.hash = '#/training/' + t.id;
+      }
     });
 
     const list = $('[data-role="list"]', root);
@@ -120,6 +122,7 @@ BT.training = (function() {
 
   let currentTraining = null;
   let detailRoot = null;
+  let detailAbort = null;
   let currentShotCategory = null;
 
   function renderDetail(target, id) {
@@ -131,6 +134,9 @@ BT.training = (function() {
 
     const cats = BT.storage.getShotCategories();
     currentShotCategory = cats[0] || null;
+
+    if (detailAbort) detailAbort.abort();
+    detailAbort = new AbortController();
 
     detailRoot = renderTemplate('tpl-training-detail');
     target.appendChild(detailRoot);
@@ -161,11 +167,24 @@ BT.training = (function() {
     $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTrainingAndShare(currentTraining));
     $('[data-action="export-csv"]', detailRoot).addEventListener('click', () => exportCSV(currentTraining));
     $('[data-action="export-json"]', detailRoot).addEventListener('click', () => exportJSON(currentTraining));
-    $('[data-action="delete"]', detailRoot).addEventListener('click', () => {
-      if (!confirm('Dieses Training wirklich löschen?')) return;
-      BT.storage.deleteTraining(currentTraining.id);
-      location.hash = '#/training';
+    $('[data-action="delete"]', detailRoot).addEventListener('click', function() {
+      BT.util.confirmBtn(this, () => {
+        BT.storage.deleteTraining(currentTraining.id);
+        location.hash = '#/training';
+      });
     });
+
+    const headMenu = $('.head-menu', detailRoot);
+    if (headMenu) {
+      headMenu.querySelectorAll('.head-menu-panel .btn').forEach(b => {
+        b.addEventListener('click', () => headMenu.removeAttribute('open'));
+      });
+      document.addEventListener('click', (e) => {
+        if (headMenu.hasAttribute('open') && !headMenu.contains(e.target)) {
+          headMenu.removeAttribute('open');
+        }
+      }, { signal: detailAbort.signal });
+    }
 
     setupTimer();
     renderPlanBox();
@@ -175,7 +194,7 @@ BT.training = (function() {
     const resetBtn = $('[data-action="reset-attendance"]', detailRoot);
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        if (!confirm('Anwesenheit für alle Spieler auf "offen" zurücksetzen? Notizen bleiben erhalten.')) return;
+        const backup = (currentTraining.attendance || []).map(a => ({ status: a.status, late: a.late }));
         for (const a of (currentTraining.attendance || [])) {
           a.status = null;
           a.late = false;
@@ -186,6 +205,20 @@ BT.training = (function() {
         renderFreethrows();
         renderShots();
         renderFitness();
+        BT.util.toast('Anwesenheit zurückgesetzt', {
+          actionLabel: 'Rückgängig',
+          action: () => {
+            (currentTraining.attendance || []).forEach((a, i) => {
+              if (backup[i]) { a.status = backup[i].status; a.late = backup[i].late; }
+            });
+            save();
+            renderAttendance();
+            renderSummary();
+            renderFreethrows();
+            renderShots();
+            renderFitness();
+          }
+        });
       });
     }
 
@@ -232,7 +265,7 @@ BT.training = (function() {
         <div class="status-row" role="group">
           ${['present', 'absent', 'excused', 'injured'].map(s => `
             <button type="button" class="status-btn ${att.status === s ? 'active' : ''}" data-status="${s}">
-              ${STATUS_SYMBOL[s]} ${STATUS_LABELS[s]}
+              <span class="status-dot">${STATUS_SYMBOL[s]}</span> ${STATUS_LABELS[s]}
             </button>
           `).join('')}
         </div>
@@ -515,7 +548,7 @@ BT.training = (function() {
 
     if (!currentShotCategory) {
       empty.classList.remove('hidden');
-      empty.textContent = 'Keine Wurf-Kategorie für dieses Training. Tippe oben auf „+ Kategorie", um eine hinzuzufügen.';
+      empty.innerHTML = '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 17 4-8 4 4 6-8"/></svg><p class="empty-body">Keine Wurf-Kategorie für dieses Training. Tippe oben auf „+ Kategorie", um eine hinzuzufügen.</p>';
       return;
     }
 
@@ -523,7 +556,7 @@ BT.training = (function() {
     const presentIds = presentPlayerIds(currentTraining);
     if (presentIds.length === 0) {
       empty.classList.remove('hidden');
-      empty.textContent = 'Keine anwesenden Spieler.';
+      empty.innerHTML = '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg><p class="empty-body">Keine anwesenden Spieler.</p>';
       return;
     }
     empty.classList.add('hidden');
@@ -730,6 +763,16 @@ BT.training = (function() {
   }
 
   function setupSubnav() {
+    const subnav = $('.subnav', detailRoot);
+    const updateEdgeMask = () => {
+      if (!subnav) return;
+      const atEnd = subnav.scrollLeft + subnav.clientWidth >= subnav.scrollWidth - 2;
+      subnav.setAttribute('data-scroll-end', atEnd ? 'true' : 'false');
+    };
+    if (subnav) {
+      subnav.addEventListener('scroll', updateEdgeMask, { passive: true });
+      requestAnimationFrame(updateEdgeMask);
+    }
     $$('.subnav-btn', detailRoot).forEach(btn => {
       btn.addEventListener('click', () => {
         const target = btn.dataset.pane;
@@ -738,6 +781,7 @@ BT.training = (function() {
         if (target === 'notes') renderPlayerNotes();
         if (target === 'map') renderShotMap();
         if (target === 'fitness') renderFitness();
+        if (btn.scrollIntoView) btn.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
         if (detailRoot && detailRoot.scrollIntoView) detailRoot.scrollIntoView({ block: 'start', behavior: 'instant' });
       });
     });
@@ -795,10 +839,19 @@ BT.training = (function() {
     $('[data-action="map-clear"]', detailRoot).addEventListener('click', () => {
       const playerId = playerSelect.value;
       const playerName = (BT.storage.getPlayer(playerId) || {}).name || 'Spieler';
-      if (!confirm('Alle Würfe von ' + playerName + ' in diesem Training löschen?')) return;
+      const backup = currentTraining.shotMap.filter(s => s.playerId === playerId);
+      if (backup.length === 0) return;
       currentTraining.shotMap = currentTraining.shotMap.filter(s => s.playerId !== playerId);
       save();
       renderShotMap();
+      BT.util.toast('Würfe von ' + playerName + ' gelöscht', {
+        actionLabel: 'Rückgängig',
+        action: () => {
+          currentTraining.shotMap = currentTraining.shotMap.concat(backup);
+          save();
+          renderShotMap();
+        }
+      });
     });
 
     const genBtn = $('[data-action="map-generate"]', detailRoot);
@@ -856,30 +909,36 @@ BT.training = (function() {
 
   function generateShotMapFromCounts() {
     const presentIds = presentPlayerIds(currentTraining);
-    if (presentIds.length === 0) { alert('Keine anwesenden Spieler.'); return; }
+    if (presentIds.length === 0) { BT.util.toast('Keine anwesenden Spieler.'); return; }
     const hasFT = (currentTraining.freethrows || []).some(e => presentIds.includes(e.playerId) && (e.attempted || 0) > 0);
     const hasShots = (currentTraining.shots || []).some(cat => (cat.entries || []).some(e => presentIds.includes(e.playerId) && (e.attempted || 0) > 0));
-    if (!hasFT && !hasShots) { alert('Keine Freiwurf- oder Wurfzahlen vorhanden.'); return; }
+    if (!hasFT && !hasShots) { BT.util.toast('Keine Freiwurf- oder Wurfzahlen vorhanden.'); return; }
     if (!confirm('Karte für alle anwesenden Spieler aus Zahlen neu generieren? Bestehende Punkte dieser Spieler werden ersetzt.')) return;
 
     currentTraining.shotMap = (currentTraining.shotMap || []).filter(s => !presentIds.includes(s.playerId));
     const ts = Date.now();
     const ftSpot = spotForCategory('Freiwürfe');
+    const categories = [];
 
+    if (hasFT) categories.push('Freiwürfe');
     for (const e of (currentTraining.freethrows || [])) {
       if (!presentIds.includes(e.playerId)) continue;
       addSyntheticShots(e.playerId, ftSpot.x, ftSpot.y, e.attempted, e.made, ftSpot.r, ts);
     }
     for (const cat of (currentTraining.shots || [])) {
       const spot = spotForCategory(cat.category, cat);
+      let catUsed = false;
       for (const e of (cat.entries || [])) {
         if (!presentIds.includes(e.playerId)) continue;
+        if ((e.attempted || 0) > 0) catUsed = true;
         addSyntheticShots(e.playerId, spot.x, spot.y, e.attempted, e.made, spot.r, ts);
       }
+      if (catUsed) categories.push(cat.category);
     }
     save();
     renderShotMap();
-    alert('Karte generiert.');
+    const count = (currentTraining.shotMap || []).filter(s => presentIds.includes(s.playerId) && s.synthetic).length;
+    BT.util.toast(count + ' Würfe aus ' + categories.join(', ') + ' eingezeichnet');
   }
 
   function renderShotMap() {
@@ -1038,9 +1097,22 @@ BT.training = (function() {
       if (timerSelectedSec <= 0) return;
       BT.audio.ensureContext();
       timerEndTs = performance.now() + timerSelectedSec * 1000;
+      setTimerState('running');
       tickTimer();
     });
-    $('[data-timer-action="stop"]', detailRoot).addEventListener('click', stopTimer);
+    $('[data-timer-action="stop"]', detailRoot).addEventListener('click', () => {
+      stopTimer();
+      setTimerState('ready');
+    });
+  }
+
+  function setTimerState(state) {
+    const el = $('[data-role="timer-state"]', detailRoot);
+    if (!el) return;
+    el.className = 'timer-state';
+    if (state === 'running') { el.textContent = 'Läuft'; el.classList.add('running'); }
+    else if (state === 'finished') { el.textContent = 'Beendet'; el.classList.add('finished'); }
+    else { el.textContent = 'Bereit'; }
   }
 
   function tickTimer() {
@@ -1054,6 +1126,7 @@ BT.training = (function() {
       setTimeout(() => BT.audio.startBeep(), 250);
       setTimeout(() => BT.audio.startBeep(), 500);
       stopTimer();
+      setTimerState('finished');
       setTimeout(() => display.classList.remove('done'), 2500);
       return;
     }

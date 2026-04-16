@@ -102,10 +102,11 @@ BT.history = (function() {
       downloadCSV(fname, csvRows);
     });
 
-    $('[data-action="delete"]', root).addEventListener('click', () => {
-      if (!confirm('Diesen Test wirklich löschen?')) return;
-      BT.storage.deleteSession(sessionId);
-      location.hash = '#/history';
+    $('[data-action="delete"]', root).addEventListener('click', function() {
+      BT.util.confirmBtn(this, () => {
+        BT.storage.deleteSession(sessionId);
+        location.hash = '#/history';
+      });
     });
   }
 

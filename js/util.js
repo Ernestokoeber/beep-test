@@ -128,5 +128,50 @@ BT.util = (function() {
     });
   }
 
-  return { uuid, $, $$, formatDate, todayISO, ageFrom, renderTemplate, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, escapeHTML, downloadBlob };
+  var _toastTimer = null;
+
+  function toast(msg, opts) {
+    opts = opts || {};
+    var host = document.querySelector('[data-role="toast-host"]');
+    if (!host) return { dismiss: function() {} };
+    if (_toastTimer) clearTimeout(_toastTimer);
+    host.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    if (opts.action && opts.actionLabel) {
+      var btn = document.createElement('button');
+      btn.className = 'toast-action';
+      btn.textContent = opts.actionLabel;
+      btn.addEventListener('click', function() { opts.action(); dismiss(); });
+      el.appendChild(btn);
+    }
+    host.appendChild(el);
+    function dismiss() {
+      if (_toastTimer) clearTimeout(_toastTimer);
+      _toastTimer = null;
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }
+    _toastTimer = setTimeout(dismiss, opts.timeout || 5000);
+    return { dismiss: dismiss };
+  }
+
+  function confirmBtn(btn, onConfirm, opts) {
+    opts = opts || {};
+    if (btn._confirmPending) { onConfirm(); resetBtn(); return; }
+    var origText = btn.textContent;
+    var origClass = btn.className;
+    btn._confirmPending = true;
+    btn.textContent = opts.label || 'Wirklich löschen?';
+    btn.classList.add('danger');
+    var timer = setTimeout(resetBtn, opts.timeout || 3000);
+    function resetBtn() {
+      clearTimeout(timer);
+      btn.textContent = origText;
+      btn.className = origClass;
+      btn._confirmPending = false;
+    }
+  }
+
+  return { uuid, $, $$, formatDate, todayISO, ageFrom, renderTemplate, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, escapeHTML, downloadBlob, toast, confirmBtn };
 })();

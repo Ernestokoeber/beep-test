@@ -32,6 +32,19 @@
     if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
   }
 
+  function setupTopbarHeight() {
+    const topbar = document.querySelector('.topbar');
+    if (!topbar) return;
+    const apply = () => {
+      document.documentElement.style.setProperty('--topbar-height', topbar.offsetHeight + 'px');
+    };
+    apply();
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', apply);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', apply);
+    if (window.ResizeObserver) new ResizeObserver(apply).observe(topbar);
+  }
+
   function setupHamburger() {
     const btn = document.querySelector('[data-role="hamburger"]');
     const nav = document.querySelector('[data-role="nav"]');
@@ -112,8 +125,8 @@
   }
 
   window.addEventListener('hashchange', route);
-  window.addEventListener('DOMContentLoaded', () => { setupTheme(); setupHamburger(); route(); });
-  if (document.readyState !== 'loading') { setupTheme(); setupHamburger(); route(); }
+  window.addEventListener('DOMContentLoaded', () => { setupTheme(); setupHamburger(); setupTopbarHeight(); route(); });
+  if (document.readyState !== 'loading') { setupTheme(); setupHamburger(); setupTopbarHeight(); route(); }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => {

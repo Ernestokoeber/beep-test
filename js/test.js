@@ -153,7 +153,8 @@ BT.test = (function() {
       totalShuttlesDone: 0,
       active: new Map(),
       out: [],
-      rafId: null
+      rafId: null,
+      preStartCountdown: false
     };
 
     const players = BT.storage.getPlayers();
@@ -195,6 +196,16 @@ BT.test = (function() {
 
     updateDisplay();
     renderRunners();
+
+    document.addEventListener('keydown', function onEscPreStart(e) {
+      if (e.key === 'Escape' && runState && runState.preStartCountdown) {
+        e.preventDefault();
+        abortPreStart();
+      }
+      if (!runRoot || !runRoot.isConnected) {
+        document.removeEventListener('keydown', onEscPreStart);
+      }
+    });
   }
 
   function start() {
@@ -204,6 +215,7 @@ BT.test = (function() {
 
     runState.running = true;
     runState.paused = false;
+    runState.preStartCountdown = true;
     const level = BT.levels.get(runState.currentLevel, runState.session.testType);
     const now = performance.now() / 1000;
     runState.startTime = now + 3;
@@ -222,9 +234,28 @@ BT.test = (function() {
     if (voice) BT.audio.speak('Drei');
     scheduleRestTimeout(() => { showStartCountdown('2'); BT.audio.tick(); if (voice) BT.audio.speak('Zwei'); }, 1000);
     scheduleRestTimeout(() => { showStartCountdown('1'); BT.audio.tick(); if (voice) BT.audio.speak('Eins'); }, 2000);
-    scheduleRestTimeout(() => { showStartCountdown('LOS!', true); BT.audio.restEndBeep(); if (voice) BT.audio.speak('Los'); }, 3000);
+    scheduleRestTimeout(() => {
+      showStartCountdown('LOS!', true);
+      BT.audio.restEndBeep();
+      if (voice) BT.audio.speak('Los');
+      if (runState) runState.preStartCountdown = false;
+    }, 3000);
 
     tick();
+  }
+
+  function abortPreStart() {
+    if (!runState || !runState.preStartCountdown) return;
+    runState.running = false;
+    runState.preStartCountdown = false;
+    clearRestTimeouts();
+    if (runState.rafId) cancelAnimationFrame(runState.rafId);
+    releaseWakeLock();
+    const el = $('[data-role="start-countdown"]', runRoot);
+    if (el && el.parentNode) el.remove();
+    $('[data-action="start"]', runRoot).disabled = false;
+    $('[data-action="pause"]', runRoot).disabled = true;
+    $('[data-action="stop"]', runRoot).disabled = true;
   }
 
   function togglePause() {
@@ -366,9 +397,13 @@ BT.test = (function() {
       el = document.createElement('div');
       el.className = 'start-countdown';
       el.setAttribute('data-role', 'start-countdown');
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'assertive');
       runRoot.appendChild(el);
     }
     el.textContent = text;
+    const isNumber = /^\d+$/.test(text);
+    el.setAttribute('aria-label', isNumber ? 'Test startet in ' + text + ' Sekunden' : text);
     el.classList.toggle('final', !!fadeOut);
     if (fadeOut) {
       setTimeout(() => { if (el && el.parentNode) el.remove(); }, 800);

@@ -8,7 +8,7 @@ BT.players = (function() {
     root = renderTemplate('tpl-players');
     target.appendChild(root);
 
-    $('[data-action="new-player"]', root).addEventListener('click', () => showForm());
+    root.addEventListener('click', e => { if (e.target.closest('[data-action="new-player"]')) showForm(); });
     $('[data-action="cancel"]', root).addEventListener('click', () => hideForm());
     $('[data-role="player-form"]', root).addEventListener('submit', onSubmit);
 
@@ -64,7 +64,11 @@ BT.players = (function() {
     list.innerHTML = '';
     if (players.length === 0) {
       empty.classList.remove('hidden');
-      empty.textContent = currentTab === 'archived' ? 'Archiv ist leer.' : 'Noch keine Spieler angelegt.';
+      if (currentTab === 'archived') {
+        empty.innerHTML = '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg><p class="empty-body">Archiv ist leer.</p>';
+      } else {
+        empty.innerHTML = '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg><p class="empty-headline">Noch keine Spieler angelegt</p><p class="empty-body">Leg deinen ersten Spieler an, um loszulegen.</p><button class="btn primary" data-action="new-player">+ Neuer Spieler</button>';
+      }
       return;
     }
     empty.classList.add('hidden');
@@ -297,7 +301,7 @@ BT.players = (function() {
     }
 
     if (wrap.children.length === 0) {
-      wrap.innerHTML = '<p class="empty">Noch zu wenig Daten für Trends.</p>';
+      wrap.innerHTML = '<div class="empty empty--field"><svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 17 4-8 4 4 6-8"/></svg><p class="empty-body">Noch zu wenig Daten für Trends.</p></div>';
     }
   }
 
