@@ -195,7 +195,6 @@ BT.players = (function() {
       if (cellsLayer) cellsLayer.innerHTML = '';
       if (shotsLayer) shotsLayer.innerHTML = '';
       if (view === 'shots') BT.heatmap.renderShots(shotsLayer, shots);
-      else if (view === 'hex') BT.heatmap.renderHexbin(cellsLayer, shots);
       else BT.heatmap.renderZones(cellsLayer, shots);
     }
 

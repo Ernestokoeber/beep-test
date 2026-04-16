@@ -30,41 +30,64 @@ BT.heatmap = (function() {
     return x < 250 ? 'mid_l' : 'mid_r';
   }
 
-  // Pointy-top Axial-Koordinaten (Redblobgames).
-  function hexRound(q, r) {
-    const s = -q - r;
-    let rq = Math.round(q), rr = Math.round(r), rs = Math.round(s);
-    const dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs - s);
-    if (dq > dr && dq > ds) rq = -rr - rs;
-    else if (dr > ds) rr = -rq - rs;
-    return { q: rq, r: rr };
+  function escapeSvgText(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  function pixelToHex(x, y, R) {
-    const q = (Math.sqrt(3) / 3 * x - 1 / 3 * y) / R;
-    const r = (2 / 3 * y) / R;
-    return hexRound(q, r);
+  function renderBadge(cellsEl, cx, cy, data, label) {
+    const p = data.total > 0 ? data.hits / data.total : 0;
+    const red = Math.round(220 * (1 - p)) + 20;
+    const green = Math.round(160 * p + 60);
+    const pctTxt = Math.round(p * 100) + '%';
+    const radius = 26;
+    const shortLabel = label && label.length > 16 ? label.slice(0, 14) + '…' : (label || '');
+    cellsEl.insertAdjacentHTML('beforeend',
+      `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="rgb(${red},${green},30)" fill-opacity="0.82" stroke="rgba(0,0,0,0.35)" stroke-width="1.5"><title>${escapeSvgText(label)}: ${data.hits}/${data.total} (${pctTxt})</title></circle>` +
+      `<text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff" pointer-events="none" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:2">${pctTxt}</text>` +
+      `<text x="${cx}" y="${cy + 11}" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" pointer-events="none" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:2">${data.hits}/${data.total}</text>` +
+      (shortLabel
+        ? `<text x="${cx}" y="${cy - radius - 4}" text-anchor="middle" font-size="10" font-weight="700" fill="#1a1a1a" pointer-events="none" style="paint-order:stroke;stroke:#fff;stroke-width:2.5">${escapeSvgText(shortLabel)}</text>`
+        : '')
+    );
   }
 
-  function hexToPixel(q, r, R) {
-    return {
-      x: R * Math.sqrt(3) * (q + r / 2),
-      y: R * 1.5 * r
-    };
-  }
-
-  function hexPoints(cx, cy, r) {
-    const pts = [];
-    for (let i = 0; i < 6; i++) {
-      const angle = Math.PI / 3 * i + Math.PI / 6;
-      pts.push((cx + r * Math.cos(angle)).toFixed(1) + ',' + (cy + r * Math.sin(angle)).toFixed(1));
-    }
-    return pts.join(' ');
+  function getConfiguredSpots() {
+    if (!(window.BT && BT.storage && BT.storage.getSetting)) return {};
+    return BT.storage.getSetting('shotSpots', {}) || {};
   }
 
   function renderZones(cellsEl, shots) {
     if (!cellsEl) return;
     cellsEl.innerHTML = '';
+
+    const spots = getConfiguredSpots();
+    const spotKeys = Object.keys(spots).filter(k => spots[k] && typeof spots[k].x === 'number');
+
+    if (spotKeys.length > 0) {
+      // Spot-basiert: alle Wuerfe dem nächsten konfigurierten Spot zuordnen,
+      // Badge an der konfigurierten Position plazieren.
+      const agg = {};
+      for (const k of spotKeys) agg[k] = { hits: 0, total: 0 };
+      for (const s of shots) {
+        let best = null, bestDist = Infinity;
+        for (const k of spotKeys) {
+          const sp = spots[k];
+          const d = Math.hypot(s.x - sp.x, s.y - sp.y);
+          if (d < bestDist) { bestDist = d; best = k; }
+        }
+        if (best) {
+          agg[best].total++;
+          if (s.made) agg[best].hits++;
+        }
+      }
+      for (const [name, data] of Object.entries(agg)) {
+        if (data.total === 0) continue;
+        renderBadge(cellsEl, spots[name].x, spots[name].y, data, name);
+      }
+      return;
+    }
+
+    // Fallback ohne konfigurierte Spots: 8 Standard-Basketball-Zonen
     const byZone = {};
     for (const s of shots) {
       const z = zoneOf(s.x, s.y);
@@ -75,48 +98,7 @@ BT.heatmap = (function() {
     for (const [zkey, data] of Object.entries(byZone)) {
       const zone = ZONES[zkey];
       if (!zone) continue;
-      const p = data.hits / data.total;
-      const red = Math.round(220 * (1 - p)) + 20;
-      const green = Math.round(160 * p + 60);
-      const pctTxt = Math.round(p * 100) + '%';
-      cellsEl.insertAdjacentHTML('beforeend',
-        `<circle cx="${zone.cx}" cy="${zone.cy}" r="30" fill="rgb(${red},${green},30)" fill-opacity="0.82" stroke="rgba(0,0,0,0.35)" stroke-width="1.5"><title>${zone.label}: ${data.hits}/${data.total} (${pctTxt})</title></circle>` +
-        `<text x="${zone.cx}" y="${zone.cy - 3}" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" pointer-events="none" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:2">${pctTxt}</text>` +
-        `<text x="${zone.cx}" y="${zone.cy + 12}" text-anchor="middle" font-size="10" font-weight="600" fill="#fff" pointer-events="none" style="paint-order:stroke;stroke:rgba(0,0,0,0.5);stroke-width:2">${data.hits}/${data.total}</text>`
-      );
-    }
-  }
-
-  function renderHexbin(cellsEl, shots, opts) {
-    if (!cellsEl) return;
-    cellsEl.innerHTML = '';
-    const R = (opts && opts.radius) || 20;
-    const bins = new Map();
-    for (const s of shots) {
-      const h = pixelToHex(s.x, s.y, R);
-      const key = h.q + ',' + h.r;
-      let bin = bins.get(key);
-      if (!bin) {
-        const c = hexToPixel(h.q, h.r, R);
-        bin = { hits: 0, total: 0, cx: c.x, cy: c.y };
-        bins.set(key, bin);
-      }
-      bin.total++;
-      if (s.made) bin.hits++;
-    }
-    const values = Array.from(bins.values());
-    const maxTotal = Math.max(1, ...values.map(b => b.total));
-
-    for (const bin of values) {
-      if (bin.cx < 4 || bin.cx > 496 || bin.cy < 4 || bin.cy > 466) continue;
-      const p = bin.hits / bin.total;
-      const hue = Math.round(p * 120);
-      const sizeFactor = 0.35 + 0.65 * Math.sqrt(bin.total / maxTotal);
-      const actualR = R * sizeFactor;
-      const points = hexPoints(bin.cx, bin.cy, actualR);
-      cellsEl.insertAdjacentHTML('beforeend',
-        `<polygon points="${points}" fill="hsl(${hue},72%,48%)" fill-opacity="0.82" stroke="rgba(0,0,0,0.2)" stroke-width="0.5"><title>${bin.hits}/${bin.total} (${Math.round(p * 100)}%)</title></polygon>`
-      );
+      renderBadge(cellsEl, zone.cx, zone.cy, data, zone.label);
     }
   }
 
@@ -137,5 +119,5 @@ BT.heatmap = (function() {
     }
   }
 
-  return { ZONES, zoneOf, renderZones, renderHexbin, renderShots };
+  return { ZONES, zoneOf, renderZones, renderShots };
 })();

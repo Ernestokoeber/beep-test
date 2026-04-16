@@ -68,13 +68,7 @@ BT.dashboard = (function() {
     const totalPct = Math.round((hits / shots.length) * 100);
     if (meta) meta.textContent = shots.length + ' Würfe · ' + hits + ' Treffer · ' + (shots.length - hits) + ' Fehlwürfe · ' + totalPct + '% · ' + trainings.length + ' Trainings';
 
-    function render(view) {
-      if (view === 'hex') BT.heatmap.renderHexbin(cells, shots);
-      else BT.heatmap.renderZones(cells, shots);
-    }
-    render('zones');
-    const radios = root.querySelectorAll('input[name="team-heat-view"]');
-    radios.forEach(r => r.addEventListener('change', () => render(r.value)));
+    BT.heatmap.renderZones(cells, shots);
   }
 
   function renderTopAttenders(root) {
