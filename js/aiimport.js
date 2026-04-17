@@ -256,5 +256,115 @@ Hinweise:
     return results;
   }
 
-  return { parseWithGemini, applyPlanToTrainings };
+  const SUMMARY_PROMPT = `Du bist Basketball-Co-Trainer und schreibst eine kurze, eltern- und spielertaugliche Trainingszusammenfassung.
+
+Stil: 3–4 Sätze, freundlich, konkret, auf Deutsch, in 2. Person Plural („wir" / „ihr"). Keine Floskeln, keine Einleitung („Hier ist …"). Nenne Namen nur bei herausragenden Leistungen (Top 1–2). Wenn Vergleichsdaten vom vorherigen Training vorhanden sind, erwähne 1 Trend (z.B. „Freiwurfquote von 62 % auf 71 %").
+
+Daten (JSON) über das aktuelle und — falls vorhanden — das vorige Training folgen. Gib NUR den fertigen Text zurück, ohne Markdown, ohne Anführungszeichen.`;
+
+  function buildSummaryData(training, previous, playerLookup) {
+    function summarizeAttendance(t) {
+      const a = { present: 0, absent: 0, excused: 0, injured: 0, late: 0, open: 0 };
+      for (const x of (t.attendance || [])) {
+        if (!x.status) { a.open++; continue; }
+        if (a[x.status] !== undefined) a[x.status]++;
+        if (x.late) a.late++;
+      }
+      return a;
+    }
+    function teamFT(t) {
+      let made = 0, att = 0;
+      for (const e of (t.freethrows || [])) { made += e.made || 0; att += e.attempted || 0; }
+      return { made, attempted: att, pct: att ? Math.round((made / att) * 100) : null };
+    }
+    function teamShots(t) {
+      const out = [];
+      for (const c of (t.shots || [])) {
+        let m = 0, a = 0;
+        for (const e of (c.entries || [])) { m += e.made || 0; a += e.attempted || 0; }
+        if (a > 0) out.push({ category: c.category, made: m, attempted: a, pct: Math.round((m / a) * 100) });
+      }
+      return out;
+    }
+    function topFTPlayers(t, n) {
+      const rows = (t.freethrows || [])
+        .filter(e => (e.attempted || 0) >= 3)
+        .map(e => ({
+          name: (playerLookup(e.playerId) || {}).name || '?',
+          made: e.made || 0, attempted: e.attempted || 0,
+          pct: e.attempted ? Math.round((e.made / e.attempted) * 100) : 0
+        }))
+        .sort((a, b) => b.pct - a.pct || b.attempted - a.attempted);
+      return rows.slice(0, n || 2);
+    }
+
+    const pack = (t) => {
+      if (!t) return null;
+      return {
+        date: t.date,
+        note: t.note || null,
+        attendance: summarizeAttendance(t),
+        freethrows: teamFT(t),
+        topFT: topFTPlayers(t, 2),
+        shotsByCategory: teamShots(t),
+        drills: (t.plan && t.plan.drills ? t.plan.drills.map(d => d.name) : []).slice(0, 6)
+      };
+    };
+
+    return {
+      current: pack(training),
+      previous: pack(previous)
+    };
+  }
+
+  async function callGeminiText(apiKey, payloadText, onProgress) {
+    const body = {
+      contents: [{ parts: [{ text: SUMMARY_PROMPT + '\n\n' + payloadText }] }],
+      generationConfig: { temperature: 0.6 }
+    };
+    let lastErr = null;
+    for (let i = 0; i < MODELS.length; i++) {
+      const model = MODELS[i];
+      const url = BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey);
+      if (onProgress) onProgress(model + ' fragt Gemini …');
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          const err = new Error('HTTP ' + res.status + ': ' + errText.slice(0, 200));
+          err.status = res.status;
+          if (res.status === 404 || res.status === 503 || res.status === 429) {
+            lastErr = err;
+            continue;
+          }
+          throw err;
+        }
+        const data = await res.json();
+        const text = data && data.candidates && data.candidates[0]
+          && data.candidates[0].content && data.candidates[0].content.parts
+          && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+        if (!text) throw new Error('Leere Antwort.');
+        return text.trim();
+      } catch (e) {
+        lastErr = e;
+        if (i === MODELS.length - 1) throw e;
+      }
+    }
+    throw lastErr || new Error('Alle Modelle fehlgeschlagen.');
+  }
+
+  async function summarizeTraining(training, previous, apiKey, onProgress) {
+    if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key im „Plan"-Reiter eintragen.');
+    const players = BT.storage.getPlayers();
+    const lookup = (id) => players.find(p => p.id === id);
+    const data = buildSummaryData(training, previous, lookup);
+    const payloadText = 'Trainingsdaten:\n' + JSON.stringify(data, null, 2);
+    return callGeminiText(apiKey, payloadText, onProgress);
+  }
+
+  return { parseWithGemini, applyPlanToTrainings, summarizeTraining };
 })();

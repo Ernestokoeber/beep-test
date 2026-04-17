@@ -23,6 +23,25 @@ BT.util = (function() {
     return d.getFullYear() + '-' + m + '-' + day;
   }
 
+  // Saison-Start = August. Aug..Dez gehört zum nächsten Jahr, Jan..Jul zur aktuellen Saison.
+  // Aug 2025 → "25/26", Juli 2026 → "25/26", Aug 2026 → "26/27".
+  function seasonForDate(iso) {
+    if (!iso) iso = todayISO();
+    const s = String(iso).slice(0, 10);
+    const year = parseInt(s.slice(0, 4), 10);
+    const month = parseInt(s.slice(5, 7), 10);
+    if (!year || !month) return null;
+    const startYear = month >= 8 ? year : year - 1;
+    const a = String(startYear % 100).padStart(2, '0');
+    const b = String((startYear + 1) % 100).padStart(2, '0');
+    return a + '/' + b;
+  }
+
+  function seasonLabel(id) {
+    if (!id || id === 'all') return 'Alle Saisons';
+    return 'Saison ' + id;
+  }
+
   function ageFrom(birthDate) {
     if (!birthDate) return null;
     const b = new Date(birthDate + 'T00:00:00');
@@ -156,6 +175,15 @@ BT.util = (function() {
     return { dismiss: dismiss };
   }
 
+  function toastUndo(msg, onUndo, opts) {
+    opts = opts || {};
+    return toast(msg, {
+      actionLabel: opts.actionLabel || 'Rückgängig',
+      action: onUndo,
+      timeout: opts.timeout || 6000
+    });
+  }
+
   function confirmBtn(btn, onConfirm, opts) {
     opts = opts || {};
     if (btn._confirmPending) { onConfirm(); resetBtn(); return; }
@@ -173,5 +201,5 @@ BT.util = (function() {
     }
   }
 
-  return { uuid, $, $$, formatDate, todayISO, ageFrom, renderTemplate, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, escapeHTML, downloadBlob, toast, confirmBtn };
+  return { uuid, $, $$, formatDate, todayISO, seasonForDate, seasonLabel, ageFrom, renderTemplate, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, escapeHTML, downloadBlob, toast, toastUndo, confirmBtn };
 })();

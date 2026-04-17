@@ -16,6 +16,10 @@ BT.stats = (function() {
   }
 
   function endedTrainings() {
+    return BT.storage.getTrainings().filter(isEnded).filter(BT.storage.inActiveSeason);
+  }
+
+  function allEndedTrainings() {
     return BT.storage.getTrainings().filter(isEnded);
   }
 
@@ -231,7 +235,7 @@ BT.stats = (function() {
   }
 
   return {
-    pct, countTrainings, isEnded, endedTrainings,
+    pct, countTrainings, isEnded, endedTrainings, allEndedTrainings,
     playerAttendance, playerFreethrows, playerShotsByCategory,
     playerAttendanceTimeline, playerFreethrowsTimeline, playerShotsTimelineByCategory,
     rollingAttendancePct,

@@ -174,9 +174,14 @@ BT.schedule = (function() {
         deleteBtn.addEventListener('click', () => {
           const id = deleteBtn.dataset.delete;
           const dateStr = deleteBtn.dataset.date;
-          if (!confirm('Training vom ' + BT.util.formatDate(dateStr) + ' wirklich löschen? Anwesenheit, Würfe, Notizen — alles weg.')) return;
+          const snapshot = BT.storage.getTraining(id);
+          if (!snapshot) return;
           BT.storage.deleteTraining(id);
           renderUpcoming(root);
+          BT.util.toastUndo('Training vom ' + BT.util.formatDate(dateStr) + ' gelöscht', () => {
+            BT.storage.restoreTraining(snapshot);
+            renderUpcoming(root);
+          });
         });
       }
       list.appendChild(li);

@@ -94,8 +94,16 @@ BT.players = (function() {
       });
       li.querySelector('[data-edit]').addEventListener('click', () => showForm(p));
       li.querySelector('[data-archive]').addEventListener('click', () => {
-        BT.storage.setArchived(p.id, !p.archived);
+        const wasArchived = !!p.archived;
+        BT.storage.setArchived(p.id, !wasArchived);
         renderList();
+        const msg = wasArchived
+          ? p.name + ' reaktiviert'
+          : p.name + ' archiviert';
+        BT.util.toastUndo(msg, () => {
+          BT.storage.setArchived(p.id, wasArchived);
+          renderList();
+        });
       });
       list.appendChild(li);
     }

@@ -164,13 +164,18 @@ BT.training = (function() {
     });
 
     $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
+    $('[data-action="ai-summary"]', detailRoot).addEventListener('click', () => openAISummary(currentTraining));
     $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTrainingAndShare(currentTraining));
     $('[data-action="export-csv"]', detailRoot).addEventListener('click', () => exportCSV(currentTraining));
     $('[data-action="export-json"]', detailRoot).addEventListener('click', () => exportJSON(currentTraining));
-    $('[data-action="delete"]', detailRoot).addEventListener('click', function() {
-      BT.util.confirmBtn(this, () => {
-        BT.storage.deleteTraining(currentTraining.id);
-        location.hash = '#/training';
+    $('[data-action="delete"]', detailRoot).addEventListener('click', () => {
+      const snapshot = BT.storage.getTraining(currentTraining.id);
+      if (!snapshot) { location.hash = '#/training'; return; }
+      BT.storage.deleteTraining(currentTraining.id);
+      location.hash = '#/training';
+      BT.util.toastUndo('Training vom ' + BT.util.formatDate(snapshot.date) + ' gelöscht', () => {
+        BT.storage.restoreTraining(snapshot);
+        location.hash = '#/training/' + snapshot.id;
       });
     });
 
@@ -1028,11 +1033,8 @@ BT.training = (function() {
 
   function renderPlanBox() {
     const box = $('[data-role="plan-box"]', detailRoot);
-    const plan = currentTraining.plan;
-    if (!plan || (!plan.summary && !(plan.drills && plan.drills.length))) {
-      box.classList.add('hidden');
-      return;
-    }
+    const plan = currentTraining.plan || (currentTraining.plan = { drills: [] });
+    plan.drills = plan.drills || [];
     box.classList.remove('hidden');
     const sumEl = $('[data-role="plan-summary"]', detailRoot);
     const parts = [];
@@ -1045,13 +1047,19 @@ BT.training = (function() {
 
     const drillsEl = $('[data-role="plan-drills"]', detailRoot);
     drillsEl.innerHTML = '';
-    for (const d of (plan.drills || [])) {
+    plan.drills.forEach((d, idx) => {
       const li = document.createElement('li');
+      li.className = 'plan-drill';
       const minLabel = d.minutes ? ' (' + d.minutes + ' min)' : '';
       li.innerHTML = `
-        <span class="drill-name">${escapeHTML(d.name)}${minLabel}</span>
+        <div class="plan-drill-head">
+          <span class="drill-name">${escapeHTML(d.name)}${minLabel}</span>
+          <div class="plan-drill-actions">
+            ${d.minutes ? '<button class="btn small primary" data-drill-min="' + d.minutes + '">▶ Timer</button>' : ''}
+            <button class="btn small" data-drill-remove="${idx}" aria-label="Entfernen">✕</button>
+          </div>
+        </div>
         ${d.description ? '<div class="muted">' + escapeHTML(d.description) + '</div>' : ''}
-        ${d.minutes ? '<button class="btn small primary" data-drill-min="' + d.minutes + '">▶ Timer</button>' : ''}
       `;
       const startBtn = li.querySelector('[data-drill-min]');
       if (startBtn) {
@@ -1060,7 +1068,43 @@ BT.training = (function() {
           startTimerWithSec(sec);
         });
       }
+      const removeBtn = li.querySelector('[data-drill-remove]');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+          const removed = plan.drills.splice(idx, 1)[0];
+          save();
+          renderPlanBox();
+          BT.util.toastUndo('Drill „' + (removed.name || '') + '" entfernt', () => {
+            plan.drills.splice(idx, 0, removed);
+            save();
+            renderPlanBox();
+          });
+        });
+      }
       drillsEl.appendChild(li);
+    });
+
+    // Picker-Button + leerer Hinweis
+    const controls = document.createElement('li');
+    controls.className = 'plan-drill-controls';
+    controls.innerHTML = `
+      <button type="button" class="btn small" data-action="add-drill-from-lib">+ Aus Bibliothek</button>
+      <a class="btn small" href="#/drills">Bibliothek öffnen</a>
+    `;
+    controls.querySelector('[data-action="add-drill-from-lib"]').addEventListener('click', () => {
+      BT.drills.openPicker(picked => {
+        plan.drills.push(picked);
+        save();
+        renderPlanBox();
+      });
+    });
+    drillsEl.appendChild(controls);
+
+    if (plan.drills.length === 0 && !plan.summary && targets.length === 0) {
+      const hint = document.createElement('li');
+      hint.className = 'plan-drill-hint muted';
+      hint.textContent = 'Noch keine Drills im Plan. Füge welche aus der Bibliothek hinzu oder importiere einen Plan-PDF im „Plan"-Reiter.';
+      drillsEl.insertBefore(hint, controls);
     }
   }
 
@@ -1565,6 +1609,122 @@ BT.training = (function() {
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = orig; }
     }
+  }
+
+  function previousEndedTraining(training) {
+    const all = BT.storage.getTrainings();
+    const candidates = all
+      .filter(t => t.id !== training.id)
+      .filter(t => BT.stats.isEnded(t))
+      .filter(t => (t.date || '') < (training.date || ''))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return candidates[0] || null;
+  }
+
+  async function openAISummary(training) {
+    const apiKey = (BT.storage.getSetting('geminiApiKey', '') || '').trim();
+    if (!apiKey) {
+      alert('Es ist kein Gemini API Key hinterlegt. Öffne den „Plan"-Reiter und speichere dort deinen Key.');
+      return;
+    }
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" role="dialog" aria-label="KI-Zusammenfassung">
+        <div class="modal-head">
+          <h3>🤖 KI-Zusammenfassung</h3>
+          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="muted" data-role="status">⏳ Gemini arbeitet …</p>
+          <textarea class="ai-summary-text" data-role="out" rows="8" readonly placeholder="Text erscheint hier …"></textarea>
+          <div class="form-actions">
+            <button type="button" class="btn" data-action="copy" disabled>📋 Kopieren</button>
+            <button type="button" class="btn primary" data-action="share" disabled>📤 Teilen</button>
+            <button type="button" class="btn" data-action="regenerate" disabled>↻ Neu generieren</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const statusEl = backdrop.querySelector('[data-role="status"]');
+    const outEl = backdrop.querySelector('[data-role="out"]');
+    const copyBtn = backdrop.querySelector('[data-action="copy"]');
+    const shareBtn = backdrop.querySelector('[data-action="share"]');
+    const regenBtn = backdrop.querySelector('[data-action="regenerate"]');
+
+    function close() {
+      backdrop.remove();
+      document.removeEventListener('keydown', onKey);
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop) close();
+      if (e.target.closest('[data-action="close"]')) close();
+    });
+
+    async function run() {
+      statusEl.textContent = '⏳ Gemini arbeitet …';
+      outEl.value = '';
+      copyBtn.disabled = true;
+      shareBtn.disabled = true;
+      regenBtn.disabled = true;
+      try {
+        const prev = previousEndedTraining(training);
+        const t0 = Date.now();
+        const ticker = setInterval(() => {
+          const sec = Math.floor((Date.now() - t0) / 1000);
+          statusEl.textContent = '⏳ Gemini arbeitet … ' + sec + 's';
+        }, 500);
+        let text;
+        try {
+          text = await BT.aiimport.summarizeTraining(training, prev, apiKey, msg => {
+            statusEl.textContent = '⏳ ' + msg;
+          });
+        } finally {
+          clearInterval(ticker);
+        }
+        outEl.value = text;
+        const sec = ((Date.now() - t0) / 1000).toFixed(1);
+        statusEl.textContent = '✓ Fertig (' + sec + 's)' + (prev ? ' · Vergleich mit ' + formatDate(prev.date) : ' · ohne Vergleichstraining');
+        copyBtn.disabled = false;
+        shareBtn.disabled = false;
+        regenBtn.disabled = false;
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = '✗ Fehler: ' + e.message;
+        regenBtn.disabled = false;
+      }
+    }
+
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(outEl.value);
+        copyBtn.textContent = '✓ Kopiert';
+        setTimeout(() => { copyBtn.textContent = '📋 Kopieren'; }, 1800);
+      } catch (e) {
+        outEl.select();
+        document.execCommand('copy');
+      }
+    });
+
+    shareBtn.addEventListener('click', async () => {
+      const text = outEl.value;
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Training ' + formatDate(training.date), text }); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        BT.util.toast('In Zwischenablage kopiert');
+      } catch (e) {}
+    });
+
+    regenBtn.addEventListener('click', run);
+    run();
   }
 
   async function shareSummary(training) {

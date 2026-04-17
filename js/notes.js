@@ -106,10 +106,15 @@ BT.notes = (function() {
     titleEl.addEventListener('input', scheduleSave);
     bodyEl.addEventListener('input', scheduleSave);
 
-    $('[data-action="delete"]', root).addEventListener('click', function() {
-      BT.util.confirmBtn(this, () => {
-        BT.storage.deleteNote(note.id);
-        location.hash = '#/notes';
+    $('[data-action="delete"]', root).addEventListener('click', () => {
+      const snapshot = BT.storage.getNote(note.id);
+      if (!snapshot) { location.hash = '#/notes'; return; }
+      BT.storage.deleteNote(note.id);
+      location.hash = '#/notes';
+      const title = (snapshot.title || '').trim() || 'Notiz';
+      BT.util.toastUndo('„' + title + '" gelöscht', () => {
+        BT.storage.restoreNote(snapshot);
+        location.hash = '#/notes/' + snapshot.id;
       });
     });
 

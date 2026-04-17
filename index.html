@@ -38,6 +38,8 @@
       <a href="#/training" data-nav="training">Training</a>
       <a href="#/test/setup" data-nav="setup">Beep-Test</a>
       <a href="#/schedule" data-nav="schedule">Plan</a>
+      <a href="#/drills" data-nav="drills">Drills</a>
+      <a href="#/tactics" data-nav="tactics">Taktik</a>
       <a href="#/notes" data-nav="notes">Notizen</a>
       <a href="#/history" data-nav="history">Historie</a>
     </nav>
@@ -50,6 +52,10 @@
       <div class="section-head">
         <h2>Dashboard</h2>
         <div>
+          <label class="season-select">
+            <span class="sr-only">Saison</span>
+            <select data-role="season-select"></select>
+          </label>
           <button class="btn small" data-action="share-backup">📤 App teilen</button>
           <button class="btn small" data-action="import-backup">Importieren</button>
           <button class="btn small" data-action="export-season-csv">Saison CSV</button>
@@ -268,6 +274,7 @@
             <summary class="btn small head-menu-toggle" aria-label="Weitere Aktionen">⋯ Mehr</summary>
             <div class="head-menu-panel">
               <button class="btn small" data-action="share-summary">📤 Text teilen</button>
+              <button class="btn small" data-action="ai-summary">🤖 KI-Zusammenfassung</button>
               <button class="btn small" data-action="export-csv">CSV exportieren</button>
               <button class="btn small" data-action="export-json">JSON exportieren</button>
               <button class="btn small danger" data-action="delete">Löschen</button>
@@ -588,6 +595,122 @@
     </section>
   </template>
 
+  <template id="tpl-drills-list">
+    <section class="view">
+      <div class="section-head">
+        <h2>Drill-Bibliothek</h2>
+        <button class="btn primary" data-action="new-drill">+ Neuer Drill</button>
+      </div>
+      <div class="drill-filters">
+        <input type="search" class="search-input" data-role="search" placeholder="Suchen …">
+        <select data-role="category-filter">
+          <option value="">Alle Kategorien</option>
+        </select>
+      </div>
+      <ul class="drill-list" data-role="list"></ul>
+      <div class="empty hidden" data-role="empty">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+        <p class="empty-headline">Noch keine Drills</p>
+        <p class="empty-body">Leg deinen ersten Drill an — Name, Kategorie, Dauer und Beschreibung.</p>
+        <button class="btn primary" data-action="new-drill">+ Neuer Drill</button>
+      </div>
+    </section>
+  </template>
+
+  <template id="tpl-drill-detail">
+    <section class="view">
+      <div class="section-head">
+        <div class="head-left">
+          <a href="#/drills" class="btn">← Zurück</a>
+          <h2>Drill</h2>
+        </div>
+        <button class="btn small danger" data-action="delete">Löschen</button>
+      </div>
+      <form class="player-form" data-role="drill-form">
+        <div class="form-row">
+          <label>Name *<input type="text" name="name" required maxlength="80"></label>
+          <label>Kategorie<input type="text" name="category" list="drill-categories" maxlength="40" placeholder="z.B. Shooting"></label>
+          <label>Dauer (min)<input type="number" name="minutes" min="0" max="120" step="1"></label>
+        </div>
+        <datalist id="drill-categories"></datalist>
+        <label class="block-label">Beschreibung
+          <textarea name="description" rows="6" placeholder="Setup, Ablauf, Coaching-Points …"></textarea>
+        </label>
+        <p class="muted" data-role="meta"></p>
+      </form>
+    </section>
+  </template>
+
+  <template id="tpl-tactics">
+    <section class="view">
+      <div class="section-head">
+        <h2>Taktikboard</h2>
+        <div>
+          <button class="btn small" data-action="save-as-note">💾 Als Notiz speichern</button>
+          <button class="btn small danger" data-action="reset-board">Zurücksetzen</button>
+        </div>
+      </div>
+
+      <div class="tactics-toolbar" role="toolbar" aria-label="Werkzeuge">
+        <button type="button" class="tactics-tool active" data-tool="move" aria-pressed="true">✥ Verschieben</button>
+        <button type="button" class="tactics-tool" data-tool="run">→ Laufweg</button>
+        <button type="button" class="tactics-tool" data-tool="pass">⇢ Passweg</button>
+        <button type="button" class="tactics-tool" data-tool="text">T Text</button>
+        <button type="button" class="tactics-tool" data-tool="erase">⌫ Löschen</button>
+      </div>
+      <p class="muted" data-role="tool-hint">Tippe einen Spieler oder den Ball und ziehe ihn an die gewünschte Stelle.</p>
+
+      <div class="court-wrap tactics-court">
+        <svg class="court" viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" data-role="tactics-svg">
+          <defs>
+            <marker id="arrow-run" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--cta)"/>
+            </marker>
+            <marker id="arrow-pass" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--primary)"/>
+            </marker>
+          </defs>
+          <rect class="court-floor" x="10" y="10" width="480" height="450" stroke-width="2"/>
+          <rect class="court-lane" x="160" y="10" width="180" height="190" stroke-width="2"/>
+          <circle class="court-line" cx="250" cy="200" r="60" fill="none" stroke-width="2"/>
+          <line class="court-line" x1="160" y1="200" x2="340" y2="200" stroke-width="2"/>
+          <path class="court-line" d="M 210 50 A 40 40 0 0 0 290 50" fill="none" stroke-width="1.5"/>
+          <line class="court-backboard" x1="220" y1="40" x2="280" y2="40" stroke-width="3"/>
+          <circle class="court-rim" cx="250" cy="50" r="8" fill="none" stroke-width="2.5"/>
+          <line class="court-line" x1="50" y1="10" x2="50" y2="135" stroke-width="2"/>
+          <line class="court-line" x1="450" y1="10" x2="450" y2="135" stroke-width="2"/>
+          <path class="court-line" d="M 50 135 A 200 200 0 0 0 450 135" fill="none" stroke-width="2"/>
+          <g data-role="arrows-layer"></g>
+          <g data-role="texts-layer"></g>
+          <g data-role="tokens-layer"></g>
+        </svg>
+      </div>
+
+      <div class="tactics-legend muted">O · Angriff (1–5) · ⬤ Ball · Laufweg (grün durchgezogen) · Passweg (orange gestrichelt)</div>
+    </section>
+  </template>
+
+  <template id="tpl-drill-picker">
+    <div class="modal-backdrop" data-role="modal-backdrop">
+      <div class="modal" role="dialog" aria-label="Drill aus Bibliothek">
+        <div class="modal-head">
+          <h3>Drill aus Bibliothek</h3>
+          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="drill-filters">
+            <input type="search" class="search-input" data-role="search" placeholder="Suchen …">
+            <select data-role="category-filter">
+              <option value="">Alle Kategorien</option>
+            </select>
+          </div>
+          <ul class="drill-list" data-role="list"></ul>
+          <p class="empty hidden" data-role="empty">Keine Drills in der Bibliothek. <a href="#/drills">Jetzt anlegen</a>.</p>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <template id="tpl-settings">
     <section class="view">
       <div class="section-head">
@@ -638,6 +761,8 @@
   <script src="js/test.js"></script>
   <script src="js/training.js"></script>
   <script src="js/notes.js"></script>
+  <script src="js/drills.js"></script>
+  <script src="js/tactics.js"></script>
   <script src="js/history.js"></script>
   <script src="js/aiimport.js"></script>
   <script src="js/schedule.js"></script>

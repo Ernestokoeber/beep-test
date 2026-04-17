@@ -92,6 +92,13 @@
     } else if (hash.startsWith('#/notes/')) {
       const id = hash.slice('#/notes/'.length);
       BT.notes.renderDetail(app, id);
+    } else if (hash === '#/drills') {
+      BT.drills.renderList(app);
+    } else if (hash.startsWith('#/drills/')) {
+      const id = hash.slice('#/drills/'.length);
+      BT.drills.renderDetail(app, id);
+    } else if (hash === '#/tactics') {
+      BT.tactics.render(app);
     } else if (hash === '#/settings') {
       BT.settings.render(app);
     } else if (hash === '#/history') {
@@ -119,6 +126,10 @@
       document.querySelector('[data-nav="schedule"]').classList.add('active');
     } else if (hash.startsWith('#/notes')) {
       document.querySelector('[data-nav="notes"]').classList.add('active');
+    } else if (hash.startsWith('#/drills')) {
+      document.querySelector('[data-nav="drills"]').classList.add('active');
+    } else if (hash.startsWith('#/tactics')) {
+      document.querySelector('[data-nav="tactics"]').classList.add('active');
     } else if (hash.startsWith('#/history')) {
       document.querySelector('[data-nav="history"]').classList.add('active');
     }

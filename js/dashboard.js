@@ -12,7 +12,11 @@ BT.dashboard = (function() {
     $('[data-action="export-season-csv"]', root).addEventListener('click', exportSeasonCSV);
     $('[data-action="export-season-json"]', root).addEventListener('click', exportSeasonJSON);
 
-    const trainings = BT.storage.getTrainings();
+    renderSeasonSelect(root);
+
+    const active = BT.storage.getActiveSeason();
+    const allTrainings = BT.storage.getTrainings();
+    const trainings = active === 'all' ? allTrainings : allTrainings.filter(t => t.seasonId === active);
     $('[data-role="trainings-count"]', root).textContent = trainings.length;
 
     const next = BT.stats.nextTrainingCountdown();
@@ -40,6 +44,22 @@ BT.dashboard = (function() {
     renderTopFT(root);
     renderShotCategories(root);
     renderTeamHeatmap(root);
+  }
+
+  function renderSeasonSelect(root) {
+    const sel = $('[data-role="season-select"]', root);
+    if (!sel) return;
+    const seasons = BT.storage.getSeasons();
+    const active = BT.storage.getActiveSeason();
+    sel.innerHTML = '<option value="all">Alle Saisons</option>' +
+      seasons.map(s => '<option value="' + s + '">' + 'Saison ' + s + '</option>').join('');
+    sel.value = active;
+    sel.addEventListener('change', () => {
+      BT.storage.setActiveSeason(sel.value);
+      const main = document.getElementById('app');
+      main.innerHTML = '';
+      render(main);
+    });
   }
 
   function renderTeamHeatmap(root) {
@@ -150,8 +170,21 @@ BT.dashboard = (function() {
     }
   }
 
+  function seasonScopedTrainings() {
+    const active = BT.storage.getActiveSeason();
+    const all = BT.storage.getTrainings();
+    const filtered = active === 'all' ? all : all.filter(t => t.seasonId === active);
+    return filtered.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  }
+
+  function activeSeasonSuffix() {
+    const active = BT.storage.getActiveSeason();
+    if (active === 'all') return 'gesamt';
+    return active.replace('/', '-');
+  }
+
   function exportSeasonCSV() {
-    const trainings = BT.storage.getTrainings().slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const trainings = seasonScopedTrainings();
     const players = BT.storage.getPlayers();
     const playerById = id => players.find(p => p.id === id);
 
@@ -228,11 +261,11 @@ BT.dashboard = (function() {
       rows.push([p.name, p.position || '', att.present, att.total, att.pct, ft.made, ft.attempted, ft.pct]);
     }
 
-    downloadCSV('saison_' + todayISO() + '.csv', rows);
+    downloadCSV('saison_' + activeSeasonSuffix() + '_' + todayISO() + '.csv', rows);
   }
 
   function exportSeasonJSON() {
-    const trainings = BT.storage.getTrainings().slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const trainings = seasonScopedTrainings();
     const players = BT.storage.getPlayers();
     const playerById = id => players.find(p => p.id === id);
     const enrich = (e) => {
@@ -284,7 +317,7 @@ BT.dashboard = (function() {
       })
     };
 
-    downloadJSON('saison_' + todayISO() + '.json', payload);
+    downloadJSON('saison_' + activeSeasonSuffix() + '_' + todayISO() + '.json', payload);
   }
 
   return { render };
