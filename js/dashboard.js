@@ -40,10 +40,99 @@ BT.dashboard = (function() {
       ? tf.made + '/' + tf.attempted + ' aus ' + tf.sessions + ' Sessions'
       : 'Noch keine Daten';
 
+    renderFormOfWeek(root);
     renderTopAttenders(root);
     renderTopFT(root);
     renderShotCategories(root);
+    renderPositionStats(root);
     renderTeamHeatmap(root);
+  }
+
+  function renderFormOfWeek(root) {
+    const section = $('[data-role="form-of-week"]', root);
+    const grid = $('[data-role="form-of-week-grid"]', root);
+    if (!section || !grid || !BT.stats || !BT.stats.improvingPlayers) return;
+    const rows = BT.stats.improvingPlayers(3, 5, 3);
+    if (!rows || rows.length === 0) {
+      section.classList.add('hidden');
+      grid.innerHTML = '';
+      return;
+    }
+    section.classList.remove('hidden');
+    grid.innerHTML = rows.map(r => {
+      const posChip = r.player.position
+        ? `<span class="form-pos-chip">${escapeHTML(r.player.position)}</span>`
+        : '';
+      const delta = r.delta >= 0 ? '+' + r.delta : String(r.delta);
+      return `
+        <a class="form-card" href="#/player/${r.player.id}">
+          <div class="form-card-top">
+            <span class="form-card-name">${escapeHTML(r.player.name)}</span>
+            ${posChip}
+          </div>
+          <div class="form-card-delta">${delta} %</div>
+          <div class="form-card-sub">vs. Saisonschnitt (letzte 3 vs. vorherige 5 Trainings)</div>
+        </a>
+      `;
+    }).join('');
+  }
+
+  function renderPositionStats(root) {
+    const grid = $('[data-role="position-grid"]', root);
+    const empty = $('[data-role="position-empty"]', root);
+    if (!grid || !BT.stats || !BT.stats.statsByPosition) return;
+    const buckets = BT.stats.statsByPosition();
+    const keys = Object.keys(buckets);
+    if (keys.length === 0) {
+      grid.innerHTML = '';
+      if (empty) empty.classList.remove('hidden');
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+
+    keys.sort((a, b) => {
+      if (a === 'Ohne Position') return 1;
+      if (b === 'Ohne Position') return -1;
+      return a.localeCompare(b, 'de');
+    });
+
+    function bar(valPct) {
+      const w = Math.max(0, Math.min(100, valPct || 0));
+      return `<span class="pos-bar"><span class="pos-bar-fill" style="width:${w}%"></span></span>`;
+    }
+
+    grid.innerHTML = keys.map(k => {
+      const b = buckets[k];
+      const ftCell = b.ftAttempted > 0
+        ? `<span class="pos-metric-val">${b.ftPct} %</span><span class="pos-metric-sub muted-chip">${b.ftMade}/${b.ftAttempted}</span>`
+        : `<span class="pos-metric-val muted">–</span>`;
+      const fgCell = b.fgAttempted > 0
+        ? `<span class="pos-metric-val">${b.fgPct} %</span><span class="pos-metric-sub muted-chip">${b.fgMade}/${b.fgAttempted}</span>`
+        : `<span class="pos-metric-val muted">–</span>`;
+      const attCell = `<span class="pos-metric-val">${b.attendancePct} %</span>`;
+      return `
+        <article class="pos-card">
+          <header class="pos-card-head">
+            <h4 class="pos-card-title">${escapeHTML(k)}</h4>
+            <span class="pos-card-count">${b.players} Spieler</span>
+          </header>
+          <dl class="pos-card-metrics">
+            <div class="pos-metric">
+              <dt>Freiwürfe</dt>
+              <dd>${ftCell}${bar(b.ftPct)}</dd>
+            </div>
+            <div class="pos-metric">
+              <dt>Feldwürfe</dt>
+              <dd>${fgCell}${bar(b.fgPct)}</dd>
+            </div>
+            <div class="pos-metric">
+              <dt>Anwesenheit</dt>
+              <dd>${attCell}${bar(b.attendancePct)}</dd>
+            </div>
+          </dl>
+        </article>
+      `;
+    }).join('');
   }
 
   function renderSeasonSelect(root) {

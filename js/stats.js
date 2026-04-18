@@ -210,6 +210,284 @@ BT.stats = (function() {
     return out;
   }
 
+  function trainingTeamShotQuote(trainingId) {
+    const t = BT.storage.getTraining(trainingId);
+    if (!t) {
+      return {
+        total: { made: 0, attempted: 0, pct: 0 },
+        freethrows: { made: 0, attempted: 0, pct: 0 },
+        byCategory: [],
+        deltaVsSeason: { totalPct: null, ftPct: null }
+      };
+    }
+
+    // Feldwuerfe nach Kategorie + Total (ohne FT)
+    const byCategory = [];
+    let totMade = 0, totAtt = 0;
+    for (const cat of (t.shots || [])) {
+      let cMade = 0, cAtt = 0;
+      for (const e of (cat.entries || [])) {
+        cMade += e.made || 0;
+        cAtt += e.attempted || 0;
+      }
+      byCategory.push({ category: cat.category, made: cMade, attempted: cAtt, pct: pct(cMade, cAtt) });
+      totMade += cMade;
+      totAtt += cAtt;
+    }
+    byCategory.sort((a, b) => a.category.localeCompare(b.category, 'de'));
+
+    // Freiwuerfe separat
+    let ftMade = 0, ftAtt = 0;
+    for (const e of (t.freethrows || [])) {
+      ftMade += e.made || 0;
+      ftAtt += e.attempted || 0;
+    }
+
+    // Saisonvergleich: bisherige abgeschlossene Trainings derselben seasonId, OHNE das aktuelle
+    const seasonTrainings = BT.storage.getTrainings().filter(function(x) {
+      return isEnded(x) && x.id !== t.id && (x.seasonId || null) === (t.seasonId || null);
+    });
+    let seasonTotMade = 0, seasonTotAtt = 0, seasonFtMade = 0, seasonFtAtt = 0;
+    for (const st of seasonTrainings) {
+      for (const cat of (st.shots || [])) {
+        for (const e of (cat.entries || [])) {
+          seasonTotMade += e.made || 0;
+          seasonTotAtt += e.attempted || 0;
+        }
+      }
+      for (const e of (st.freethrows || [])) {
+        seasonFtMade += e.made || 0;
+        seasonFtAtt += e.attempted || 0;
+      }
+    }
+    const totalPctDelta = seasonTotAtt > 0 && totAtt > 0 ? pct(totMade, totAtt) - pct(seasonTotMade, seasonTotAtt) : null;
+    const ftPctDelta = seasonFtAtt > 0 && ftAtt > 0 ? pct(ftMade, ftAtt) - pct(seasonFtMade, seasonFtAtt) : null;
+
+    return {
+      total: { made: totMade, attempted: totAtt, pct: pct(totMade, totAtt) },
+      freethrows: { made: ftMade, attempted: ftAtt, pct: pct(ftMade, ftAtt) },
+      byCategory: byCategory,
+      deltaVsSeason: { totalPct: totalPctDelta, ftPct: ftPctDelta }
+    };
+  }
+
+  function trainingDelta(trainingId) {
+    const t = BT.storage.getTraining(trainingId);
+    if (!t) return { ftDelta: null, fgDelta: null, attendanceDelta: null, trend: null };
+
+    // Vorangegangenes abgeschlossenes Training derselben Saison (direkt davor in Datum-Reihenfolge)
+    const sameSeason = BT.storage.getTrainings()
+      .filter(function(x) { return isEnded(x) && (x.seasonId || null) === (t.seasonId || null); })
+      .slice()
+      .sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); });
+    const idx = sameSeason.findIndex(function(x) { return x.id === t.id; });
+    const prev = idx > 0 ? sameSeason[idx - 1] : null;
+    if (!prev) return { ftDelta: null, fgDelta: null, attendanceDelta: null, trend: null };
+
+    function aggFt(x) {
+      let m = 0, a = 0;
+      for (const e of (x.freethrows || [])) { m += e.made || 0; a += e.attempted || 0; }
+      return { made: m, attempted: a };
+    }
+    function aggFg(x) {
+      let m = 0, a = 0;
+      for (const cat of (x.shots || [])) {
+        for (const e of (cat.entries || [])) { m += e.made || 0; a += e.attempted || 0; }
+      }
+      return { made: m, attempted: a };
+    }
+    function aggAtt(x) {
+      let n = 0;
+      for (const a of (x.attendance || [])) {
+        if (a.status === 'present') { n++; if (a.late) n++; }
+      }
+      return n;
+    }
+
+    const tFt = aggFt(t), pFt = aggFt(prev);
+    const tFg = aggFg(t), pFg = aggFg(prev);
+    const ftDelta = (tFt.attempted > 0 && pFt.attempted > 0) ? pct(tFt.made, tFt.attempted) - pct(pFt.made, pFt.attempted) : null;
+    const fgDelta = (tFg.attempted > 0 && pFg.attempted > 0) ? pct(tFg.made, tFg.attempted) - pct(pFg.made, pFg.attempted) : null;
+    const attendanceDelta = aggAtt(t) - aggAtt(prev);
+
+    let trend = null;
+    if (ftDelta !== null || fgDelta !== null) {
+      const parts = [];
+      if (ftDelta !== null) parts.push(ftDelta);
+      if (fgDelta !== null) parts.push(fgDelta);
+      const avg = parts.reduce(function(s, v) { return s + v; }, 0) / parts.length;
+      if (avg > 2) trend = 'up';
+      else if (avg < -2) trend = 'down';
+      else trend = 'flat';
+    }
+
+    return { ftDelta: ftDelta, fgDelta: fgDelta, attendanceDelta: attendanceDelta, trend: trend };
+  }
+
+  function attendanceStreak(playerId) {
+    // Seasonuebergreifend: alle abgeschlossenen Trainings chronologisch (aelteste zuerst).
+    const trainings = allEndedTrainings().slice()
+      .sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); });
+
+    let current = 0, longest = 0, running = 0;
+    let lastMissed = null;
+
+    for (const t of trainings) {
+      const a = (t.attendance || []).find(function(x) { return x.playerId === playerId; });
+      // Entscheidung: Trainings ohne Eintrag oder mit status=null werden ignoriert (nicht-bewertbar, kein Streak-Reset).
+      if (!a || !a.status) continue;
+      const attended = a.status === 'present' || a.late === true;
+      if (attended) {
+        running++;
+        if (running > longest) longest = running;
+      } else {
+        running = 0;
+        lastMissed = t.date || lastMissed;
+      }
+    }
+    // current = Streak vom juengsten Training rueckwaerts
+    for (let i = trainings.length - 1; i >= 0; i--) {
+      const t = trainings[i];
+      const a = (t.attendance || []).find(function(x) { return x.playerId === playerId; });
+      if (!a || !a.status) continue;
+      const attended = a.status === 'present' || a.late === true;
+      if (attended) current++;
+      else break;
+    }
+
+    return { current: current, longest: longest, lastMissed: lastMissed };
+  }
+
+  function playerFTSparkline(playerId, lastN) {
+    const n = lastN || 10;
+    // Seasonuebergreifend: alle abgeschlossenen Trainings, chronologisch
+    const trainings = allEndedTrainings().slice()
+      .sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); });
+    const rows = [];
+    for (const t of trainings) {
+      const e = (t.freethrows || []).find(function(x) { return x.playerId === playerId; });
+      if (!e || (e.attempted || 0) === 0) continue;
+      rows.push({
+        trainingId: t.id,
+        date: t.date,
+        made: e.made || 0,
+        attempted: e.attempted || 0,
+        pct: pct(e.made || 0, e.attempted || 0)
+      });
+    }
+    return rows.slice(-n);
+  }
+
+  function statsByPosition() {
+    const trainings = endedTrainings();
+    const players = BT.storage.getPlayers().filter(function(p) { return !p.archived; });
+
+    const buckets = {};
+    function ensure(pos) {
+      if (!buckets[pos]) {
+        buckets[pos] = {
+          position: pos,
+          players: 0,
+          ftMade: 0, ftAttempted: 0, ftPct: 0,
+          fgMade: 0, fgAttempted: 0, fgPct: 0,
+          attendancePct: 0,
+          _attSum: 0, _attCount: 0
+        };
+      }
+      return buckets[pos];
+    }
+
+    for (const p of players) {
+      const pos = p.position && String(p.position).trim() ? p.position : 'Ohne Position';
+      const b = ensure(pos);
+      b.players++;
+
+      const att = playerAttendance(p.id);
+      if (att.total > 0) {
+        b._attSum += att.pct;
+        b._attCount++;
+      }
+
+      for (const t of trainings) {
+        const fe = (t.freethrows || []).find(function(x) { return x.playerId === p.id; });
+        if (fe && (fe.attempted || 0) > 0) {
+          b.ftMade += fe.made || 0;
+          b.ftAttempted += fe.attempted || 0;
+        }
+        for (const cat of (t.shots || [])) {
+          const se = (cat.entries || []).find(function(x) { return x.playerId === p.id; });
+          if (se && (se.attempted || 0) > 0) {
+            b.fgMade += se.made || 0;
+            b.fgAttempted += se.attempted || 0;
+          }
+        }
+      }
+    }
+
+    const out = {};
+    Object.keys(buckets).forEach(function(k) {
+      const b = buckets[k];
+      b.ftPct = pct(b.ftMade, b.ftAttempted);
+      b.fgPct = pct(b.fgMade, b.fgAttempted);
+      b.attendancePct = b._attCount > 0 ? Math.round(b._attSum / b._attCount) : 0;
+      delete b._attSum;
+      delete b._attCount;
+      out[k] = b;
+    });
+    return out;
+  }
+
+  function improvingPlayers(recentCount, baselineCount, limit) {
+    const rc = recentCount || 3;
+    const bc = baselineCount || 5;
+    const lim = limit || 3;
+
+    const trainings = endedTrainings().slice()
+      .sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); });
+    const players = BT.storage.getPlayers().filter(function(p) { return !p.archived; });
+
+    function aggFor(playerId, slice) {
+      let ftM = 0, ftA = 0, fgM = 0, fgA = 0;
+      for (const t of slice) {
+        const fe = (t.freethrows || []).find(function(x) { return x.playerId === playerId; });
+        if (fe && (fe.attempted || 0) > 0) { ftM += fe.made || 0; ftA += fe.attempted || 0; }
+        for (const cat of (t.shots || [])) {
+          const se = (cat.entries || []).find(function(x) { return x.playerId === playerId; });
+          if (se && (se.attempted || 0) > 0) { fgM += se.made || 0; fgA += se.attempted || 0; }
+        }
+      }
+      const ftPct = ftA > 0 ? pct(ftM, ftA) : null;
+      const fgPct = fgA > 0 ? pct(fgM, fgA) : null;
+      if (ftPct === null || fgPct === null) return null;
+      return { ftPct: ftPct, fgPct: fgPct, combinedPct: Math.round((ftPct + fgPct) / 2) };
+    }
+
+    const results = [];
+    for (const p of players) {
+      // Nur Trainings wo Spieler ueberhaupt teilgenommen/Daten hat — wir nehmen einfach die letzten rc+bc
+      // aus allen Saison-Trainings und teilen dann.
+      const recentSlice = trainings.slice(-rc);
+      const baselineSlice = trainings.slice(-(rc + bc), -rc);
+      if (recentSlice.length === 0 || baselineSlice.length === 0) continue;
+
+      const recent = aggFor(p.id, recentSlice);
+      const baseline = aggFor(p.id, baselineSlice);
+      if (!recent || !baseline) continue;
+
+      const delta = recent.combinedPct - baseline.combinedPct;
+      if (delta > 0) {
+        results.push({
+          player: { id: p.id, name: p.name, position: p.position || null },
+          recent: recent,
+          baseline: baseline,
+          delta: delta
+        });
+      }
+    }
+    results.sort(function(a, b) { return b.delta - a.delta; });
+    return results.slice(0, lim);
+  }
+
   function nextTrainingCountdown() {
     const days = BT.storage.getSetting('regularDays', null);
     const time = BT.storage.getSetting('regularTime', '20:15');
@@ -241,6 +519,8 @@ BT.stats = (function() {
     rollingAttendancePct,
     teamAttendance, teamFreethrows, teamShotsByCategory,
     topAttenders, topFreethrowShooters, topShootersByCategory,
-    nextTrainingCountdown
+    nextTrainingCountdown,
+    trainingTeamShotQuote, trainingDelta, attendanceStreak,
+    playerFTSparkline, statsByPosition, improvingPlayers
   };
 })();

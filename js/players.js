@@ -79,11 +79,14 @@ BT.players = (function() {
       const metaParts = [];
       if (p.position) metaParts.push(escapeHTML(p.position));
       if (age !== null) metaParts.push(age + ' Jahre');
+      const flame = currentTab === 'active' ? renderStreakFlame(p.id) : '';
+      const sparkline = currentTab === 'active' ? renderFTSparkline(p.id) : '';
       li.innerHTML = `
         <div class="info" data-open>
-          <div class="name">${escapeHTML(p.name)}</div>
+          <div class="name">${escapeHTML(p.name)}${flame ? ' ' + flame : ''}</div>
           <div class="meta">${metaParts.join(' · ') || '&nbsp;'}</div>
         </div>
+        ${sparkline ? `<div class="player-spark">${sparkline}</div>` : ''}
         <div class="actions">
           <button class="btn small" data-edit>Bearbeiten</button>
           <button class="btn small" data-archive>${p.archived ? 'Reaktivieren' : 'Archivieren'}</button>
@@ -136,6 +139,7 @@ BT.players = (function() {
     $('[data-role="meta"]', node).innerHTML = metaParts.join(' · ') || '&nbsp;';
 
     renderPlayerSeasonStats(node, player);
+    renderStreakTile(node, player);
     renderPlayerHeatmap(node, player);
 
     const sessions = BT.storage.getSessions().slice().reverse();
@@ -214,6 +218,56 @@ BT.players = (function() {
     $$('input[name="heatmap-view"]', node).forEach(r => {
       r.addEventListener('change', () => render(r.value));
     });
+  }
+
+  function renderStreakTile(node, player) {
+    const wrap = $('[data-role="streak-tile"]', node);
+    if (!wrap || !BT.stats || !BT.stats.attendanceStreak) return;
+    const s = BT.stats.attendanceStreak(player.id);
+    if (!s || (s.current === 0 && s.longest === 0)) {
+      wrap.innerHTML = '';
+      return;
+    }
+    const missedLine = s.lastMissed
+      ? 'Zuletzt gefehlt: ' + BT.util.formatDate(s.lastMissed)
+      : 'Nie gefehlt ✓';
+    const flameCls = s.current >= 3 ? 'streak-current streak-hot' : 'streak-current';
+    wrap.innerHTML = `
+      <div class="streak-card">
+        <div class="streak-head">Anwesenheits-Streak</div>
+        <div class="${flameCls}"><span class="streak-num">${s.current}</span><span class="streak-unit">${s.current >= 3 ? ' 🔥' : ''}</span></div>
+        <div class="streak-sub">aktuell in Folge</div>
+        <div class="streak-meta">Bestwert: <strong>${s.longest}</strong> · ${escapeHTML(missedLine)}</div>
+      </div>
+    `;
+  }
+
+  function renderFTSparkline(playerId) {
+    if (!BT.stats || !BT.stats.playerFTSparkline) return '';
+    const rows = BT.stats.playerFTSparkline(playerId, 10);
+    if (!rows || rows.length < 2) return '';
+    const W = 80, H = 20, P = 2;
+    const stepX = (W - 2 * P) / (rows.length - 1);
+    const scaleY = v => H - P - (Math.max(0, Math.min(100, v)) / 100) * (H - 2 * P);
+    const pts = rows.map((r, i) => ({ x: P + i * stepX, y: scaleY(r.pct), pct: r.pct, date: r.date }));
+    const pathD = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+    const last = pts[pts.length - 1];
+    const lastRow = rows[rows.length - 1];
+    const title = 'FT letzte ' + rows.length + ' · aktuell ' + lastRow.pct + '% (' + lastRow.made + '/' + lastRow.attempted + ')';
+    return `
+      <svg class="ft-sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <title>${escapeHTML(title)}</title>
+        <path d="${pathD}" fill="none" stroke="var(--cta)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="2.2" fill="var(--primary)" stroke="var(--cta)" stroke-width="1"/>
+      </svg>
+    `;
+  }
+
+  function renderStreakFlame(playerId) {
+    if (!BT.stats || !BT.stats.attendanceStreak) return '';
+    const s = BT.stats.attendanceStreak(playerId);
+    if (!s || s.current < 3) return '';
+    return `<span class="streak-flame" title="Anwesenheits-Streak: ${s.current} Trainings in Folge" aria-label="Anwesenheits-Streak ${s.current}">🔥 ${s.current}</span>`;
   }
 
   function renderPlayerSeasonStats(node, player) {

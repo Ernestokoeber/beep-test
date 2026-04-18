@@ -81,6 +81,11 @@
         </div>
       </div>
 
+      <section class="form-of-week hidden" data-role="form-of-week">
+        <h3 class="form-of-week-head">📈 Form der Woche</h3>
+        <div class="form-of-week-grid" data-role="form-of-week-grid"></div>
+      </section>
+
       <h3>Top Anwesende</h3>
       <ol class="ranking" data-role="top-att"></ol>
 
@@ -96,6 +101,13 @@
       <div class="empty empty--field hidden" data-role="shot-cats-empty">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 17 4-8 4 4 6-8"/></svg>
         <p class="empty-body">Noch keine Wurf-Daten.</p>
+      </div>
+
+      <h3>Stats pro Position</h3>
+      <div class="position-grid" data-role="position-grid"></div>
+      <div class="empty empty--field hidden" data-role="position-empty">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
+        <p class="empty-body">Noch keine Positionen erfasst. Trage Positionen in den Spieler-Profilen ein.</p>
       </div>
 
       <h3>Team-Wurfkarte (Saison)</h3>
@@ -324,6 +336,31 @@
         </label>
 
         <div class="att-summary" data-role="summary"></div>
+
+        <div class="team-quote-card" data-role="team-quote"></div>
+
+        <div class="training-heatmap" data-role="training-heatmap-wrap">
+          <h3 class="section-subhead">Team-Wurfkarte (dieses Training)</h3>
+          <div class="court-wrap" data-role="training-heat-court-wrap">
+            <svg class="court" viewBox="0 0 500 470" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+              <rect class="court-floor" x="10" y="10" width="480" height="450" stroke-width="2"/>
+              <rect class="court-lane" x="160" y="10" width="180" height="190" stroke-width="2"/>
+              <circle class="court-line" cx="250" cy="200" r="60" fill="none" stroke-width="2"/>
+              <line class="court-line" x1="160" y1="200" x2="340" y2="200" stroke-width="2"/>
+              <path class="court-line" d="M 210 50 A 40 40 0 0 0 290 50" fill="none" stroke-width="1.5"/>
+              <line class="court-backboard" x1="220" y1="40" x2="280" y2="40" stroke-width="3"/>
+              <circle class="court-rim" cx="250" cy="50" r="8" fill="none" stroke-width="2.5"/>
+              <line class="court-line" x1="50" y1="10" x2="50" y2="135" stroke-width="2"/>
+              <line class="court-line" x1="450" y1="10" x2="450" y2="135" stroke-width="2"/>
+              <path class="court-line" d="M 50 135 A 200 200 0 0 0 450 135" fill="none" stroke-width="2"/>
+              <g data-role="training-heat-cells"></g>
+            </svg>
+          </div>
+          <div class="empty empty--field hidden" data-role="training-heat-empty">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-5"/></svg>
+            <p class="empty-body">Keine Wurfpositionen erfasst. Öffne den <a href="#" data-action="goto-map">Karte-Tab</a>.</p>
+          </div>
+        </div>
       </div>
 
       <div class="pane hidden" data-pane="attendance">
@@ -514,6 +551,8 @@
 
       <h3>Saison-Statistik</h3>
       <div class="dash-grid" data-role="player-stats"></div>
+
+      <div class="streak-tile" data-role="streak-tile"></div>
 
       <h3>Wurfquoten pro Kategorie</h3>
       <div data-role="player-shot-cats"></div>

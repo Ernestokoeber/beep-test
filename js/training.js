@@ -75,6 +75,7 @@ BT.training = (function() {
     a.href = '#/training/' + t.id;
     const endedBadge = t.endedAt ? '<span class="att-chip ok">🏁 Beendet</span> ' : '';
     const badge = isPast && !t.endedAt ? '<span class="att-chip muted-chip">Absolviert</span> ' : '';
+    const trendBadge = isPast ? renderTrendBadge(t) : '';
     a.innerHTML = `
       <div class="info">
         <div class="name">${formatDate(t.date)}${t.startTime ? ' · ' + escapeHTML(t.startTime) : ''}${t.note ? ' – ' + escapeHTML(t.note) : ''}</div>
@@ -88,11 +89,25 @@ BT.training = (function() {
                <span class="att-chip warn">V ${summary.injured}</span>
                ${summary.late > 0 ? '<span class="att-chip">Spät: ' + summary.late + '</span>' : ''}
                ${summary.pending > 0 ? '<span class="att-chip muted-chip">○ Offen ' + summary.pending + '</span>' : ''}`}
+          ${trendBadge}
         </div>
       </div>
     `;
     li.appendChild(a);
     return li;
+  }
+
+  function renderTrendBadge(training) {
+    if (!BT.stats || !BT.stats.trainingDelta) return '';
+    const d = BT.stats.trainingDelta(training.id);
+    if (!d || !d.trend) return '';
+    const parts = [];
+    if (d.ftDelta !== null && d.ftDelta !== undefined) parts.push('FT ' + (d.ftDelta >= 0 ? '+' : '') + d.ftDelta + '%');
+    if (d.fgDelta !== null && d.fgDelta !== undefined) parts.push('Wurf ' + (d.fgDelta >= 0 ? '+' : '') + d.fgDelta + '%');
+    const tip = parts.length ? parts.join(' · ') + ' vs. letztes Training' : 'Trend vs. letztes Training';
+    const icon = d.trend === 'up' ? '↑' : d.trend === 'down' ? '↓' : '→';
+    const label = d.trend === 'up' ? 'besser' : d.trend === 'down' ? 'schlechter' : 'gleich';
+    return `<span class="trend-badge trend-${d.trend}" title="${escapeHTML(tip)}" aria-label="${label} als letztes Training: ${escapeHTML(tip)}">${icon}</span>`;
   }
 
   function initialAttendance() {
@@ -233,6 +248,17 @@ BT.training = (function() {
     renderShotTabs();
     renderShots();
     renderFitness();
+    renderTeamQuoteCard();
+    renderTrainingHeatmap();
+
+    const gotoMapLink = $('[data-action="goto-map"]', detailRoot);
+    if (gotoMapLink) {
+      gotoMapLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const btn = $('.subnav-btn[data-pane="map"]', detailRoot);
+        if (btn) btn.click();
+      });
+    }
   }
 
   function syncAttendanceWithPlayers() {
@@ -376,8 +402,11 @@ BT.training = (function() {
     let made = 0, att = 0;
     for (const e of entries) { made += e.made || 0; att += e.attempted || 0; }
     const el = $('[data-role="ft-summary"]', detailRoot);
-    if (att === 0 && entries.length === 0) { el.innerHTML = ''; return; }
-    el.innerHTML = `<span class="att-chip ok">Team ${made}/${att}</span><span class="att-chip">${pct(made, att)}%</span>`;
+    if (el) {
+      if (att === 0 && entries.length === 0) el.innerHTML = '';
+      else el.innerHTML = `<span class="att-chip ok">Team ${made}/${att}</span><span class="att-chip">${pct(made, att)}%</span>`;
+    }
+    renderTeamQuoteCard();
   }
 
   function getOrCreateShotCategory(name) {
@@ -582,6 +611,7 @@ BT.training = (function() {
 
     sumEl.innerHTML = `<span class="att-chip ok">${escapeHTML(currentShotCategory)}: ${totalMade}/${totalAtt}</span><span class="att-chip">${pct(totalMade, totalAtt)}%</span>`;
     renderSpotBar();
+    renderTeamQuoteCard();
   }
 
   function renderSpotBar() {
@@ -642,6 +672,7 @@ BT.training = (function() {
         }
         sumEl.innerHTML = `<span class="att-chip ok">${escapeHTML(currentShotCategory)}: ${m}/${a}</span><span class="att-chip">${pct(m, a)}%</span>`;
       }
+      renderTeamQuoteCard();
     }
     function refreshPct() {
       pctLabel.textContent = pct(entry.made, entry.attempted) + '% (' + entry.made + '/' + entry.attempted + ')';
@@ -988,6 +1019,102 @@ BT.training = (function() {
     stats.innerHTML = total === 0
       ? '<span class="muted">Tippe auf die Karte, um einen Wurf zu setzen. Modus oben umschalten (Treffer/Fehlwurf).</span>'
       : `<span class="att-chip ok">✓ Treffer ${hits}</span><span class="att-chip bad">✗ Fehlwurf ${misses}</span><span class="att-chip">${pctVal}% (${hits}/${total})</span>`;
+    renderTrainingHeatmap();
+  }
+
+  function renderTeamQuoteCard() {
+    const wrap = $('[data-role="team-quote"]', detailRoot);
+    if (!wrap || !BT.stats || !BT.stats.trainingTeamShotQuote) return;
+    const q = BT.stats.trainingTeamShotQuote(currentTraining.id);
+
+    if (q.total.attempted === 0 && q.freethrows.attempted === 0) {
+      wrap.innerHTML = `
+        <div class="team-quote-label">Team-Wurfquote</div>
+        <p class="muted team-quote-empty">Noch keine Würfe in diesem Training erfasst.</p>
+      `;
+      return;
+    }
+
+    const fg = q.total;
+    const ft = q.freethrows;
+
+    function deltaBadge(pctDelta, prefix) {
+      if (pctDelta === null || pctDelta === undefined) return '';
+      const rounded = Math.round(pctDelta);
+      if (rounded === 0) return `<span class="delta-badge delta-flat" title="${prefix} gleichauf mit Saison">→ 0 %</span>`;
+      const isUp = rounded > 0;
+      const cls = isUp ? 'delta-up' : 'delta-down';
+      const arrow = isUp ? '↑' : '↓';
+      const sign = isUp ? '+' : '';
+      return `<span class="delta-badge ${cls}" title="${prefix} ${sign}${rounded} % im Vergleich zum bisherigen Saisonschnitt">${arrow} ${sign}${rounded} % vs. Saison</span>`;
+    }
+
+    // Kategorie-Chips: Best/Worst farblich hervorheben (nur wenn mind. 2 Kategorien mit Daten)
+    const catsWithData = q.byCategory.filter(c => c.attempted > 0);
+    let bestPct = -Infinity, worstPct = Infinity;
+    if (catsWithData.length >= 2) {
+      for (const c of catsWithData) {
+        if (c.pct > bestPct) bestPct = c.pct;
+        if (c.pct < worstPct) worstPct = c.pct;
+      }
+    }
+    const catChips = catsWithData.map(c => {
+      let tone = '';
+      if (catsWithData.length >= 2) {
+        if (c.pct === bestPct) tone = ' quote-chip-best';
+        else if (c.pct === worstPct) tone = ' quote-chip-worst';
+      }
+      return `<span class="quote-chip${tone}"><span class="quote-chip-name">${escapeHTML(c.category)}</span><span class="quote-chip-frac">${c.made}/${c.attempted}</span><span class="quote-chip-pct">${c.pct} %</span></span>`;
+    }).join('');
+
+    const fgBlock = fg.attempted > 0
+      ? `
+        <div class="team-quote-head">
+          <div>
+            <div class="team-quote-label">Team-Wurfquote (Feldwürfe)</div>
+            <div class="team-quote-main">
+              <span class="team-quote-big">${fg.made}/${fg.attempted}</span>
+              <span class="team-quote-sub">· ${fg.pct} %</span>
+              ${deltaBadge(q.deltaVsSeason.totalPct, 'Feldwürfe')}
+            </div>
+          </div>
+        </div>
+        ${catChips ? `<div class="quote-chips">${catChips}</div>` : ''}
+      `
+      : '';
+
+    const ftBlock = ft.attempted > 0
+      ? `
+        <div class="team-quote-ft">
+          <span class="team-quote-ft-label">Freiwürfe</span>
+          <span class="team-quote-ft-frac">${ft.made}/${ft.attempted}</span>
+          <span class="team-quote-ft-pct">${ft.pct} %</span>
+          ${deltaBadge(q.deltaVsSeason.ftPct, 'Freiwürfe')}
+        </div>
+      `
+      : '';
+
+    wrap.innerHTML = fgBlock + ftBlock;
+  }
+
+  function renderTrainingHeatmap() {
+    const wrap = $('[data-role="training-heatmap-wrap"]', detailRoot);
+    if (!wrap) return;
+    const courtWrap = $('[data-role="training-heat-court-wrap"]', detailRoot);
+    const empty = $('[data-role="training-heat-empty"]', detailRoot);
+    const cells = $('[data-role="training-heat-cells"]', detailRoot);
+    if (!cells) return;
+
+    const shots = (currentTraining.shotMap || []).slice();
+    cells.innerHTML = '';
+    if (shots.length === 0) {
+      if (empty) empty.classList.remove('hidden');
+      if (courtWrap) courtWrap.style.display = 'none';
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+    if (courtWrap) courtWrap.style.display = '';
+    BT.heatmap.renderZones(cells, shots);
   }
 
   function renderPlayerNotes() {
