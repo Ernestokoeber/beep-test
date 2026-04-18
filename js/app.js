@@ -136,8 +136,17 @@
   }
 
   window.addEventListener('hashchange', route);
-  window.addEventListener('DOMContentLoaded', () => { setupTheme(); setupHamburger(); setupTopbarHeight(); route(); });
-  if (document.readyState !== 'loading') { setupTheme(); setupHamburger(); setupTopbarHeight(); route(); }
+  let initialized = false;
+  function init() {
+    if (initialized) return;
+    initialized = true;
+    setupTheme(); setupHamburger(); setupTopbarHeight(); route();
+  }
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => {
