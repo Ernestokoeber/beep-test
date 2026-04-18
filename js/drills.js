@@ -3,12 +3,22 @@ window.BT = window.BT || {};
 BT.drills = (function() {
   const { $, $$, renderTemplate, escapeHTML, formatDate } = BT.util;
 
+  const UNCATEGORIZED = 'Nicht zugeordnet';
+
   function allCategories() {
     const set = new Set();
+    let hasUncategorized = false;
     for (const d of BT.storage.getDrills()) {
       if (d.category) set.add(d.category);
+      else hasUncategorized = true;
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'de'));
+    const arr = Array.from(set).sort((a, b) => a.localeCompare(b, 'de'));
+    if (hasUncategorized) arr.push(UNCATEGORIZED);
+    return arr;
+  }
+
+  function drillCategory(d) {
+    return d.category ? d.category : UNCATEGORIZED;
   }
 
   function renderList(target) {
@@ -33,9 +43,9 @@ BT.drills = (function() {
     function populateCats() {
       const cats = allCategories();
       const prev = catSel.value;
-      catSel.innerHTML = '<option value="">Alle Kategorien</option>' +
-        cats.map(c => '<option value="' + escapeHTML(c) + '">' + escapeHTML(c) + '</option>').join('');
-      catSel.value = prev;
+      catSel.innerHTML = cats.map(c => '<option value="' + escapeHTML(c) + '">' + escapeHTML(c) + '</option>').join('');
+      if (cats.includes(prev)) catSel.value = prev;
+      else if (cats.length > 0) catSel.value = cats[0];
     }
 
     function draw() {
@@ -43,7 +53,7 @@ BT.drills = (function() {
       const q = (search.value || '').trim().toLowerCase();
       const cat = catSel.value;
       const drills = BT.storage.getDrills().filter(d => {
-        if (cat && d.category !== cat) return false;
+        if (cat && drillCategory(d) !== cat) return false;
         if (!q) return true;
         return (d.name || '').toLowerCase().includes(q)
           || (d.description || '').toLowerCase().includes(q)
@@ -283,8 +293,8 @@ BT.drills = (function() {
     const catSel = $('[data-role="category-filter"]', backdrop);
 
     const cats = allCategories();
-    catSel.innerHTML = '<option value="">Alle Kategorien</option>' +
-      cats.map(c => '<option value="' + escapeHTML(c) + '">' + escapeHTML(c) + '</option>').join('');
+    catSel.innerHTML = cats.map(c => '<option value="' + escapeHTML(c) + '">' + escapeHTML(c) + '</option>').join('');
+    if (cats.length > 0) catSel.value = cats[0];
 
     function close() {
       backdrop.remove();
@@ -302,7 +312,7 @@ BT.drills = (function() {
       const q = (search.value || '').trim().toLowerCase();
       const cat = catSel.value;
       const filtered = drills.filter(d => {
-        if (cat && d.category !== cat) return false;
+        if (cat && drillCategory(d) !== cat) return false;
         if (!q) return true;
         return (d.name || '').toLowerCase().includes(q)
           || (d.description || '').toLowerCase().includes(q)
