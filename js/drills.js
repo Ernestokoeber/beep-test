@@ -25,6 +25,9 @@ BT.drills = (function() {
         const d = BT.storage.upsertDrill({ name: 'Neuer Drill', category: '', minutes: 0, description: '' });
         location.hash = '#/drills/' + d.id;
       }
+      if (e.target.closest('[data-action="import-from-trainings"]')) {
+        importFromTrainings(draw);
+      }
     });
 
     function populateCats() {
@@ -148,6 +151,124 @@ BT.drills = (function() {
       parts.push('zuletzt geändert ' + formatDate(drill.updatedAt.slice(0, 10)));
     }
     el.textContent = parts.join(' · ');
+  }
+
+  function collectTrainingDrills() {
+    const trainings = BT.storage.getTrainings();
+    const out = [];
+    const seen = new Set();
+    for (const t of trainings) {
+      const drills = (t.plan && Array.isArray(t.plan.drills)) ? t.plan.drills : [];
+      for (const d of drills) {
+        const name = (d && d.name ? String(d.name) : '').trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          name,
+          minutes: parseInt(d.minutes, 10) || 0,
+          description: d.description ? String(d.description) : '',
+          sourceDate: t.date || ''
+        });
+      }
+    }
+    return out;
+  }
+
+  function importFromTrainings(refresh) {
+    const existing = new Set(BT.storage.getDrills().map(d => (d.name || '').trim().toLowerCase()));
+    const all = collectTrainingDrills();
+    const candidates = all.filter(d => !existing.has(d.name.toLowerCase()));
+
+    if (candidates.length === 0) {
+      if (BT.util.toast) {
+        BT.util.toast(all.length === 0
+          ? 'Keine Drills in Trainings gefunden.'
+          : 'Alle Drills aus Trainings sind bereits in der Bibliothek.');
+      }
+      return;
+    }
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" role="dialog" aria-label="Drills aus Trainings importieren">
+        <div class="modal-head">
+          <h3>${candidates.length} Drill${candidates.length === 1 ? '' : 's'} aus Trainings</h3>
+          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="drill-import-actions">
+            <button type="button" class="btn small" data-action="select-all">Alle</button>
+            <button type="button" class="btn small" data-action="select-none">Keinen</button>
+          </div>
+          <ul class="drill-list drill-import-list"></ul>
+          <div class="modal-foot">
+            <button type="button" class="btn" data-action="cancel">Abbrechen</button>
+            <button type="button" class="btn primary" data-action="confirm">Importieren</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const list = backdrop.querySelector('.drill-import-list');
+    candidates.forEach((d, i) => {
+      const li = document.createElement('li');
+      li.className = 'drill-item drill-import-item';
+      const metaParts = [];
+      if (d.minutes) metaParts.push(d.minutes + ' min');
+      if (d.sourceDate) metaParts.push('aus ' + formatDate(d.sourceDate));
+      const desc = (d.description || '').slice(0, 120);
+      li.innerHTML = `
+        <label class="drill-import-row">
+          <input type="checkbox" data-idx="${i}" checked>
+          <div class="info">
+            <div class="name">${escapeHTML(d.name)}</div>
+            <div class="meta">${metaParts.join(' · ')}</div>
+            ${desc ? '<div class="meta muted">' + escapeHTML(desc) + (d.description.length > 120 ? '…' : '') + '</div>' : ''}
+          </div>
+        </label>
+      `;
+      list.appendChild(li);
+    });
+
+    function close() {
+      backdrop.remove();
+      document.removeEventListener('keydown', onKey);
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop) close();
+      if (e.target.closest('[data-action="close"]')) close();
+      if (e.target.closest('[data-action="cancel"]')) close();
+      if (e.target.closest('[data-action="select-all"]')) {
+        backdrop.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+      }
+      if (e.target.closest('[data-action="select-none"]')) {
+        backdrop.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+      }
+      if (e.target.closest('[data-action="confirm"]')) {
+        const picked = Array.from(backdrop.querySelectorAll('input[type="checkbox"]:checked'))
+          .map(cb => candidates[parseInt(cb.dataset.idx, 10)]);
+        let n = 0;
+        for (const d of picked) {
+          BT.storage.upsertDrill({
+            name: d.name,
+            category: '',
+            minutes: d.minutes || 0,
+            description: d.description || ''
+          });
+          n++;
+        }
+        close();
+        if (BT.util.toast) BT.util.toast(n + ' Drill' + (n === 1 ? '' : 's') + ' importiert.');
+        if (refresh) refresh();
+      }
+    });
   }
 
   // Modal-Picker zur Auswahl eines Drills. onPick(drill) wird aufgerufen.
