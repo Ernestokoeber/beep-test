@@ -366,5 +366,81 @@ Daten (JSON) über das aktuelle und — falls vorhanden — das vorige Training 
     return callGeminiText(apiKey, payloadText, onProgress);
   }
 
-  return { parseWithGemini, applyPlanToTrainings, summarizeTraining };
+  const TACTIC_PROMPT = `Du bist Basketball-Co-Trainer. Erkläre den folgenden Spielzug für U14-U18-Spieler in 5-8 knappen, konkreten Sätzen auf Deutsch.
+
+Nenne:
+- Ziel des Plays (Wurf, freier Schütze, Mismatch, o.ä.)
+- Rolle jedes beteiligten Spielers (mit seiner Nummer 1-5)
+- 1-2 Coaching-Points (Timing, Winkel, Fußarbeit)
+- Typische Defense-Reaktion und was man dann tun sollte
+
+Das Halbfeld hat Koordinaten 10-490 (horizontal) × 10-460 (vertikal, niedriger Wert = Korb oben).
+Korb bei (250, 50), Freiwurflinie bei y≈200, 3er-Bogen etwa bei y=135 (Ecken bei x=50/450).
+Spieler-Label 1-5 entspricht 1=Point Guard, 2=Shooting Guard, 3=Small Forward, 4=Power Forward, 5=Center.
+
+Pfeile mit Stil 'run' = Laufweg, Stil 'pass' = Passweg.
+
+Gib NUR den fertigen Erklärungstext zurück — keine Markdown-Überschriften, keine Codeblöcke, keine Anführungszeichen drumherum.`;
+
+  function describeTactic(board) {
+    const lines = [];
+    (board.steps || []).forEach((s, i) => {
+      lines.push('[Schritt ' + (i + 1) + ' — Dauer ' + (s.duration || 1.5) + 's]');
+      (s.players || []).forEach(p => {
+        lines.push('  Spieler ' + p.label + ' bei (' + Math.round(p.x) + ', ' + Math.round(p.y) + ')');
+      });
+      if (s.ball) lines.push('  Ball bei (' + Math.round(s.ball.x) + ', ' + Math.round(s.ball.y) + ')');
+      (s.arrows || []).forEach(a => {
+        lines.push('  ' + (a.style === 'pass' ? 'Pass' : 'Laufweg') + ': (' + Math.round(a.x1) + ',' + Math.round(a.y1) + ') → (' + Math.round(a.x2) + ',' + Math.round(a.y2) + ')');
+      });
+      (s.texts || []).forEach(t => {
+        lines.push('  Text bei (' + Math.round(t.x) + ',' + Math.round(t.y) + '): "' + t.text + '"');
+      });
+    });
+    return lines.join('\n');
+  }
+
+  async function explainTactic(board, apiKey, onProgress) {
+    if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key im „Plan"-Reiter eintragen.');
+    const description = describeTactic(board);
+    const body = {
+      contents: [{ parts: [{ text: TACTIC_PROMPT + '\n\nSpielzug:\n' + description }] }],
+      generationConfig: { temperature: 0.5 }
+    };
+    let lastErr = null;
+    for (let i = 0; i < MODELS.length; i++) {
+      const model = MODELS[i];
+      const url = BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey);
+      if (onProgress) onProgress(model + ' analysiert Spielzug …');
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          const err = new Error('HTTP ' + res.status + ': ' + errText.slice(0, 200));
+          err.status = res.status;
+          if (res.status === 404 || res.status === 503 || res.status === 429) {
+            lastErr = err;
+            continue;
+          }
+          throw err;
+        }
+        const data = await res.json();
+        const text = data && data.candidates && data.candidates[0]
+          && data.candidates[0].content && data.candidates[0].content.parts
+          && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+        if (!text) throw new Error('Leere Antwort.');
+        return text.trim();
+      } catch (e) {
+        lastErr = e;
+        if (i === MODELS.length - 1) throw e;
+      }
+    }
+    throw lastErr || new Error('Alle Modelle fehlgeschlagen.');
+  }
+
+  return { parseWithGemini, applyPlanToTrainings, summarizeTraining, explainTactic };
 })();

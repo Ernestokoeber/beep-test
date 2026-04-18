@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="TSV Train">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://generativelanguage.googleapis.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://generativelanguage.googleapis.com https://cdn.jsdelivr.net; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/logo-192.png">
@@ -699,10 +699,30 @@
     <section class="view">
       <div class="section-head">
         <h2>Taktikboard</h2>
-        <div>
+        <div class="head-actions">
+          <button class="btn small" data-action="ai-explain">🤖 Erklären</button>
+          <button class="btn small" data-action="share-gif">📤 GIF teilen</button>
           <button class="btn small" data-action="save-as-note">💾 Als Notiz speichern</button>
           <button class="btn small danger" data-action="reset-board">Zurücksetzen</button>
         </div>
+      </div>
+
+      <div class="tactics-steps" role="tablist" aria-label="Schritte">
+        <div class="tactics-steps-list" data-role="steps-list"></div>
+        <button type="button" class="btn small" data-action="add-step">+ Schritt</button>
+        <button type="button" class="btn small danger" data-action="delete-step" title="Aktuellen Schritt löschen">🗑</button>
+        <label class="step-duration-label">
+          <span class="muted">Dauer:</span>
+          <input type="number" data-role="step-duration" min="0.3" max="10" step="0.1" value="1.5">
+          <span class="muted">s</span>
+        </label>
+      </div>
+
+      <div class="tactics-playback">
+        <button type="button" class="btn small" data-action="play-prev" aria-label="Vorheriger Schritt">⏮</button>
+        <button type="button" class="btn small primary" data-action="play-toggle" aria-label="Abspielen">▶️</button>
+        <button type="button" class="btn small" data-action="play-next" aria-label="Nächster Schritt">⏭</button>
+        <span class="muted" data-role="playback-status">Schritt 1 / 1</span>
       </div>
 
       <div class="tactics-toolbar" role="toolbar" aria-label="Werkzeuge">
@@ -742,6 +762,50 @@
 
       <div class="tactics-legend muted">O · Angriff (1–5) · ⬤ Ball · Laufweg (grün durchgezogen) · Passweg (orange gestrichelt)</div>
     </section>
+  </template>
+
+  <template id="tpl-tactics-ai-modal">
+    <div class="modal-backdrop">
+      <div class="modal" role="dialog" aria-label="KI-Erklärung">
+        <div class="modal-head">
+          <h3>🤖 KI-Erklärung</h3>
+          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="muted" data-role="status">Erklärung wird erzeugt …</p>
+          <div class="tactics-ai-text" data-role="text" hidden></div>
+          <div class="modal-foot">
+            <button type="button" class="btn" data-action="close">Schließen</button>
+            <button type="button" class="btn primary" data-action="save-note" disabled>Als Notiz speichern</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-tactics-gif-modal">
+    <div class="modal-backdrop">
+      <div class="modal" role="dialog" aria-label="GIF teilen">
+        <div class="modal-head">
+          <h3>📤 Als GIF teilen</h3>
+          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="muted">Geschwindigkeit pro Schritt wählen:</p>
+          <div class="gif-speed-options">
+            <label><input type="radio" name="gifspeed" value="kept" checked> Wie eingestellt (pro Schritt)</label>
+            <label><input type="radio" name="gifspeed" value="3"> Langsam (3 s pro Schritt)</label>
+            <label><input type="radio" name="gifspeed" value="1.5"> Mittel (1,5 s pro Schritt)</label>
+            <label><input type="radio" name="gifspeed" value="0.7"> Schnell (0,7 s pro Schritt)</label>
+          </div>
+          <p class="muted" data-role="status" hidden></p>
+          <div class="modal-foot">
+            <button type="button" class="btn" data-action="close">Abbrechen</button>
+            <button type="button" class="btn primary" data-action="render-gif">GIF erzeugen</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </template>
 
   <template id="tpl-drill-picker">
