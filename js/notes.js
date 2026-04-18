@@ -90,6 +90,36 @@ BT.notes = (function() {
     bodyEl.value = note.body || '';
     updateMeta(metaEl, note);
 
+    const isTactic = typeof note.body === 'string' && note.body.startsWith('[TACTIC]');
+    if (isTactic) {
+      bodyEl.classList.add('hidden');
+      const preview = document.createElement('div');
+      preview.className = 'note-tactic-preview';
+      const headline = document.createElement('p');
+      headline.className = 'note-tactic-hint';
+      headline.textContent = 'Diese Notiz enthält ein gespeichertes Taktikboard.';
+      const openBtn = document.createElement('button');
+      openBtn.type = 'button';
+      openBtn.className = 'btn primary';
+      openBtn.textContent = '🔀 Im Taktikboard öffnen';
+      openBtn.addEventListener('click', () => {
+        BT.storage.setSetting('tacticsLoadFromNote', note.id);
+        location.hash = '#/tactics';
+      });
+      const details = document.createElement('details');
+      details.className = 'note-tactic-raw';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Rohdaten anzeigen';
+      const pre = document.createElement('pre');
+      pre.textContent = note.body;
+      details.appendChild(summary);
+      details.appendChild(pre);
+      preview.appendChild(headline);
+      preview.appendChild(openBtn);
+      preview.appendChild(details);
+      bodyEl.parentNode.insertBefore(preview, bodyEl);
+    }
+
     let saveTimer = null;
     const scheduleSave = () => {
       clearTimeout(saveTimer);
@@ -104,7 +134,7 @@ BT.notes = (function() {
     };
 
     titleEl.addEventListener('input', scheduleSave);
-    bodyEl.addEventListener('input', scheduleSave);
+    if (!isTactic) bodyEl.addEventListener('input', scheduleSave);
 
     $('[data-action="delete"]', root).addEventListener('click', () => {
       const snapshot = BT.storage.getNote(note.id);

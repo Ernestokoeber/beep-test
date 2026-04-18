@@ -147,17 +147,18 @@ BT.util = (function() {
     });
   }
 
-  var _toastTimer = null;
-
   function toast(msg, opts) {
     opts = opts || {};
     var host = document.querySelector('[data-role="toast-host"]');
     if (!host) return { dismiss: function() {} };
-    if (_toastTimer) clearTimeout(_toastTimer);
-    host.innerHTML = '';
     var el = document.createElement('div');
     el.className = 'toast';
     el.textContent = msg;
+    var timer = null;
+    function dismiss() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }
     if (opts.action && opts.actionLabel) {
       var btn = document.createElement('button');
       btn.className = 'toast-action';
@@ -166,12 +167,7 @@ BT.util = (function() {
       el.appendChild(btn);
     }
     host.appendChild(el);
-    function dismiss() {
-      if (_toastTimer) clearTimeout(_toastTimer);
-      _toastTimer = null;
-      if (el.parentNode) el.parentNode.removeChild(el);
-    }
-    _toastTimer = setTimeout(dismiss, opts.timeout || 5000);
+    timer = setTimeout(dismiss, opts.timeout || 5000);
     return { dismiss: dismiss };
   }
 

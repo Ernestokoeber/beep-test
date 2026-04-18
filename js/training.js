@@ -580,7 +580,7 @@ BT.training = (function() {
     }
     save();
 
-    sumEl.innerHTML = `<span class="att-chip ok">${currentShotCategory}: ${totalMade}/${totalAtt}</span><span class="att-chip">${pct(totalMade, totalAtt)}%</span>`;
+    sumEl.innerHTML = `<span class="att-chip ok">${escapeHTML(currentShotCategory)}: ${totalMade}/${totalAtt}</span><span class="att-chip">${pct(totalMade, totalAtt)}%</span>`;
     renderSpotBar();
   }
 
@@ -640,7 +640,7 @@ BT.training = (function() {
           if (!ids.has(e.playerId)) continue;
           m += e.made || 0; a += e.attempted || 0;
         }
-        sumEl.innerHTML = `<span class="att-chip ok">${currentShotCategory}: ${m}/${a}</span><span class="att-chip">${pct(m, a)}%</span>`;
+        sumEl.innerHTML = `<span class="att-chip ok">${escapeHTML(currentShotCategory)}: ${m}/${a}</span><span class="att-chip">${pct(m, a)}%</span>`;
       }
     }
     function refreshPct() {
@@ -1041,7 +1041,7 @@ BT.training = (function() {
     if (plan.summary) parts.push('<p>' + escapeHTML(plan.summary) + '</p>');
     const targets = [];
     if (plan.freethrows && plan.freethrows.attempted) targets.push('Freiwürfe ' + plan.freethrows.attempted);
-    for (const s of (plan.shots || [])) targets.push(s.category + ' ' + s.attempted);
+    for (const s of (plan.shots || [])) targets.push(escapeHTML(s.category || '') + ' ' + (parseInt(s.attempted, 10) || 0));
     if (targets.length) parts.push('<p class="muted">Vorgaben pro Spieler: ' + targets.join(' · ') + '</p>');
     sumEl.innerHTML = parts.join('');
 
@@ -1623,10 +1623,7 @@ BT.training = (function() {
 
   async function openAISummary(training) {
     const apiKey = (BT.storage.getSetting('geminiApiKey', '') || '').trim();
-    if (!apiKey) {
-      alert('Es ist kein Gemini API Key hinterlegt. Öffne den „Plan"-Reiter und speichere dort deinen Key.');
-      return;
-    }
+    const hasApiKey = !!apiKey;
 
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
@@ -1638,6 +1635,9 @@ BT.training = (function() {
         </div>
         <div class="modal-body">
           <p class="muted" data-role="status">⏳ Gemini arbeitet …</p>
+          <div class="ai-summary-fallback hidden" data-role="fallback">
+            <button type="button" class="btn" data-action="use-manual">📋 Manuelle Zusammenfassung benutzen</button>
+          </div>
           <textarea class="ai-summary-text" data-role="out" rows="8" readonly placeholder="Text erscheint hier …"></textarea>
           <div class="form-actions">
             <button type="button" class="btn" data-action="copy" disabled>📋 Kopieren</button>
@@ -1654,6 +1654,8 @@ BT.training = (function() {
     const copyBtn = backdrop.querySelector('[data-action="copy"]');
     const shareBtn = backdrop.querySelector('[data-action="share"]');
     const regenBtn = backdrop.querySelector('[data-action="regenerate"]');
+    const fallbackBox = backdrop.querySelector('[data-role="fallback"]');
+    const manualBtn = backdrop.querySelector('[data-action="use-manual"]');
 
     function close() {
       backdrop.remove();
@@ -1666,12 +1668,31 @@ BT.training = (function() {
       if (e.target.closest('[data-action="close"]')) close();
     });
 
+    function applyManualSummary(prefixNote) {
+      const text = buildSummaryText(training);
+      outEl.value = text;
+      statusEl.textContent = (prefixNote ? prefixNote + ' · ' : '') + '✓ Manuelle Zusammenfassung';
+      copyBtn.disabled = false;
+      shareBtn.disabled = false;
+      regenBtn.disabled = !hasApiKey;
+      fallbackBox.classList.add('hidden');
+    }
+
+    manualBtn.addEventListener('click', () => applyManualSummary());
+
     async function run() {
+      if (!hasApiKey) {
+        // Empty state: kein API-Key → direkt manuelle Zusammenfassung statt alert()
+        regenBtn.disabled = true;
+        applyManualSummary('Gemini nicht konfiguriert');
+        return;
+      }
       statusEl.textContent = '⏳ Gemini arbeitet …';
       outEl.value = '';
       copyBtn.disabled = true;
       shareBtn.disabled = true;
       regenBtn.disabled = true;
+      fallbackBox.classList.add('hidden');
       try {
         const prev = previousEndedTraining(training);
         const t0 = Date.now();
@@ -1697,6 +1718,7 @@ BT.training = (function() {
         console.error(e);
         statusEl.textContent = '✗ Fehler: ' + e.message;
         regenBtn.disabled = false;
+        fallbackBox.classList.remove('hidden');
       }
     }
 

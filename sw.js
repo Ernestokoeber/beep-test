@@ -1,11 +1,17 @@
-const CACHE = 'beeptest-v63';
+const CACHE = 'beeptest-v66';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './manifest.webmanifest',
-  './TSVLindauLogo.png',
   './icon.svg',
+  './icons/logo-64.png',
+  './icons/logo-128.png',
+  './icons/logo-192.png',
+  './icons/logo-512.png',
+  './icons/apple-touch-icon.png',
+  './fonts/inter-latin.woff2',
+  './fonts/monoton-latin.woff2',
   './js/util.js',
   './js/storage.js',
   './js/levels.js',

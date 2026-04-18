@@ -4,3 +4,7 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/
+
+# Lokale Daten-Backups (nicht versionieren)
+nach Training*.json
+beeptest_backup_*.json

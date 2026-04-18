@@ -133,7 +133,7 @@ BT.schedule = (function() {
     const trainings = BT.storage.getTrainings();
 
     for (const d of upcoming) {
-      const iso = d.toISOString().slice(0, 10);
+      const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       const existing = trainings.find(t => t.date === iso);
       const dStr = d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
       const tStr = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });

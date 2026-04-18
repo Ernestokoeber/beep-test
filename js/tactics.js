@@ -303,6 +303,29 @@ BT.tactics = (function() {
       renderTokens();
     }
 
+    // Load from a saved tactic note if requested from the notes detail view
+    const loadFromNoteId = BT.storage.getSetting('tacticsLoadFromNote', null);
+    if (loadFromNoteId) {
+      BT.storage.setSetting('tacticsLoadFromNote', null);
+      const note = BT.storage.getNote(loadFromNoteId);
+      if (note && typeof note.body === 'string' && note.body.startsWith('[TACTIC]')) {
+        const jsonStart = note.body.indexOf('{');
+        if (jsonStart !== -1) {
+          try {
+            const parsed = JSON.parse(note.body.slice(jsonStart));
+            if (parsed && Array.isArray(parsed.players) && parsed.ball) {
+              board = parsed;
+              saveDraft(board);
+              const label = (note.title || '').replace(/^Taktik:\s*/, '') || 'Taktik';
+              BT.util.toast('Taktik „' + label + '" geladen');
+            }
+          } catch (e) {
+            BT.util.toast('Taktik konnte nicht geladen werden');
+          }
+        }
+      }
+    }
+
     renderAll();
   }
 

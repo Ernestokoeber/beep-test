@@ -110,14 +110,23 @@ BT.history = (function() {
     });
   }
 
+  function sanitizeForExport(raw) {
+    const data = Object.assign({}, raw);
+    if (data.settings) {
+      data.settings = Object.assign({}, data.settings);
+      delete data.settings.geminiApiKey;
+    }
+    return data;
+  }
+
   function exportBackup() {
-    const data = BT.storage.load();
+    const data = sanitizeForExport(BT.storage.load());
     data.exportedAt = new Date().toISOString();
     downloadJSON('beeptest_backup_' + todayISO() + '.json', data);
   }
 
   async function shareBackup() {
-    const data = BT.storage.load();
+    const data = sanitizeForExport(BT.storage.load());
     data.exportedAt = new Date().toISOString();
     const filename = 'beeptest_backup_' + todayISO() + '.json';
     const result = await shareOrDownloadJSON(filename, data, 'TSVLindau Train-APP Backup');
@@ -132,7 +141,7 @@ BT.history = (function() {
     try {
       const text = await readFileAsText(file);
       const data = JSON.parse(text);
-      if (!data || data.schemaVersion !== 1 || !Array.isArray(data.players) || !Array.isArray(data.sessions)) {
+      if (!data || !data.schemaVersion || data.schemaVersion < 1 || !Array.isArray(data.players) || !Array.isArray(data.sessions)) {
         alert('Ungültige Backup-Datei.');
         return;
       }
@@ -142,25 +151,37 @@ BT.history = (function() {
         ? prompt('Backup importieren:\n  "m" = Mergen (bestehende Daten behalten, neue ergänzen)\n  "r" = Ersetzen (alle aktuellen Daten löschen)\n  Abbrechen = leer lassen', 'm')
         : 'r';
       if (!choice) return;
+      const localKey = (current.settings && current.settings.geminiApiKey) || '';
       if (choice === 'r') {
+        const mergedSettings = Object.assign({}, data.settings || {});
+        // Never let an imported backup overwrite the local API key — keep local if set.
+        if (localKey) mergedSettings.geminiApiKey = localKey;
+        else delete mergedSettings.geminiApiKey;
         BT.storage.save({
-          schemaVersion: 1,
+          schemaVersion: 2,
           players: data.players,
           sessions: data.sessions,
           trainings: Array.isArray(data.trainings) ? data.trainings : [],
           notes: Array.isArray(data.notes) ? data.notes : [],
           freethrows: Array.isArray(data.freethrows) ? data.freethrows : [],
-          settings: data.settings || {}
+          drills: Array.isArray(data.drills) ? data.drills : [],
+          settings: mergedSettings
         });
       } else if (choice === 'm') {
+        const importedSettings = Object.assign({}, data.settings || {});
+        // Merge: always keep the local API key, ignore any from the backup.
+        delete importedSettings.geminiApiKey;
+        const mergedSettings = Object.assign({}, current.settings || {}, importedSettings);
+        if (localKey) mergedSettings.geminiApiKey = localKey;
         BT.storage.save({
-          schemaVersion: 1,
+          schemaVersion: 2,
           players: mergeById(current.players, data.players),
           sessions: mergeById(current.sessions, data.sessions),
           trainings: mergeById(current.trainings || [], data.trainings || []),
           notes: mergeById(current.notes || [], data.notes || []),
           freethrows: mergeById(current.freethrows || [], data.freethrows || []),
-          settings: Object.assign({}, current.settings || {}, data.settings || {})
+          drills: mergeById(current.drills || [], data.drills || []),
+          settings: mergedSettings
         });
       } else {
         alert('Ungültige Auswahl.');
