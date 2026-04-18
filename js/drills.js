@@ -4,6 +4,7 @@ BT.drills = (function() {
   const { $, $$, renderTemplate, escapeHTML, formatDate } = BT.util;
 
   const UNCATEGORIZED = 'Nicht zugeordnet';
+  let pendingFilter = null;
 
   function allCategories() {
     const set = new Set();
@@ -32,11 +33,15 @@ BT.drills = (function() {
 
     root.addEventListener('click', e => {
       if (e.target.closest('[data-action="new-drill"]')) {
+        pendingFilter = UNCATEGORIZED;
         const d = BT.storage.upsertDrill({ name: 'Neuer Drill', category: '', minutes: 0, description: '' });
         location.hash = '#/drills/' + d.id;
       }
       if (e.target.closest('[data-action="import-from-trainings"]')) {
-        importFromTrainings(draw);
+        importFromTrainings(() => {
+          pendingFilter = UNCATEGORIZED;
+          draw();
+        });
       }
     });
 
@@ -44,7 +49,10 @@ BT.drills = (function() {
       const cats = allCategories();
       const prev = catSel.value;
       catSel.innerHTML = cats.map(c => '<option value="' + escapeHTML(c) + '">' + escapeHTML(c) + '</option>').join('');
-      if (cats.includes(prev)) catSel.value = prev;
+      if (pendingFilter && cats.includes(pendingFilter)) {
+        catSel.value = pendingFilter;
+        pendingFilter = null;
+      } else if (cats.includes(prev)) catSel.value = prev;
       else if (cats.length > 0) catSel.value = cats[0];
     }
 
