@@ -77,9 +77,26 @@ BT.dashboard = (function() {
     }).join('');
   }
 
+  const POSITION_ORDER = [
+    { rank: 0, patterns: [/point\s*guard/i, /\bpg\b/i, /^\s*1\s*$/, /aufbau/i] },
+    { rank: 1, patterns: [/shooting\s*guard/i, /\bsg\b/i, /^\s*2\s*$/] },
+    { rank: 2, patterns: [/small\s*forward/i, /\bsf\b/i, /^\s*3\s*$/] },
+    { rank: 3, patterns: [/power\s*forward/i, /\bpf\b/i, /^\s*4\s*$/] },
+    { rank: 4, patterns: [/\bcenter\b/i, /zentrum/i, /^\s*c\s*$/i, /^\s*5\s*$/] },
+  ];
+
+  function positionRank(pos) {
+    if (!pos) return 900;
+    for (const p of POSITION_ORDER) {
+      if (p.patterns.some(re => re.test(pos))) return p.rank;
+    }
+    return 800;
+  }
+
   function renderPositionStats(root) {
     const grid = $('[data-role="position-grid"]', root);
     const empty = $('[data-role="position-empty"]', root);
+    const sortSel = $('[data-role="position-sort"]', root);
     if (!grid || !BT.stats || !BT.stats.statsByPosition) return;
     const buckets = BT.stats.statsByPosition();
     const keys = Object.keys(buckets);
@@ -90,9 +107,36 @@ BT.dashboard = (function() {
     }
     if (empty) empty.classList.add('hidden');
 
+    const storedSort = localStorage.getItem('beeptest_pos_sort') || 'position';
+    if (sortSel && !sortSel.dataset.bound) {
+      sortSel.value = storedSort;
+      sortSel.addEventListener('change', () => {
+        localStorage.setItem('beeptest_pos_sort', sortSel.value);
+        renderPositionStats(root);
+      });
+      sortSel.dataset.bound = '1';
+    }
+    const sortMode = sortSel ? sortSel.value : storedSort;
+
     keys.sort((a, b) => {
       if (a === 'Ohne Position') return 1;
       if (b === 'Ohne Position') return -1;
+      if (sortMode === 'players') {
+        const d = (buckets[b].players || 0) - (buckets[a].players || 0);
+        if (d !== 0) return d;
+      } else if (sortMode === 'ft') {
+        const d = (buckets[b].ftPct || 0) - (buckets[a].ftPct || 0);
+        if (d !== 0) return d;
+      } else if (sortMode === 'fg') {
+        const d = (buckets[b].fgPct || 0) - (buckets[a].fgPct || 0);
+        if (d !== 0) return d;
+      } else if (sortMode === 'attendance') {
+        const d = (buckets[b].attendancePct || 0) - (buckets[a].attendancePct || 0);
+        if (d !== 0) return d;
+      }
+      const ra = positionRank(a);
+      const rb = positionRank(b);
+      if (ra !== rb) return ra - rb;
       return a.localeCompare(b, 'de');
     });
 

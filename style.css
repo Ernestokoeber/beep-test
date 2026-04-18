@@ -2547,6 +2547,26 @@ table.results tr:last-child td { border-bottom: none; }
    Positions-Stats auf Dashboard (Feature 6)
    ============================================================ */
 
+.pos-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 10px;
+}
+.pos-head h3 { margin: 0; }
+.pos-sort-label select {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  min-height: 36px;
+}
+
 .position-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

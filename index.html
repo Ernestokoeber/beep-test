@@ -103,7 +103,19 @@
         <p class="empty-body">Noch keine Wurf-Daten.</p>
       </div>
 
-      <h3>Stats pro Position</h3>
+      <div class="pos-head">
+        <h3>Stats pro Position</h3>
+        <label class="pos-sort-label">
+          <span class="sr-only">Sortierung</span>
+          <select data-role="position-sort">
+            <option value="position">Position (PG → C)</option>
+            <option value="players">Anzahl Spieler</option>
+            <option value="ft">Freiwürfe %</option>
+            <option value="fg">Feldwürfe %</option>
+            <option value="attendance">Anwesenheit %</option>
+          </select>
+        </label>
+      </div>
       <div class="position-grid" data-role="position-grid"></div>
       <div class="empty empty--field hidden" data-role="position-empty">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
