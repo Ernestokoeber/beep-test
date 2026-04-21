@@ -207,6 +207,7 @@ BT.training = (function() {
     }
 
     setupTimer();
+    setupSprintStopwatch();
     renderPlanBox();
     setupSubnav();
     setupShotMap();
@@ -225,6 +226,7 @@ BT.training = (function() {
         renderFreethrows();
         renderShots();
         renderFitness();
+        renderSprints();
         BT.util.toast('Anwesenheit zurückgesetzt', {
           actionLabel: 'Rückgängig',
           action: () => {
@@ -237,6 +239,7 @@ BT.training = (function() {
             renderFreethrows();
             renderShots();
             renderFitness();
+            renderSprints();
           }
         });
       });
@@ -248,6 +251,7 @@ BT.training = (function() {
     renderShotTabs();
     renderShots();
     renderFitness();
+    renderSprints();
     renderTeamQuoteCard();
     renderTrainingHeatmap();
 
@@ -317,6 +321,7 @@ BT.training = (function() {
           renderFreethrows();
           renderShots();
           renderFitness();
+          renderSprints();
         });
       });
 
@@ -798,6 +803,165 @@ BT.training = (function() {
     return card;
   }
 
+  let sprintRunning = false;
+  let sprintStartTs = 0;
+  let sprintRaf = 0;
+
+  function getOrCreateSprint(playerId) {
+    if (!currentTraining.sprints) currentTraining.sprints = [];
+    let e = currentTraining.sprints.find(x => x.playerId === playerId);
+    if (!e) {
+      e = { playerId, times: [] };
+      currentTraining.sprints.push(e);
+    }
+    return e;
+  }
+
+  function formatSprintDisplay(sec) {
+    const total = Math.max(0, sec);
+    const m = Math.floor(total / 60);
+    const rest = total - m * 60;
+    return String(m).padStart(2, '0') + ':' + rest.toFixed(2).padStart(5, '0');
+  }
+
+  function setSprintState(state) {
+    const el = $('[data-role="sprint-state"]', detailRoot);
+    if (!el) return;
+    el.className = 'timer-state';
+    if (state === 'running') { el.textContent = 'Läuft'; el.classList.add('running'); }
+    else if (state === 'stopped') { el.textContent = 'Gestoppt'; el.classList.add('finished'); }
+    else { el.textContent = 'Bereit'; }
+  }
+
+  function setupSprintStopwatch() {
+    const display = $('[data-role="sprint-display"]', detailRoot);
+    if (!display) return;
+    const startBtn = $('[data-sprint-action="start"]', detailRoot);
+    const stopBtn = $('[data-sprint-action="stop"]', detailRoot);
+    const resetBtn = $('[data-sprint-action="reset"]', detailRoot);
+
+    sprintRunning = false;
+    if (sprintRaf) { cancelAnimationFrame(sprintRaf); sprintRaf = 0; }
+    display.textContent = '00:00.00';
+    setSprintState('ready');
+
+    function tick() {
+      if (!sprintRunning) return;
+      if (!document.body.contains(display)) { sprintRunning = false; return; }
+      const sec = (performance.now() - sprintStartTs) / 1000;
+      display.textContent = formatSprintDisplay(sec);
+      sprintRaf = requestAnimationFrame(tick);
+    }
+
+    startBtn.addEventListener('click', () => {
+      if (sprintRunning) return;
+      BT.audio.ensureContext();
+      BT.audio.startBeep();
+      sprintStartTs = performance.now();
+      sprintRunning = true;
+      setSprintState('running');
+      const list = $('[data-role="sprints"]', detailRoot);
+      if (list) list.classList.add('capturing');
+      tick();
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (!sprintRunning) return;
+      sprintRunning = false;
+      if (sprintRaf) { cancelAnimationFrame(sprintRaf); sprintRaf = 0; }
+      setSprintState('stopped');
+      const list = $('[data-role="sprints"]', detailRoot);
+      if (list) list.classList.remove('capturing');
+    });
+
+    resetBtn.addEventListener('click', () => {
+      sprintRunning = false;
+      if (sprintRaf) { cancelAnimationFrame(sprintRaf); sprintRaf = 0; }
+      display.textContent = '00:00.00';
+      setSprintState('ready');
+      const list = $('[data-role="sprints"]', detailRoot);
+      if (list) list.classList.remove('capturing');
+    });
+  }
+
+  function renderSprints() {
+    const list = $('[data-role="sprints"]', detailRoot);
+    const empty = $('[data-role="sprints-empty"]', detailRoot);
+    if (!list) return;
+    list.innerHTML = '';
+    if (sprintRunning) list.classList.add('capturing');
+    else list.classList.remove('capturing');
+
+    const allPlayers = BT.storage.getPlayers();
+    const presentIds = presentPlayerIds(currentTraining);
+    if (presentIds.length === 0) {
+      if (empty) empty.classList.remove('hidden');
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+
+    const presentPlayers = presentIds
+      .map(id => allPlayers.find(p => p.id === id))
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
+    for (const p of presentPlayers) {
+      const e = getOrCreateSprint(p.id);
+      list.appendChild(buildSprintCard(p, e));
+    }
+    save();
+  }
+
+  function buildSprintCard(player, entry) {
+    const card = document.createElement('li');
+    card.className = 'ft-card sprint-card';
+    const times = Array.isArray(entry.times) ? entry.times : (entry.times = []);
+    const best = times.length ? Math.min.apply(null, times) : null;
+    const avg = times.length ? (times.reduce((a, b) => a + b, 0) / times.length) : null;
+
+    const statsHtml = times.length
+      ? '<span class="sprint-best">Best ' + best.toFixed(2) + ' s</span> <span class="sprint-avg muted">∅ ' + avg.toFixed(2) + ' s</span>'
+      : '<span class="muted">Noch keine Zeit</span>';
+
+    const chipsHtml = times.map((t, i) =>
+      '<span class="sprint-time">' + t.toFixed(2) +
+      '<button type="button" class="sprint-time-del" data-del="' + i + '" aria-label="Zeit löschen">✕</button></span>'
+    ).join('');
+
+    card.innerHTML = `
+      <div class="ft-head sprint-head">
+        <span class="name">${escapeHTML(player.name)}</span>
+        <span class="sprint-stats">${statsHtml}</span>
+      </div>
+      <div class="sprint-times" data-role="times">${chipsHtml || '<span class="muted">Tippe die Karte bei Zieleinlauf</span>'}</div>
+    `;
+
+    card.addEventListener('click', (ev) => {
+      if (ev.target.closest('.sprint-time-del')) return;
+      if (!sprintRunning) return;
+      const sec = (performance.now() - sprintStartTs) / 1000;
+      const rounded = Math.round(sec * 100) / 100;
+      entry.times.push(rounded);
+      save();
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 600);
+      renderSprints();
+    });
+
+    $$('[data-del]', card).forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const idx = parseInt(btn.dataset.del, 10);
+        if (isNaN(idx)) return;
+        entry.times.splice(idx, 1);
+        save();
+        renderSprints();
+      });
+    });
+
+    return card;
+  }
+
   function setupSubnav() {
     const subnav = $('.subnav', detailRoot);
     const updateEdgeMask = () => {
@@ -817,6 +981,7 @@ BT.training = (function() {
         if (target === 'notes') renderPlayerNotes();
         if (target === 'map') renderShotMap();
         if (target === 'fitness') renderFitness();
+        if (target === 'sprints') renderSprints();
         if (btn.scrollIntoView) btn.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
         if (detailRoot && detailRoot.scrollIntoView) detailRoot.scrollIntoView({ block: 'start', behavior: 'instant' });
       });
@@ -1163,14 +1328,26 @@ BT.training = (function() {
     const plan = currentTraining.plan || (currentTraining.plan = { drills: [] });
     plan.drills = plan.drills || [];
     box.classList.remove('hidden');
+
     const sumEl = $('[data-role="plan-summary"]', detailRoot);
-    const parts = [];
-    if (plan.summary) parts.push('<p>' + escapeHTML(plan.summary) + '</p>');
     const targets = [];
     if (plan.freethrows && plan.freethrows.attempted) targets.push('Freiwürfe ' + plan.freethrows.attempted);
     for (const s of (plan.shots || [])) targets.push(escapeHTML(s.category || '') + ' ' + (parseInt(s.attempted, 10) || 0));
-    if (targets.length) parts.push('<p class="muted">Vorgaben pro Spieler: ' + targets.join(' · ') + '</p>');
-    sumEl.innerHTML = parts.join('');
+
+    sumEl.innerHTML = `
+      <label class="plan-summary-field">
+        <span class="muted">Beschreibung</span>
+        <textarea data-role="plan-summary-input" rows="2" placeholder="z.B. Schwerpunkt Verteidigung & Korbleger">${escapeHTML(plan.summary || '')}</textarea>
+      </label>
+      ${targets.length ? '<p class="muted">Vorgaben pro Spieler: ' + targets.join(' · ') + '</p>' : ''}
+    `;
+    const summaryInput = $('[data-role="plan-summary-input"]', sumEl);
+    if (summaryInput) {
+      summaryInput.addEventListener('input', () => {
+        plan.summary = summaryInput.value;
+        save();
+      });
+    }
 
     const drillsEl = $('[data-role="plan-drills"]', detailRoot);
     drillsEl.innerHTML = '';
@@ -1178,24 +1355,98 @@ BT.training = (function() {
       const li = document.createElement('li');
       li.className = 'plan-drill';
       const minLabel = d.minutes ? ' (' + d.minutes + ' min)' : '';
+      const isFirst = idx === 0;
+      const isLast = idx === plan.drills.length - 1;
+
       li.innerHTML = `
         <div class="plan-drill-head">
-          <span class="drill-name">${escapeHTML(d.name)}${minLabel}</span>
+          <span class="drill-name">${escapeHTML(d.name || '')}${minLabel}</span>
           <div class="plan-drill-actions">
-            ${d.minutes ? '<button class="btn small primary" data-drill-min="' + d.minutes + '">▶ Timer</button>' : ''}
-            <button class="btn small" data-drill-remove="${idx}" aria-label="Entfernen">✕</button>
+            ${d.minutes ? '<button class="btn small primary" data-action="timer">▶ Timer</button>' : ''}
+            <button class="btn small" data-action="up" aria-label="Nach oben" ${isFirst ? 'disabled' : ''}>↑</button>
+            <button class="btn small" data-action="down" aria-label="Nach unten" ${isLast ? 'disabled' : ''}>↓</button>
+            <button class="btn small" data-action="edit" aria-label="Bearbeiten">✎</button>
+            <button class="btn small" data-action="swap" aria-label="Austauschen">↻</button>
+            <button class="btn small" data-action="remove" aria-label="Entfernen">✕</button>
           </div>
         </div>
-        ${d.description ? '<div class="muted">' + escapeHTML(d.description) + '</div>' : ''}
+        ${d.description ? '<div class="muted plan-drill-desc">' + escapeHTML(d.description) + '</div>' : ''}
+        <div class="plan-drill-edit hidden" data-role="edit-form">
+          <label>Name<input type="text" data-field="name" value="${escapeHTML(d.name || '')}"></label>
+          <label>Minuten<input type="number" min="0" step="1" data-field="minutes" value="${d.minutes || ''}"></label>
+          <label>Beschreibung<textarea data-field="description" rows="2">${escapeHTML(d.description || '')}</textarea></label>
+          <button type="button" class="btn small primary" data-action="edit-close">Fertig</button>
+        </div>
       `;
-      const startBtn = li.querySelector('[data-drill-min]');
-      if (startBtn) {
-        startBtn.addEventListener('click', () => {
-          const sec = parseInt(startBtn.dataset.drillMin, 10) * 60;
-          startTimerWithSec(sec);
+
+      const byAction = (a) => li.querySelector('[data-action="' + a + '"]');
+      const editForm = li.querySelector('[data-role="edit-form"]');
+
+      const timerBtn = byAction('timer');
+      if (timerBtn) {
+        timerBtn.addEventListener('click', () => {
+          startTimerWithSec((d.minutes || 0) * 60);
         });
       }
-      const removeBtn = li.querySelector('[data-drill-remove]');
+
+      const upBtn = byAction('up');
+      if (upBtn && !isFirst) {
+        upBtn.addEventListener('click', () => {
+          const tmp = plan.drills[idx - 1];
+          plan.drills[idx - 1] = plan.drills[idx];
+          plan.drills[idx] = tmp;
+          save();
+          renderPlanBox();
+        });
+      }
+
+      const downBtn = byAction('down');
+      if (downBtn && !isLast) {
+        downBtn.addEventListener('click', () => {
+          const tmp = plan.drills[idx + 1];
+          plan.drills[idx + 1] = plan.drills[idx];
+          plan.drills[idx] = tmp;
+          save();
+          renderPlanBox();
+        });
+      }
+
+      const editBtn = byAction('edit');
+      if (editBtn && editForm) {
+        editBtn.addEventListener('click', () => {
+          editForm.classList.toggle('hidden');
+          editBtn.classList.toggle('active');
+        });
+      }
+
+      li.querySelectorAll('[data-field]').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const field = inp.dataset.field;
+          if (field === 'minutes') d.minutes = parseInt(inp.value, 10) || 0;
+          else d[field] = inp.value;
+          save();
+        });
+      });
+
+      const editCloseBtn = byAction('edit-close');
+      if (editCloseBtn) {
+        editCloseBtn.addEventListener('click', () => {
+          renderPlanBox();
+        });
+      }
+
+      const swapBtn = byAction('swap');
+      if (swapBtn) {
+        swapBtn.addEventListener('click', () => {
+          BT.drills.openPicker(picked => {
+            plan.drills[idx] = { name: picked.name, minutes: picked.minutes || 0, description: picked.description || '' };
+            save();
+            renderPlanBox();
+          });
+        });
+      }
+
+      const removeBtn = byAction('remove');
       if (removeBtn) {
         removeBtn.addEventListener('click', () => {
           const removed = plan.drills.splice(idx, 1)[0];
@@ -1208,10 +1459,10 @@ BT.training = (function() {
           });
         });
       }
+
       drillsEl.appendChild(li);
     });
 
-    // Picker-Button + leerer Hinweis
     const controls = document.createElement('li');
     controls.className = 'plan-drill-controls';
     controls.innerHTML = `
@@ -1220,14 +1471,14 @@ BT.training = (function() {
     `;
     controls.querySelector('[data-action="add-drill-from-lib"]').addEventListener('click', () => {
       BT.drills.openPicker(picked => {
-        plan.drills.push(picked);
+        plan.drills.push({ name: picked.name, minutes: picked.minutes || 0, description: picked.description || '' });
         save();
         renderPlanBox();
       });
     });
     drillsEl.appendChild(controls);
 
-    if (plan.drills.length === 0 && !plan.summary && targets.length === 0) {
+    if (plan.drills.length === 0) {
       const hint = document.createElement('li');
       hint.className = 'plan-drill-hint muted';
       hint.textContent = 'Noch keine Drills im Plan. Füge welche aus der Bibliothek hinzu oder importiere einen Plan-PDF im „Plan"-Reiter.';

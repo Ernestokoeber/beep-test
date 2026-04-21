@@ -2931,3 +2931,170 @@ table.results tr:last-child td { border-bottom: none; }
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
 }
+
+.sprint-stopwatch {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.sprint-stopwatch .timer-display {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+.sprint-hint {
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+}
+
+.sprint-list .sprint-card {
+  cursor: default;
+  transition: background 0.15s ease, border-left-color 0.15s ease;
+}
+.sprint-list.capturing .sprint-card {
+  cursor: pointer;
+  border-left-color: var(--cta);
+}
+.sprint-list.capturing .sprint-card:hover,
+.sprint-list.capturing .sprint-card:active {
+  background: var(--primary-light);
+}
+.sprint-card.flash {
+  animation: sprint-flash 0.6s ease-out;
+}
+@keyframes sprint-flash {
+  0%   { background: var(--primary-light); border-left-color: var(--cta); }
+  100% { background: transparent; }
+}
+
+.sprint-head { align-items: baseline; }
+.sprint-stats {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.sprint-best {
+  background: var(--primary-light);
+  color: var(--cta);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.sprint-avg { font-size: 12px; }
+
+.sprint-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  min-height: 28px;
+  align-items: center;
+}
+.sprint-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 3px 4px 3px 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.sprint-time-del {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 50%;
+}
+.sprint-time-del:hover {
+  color: var(--danger);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprint-card.flash { animation: none; }
+}
+
+.plan-summary-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.plan-summary-field > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.plan-summary-field textarea {
+  width: 100%;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.plan-drill-actions .btn.active {
+  background: var(--cta);
+  border-color: var(--cta);
+  color: white;
+}
+
+.plan-drill-desc {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.plan-drill-edit {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plan-drill-edit.hidden { display: none; }
+.plan-drill-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.plan-drill-edit input,
+.plan-drill-edit textarea {
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+.plan-drill-edit textarea { resize: vertical; }
+.plan-drill-edit [data-action="edit-close"] { align-self: flex-end; }

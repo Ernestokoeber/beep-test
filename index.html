@@ -313,6 +313,7 @@
         <button class="subnav-btn" type="button" data-pane="ft">Freiwürfe</button>
         <button class="subnav-btn" type="button" data-pane="shots">Würfe</button>
         <button class="subnav-btn" type="button" data-pane="fitness">Fitness</button>
+        <button class="subnav-btn" type="button" data-pane="sprints">Sprints</button>
         <button class="subnav-btn" type="button" data-pane="map">Karte</button>
         <button class="subnav-btn" type="button" data-pane="notes">Notizen</button>
       </div>
@@ -409,6 +410,25 @@
         <p class="muted">Sprint, Rim Touches, Lane Agility, Sprungkraft — je Spieler ein Messwert pro Training. Leer lassen wenn nicht getestet.</p>
         <ul class="ft-list" data-role="fitness"></ul>
         <div class="empty empty--field hidden" data-role="fitness-empty">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
+          <p class="empty-body">Keine anwesenden Spieler.</p>
+        </div>
+      </div>
+
+      <div class="pane hidden" data-pane="sprints">
+        <p class="muted">Stoppuhr für Halfcourt-Sprints. Start drücken, dann bei jedem Zieleinlauf auf die Spielerkarte tippen — die aktuelle Zeit wird dem Spieler zugewiesen (Hundertstel).</p>
+        <div class="sprint-stopwatch">
+          <div class="timer-display" data-role="sprint-display">00:00.00</div>
+          <div class="timer-state" data-role="sprint-state">Bereit</div>
+          <div class="timer-controls">
+            <button class="btn small primary" data-sprint-action="start">▶ Start</button>
+            <button class="btn small" data-sprint-action="stop">⏹ Stop</button>
+            <button class="btn small" data-sprint-action="reset">↺ Reset</button>
+          </div>
+          <p class="sprint-hint muted" data-role="sprint-hint">Starte die Stoppuhr — dann tippe eine Spielerkarte, wenn der Spieler die Ziellinie erreicht.</p>
+        </div>
+        <ul class="ft-list sprint-list" data-role="sprints"></ul>
+        <div class="empty empty--field hidden" data-role="sprints-empty">
           <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
           <p class="empty-body">Keine anwesenden Spieler.</p>
         </div>
