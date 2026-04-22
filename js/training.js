@@ -2005,7 +2005,74 @@ BT.training = (function() {
         [pageW - 2 * margin - 160, 80, 80],
         ['Kategorie', 'Treffer/Versuche', 'Quote'],
         teamRows, { header: orange });
-      y += 14;
+      y += 8;
+
+      // Saison-Delta + Trend-Zeilen
+      const infoLines = [];
+      if (BT.stats && BT.stats.trainingTeamShotQuote) {
+        const q = BT.stats.trainingTeamShotQuote(training.id);
+        if (q && q.deltaVsSeason) {
+          if (q.deltaVsSeason.totalPct != null) {
+            const d = Math.round(q.deltaVsSeason.totalPct);
+            const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '=';
+            const sign = d > 0 ? '+' : '';
+            infoLines.push(arrow + ' Feldwürfe ' + sign + d + '% vs. Saisonschnitt');
+          }
+          if (q.deltaVsSeason.ftPct != null) {
+            const d = Math.round(q.deltaVsSeason.ftPct);
+            const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '=';
+            const sign = d > 0 ? '+' : '';
+            infoLines.push(arrow + ' Freiwürfe ' + sign + d + '% vs. Saisonschnitt');
+          }
+        }
+      }
+      if (BT.stats && BT.stats.trainingDelta) {
+        const td = BT.stats.trainingDelta(training.id);
+        if (td && td.trend) {
+          const arrow = td.trend === 'up' ? '▲' : td.trend === 'down' ? '▼' : '=';
+          const parts = [];
+          if (td.fgDelta != null) parts.push('Würfe ' + (td.fgDelta > 0 ? '+' : '') + Math.round(td.fgDelta) + '%');
+          if (td.ftDelta != null) parts.push('FT ' + (td.ftDelta > 0 ? '+' : '') + Math.round(td.ftDelta) + '%');
+          if (parts.length > 0) infoLines.push(arrow + ' vs. letztem Training: ' + parts.join(', '));
+        }
+      }
+      if (infoLines.length > 0) {
+        ensureSpace(infoLines.length * 13 + 6);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(60);
+        for (const line of infoLines) {
+          doc.text(line, margin, y);
+          y += 13;
+        }
+        doc.setTextColor(20);
+        y += 4;
+      }
+      y += 6;
+    }
+
+    // Sprint-Bilanz (kompakt, nur wenn Zeiten vorhanden)
+    if (BT.stats && BT.stats.trainingSprintSummary) {
+      const ss = BT.stats.trainingSprintSummary(training.id);
+      if (ss && ss.count > 0 && ss.best) {
+        heading('Sprint-Bilanz');
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const bestLine = 'Beste Zeit: ' + Number(ss.best.value).toFixed(2) + ' s  ·  ' + ss.best.playerName;
+        const avgLine = 'Durchschnitt: ' + Number(ss.avg).toFixed(2) + ' s';
+        const metaLine = ss.count + ' Spieler · ' + ss.totalRuns + ' Läufe';
+        ensureSpace(44);
+        doc.setFont('helvetica', 'bold');
+        doc.text(bestLine, margin, y); y += 14;
+        doc.setFont('helvetica', 'normal');
+        doc.text(avgLine, margin, y); y += 14;
+        doc.setTextColor(120);
+        doc.setFontSize(9);
+        doc.text(metaLine, margin, y); y += 12;
+        doc.setTextColor(20);
+        doc.setFontSize(10);
+        y += 4;
+      }
     }
 
     const allShots = (training.shotMap || []).filter(s => presentIds.has(s.playerId));
@@ -2093,6 +2160,39 @@ BT.training = (function() {
     );
     if (fitnessEntries.length > 0) {
       heading('Fitness-Test');
+
+      // Bilanz: Best pro Metrik + Team-Durchschnitt (nur wenn Summary verfuegbar)
+      if (BT.stats && BT.stats.trainingFitnessSummary) {
+        const fs = BT.stats.trainingFitnessSummary(training.id);
+        if (fs && fs.hasAny) {
+          const bestParts = [];
+          const avgParts = [];
+          for (const mm of fs.metrics) {
+            if (mm.count === 0) continue;
+            const u = mm.unit ? ' ' + mm.unit : '';
+            bestParts.push(mm.label + ': ' + Number(mm.best.value).toFixed(mm.digits) + u + ' (' + mm.best.playerName + ')');
+            avgParts.push(mm.label + ': ' + Number(mm.avg).toFixed(mm.digits) + u);
+          }
+          if (bestParts.length > 0) {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 75, 43);
+            const bestText = 'Team-Best: ' + bestParts.join('  ·  ');
+            const bestLines = doc.splitTextToSize(bestText, pageW - 2 * margin);
+            ensureSpace(bestLines.length * 13 + 4);
+            doc.text(bestLines, margin, y); y += bestLines.length * 13;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(80);
+            const avgText = 'Team-Ø: ' + avgParts.join('  ·  ');
+            const avgLines = doc.splitTextToSize(avgText, pageW - 2 * margin);
+            ensureSpace(avgLines.length * 13 + 6);
+            doc.text(avgLines, margin, y); y += avgLines.length * 13 + 6;
+            doc.setTextColor(20);
+          }
+        }
+      }
+
       const fmt = (v, digits) => (v == null || isNaN(v)) ? '–' : Number(v).toFixed(digits);
       const fitRows = fitnessEntries.slice()
         .map(e => ({ e, p: allPlayers.find(p => p.id === e.playerId) }))
