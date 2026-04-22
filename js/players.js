@@ -140,6 +140,7 @@ BT.players = (function() {
 
     renderPlayerSeasonStats(node, player);
     renderStreakTile(node, player);
+    renderPlayerFitness(node, player);
     renderPlayerHeatmap(node, player);
 
     const sessions = BT.storage.getSessions().slice().reverse();
@@ -321,6 +322,59 @@ BT.players = (function() {
     }
 
     renderPlayerTrends(node, player, cats);
+  }
+
+  function renderPlayerFitness(node, player) {
+    const wrap = $('[data-role="player-fitness"]', node);
+    const empty = $('[data-role="player-fitness-empty"]', node);
+    if (!wrap || !BT.stats || !BT.stats.playerFitness) return;
+    const data = BT.stats.playerFitness(player.id);
+    if (!data.hasAny) {
+      if (empty) empty.classList.remove('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+
+    const cards = [];
+    for (const m of data.metrics) {
+      if (m.count === 0) continue;
+      const u = m.unit ? ' ' + m.unit : '';
+      const latestTxt = Number(m.latest.value).toFixed(m.digits) + u;
+      const bestTxt = Number(m.best.value).toFixed(m.digits) + u;
+
+      let trend = '';
+      if (m.previous) {
+        const delta = m.latest.value - m.previous.value;
+        if (delta !== 0) {
+          const improved = m.lowerIsBetter ? delta < 0 : delta > 0;
+          const cls = improved ? 'delta-up' : 'delta-down';
+          const sign = delta > 0 ? '+' : '';
+          trend = `<span class="delta-chip ${cls}">${sign}${Number(delta).toFixed(m.digits)}${u} vs. letzter Test</span>`;
+        } else {
+          trend = '<span class="delta-chip delta-flat">±0 vs. letzter Test</span>';
+        }
+      }
+
+      const bestIsLatest = m.best.date === m.latest.date && m.best.value === m.latest.value;
+      cards.push(`
+        <div class="fitness-metric">
+          <div class="fitness-metric-head">
+            <span class="fitness-metric-label">${escapeHTML(m.label)}</span>
+            <span class="fitness-metric-count">${m.count} Tests</span>
+          </div>
+          <div class="fitness-metric-row">
+            <span class="fitness-metric-best" title="Letzter Messwert"><strong>${latestTxt}</strong>${m.latest.date ? ' · ' + BT.util.formatDate(m.latest.date) : ''}</span>
+          </div>
+          ${bestIsLatest ? '' : `<div class="fitness-metric-row"><span class="fitness-metric-avg">Best: ${bestTxt}${m.best.date ? ' · ' + BT.util.formatDate(m.best.date) : ''}</span></div>`}
+          ${trend ? `<div class="fitness-metric-row">${trend}</div>` : ''}
+        </div>
+      `);
+    }
+
+    wrap.innerHTML = cards.length > 0
+      ? '<ul class="fitness-metric-list">' + cards.join('') + '</ul>'
+      : '';
   }
 
   function renderPlayerTrends(node, player, shotCats) {

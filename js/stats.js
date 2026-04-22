@@ -431,6 +431,45 @@ BT.stats = (function() {
     return out;
   }
 
+  function playerFitness(playerId) {
+    const trainings = allEndedTrainings().slice()
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const metrics = [
+      { key: 'sprint',      label: 'Sprint',       unit: 's', digits: 2, lowerIsBetter: true  },
+      { key: 'rimTouches',  label: 'Rim Touches',  unit: '',  digits: 0, lowerIsBetter: false },
+      { key: 'laneAgility', label: 'Lane Agility', unit: 's', digits: 2, lowerIsBetter: true  },
+      { key: 'pushUps',     label: 'Liegestütze',  unit: '',  digits: 0, lowerIsBetter: false }
+    ];
+    const out = { metrics: [], hasAny: false };
+    for (const m of metrics) {
+      const entries = [];
+      for (const t of trainings) {
+        const e = (t.fitness || []).find(x => x.playerId === playerId);
+        if (e && e[m.key] != null && !isNaN(e[m.key])) {
+          entries.push({ date: t.date, value: e[m.key] });
+        }
+      }
+      if (entries.length === 0) {
+        out.metrics.push({ key: m.key, label: m.label, unit: m.unit, digits: m.digits, count: 0, latest: null, best: null, previous: null });
+        continue;
+      }
+      out.hasAny = true;
+      const latest = entries[entries.length - 1];
+      const previous = entries.length >= 2 ? entries[entries.length - 2] : null;
+      const best = entries.reduce((acc, x) =>
+        acc == null ? x : (m.lowerIsBetter ? (x.value < acc.value ? x : acc) : (x.value > acc.value ? x : acc)),
+      null);
+      out.metrics.push({
+        key: m.key, label: m.label, unit: m.unit, digits: m.digits, lowerIsBetter: m.lowerIsBetter,
+        count: entries.length,
+        latest: { value: latest.value, date: latest.date },
+        previous: previous ? { value: previous.value, date: previous.date } : null,
+        best: { value: best.value, date: best.date }
+      });
+    }
+    return out;
+  }
+
   function teamAlerts() {
     const out = [];
     const players = BT.storage.getPlayers().filter(p => !p.archived);
@@ -725,7 +764,7 @@ BT.stats = (function() {
     topAttenders, topFreethrowShooters, topShootersByCategory,
     nextTrainingCountdown,
     trainingTeamShotQuote, trainingDelta, trainingFitnessSummary, trainingSprintSummary, attendanceStreak,
-    teamAlerts,
+    teamAlerts, playerFitness,
     playerFTSparkline, statsByPosition, improvingPlayers
   };
 })();
