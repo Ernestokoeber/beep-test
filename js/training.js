@@ -1692,6 +1692,19 @@ BT.training = (function() {
     if (late.length) lines.push('Zu spät: ' + late.map(a => nameOf(a.playerId)).join(', '));
 
     const presentIds = new Set(present.map(a => a.playerId));
+
+    // Drills aus dem Plan (nur wenn Plan-Drills mit Namen vorhanden)
+    const planDrills = ((training.plan && training.plan.drills) || [])
+      .filter(d => d && (d.name || '').trim());
+    if (planDrills.length > 0) {
+      lines.push('');
+      lines.push('📋 Plan:');
+      for (const d of planDrills) {
+        lines.push('· ' + d.name + (d.minutes ? ' (' + d.minutes + ' min)' : ''));
+      }
+    }
+
+    // Freiwürfe
     const fts = (training.freethrows || []).filter(e => presentIds.has(e.playerId) && (e.attempted || 0) > 0);
     if (fts.length > 0) {
       let m = 0, a = 0;
@@ -1703,18 +1716,73 @@ BT.training = (function() {
       if (topStr) lines.push('Top: ' + topStr);
     }
 
+    // Feldwürfe pro Kategorie + Team-Total + Saison-Delta
     const shotLines = [];
+    let totalShotMade = 0, totalShotAtt = 0;
     for (const cat of (training.shots || [])) {
       const entries = (cat.entries || []).filter(e => presentIds.has(e.playerId) && (e.attempted || 0) > 0);
       if (entries.length === 0) continue;
       let m = 0, a = 0;
       for (const e of entries) { m += e.made; a += e.attempted; }
       shotLines.push('· ' + cat.category + ': ' + m + '/' + a + ' (' + pct(m, a) + '%)');
+      totalShotMade += m;
+      totalShotAtt += a;
     }
     if (shotLines.length > 0) {
       lines.push('');
-      lines.push('Würfe:');
+      let header = 'Würfe: ' + totalShotMade + '/' + totalShotAtt + ' (' + pct(totalShotMade, totalShotAtt) + '%)';
+      if (BT.stats && BT.stats.trainingTeamShotQuote) {
+        const q = BT.stats.trainingTeamShotQuote(training.id);
+        if (q && q.deltaVsSeason && q.deltaVsSeason.totalPct != null) {
+          const d = Math.round(q.deltaVsSeason.totalPct);
+          const arrow = d > 0 ? '↑' : d < 0 ? '↓' : '→';
+          const sign = d > 0 ? '+' : '';
+          header += ' ' + arrow + ' ' + sign + d + '% vs. Saison';
+        }
+      }
+      lines.push(header);
       lines.push.apply(lines, shotLines);
+    }
+
+    // Fitness-Bilanz — nur wenn mindestens eine Metrik Werte hat
+    if (BT.stats && BT.stats.trainingFitnessSummary) {
+      const fs = BT.stats.trainingFitnessSummary(training.id);
+      if (fs && fs.hasAny) {
+        lines.push('');
+        lines.push('🏃 Fitness:');
+        for (const mm of fs.metrics) {
+          if (mm.count === 0) continue;
+          const unit = mm.unit ? ' ' + mm.unit : '';
+          const bestVal = Number(mm.best.value).toFixed(mm.digits);
+          const avgVal = Number(mm.avg).toFixed(mm.digits);
+          lines.push('· ' + mm.label + ': Best ' + bestVal + unit + ' (' + mm.best.playerName + '), Ø ' + avgVal + unit);
+        }
+      }
+    }
+
+    // Sprint-Stoppuhr — nur wenn mindestens ein Spieler eine Zeit hat
+    if (BT.stats && BT.stats.trainingSprintSummary) {
+      const ss = BT.stats.trainingSprintSummary(training.id);
+      if (ss && ss.count > 0 && ss.best) {
+        lines.push('');
+        lines.push('⏱ Sprint: Best ' + Number(ss.best.value).toFixed(2) + ' s (' + ss.best.playerName
+          + '), Ø ' + Number(ss.avg).toFixed(2) + ' s · ' + ss.totalRuns + ' Läufe');
+      }
+    }
+
+    // Trend vs. letztem Training — nur wenn Vortraining mit Daten existiert
+    if (BT.stats && BT.stats.trainingDelta) {
+      const td = BT.stats.trainingDelta(training.id);
+      if (td && td.trend) {
+        const arrow = td.trend === 'up' ? '↑' : td.trend === 'down' ? '↓' : '→';
+        const parts = [];
+        if (td.fgDelta != null) parts.push('Würfe ' + (td.fgDelta > 0 ? '+' : '') + Math.round(td.fgDelta) + '%');
+        if (td.ftDelta != null) parts.push('FT ' + (td.ftDelta > 0 ? '+' : '') + Math.round(td.ftDelta) + '%');
+        if (parts.length > 0) {
+          lines.push('');
+          lines.push(arrow + ' vs. letztem Training: ' + parts.join(', '));
+        }
+      }
     }
 
     if (training.note) {
