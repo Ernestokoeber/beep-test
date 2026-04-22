@@ -520,13 +520,27 @@ BT.tactics = (function() {
       const statusEl = $('[data-role="status"]', backdrop);
       const renderBtn = $('[data-action="render-gif"]', backdrop);
 
-      function close() { backdrop.remove(); }
+      let currentGif = null;
+      let closed = false;
+
+      function close() {
+        if (closed) return;
+        closed = true;
+        if (currentGif) {
+          try { currentGif.abort(); } catch (_) {}
+          currentGif = null;
+        }
+        backdrop.remove();
+        window.removeEventListener('hashchange', close);
+      }
+      window.addEventListener('hashchange', close);
       backdrop.addEventListener('click', e => {
         if (e.target === backdrop) close();
         if (e.target.closest('[data-action="close"]')) close();
       });
 
       renderBtn.addEventListener('click', async () => {
+        if (currentGif) return;
         const speed = backdrop.querySelector('input[name="gifspeed"]:checked').value;
         const override = speed === 'kept' ? null : parseFloat(speed);
 
@@ -537,10 +551,13 @@ BT.tactics = (function() {
         BT.wake.acquire('tactics-gif');
         try {
           await loadGifLib();
+          if (closed) return;
           statusEl.textContent = 'Frames werden erzeugt …';
           const blob = await renderGif(board, override, (pct) => {
-            statusEl.textContent = 'GIF wird kodiert … ' + Math.round(pct * 100) + '%';
-          });
+            if (!closed) statusEl.textContent = 'GIF wird kodiert … ' + Math.round(pct * 100) + '%';
+          }, g => { currentGif = g; });
+          currentGif = null;
+          if (closed) return;
           statusEl.textContent = 'Fertig! Teilen wird geöffnet …';
           const file = new File([blob], 'taktik.gif', { type: 'image/gif' });
           const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
@@ -560,8 +577,11 @@ BT.tactics = (function() {
           statusEl.textContent = 'GIF gespeichert (Teilen nicht verfügbar).';
           renderBtn.disabled = false;
         } catch (err) {
-          statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
-          renderBtn.disabled = false;
+          currentGif = null;
+          if (!closed) {
+            statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
+            renderBtn.disabled = false;
+          }
         } finally {
           BT.wake.release('tactics-gif');
         }
@@ -747,7 +767,7 @@ BT.tactics = (function() {
   }
 
   // ---------- GIF rendering ----------
-  async function renderGif(board, overrideDurationSec, onProgress) {
+  async function renderGif(board, overrideDurationSec, onProgress, onInstance) {
     const W = 400, H = 376;
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
@@ -763,6 +783,7 @@ BT.tactics = (function() {
       workerScript: GIF_WORKER_URL,
       background: '#f5e6c8'
     });
+    if (onInstance) onInstance(gif);
 
     function renderFrameToCanvas(snapshot) {
       ctx.save();
