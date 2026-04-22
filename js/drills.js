@@ -252,12 +252,15 @@ BT.drills = (function() {
       list.appendChild(li);
     });
 
+    const controller = new AbortController();
+    const signal = controller.signal;
     function close() {
+      if (!backdrop.parentNode) return;
       backdrop.remove();
-      document.removeEventListener('keydown', onKey);
+      controller.abort();
     }
-    function onKey(e) { if (e.key === 'Escape') close(); }
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); }, { signal });
+    window.addEventListener('hashchange', close, { signal });
 
     backdrop.addEventListener('click', e => {
       if (e.target === backdrop) close();
@@ -286,7 +289,7 @@ BT.drills = (function() {
         if (BT.util.toast) BT.util.toast(n + ' Drill' + (n === 1 ? '' : 's') + ' importiert.');
         if (refresh) refresh();
       }
-    });
+    }, { signal });
   }
 
   // Modal-Picker zur Auswahl eines Drills. onPick(drill) wird aufgerufen.
@@ -304,17 +307,20 @@ BT.drills = (function() {
     catSel.innerHTML = cats.map(c => '<option value="' + escapeHTML(c) + '">' + escapeHTML(c) + '</option>').join('');
     if (cats.length > 0) catSel.value = cats[0];
 
+    const controller = new AbortController();
+    const signal = controller.signal;
     function close() {
+      if (!backdrop.parentNode) return;
       backdrop.remove();
-      document.removeEventListener('keydown', onKey);
+      controller.abort();
     }
-    function onKey(e) { if (e.key === 'Escape') close(); }
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); }, { signal });
+    window.addEventListener('hashchange', close, { signal });
 
     backdrop.addEventListener('click', e => {
       if (e.target === backdrop) close();
       if (e.target.closest('[data-action="close"]')) close();
-    });
+    }, { signal });
 
     function draw() {
       const q = (search.value || '').trim().toLowerCase();
