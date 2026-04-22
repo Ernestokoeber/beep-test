@@ -40,12 +40,32 @@ BT.dashboard = (function() {
       ? tf.made + '/' + tf.attempted + ' aus ' + tf.sessions + ' Sessions'
       : 'Noch keine Daten';
 
+    renderAlerts(root);
     renderFormOfWeek(root);
     renderTopAttenders(root);
     renderTopFT(root);
     renderShotCategories(root);
     renderPositionStats(root);
     renderTeamHeatmap(root);
+  }
+
+  function renderAlerts(root) {
+    const section = $('[data-role="alerts"]', root);
+    const list = $('[data-role="alerts-list"]', root);
+    if (!section || !list || !BT.stats || !BT.stats.teamAlerts) return;
+    const alerts = BT.stats.teamAlerts();
+    if (!alerts || alerts.length === 0) {
+      section.classList.add('hidden');
+      list.innerHTML = '';
+      return;
+    }
+    section.classList.remove('hidden');
+    list.innerHTML = alerts.slice(0, 6).map(a => {
+      const cls = a.severity === 'warn' ? 'alert-warn' : 'alert-info';
+      const icon = a.severity === 'warn' ? '⚠️' : 'ℹ️';
+      const link = a.playerId ? '<a href="#/player/' + a.playerId + '">' + escapeHTML(a.message) + '</a>' : escapeHTML(a.message);
+      return '<li class="alert-row ' + cls + '"><span class="alert-icon">' + icon + '</span>' + link + '</li>';
+    }).join('');
   }
 
   function renderFormOfWeek(root) {

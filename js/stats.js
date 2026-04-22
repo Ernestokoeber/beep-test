@@ -431,6 +431,103 @@ BT.stats = (function() {
     return out;
   }
 
+  function teamAlerts() {
+    const out = [];
+    const players = BT.storage.getPlayers().filter(p => !p.archived);
+    const trainingsChrono = endedTrainings().slice()
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+    for (const p of players) {
+      // 1) Anwesenheit: >=3 Abwesenheiten in Folge (die letzten 3 Trainings)
+      const last3 = trainingsChrono.slice(-3);
+      if (last3.length === 3) {
+        const statuses = last3.map(t => {
+          const a = (t.attendance || []).find(x => x.playerId === p.id);
+          return a && a.status;
+        });
+        const missedAll = statuses.every(s => s === 'absent' || s === 'excused');
+        if (missedAll) {
+          out.push({
+            severity: 'warn',
+            playerId: p.id,
+            playerName: p.name,
+            type: 'attendance',
+            message: p.name + ' hat die letzten 3 Trainings gefehlt'
+          });
+        }
+      }
+
+      // 2) FT-Form: letzte 3 FT-Trainings mind. 10% schlechter als Saisonschnitt (davor)
+      const ftSessions = trainingsChrono.filter(t => {
+        const e = (t.freethrows || []).find(x => x.playerId === p.id);
+        return e && (e.attempted || 0) > 0;
+      });
+      if (ftSessions.length >= 5) {
+        const recent = ftSessions.slice(-3);
+        const baseline = ftSessions.slice(0, ftSessions.length - 3);
+        let rM = 0, rA = 0, bM = 0, bA = 0;
+        for (const t of recent) {
+          const e = (t.freethrows || []).find(x => x.playerId === p.id);
+          rM += e.made || 0; rA += e.attempted || 0;
+        }
+        for (const t of baseline) {
+          const e = (t.freethrows || []).find(x => x.playerId === p.id);
+          bM += e.made || 0; bA += e.attempted || 0;
+        }
+        const rPct = pct(rM, rA);
+        const bPct = pct(bM, bA);
+        if (bPct > 0 && rPct - bPct <= -10) {
+          out.push({
+            severity: 'warn',
+            playerId: p.id,
+            playerName: p.name,
+            type: 'ft_decline',
+            message: p.name + ': Freiwurf-Form ' + (rPct - bPct) + ' % unter Saisonschnitt (' + rPct + ' % vs. ' + bPct + ' %)'
+          });
+        }
+      }
+
+      // 3) Fitness-Rueckgang: letzter Fitness-Wert pro Metrik schlechter als der vorvorherige
+      const fitnessTrainings = trainingsChrono.filter(t =>
+        (t.fitness || []).some(e => e.playerId === p.id &&
+          ['sprint','rimTouches','laneAgility','pushUps'].some(k => e[k] != null && !isNaN(e[k])))
+      );
+      if (fitnessTrainings.length >= 2) {
+        const lastT = fitnessTrainings[fitnessTrainings.length - 1];
+        const prevT = fitnessTrainings[fitnessTrainings.length - 2];
+        const lastE = (lastT.fitness || []).find(e => e.playerId === p.id);
+        const prevE = (prevT.fitness || []).find(e => e.playerId === p.id);
+        const metricMeta = {
+          sprint:      { label: 'Sprint',       lowerIsBetter: true },
+          rimTouches:  { label: 'Rim Touches',  lowerIsBetter: false },
+          laneAgility: { label: 'Lane Agility', lowerIsBetter: true },
+          pushUps:     { label: 'Liegestütze',  lowerIsBetter: false }
+        };
+        const declined = [];
+        for (const key of Object.keys(metricMeta)) {
+          if (lastE && prevE && lastE[key] != null && prevE[key] != null) {
+            const m = metricMeta[key];
+            const worse = m.lowerIsBetter ? lastE[key] > prevE[key] : lastE[key] < prevE[key];
+            if (worse) declined.push(m.label);
+          }
+        }
+        if (declined.length >= 2) {
+          out.push({
+            severity: 'info',
+            playerId: p.id,
+            playerName: p.name,
+            type: 'fitness_decline',
+            message: p.name + ': Fitness-Rueckgang bei ' + declined.join(', ')
+          });
+        }
+      }
+    }
+
+    // Severity-Sortierung: warn vor info
+    out.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'warn' ? -1 : 1));
+    return out;
+  }
+
   function attendanceStreak(playerId) {
     // Seasonuebergreifend: alle abgeschlossenen Trainings chronologisch (aelteste zuerst).
     const trainings = allEndedTrainings().slice()
@@ -628,6 +725,7 @@ BT.stats = (function() {
     topAttenders, topFreethrowShooters, topShootersByCategory,
     nextTrainingCountdown,
     trainingTeamShotQuote, trainingDelta, trainingFitnessSummary, trainingSprintSummary, attendanceStreak,
+    teamAlerts,
     playerFTSparkline, statsByPosition, improvingPlayers
   };
 })();

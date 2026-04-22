@@ -3329,3 +3329,76 @@ table.results tr:last-child td { border-bottom: none; }
 .ps-small {
   font-size: 12px;
 }
+
+/* ============================================================
+   Alerts-Karte (Dashboard)
+   ============================================================ */
+
+.alerts-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  margin: 16px 0 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.alerts-card.hidden { display: none; }
+
+.alerts-head {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.alerts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.alert-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  border-left: 3px solid var(--border);
+  background: var(--surface-2);
+}
+
+.alert-row a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.alert-row a:hover {
+  text-decoration: underline;
+}
+
+.alert-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.alert-warn {
+  border-left-color: #d97706;
+  background: rgba(217, 119, 6, 0.08);
+}
+
+.alert-info {
+  border-left-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+[data-theme="dark"] .alert-warn {
+  background: rgba(245, 158, 11, 0.14);
+}
+
+[data-theme="dark"] .alert-info {
+  background: rgba(96, 165, 250, 0.14);
+}
