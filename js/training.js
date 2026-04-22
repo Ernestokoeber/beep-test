@@ -2118,7 +2118,6 @@ BT.training = (function() {
     }
 
     if (presentList.length > 0) {
-      heading('Spieler-Statistik');
       const hasFT = fts.length > 0;
       const cols = ['Spieler'];
       if (hasFT) cols.push('FT');
@@ -2149,6 +2148,21 @@ BT.training = (function() {
         return row;
       });
 
+      // Tabelle soll nicht ueber Seitenumbruch zerrissen werden:
+      // heading (28) + header-row (18) + data-rows (18*n) + trailing (8).
+      // Wenn das auf die aktuelle Seite nicht passt, aber auf eine frische
+      // volle Seite passen wuerde, jetzt schon eine neue Seite anfangen.
+      const headingH = 28;
+      const tableH = (rows.length + 1) * 18 + 8;
+      const needed = headingH + tableH;
+      const remaining = pageH - margin - y;
+      const fullPage = pageH - 2 * margin;
+      if (needed > remaining && needed <= fullPage) {
+        doc.addPage();
+        y = margin;
+      }
+
+      heading('Spieler-Statistik');
       ensureSpace(36);
       y = drawTable(doc, margin, y, widths, cols, rows, { header: green });
       y += 8;
