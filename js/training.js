@@ -359,17 +359,20 @@ BT.training = (function() {
       <span class="att-chip muted-chip">Gesamt ${s.total}</span>
       <button type="button" class="btn small" data-action="toggle-ended">${ended ? 'Wieder öffnen' : 'Als beendet markieren'}</button>
     `;
-    const toggleBtn = $('[data-action="toggle-ended"]', el);
-    if (toggleBtn) toggleBtn.addEventListener('click', () => {
-      if (currentTraining.endedAt) {
-        if (!confirm('Training wieder öffnen? Es fällt dann aus der Spielerstatistik heraus, bis es erneut beendet wird.')) return;
-        delete currentTraining.endedAt;
-      } else {
-        currentTraining.endedAt = new Date().toISOString();
-      }
-      save();
-      renderSummary();
-    });
+    if (!el._toggleEndedBound) {
+      el.addEventListener('click', (e) => {
+        if (!e.target.closest('[data-action="toggle-ended"]')) return;
+        if (currentTraining.endedAt) {
+          if (!confirm('Training wieder öffnen? Es fällt dann aus der Spielerstatistik heraus, bis es erneut beendet wird.')) return;
+          delete currentTraining.endedAt;
+        } else {
+          currentTraining.endedAt = new Date().toISOString();
+        }
+        save();
+        renderSummary();
+      });
+      el._toggleEndedBound = true;
+    }
   }
 
   function getOrCreateFT(playerId) {
