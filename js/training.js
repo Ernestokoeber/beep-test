@@ -2161,34 +2161,30 @@ BT.training = (function() {
     if (fitnessEntries.length > 0) {
       heading('Fitness-Test');
 
-      // Bilanz: Best pro Metrik + Team-Durchschnitt (nur wenn Summary verfuegbar)
+      // Bilanz: Summary-Tabelle Metrik | Team-Best (Spieler) | Team-Durchschnitt
       if (BT.stats && BT.stats.trainingFitnessSummary) {
         const fs = BT.stats.trainingFitnessSummary(training.id);
         if (fs && fs.hasAny) {
-          const bestParts = [];
-          const avgParts = [];
+          const summaryRows = [];
           for (const mm of fs.metrics) {
             if (mm.count === 0) continue;
             const u = mm.unit ? ' ' + mm.unit : '';
-            bestParts.push(mm.label + ': ' + Number(mm.best.value).toFixed(mm.digits) + u + ' (' + mm.best.playerName + ')');
-            avgParts.push(mm.label + ': ' + Number(mm.avg).toFixed(mm.digits) + u);
+            summaryRows.push([
+              mm.label,
+              Number(mm.best.value).toFixed(mm.digits) + u + '  ·  ' + mm.best.playerName,
+              Number(mm.avg).toFixed(mm.digits) + u
+            ]);
           }
-          if (bestParts.length > 0) {
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(0, 75, 43);
-            const bestText = 'Team-Best: ' + bestParts.join('  ·  ');
-            const bestLines = doc.splitTextToSize(bestText, pageW - 2 * margin);
-            ensureSpace(bestLines.length * 13 + 4);
-            doc.text(bestLines, margin, y); y += bestLines.length * 13;
-
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(80);
-            const avgText = 'Team-Ø: ' + avgParts.join('  ·  ');
-            const avgLines = doc.splitTextToSize(avgText, pageW - 2 * margin);
-            ensureSpace(avgLines.length * 13 + 6);
-            doc.text(avgLines, margin, y); y += avgLines.length * 13 + 6;
-            doc.setTextColor(20);
+          if (summaryRows.length > 0) {
+            const nameW3 = 130;
+            const bestW3 = Math.round((pageW - 2 * margin - nameW3) * 0.62);
+            const avgW3 = pageW - 2 * margin - nameW3 - bestW3;
+            ensureSpace((summaryRows.length + 1) * 18 + 10);
+            y = drawTable(doc, margin, y,
+              [nameW3, bestW3, avgW3],
+              ['Metrik', 'Team-Best (Spieler)', 'Team-Ø'],
+              summaryRows, { header: green });
+            y += 10;
           }
         }
       }
