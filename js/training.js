@@ -2012,42 +2012,47 @@ BT.training = (function() {
       }
       y += 6;
 
-      // Saison-Delta + Trend-Zeilen
+      // Saison-Delta + Trend-Zeilen — Farbe statt Unicode-Pfeil (jsPDF-Helvetica kann die nicht)
+      // direction: 1 = besser (gruen), -1 = schlechter (rot), 0 = gleich (grau)
       const infoLines = [];
+      const colorUp = [0, 120, 70];
+      const colorDown = [180, 35, 35];
+      const colorFlat = [100, 100, 100];
       if (BT.stats && BT.stats.trainingTeamShotQuote) {
         const q = BT.stats.trainingTeamShotQuote(training.id);
         if (q && q.deltaVsSeason) {
           if (q.deltaVsSeason.totalPct != null) {
             const d = Math.round(q.deltaVsSeason.totalPct);
-            const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '=';
             const sign = d > 0 ? '+' : '';
-            infoLines.push(arrow + ' Feldwürfe ' + sign + d + '% vs. Saisonschnitt');
+            infoLines.push({ text: 'Feldwürfe ' + sign + d + ' % vs. Saisonschnitt', dir: Math.sign(d) });
           }
           if (q.deltaVsSeason.ftPct != null) {
             const d = Math.round(q.deltaVsSeason.ftPct);
-            const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '=';
             const sign = d > 0 ? '+' : '';
-            infoLines.push(arrow + ' Freiwürfe ' + sign + d + '% vs. Saisonschnitt');
+            infoLines.push({ text: 'Freiwürfe ' + sign + d + ' % vs. Saisonschnitt', dir: Math.sign(d) });
           }
         }
       }
       if (BT.stats && BT.stats.trainingDelta) {
         const td = BT.stats.trainingDelta(training.id);
         if (td && td.trend) {
-          const arrow = td.trend === 'up' ? '▲' : td.trend === 'down' ? '▼' : '=';
           const parts = [];
-          if (td.fgDelta != null) parts.push('Würfe ' + (td.fgDelta > 0 ? '+' : '') + Math.round(td.fgDelta) + '%');
-          if (td.ftDelta != null) parts.push('FT ' + (td.ftDelta > 0 ? '+' : '') + Math.round(td.ftDelta) + '%');
-          if (parts.length > 0) infoLines.push(arrow + ' vs. letztem Training: ' + parts.join(', '));
+          if (td.fgDelta != null) parts.push('Würfe ' + (td.fgDelta > 0 ? '+' : '') + Math.round(td.fgDelta) + ' %');
+          if (td.ftDelta != null) parts.push('FT ' + (td.ftDelta > 0 ? '+' : '') + Math.round(td.ftDelta) + ' %');
+          if (parts.length > 0) {
+            const dir = td.trend === 'up' ? 1 : td.trend === 'down' ? -1 : 0;
+            infoLines.push({ text: 'vs. letztem Training: ' + parts.join(', '), dir });
+          }
         }
       }
       if (infoLines.length > 0) {
         ensureSpace(infoLines.length * 13 + 6);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(60);
         for (const line of infoLines) {
-          doc.text(line, margin, y);
+          const c = line.dir > 0 ? colorUp : line.dir < 0 ? colorDown : colorFlat;
+          doc.setTextColor(c[0], c[1], c[2]);
+          doc.text(line.text, margin, y);
           y += 13;
         }
         doc.setTextColor(20);
