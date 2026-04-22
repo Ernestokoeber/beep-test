@@ -3255,3 +3255,77 @@ table.results tr:last-child td { border-bottom: none; }
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+   Spieler-Stats-Modal (Klick auf Spielername in Anwesenheit)
+   ============================================================ */
+
+.name-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--muted);
+}
+.name-btn:hover,
+.name-btn:focus {
+  color: var(--cta);
+  border-bottom-color: var(--cta);
+  outline: none;
+}
+
+.player-stats-modal {
+  max-width: 520px;
+}
+
+.ps-subtitle {
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.ps-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ps-block {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.ps-block-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.ps-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ps-row-label {
+  min-width: 110px;
+  font-weight: 600;
+}
+
+.ps-small {
+  font-size: 12px;
+}

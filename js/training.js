@@ -297,7 +297,7 @@ BT.training = (function() {
       card.className = 'att-card status-' + (att.status || 'pending');
       card.innerHTML = `
         <div class="att-head">
-          <span class="name">${escapeHTML(player.name)}</span>
+          <button type="button" class="name name-btn" data-role="open-player-stats" title="Spieler-Details & Report">${escapeHTML(player.name)}</button>
           <label class="late-box ${att.status !== 'present' ? 'disabled' : ''}">
             <input type="checkbox" data-role="late" ${att.late ? 'checked' : ''} ${att.status !== 'present' ? 'disabled' : ''}>
             Zu spät
@@ -336,6 +336,9 @@ BT.training = (function() {
         save();
         renderSummary();
       });
+
+      const openBtn = $('[data-role="open-player-stats"]', card);
+      if (openBtn) openBtn.addEventListener('click', () => openPlayerStatsModal(player, currentTraining));
 
       list.appendChild(card);
     }
@@ -2537,5 +2540,338 @@ BT.training = (function() {
     downloadJSON('training_' + training.date + '.json', payload);
   }
 
-  return { renderList, renderDetail };
+  // ====== Spieler-Detail-Modal + Einzel-Report ======
+
+  function gatherPlayerStats(player, training) {
+    const att = (training.attendance || []).find(a => a.playerId === player.id) || null;
+    const ftEntry = (training.freethrows || []).find(e => e.playerId === player.id) || null;
+    const shotEntries = [];
+    for (const cat of (training.shots || [])) {
+      const e = (cat.entries || []).find(x => x.playerId === player.id);
+      if (e && (e.attempted || 0) > 0) {
+        shotEntries.push({ category: cat.category, made: e.made || 0, attempted: e.attempted || 0, pct: pct(e.made || 0, e.attempted || 0) });
+      }
+    }
+    const fitEntry = (training.fitness || []).find(e => e.playerId === player.id) || null;
+
+    // Saison-Werte (aus stats.js, ueber alle beendeten Trainings der Saison)
+    const seasonFT = BT.stats ? BT.stats.playerFreethrows(player.id) : null;
+    const seasonShots = BT.stats ? BT.stats.playerShotsByCategory(player.id) : [];
+
+    // Vorherigen Fitness-Wert finden (letztes beendetes Training davor mit Wert pro Metrik)
+    const priorTrainings = BT.storage.getTrainings()
+      .filter(t => t.id !== training.id && (t.date || '') <= (training.date || '') && (t.endedAt || (t.date || '') < todayISO()))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const fitnessMetricsKeys = ['sprint', 'rimTouches', 'laneAgility', 'pushUps'];
+    const prevFitness = {};
+    for (const key of fitnessMetricsKeys) {
+      if (fitEntry && fitEntry[key] != null) {
+        for (const pt of priorTrainings) {
+          const pe = (pt.fitness || []).find(x => x.playerId === player.id);
+          if (pe && pe[key] != null && !isNaN(pe[key])) { prevFitness[key] = pe[key]; break; }
+        }
+      }
+    }
+
+    return { att, ftEntry, shotEntries, fitEntry, seasonFT, seasonShots, prevFitness };
+  }
+
+  const FITNESS_META = {
+    sprint:      { label: 'Sprint',       unit: 's', digits: 2, lowerIsBetter: true },
+    rimTouches:  { label: 'Rim Touches',  unit: '',  digits: 0, lowerIsBetter: false },
+    laneAgility: { label: 'Lane Agility', unit: 's', digits: 2, lowerIsBetter: true },
+    pushUps:     { label: 'Liegestütze',  unit: '',  digits: 0, lowerIsBetter: false }
+  };
+
+  function openPlayerStatsModal(player, training) {
+    const backdrop = renderTemplate('tpl-player-stats-modal');
+    document.body.appendChild(backdrop);
+    const controller = new AbortController();
+    const signal = controller.signal;
+    function close() {
+      if (!backdrop.parentNode) return;
+      backdrop.remove();
+      controller.abort();
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); }, { signal });
+    window.addEventListener('hashchange', close, { signal });
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop) close();
+      if (e.target.closest('[data-action="close"]')) close();
+      if (e.target.closest('[data-action="share-report"]')) sharePlayerReport(player, training);
+    }, { signal });
+
+    $('[data-role="title"]', backdrop).textContent = player.name;
+    const subParts = [];
+    if (player.position) subParts.push(player.position);
+    subParts.push('Training ' + formatDate(training.date));
+    $('[data-role="subtitle"]', backdrop).textContent = subParts.join(' · ');
+
+    const data = gatherPlayerStats(player, training);
+    const content = $('[data-role="content"]', backdrop);
+    const blocks = [];
+
+    // Anwesenheit
+    const attStatus = data.att ? (STATUS_LABELS[data.att.status] || '—') : '—';
+    const attBits = [attStatus];
+    if (data.att && data.att.late) attBits.push('zu spät');
+    if (data.att && data.att.note) attBits.push(escapeHTML(data.att.note));
+    blocks.push(`<div class="ps-block"><div class="ps-block-title">Anwesenheit</div><div>${attBits.join(' · ')}</div></div>`);
+
+    // Freiwürfe
+    if (data.ftEntry && data.ftEntry.attempted > 0) {
+      const tPct = pct(data.ftEntry.made, data.ftEntry.attempted);
+      const sPct = data.seasonFT && data.seasonFT.attempted > 0 ? data.seasonFT.pct : null;
+      const delta = sPct != null ? tPct - sPct : null;
+      const deltaTxt = delta != null ? deltaLabel(delta) : '';
+      blocks.push(`
+        <div class="ps-block">
+          <div class="ps-block-title">Freiwürfe</div>
+          <div><strong>${data.ftEntry.made} von ${data.ftEntry.attempted}</strong> (${tPct} %) ${deltaTxt}</div>
+          ${sPct != null ? '<div class="muted ps-small">Saison: ' + data.seasonFT.made + ' von ' + data.seasonFT.attempted + ' (' + sPct + ' %)</div>' : ''}
+        </div>
+      `);
+    }
+
+    // Würfe pro Kategorie
+    if (data.shotEntries.length > 0) {
+      const rows = data.shotEntries.map(s => {
+        const sn = data.seasonShots.find(x => x.category === s.category);
+        const sPct = sn && sn.attempted > 0 ? sn.pct : null;
+        const delta = sPct != null ? s.pct - sPct : null;
+        const deltaTxt = delta != null ? deltaLabel(delta) : '';
+        return `<div class="ps-row">
+          <span class="ps-row-label">${escapeHTML(s.category)}</span>
+          <span><strong>${s.made} von ${s.attempted}</strong> (${s.pct} %) ${deltaTxt}</span>
+          ${sPct != null ? '<span class="muted ps-small">Saison ' + sPct + ' %</span>' : ''}
+        </div>`;
+      }).join('');
+      blocks.push('<div class="ps-block"><div class="ps-block-title">Würfe</div>' + rows + '</div>');
+    }
+
+    // Fitness
+    if (data.fitEntry) {
+      const rows = [];
+      for (const key of ['sprint', 'rimTouches', 'laneAgility', 'pushUps']) {
+        const v = data.fitEntry[key];
+        if (v == null || isNaN(v)) continue;
+        const m = FITNESS_META[key];
+        const prev = data.prevFitness[key];
+        let trend = '';
+        if (prev != null) {
+          const delta = v - prev;
+          const improved = m.lowerIsBetter ? delta < 0 : delta > 0;
+          const cls = delta === 0 ? 'delta-flat' : improved ? 'delta-up' : 'delta-down';
+          const signed = (delta > 0 ? '+' : '') + Number(delta).toFixed(m.digits);
+          trend = ` <span class="delta-chip ${cls}">${signed}${m.unit ? ' ' + m.unit : ''} vs. letzter Test</span>`;
+        }
+        rows.push(`<div class="ps-row">
+          <span class="ps-row-label">${m.label}</span>
+          <span><strong>${Number(v).toFixed(m.digits)}${m.unit ? ' ' + m.unit : ''}</strong>${trend}</span>
+        </div>`);
+      }
+      if (rows.length > 0) {
+        blocks.push('<div class="ps-block"><div class="ps-block-title">Fitness</div>' + rows.join('') + '</div>');
+      }
+    }
+
+    content.innerHTML = blocks.join('');
+  }
+
+  function deltaLabel(delta) {
+    const r = Math.round(delta);
+    if (r === 0) return '<span class="delta-chip delta-flat">±0 %</span>';
+    const cls = r > 0 ? 'delta-up' : 'delta-down';
+    const sign = r > 0 ? '+' : '';
+    return `<span class="delta-chip ${cls}">${sign}${r} % vs. Saison</span>`;
+  }
+
+  async function sharePlayerReport(player, training) {
+    try {
+      const jsPDF = await loadJsPDF();
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      buildPlayerReportPDF(doc, player, training);
+      const blob = doc.output('blob');
+      const filename = ('spieler_' + player.name + '_' + training.date + '.pdf').replace(/\s+/g, '_');
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+        try {
+          await navigator.share({ files: [file], title: 'Report ' + player.name });
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;
+        }
+      }
+      downloadBlob(filename, blob);
+    } catch (e) {
+      alert('Report konnte nicht erzeugt werden: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  function buildPlayerReportPDF(doc, player, training) {
+    const data = gatherPlayerStats(player, training);
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    let y = margin;
+    const orange = [232, 161, 77];
+    const green = [0, 75, 43];
+
+    // Header
+    doc.setFillColor(orange[0], orange[1], orange[2]);
+    doc.rect(0, 0, pageW, 70, 'F');
+    doc.setTextColor(255);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TSV Lindau Basketball', margin, 30);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Spieler-Report', margin, 48);
+    doc.setFontSize(11);
+    doc.text(formatDate(training.date), pageW - margin, 30, { align: 'right' });
+    if (training.startTime) doc.text(training.startTime + ' Uhr', pageW - margin, 46, { align: 'right' });
+    y = 90;
+    doc.setTextColor(20);
+
+    // Spielername
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(player.name, margin, y);
+    y += 22;
+    if (player.position) {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100);
+      doc.text(player.position, margin, y);
+      doc.setTextColor(20);
+      y += 14;
+    }
+    y += 10;
+
+    function heading(text) {
+      doc.setFillColor(green[0], green[1], green[2]);
+      doc.rect(margin, y, pageW - 2 * margin, 20, 'F');
+      doc.setTextColor(255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(text, margin + 8, y + 14);
+      doc.setTextColor(20);
+      doc.setFont('helvetica', 'normal');
+      y += 28;
+    }
+
+    function kv(label, value) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(label + ':', margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(value, margin + 140, y);
+      y += 14;
+    }
+
+    function deltaColor(delta) {
+      if (delta == null || isNaN(delta) || Math.round(delta) === 0) return [100, 100, 100];
+      return delta > 0 ? [0, 120, 70] : [180, 35, 35];
+    }
+
+    // Anwesenheit
+    heading('Anwesenheit');
+    const attStatus = data.att ? (STATUS_LABELS[data.att.status] || '—') : '—';
+    kv('Status', attStatus + (data.att && data.att.late ? ' (zu spät)' : ''));
+    if (data.att && data.att.note) kv('Notiz', data.att.note);
+    y += 6;
+
+    // Freiwürfe
+    if (data.ftEntry && data.ftEntry.attempted > 0) {
+      heading('Freiwürfe');
+      const tPct = pct(data.ftEntry.made, data.ftEntry.attempted);
+      kv('Dieses Training', data.ftEntry.made + ' von ' + data.ftEntry.attempted + '  (' + tPct + ' %)');
+      if (data.seasonFT && data.seasonFT.attempted > 0) {
+        kv('Saisonschnitt', data.seasonFT.made + ' von ' + data.seasonFT.attempted + '  (' + data.seasonFT.pct + ' %)');
+        const delta = tPct - data.seasonFT.pct;
+        const r = Math.round(delta);
+        const sign = r > 0 ? '+' : '';
+        const c = deltaColor(delta);
+        doc.setTextColor(c[0], c[1], c[2]);
+        doc.setFontSize(10);
+        doc.text('Differenz: ' + sign + r + ' % vs. Saisonschnitt', margin, y);
+        doc.setTextColor(20);
+        y += 14;
+      }
+      y += 6;
+    }
+
+    // Würfe
+    if (data.shotEntries.length > 0) {
+      heading('Würfe');
+      for (const s of data.shotEntries) {
+        const sn = data.seasonShots.find(x => x.category === s.category);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(s.category + ':', margin, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(s.made + ' von ' + s.attempted + '  (' + s.pct + ' %)', margin + 140, y);
+        y += 14;
+        if (sn && sn.attempted > 0) {
+          const delta = s.pct - sn.pct;
+          const r = Math.round(delta);
+          const sign = r > 0 ? '+' : '';
+          doc.setTextColor(100);
+          doc.setFontSize(9);
+          doc.text('Saisonschnitt: ' + sn.made + ' von ' + sn.attempted + ' (' + sn.pct + ' %)', margin + 20, y);
+          y += 12;
+          const c = deltaColor(delta);
+          doc.setTextColor(c[0], c[1], c[2]);
+          doc.text('Differenz: ' + sign + r + ' % vs. Saisonschnitt', margin + 20, y);
+          y += 14;
+          doc.setTextColor(20);
+          doc.setFontSize(10);
+        }
+      }
+      y += 6;
+    }
+
+    // Fitness
+    if (data.fitEntry) {
+      const hasAny = ['sprint', 'rimTouches', 'laneAgility', 'pushUps'].some(k => data.fitEntry[k] != null && !isNaN(data.fitEntry[k]));
+      if (hasAny) {
+        heading('Fitness');
+        for (const key of ['sprint', 'rimTouches', 'laneAgility', 'pushUps']) {
+          const v = data.fitEntry[key];
+          if (v == null || isNaN(v)) continue;
+          const m = FITNESS_META[key];
+          const u = m.unit ? ' ' + m.unit : '';
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.text(m.label + ':', margin, y);
+          doc.setFont('helvetica', 'normal');
+          doc.text(Number(v).toFixed(m.digits) + u, margin + 140, y);
+          const prev = data.prevFitness[key];
+          if (prev != null) {
+            const delta = v - prev;
+            const improved = m.lowerIsBetter ? delta < 0 : delta > 0;
+            const r = Number(delta).toFixed(m.digits);
+            const sign = delta > 0 ? '+' : '';
+            const c = delta === 0 ? [100, 100, 100] : (improved ? [0, 120, 70] : [180, 35, 35]);
+            doc.setTextColor(c[0], c[1], c[2]);
+            doc.setFontSize(9);
+            doc.text('vs. letzter Test: ' + sign + r + u + '  (vorher ' + Number(prev).toFixed(m.digits) + u + ')', margin + 140, y + 12);
+            doc.setTextColor(20);
+            doc.setFontSize(10);
+            y += 12;
+          }
+          y += 14;
+        }
+        y += 6;
+      }
+    }
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text('TSV Lindau Basketball · Erstellt ' + formatDate(new Date().toISOString().slice(0, 10)),
+      margin, pageH - 20);
+  }
+
+  return { renderList, renderDetail, openPlayerStatsModal };
 })();

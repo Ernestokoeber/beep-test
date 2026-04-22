@@ -830,6 +830,24 @@
     </div>
   </template>
 
+  <template id="tpl-player-stats-modal">
+    <div class="modal-backdrop" data-role="modal-backdrop">
+      <div class="modal player-stats-modal" role="dialog" aria-label="Spieler-Statistik">
+        <div class="modal-head">
+          <h3 data-role="title">Spieler</h3>
+          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="ps-subtitle muted" data-role="subtitle"></div>
+          <div class="ps-content" data-role="content"></div>
+          <div class="modal-foot">
+            <button type="button" class="btn primary" data-action="share-report">📄 Report teilen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <template id="tpl-drill-picker">
     <div class="modal-backdrop" data-role="modal-backdrop">
       <div class="modal" role="dialog" aria-label="Drill aus Bibliothek">
