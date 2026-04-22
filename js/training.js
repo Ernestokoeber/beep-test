@@ -1982,7 +1982,7 @@ BT.training = (function() {
     if (fts.length > 0) {
       let m = 0, a = 0;
       for (const e of fts) { m += e.made; a += e.attempted; }
-      teamRows.push(['Freiwürfe', m + '/' + a, pct(m, a) + '%']);
+      teamRows.push(['Freiwürfe', m + ' von ' + a + '  (' + pct(m, a) + ' %)']);
     }
     const activeCats = [];
     for (const cat of (training.shots || [])) {
@@ -1991,7 +1991,7 @@ BT.training = (function() {
       activeCats.push(cat);
       let m = 0, a = 0;
       for (const e of entries) { m += e.made; a += e.attempted; }
-      teamRows.push([cat.category, m + '/' + a, pct(m, a) + '%']);
+      teamRows.push([cat.category, m + ' von ' + a + '  (' + pct(m, a) + ' %)']);
     }
     if (teamRows.length === 0) {
       ensureSpace(14);
@@ -2000,12 +2000,17 @@ BT.training = (function() {
       doc.setFont('helvetica', 'normal');
       y += 14;
     } else {
-      ensureSpace((teamRows.length + 1) * 18 + 4);
-      y = drawTable(doc, margin, y,
-        [pageW - 2 * margin - 160, 80, 80],
-        ['Kategorie', 'Treffer/Versuche', 'Quote'],
-        teamRows, { header: orange });
-      y += 8;
+      const teamLabelW = 140;
+      doc.setFontSize(10);
+      for (const row of teamRows) {
+        ensureSpace(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(row[0] + ':', margin, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(row[1], margin + teamLabelW, y);
+        y += 14;
+      }
+      y += 6;
 
       // Saison-Delta + Trend-Zeilen
       const infoLines = [];
