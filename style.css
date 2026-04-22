@@ -3098,3 +3098,160 @@ table.results tr:last-child td { border-bottom: none; }
 }
 .plan-drill-edit textarea { resize: vertical; }
 .plan-drill-edit [data-action="edit-close"] { align-self: flex-end; }
+
+/* ============================================================
+   Fitness-Bilanz + Sprint-Bilanz (Uebersichts-Tab)
+   ============================================================ */
+
+.fitness-bilanz,
+.sprint-bilanz {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 0 0 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.fitness-bilanz.hidden,
+.sprint-bilanz.hidden { display: none; }
+
+.fitness-metric-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.fitness-metric {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fitness-metric-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.fitness-metric-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.fitness-metric-count {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.fitness-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
+}
+
+.fitness-metric-best { font-weight: 600; }
+.fitness-metric-avg { color: var(--muted); }
+
+.tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+
+.tag-best {
+  background: rgba(0, 128, 0, 0.14);
+  color: #065f46;
+}
+
+[data-theme="dark"] .tag-best {
+  background: rgba(34, 197, 94, 0.22);
+  color: #86efac;
+}
+
+.fitness-trend-wrap {
+  margin-top: 14px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+}
+
+.fitness-trend-head {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.fitness-trend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fitness-trend {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.fitness-trend-name {
+  font-weight: 600;
+  min-width: 80px;
+}
+
+.fitness-trend-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.delta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.delta-chip.delta-up { background: rgba(0, 128, 0, 0.14); color: #065f46; }
+.delta-chip.delta-down { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
+[data-theme="dark"] .delta-chip.delta-up { background: rgba(34, 197, 94, 0.22); color: #86efac; }
+[data-theme="dark"] .delta-chip.delta-down { background: rgba(248, 113, 113, 0.22); color: #fca5a5; }
+
+.sprint-bilanz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}

@@ -227,6 +227,8 @@ BT.training = (function() {
         renderShots();
         renderFitness();
         renderSprints();
+        renderFitnessBilanz();
+        renderSprintBilanz();
         BT.util.toast('Anwesenheit zurückgesetzt', {
           actionLabel: 'Rückgängig',
           action: () => {
@@ -240,6 +242,8 @@ BT.training = (function() {
             renderShots();
             renderFitness();
             renderSprints();
+            renderFitnessBilanz();
+            renderSprintBilanz();
           }
         });
       });
@@ -253,6 +257,8 @@ BT.training = (function() {
     renderFitness();
     renderSprints();
     renderTeamQuoteCard();
+    renderFitnessBilanz();
+    renderSprintBilanz();
     renderTrainingHeatmap();
 
     const gotoMapLink = $('[data-action="goto-map"]', detailRoot);
@@ -982,6 +988,7 @@ BT.training = (function() {
         if (target === 'map') renderShotMap();
         if (target === 'fitness') renderFitness();
         if (target === 'sprints') renderSprints();
+        if (target === 'overview') { renderFitnessBilanz(); renderSprintBilanz(); renderTeamQuoteCard(); }
         if (btn.scrollIntoView) btn.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
         if (detailRoot && detailRoot.scrollIntoView) detailRoot.scrollIntoView({ block: 'start', behavior: 'instant' });
       });
@@ -1260,6 +1267,95 @@ BT.training = (function() {
       : '';
 
     wrap.innerHTML = fgBlock + ftBlock;
+  }
+
+  function fmtNum(v, digits) {
+    if (v == null || isNaN(v)) return '–';
+    return Number(v).toFixed(digits);
+  }
+
+  function fmtSprintSec(sec) {
+    if (sec == null || isNaN(sec)) return '–';
+    const m = Math.floor(sec / 60);
+    const rest = sec - m * 60;
+    return (m > 0 ? (m + ':' + rest.toFixed(2).padStart(5, '0')) : rest.toFixed(2)) + (m > 0 ? '' : ' s');
+  }
+
+  function renderFitnessBilanz() {
+    const wrap = $('[data-role="fitness-bilanz"]', detailRoot);
+    if (!wrap || !BT.stats || !BT.stats.trainingFitnessSummary) return;
+    const s = BT.stats.trainingFitnessSummary(currentTraining.id);
+
+    if (!s.hasAny) {
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+
+    const metricRows = s.metrics.filter(m => m.count > 0).map(m => {
+      const bestVal = fmtNum(m.best.value, m.digits) + (m.unit ? ' ' + m.unit : '');
+      const avgVal  = fmtNum(m.avg, m.digits) + (m.unit ? ' ' + m.unit : '');
+      return `
+        <li class="fitness-metric">
+          <div class="fitness-metric-head">
+            <span class="fitness-metric-label">${escapeHTML(m.label)}</span>
+            <span class="fitness-metric-count">${m.count} Spieler</span>
+          </div>
+          <div class="fitness-metric-row">
+            <span class="fitness-metric-best" title="Team-Bestwert"><span class="tag tag-best">Best</span> ${bestVal} · ${escapeHTML(m.best.playerName)}</span>
+            <span class="fitness-metric-avg" title="Team-Durchschnitt">Ø ${avgVal}</span>
+          </div>
+        </li>
+      `;
+    }).join('');
+
+    const trendRows = s.trends.map(t => {
+      const chips = t.items.map(it => {
+        const signed = (it.delta > 0 ? '+' : '') + fmtNum(it.delta, it.digits);
+        const arrow = it.improved ? '↑' : '↓';
+        const cls = it.improved ? 'delta-up' : 'delta-down';
+        return `<span class="delta-chip ${cls}" title="${escapeHTML(it.metricLabel)}: ${fmtNum(it.prev, it.digits)}${it.unit ? ' ' + it.unit : ''} → ${fmtNum(it.current, it.digits)}${it.unit ? ' ' + it.unit : ''}">${arrow} ${escapeHTML(it.metricLabel)} ${signed}${it.unit ? ' ' + it.unit : ''}</span>`;
+      }).join('');
+      return `
+        <li class="fitness-trend">
+          <span class="fitness-trend-name">${escapeHTML(t.playerName)}</span>
+          <span class="fitness-trend-chips">${chips}</span>
+        </li>
+      `;
+    }).join('');
+
+    const trendBlock = trendRows
+      ? `<div class="fitness-trend-wrap"><div class="fitness-trend-head">Trend vs. letztem Fitnesstest</div><ul class="fitness-trend-list">${trendRows}</ul></div>`
+      : '';
+
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = `
+      <div class="team-quote-label">🏃 Fitness-Bilanz</div>
+      <ul class="fitness-metric-list">${metricRows}</ul>
+      ${trendBlock}
+    `;
+  }
+
+  function renderSprintBilanz() {
+    const wrap = $('[data-role="sprint-bilanz"]', detailRoot);
+    if (!wrap || !BT.stats || !BT.stats.trainingSprintSummary) return;
+    const s = BT.stats.trainingSprintSummary(currentTraining.id);
+
+    if (s.count === 0) {
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = `
+      <div class="team-quote-label">⏱ Sprint-Bilanz</div>
+      <div class="sprint-bilanz-row">
+        <span class="fitness-metric-best" title="Team-Bestzeit"><span class="tag tag-best">Best</span> ${fmtSprintSec(s.best.value)} · ${escapeHTML(s.best.playerName)}</span>
+        <span class="fitness-metric-avg" title="Durchschnitt der Spieler-Bestzeiten">Ø ${fmtSprintSec(s.avg)}</span>
+        <span class="fitness-metric-count">${s.count} Spieler · ${s.totalRuns} Läufe</span>
+      </div>
+    `;
   }
 
   function renderTrainingHeatmap() {

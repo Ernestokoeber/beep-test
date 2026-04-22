@@ -324,6 +324,113 @@ BT.stats = (function() {
     return { ftDelta: ftDelta, fgDelta: fgDelta, attendanceDelta: attendanceDelta, trend: trend };
   }
 
+  const FITNESS_METRICS = [
+    { key: 'sprint',      label: 'Sprint',        unit: 's',  digits: 2, lowerIsBetter: true  },
+    { key: 'rimTouches',  label: 'Rim Touches',   unit: '',   digits: 0, lowerIsBetter: false },
+    { key: 'laneAgility', label: 'Lane Agility',  unit: 's',  digits: 2, lowerIsBetter: true  },
+    { key: 'pushUps',     label: 'Liegestütze',   unit: '',   digits: 0, lowerIsBetter: false }
+  ];
+
+  function presentIdSet(training) {
+    const ids = new Set();
+    for (const a of (training.attendance || [])) {
+      if (a && a.status === 'present') ids.add(a.playerId);
+    }
+    return ids;
+  }
+
+  function trainingFitnessSummary(trainingId) {
+    const t = BT.storage.getTraining(trainingId);
+    const emptyMetric = m => ({
+      key: m.key, label: m.label, unit: m.unit, digits: m.digits,
+      lowerIsBetter: m.lowerIsBetter,
+      best: null, avg: null, count: 0
+    });
+    const out = { metrics: FITNESS_METRICS.map(emptyMetric), trends: [], hasAny: false };
+    if (!t) return out;
+
+    const presentIds = presentIdSet(t);
+    const entries = (t.fitness || []).filter(e => presentIds.has(e.playerId));
+    const players = BT.storage.getPlayers();
+    const playerName = id => (players.find(p => p.id === id) || {}).name || 'Unbekannt';
+
+    for (const m of out.metrics) {
+      const vals = [];
+      for (const e of entries) {
+        const v = e[m.key];
+        if (v == null || isNaN(v)) continue;
+        vals.push({ playerId: e.playerId, value: v });
+      }
+      m.count = vals.length;
+      if (vals.length === 0) continue;
+      out.hasAny = true;
+      const sum = vals.reduce((s, x) => s + x.value, 0);
+      m.avg = sum / vals.length;
+      const best = vals.reduce((acc, x) =>
+        acc == null ? x : (m.lowerIsBetter ? (x.value < acc.value ? x : acc) : (x.value > acc.value ? x : acc)),
+      null);
+      m.best = { value: best.value, playerId: best.playerId, playerName: playerName(best.playerId) };
+    }
+
+    // Trends: pro Spieler pro Metrik Delta zum letzten Training mit Wert (chronologisch frueher).
+    const prior = BT.storage.getTrainings()
+      .filter(x => x.id !== t.id && (x.date || '') <= (t.date || '') && isEnded(x))
+      .slice()
+      .sort((a, b) => (b.date || '').localeCompare(a.date || '')); // neueste zuerst
+    const perPlayerTrend = new Map();
+    for (const e of entries) {
+      for (const m of FITNESS_METRICS) {
+        const cur = e[m.key];
+        if (cur == null || isNaN(cur)) continue;
+        let prev = null;
+        for (const pt of prior) {
+          const pe = (pt.fitness || []).find(x => x.playerId === e.playerId);
+          if (pe && pe[m.key] != null && !isNaN(pe[m.key])) { prev = pe[m.key]; break; }
+        }
+        if (prev == null) continue;
+        const delta = cur - prev;
+        if (delta === 0) continue;
+        const improved = m.lowerIsBetter ? delta < 0 : delta > 0;
+        if (!perPlayerTrend.has(e.playerId)) perPlayerTrend.set(e.playerId, []);
+        perPlayerTrend.get(e.playerId).push({
+          metric: m.key, metricLabel: m.label, unit: m.unit, digits: m.digits,
+          prev: prev, current: cur, delta: delta, improved: improved
+        });
+      }
+    }
+    for (const [playerId, items] of perPlayerTrend.entries()) {
+      out.trends.push({ playerId, playerName: playerName(playerId), items });
+    }
+    out.trends.sort((a, b) => a.playerName.localeCompare(b.playerName, 'de'));
+    return out;
+  }
+
+  function trainingSprintSummary(trainingId) {
+    const t = BT.storage.getTraining(trainingId);
+    const out = { best: null, avg: null, count: 0, totalRuns: 0 };
+    if (!t) return out;
+    const presentIds = presentIdSet(t);
+    const players = BT.storage.getPlayers();
+    const playerName = id => (players.find(p => p.id === id) || {}).name || 'Unbekannt';
+
+    const perPlayerBest = [];
+    for (const s of (t.sprints || [])) {
+      if (!presentIds.has(s.playerId)) continue;
+      const times = (s.times || []).map(x => typeof x === 'number' ? x : (x && x.sec))
+        .filter(v => v != null && !isNaN(v));
+      if (times.length === 0) continue;
+      out.totalRuns += times.length;
+      const b = Math.min.apply(null, times);
+      perPlayerBest.push({ playerId: s.playerId, value: b });
+    }
+    out.count = perPlayerBest.length;
+    if (perPlayerBest.length === 0) return out;
+    const best = perPlayerBest.reduce((acc, x) => acc == null ? x : (x.value < acc.value ? x : acc), null);
+    out.best = { value: best.value, playerId: best.playerId, playerName: playerName(best.playerId) };
+    out.avg = perPlayerBest.reduce((s, x) => s + x.value, 0) / perPlayerBest.length;
+    return out;
+  }
+
   function attendanceStreak(playerId) {
     // Seasonuebergreifend: alle abgeschlossenen Trainings chronologisch (aelteste zuerst).
     const trainings = allEndedTrainings().slice()
@@ -520,7 +627,7 @@ BT.stats = (function() {
     teamAttendance, teamFreethrows, teamShotsByCategory,
     topAttenders, topFreethrowShooters, topShootersByCategory,
     nextTrainingCountdown,
-    trainingTeamShotQuote, trainingDelta, attendanceStreak,
+    trainingTeamShotQuote, trainingDelta, trainingFitnessSummary, trainingSprintSummary, attendanceStreak,
     playerFTSparkline, statsByPosition, improvingPlayers
   };
 })();
