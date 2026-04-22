@@ -4,6 +4,39 @@ BT.audio = (function() {
   let ctx = null;
   let unlocked = false;
   let ttsUnlocked = false;
+  let silentAudio = null;
+
+  function createSilentAudio() {
+    // iOS: Hardware-Stummschalter mutet Web Audio, aber nicht HTMLAudioElement.
+    // Ein gelooptes stummes WAV flippt die Audio-Session auf "playback" — Beeps bleiben hörbar.
+    const sampleRate = 8000;
+    const numSamples = sampleRate * 0.5;
+    const buffer = new ArrayBuffer(44 + numSamples);
+    const view = new DataView(buffer);
+    const write = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+    write(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples, true);
+    write(8, 'WAVE');
+    write(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate, true);
+    view.setUint16(32, 1, true);
+    view.setUint16(34, 8, true);
+    write(36, 'data');
+    view.setUint32(40, numSamples, true);
+    for (let i = 0; i < numSamples; i++) view.setUint8(44 + i, 128);
+
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    const audio = new Audio(URL.createObjectURL(blob));
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.playsInline = true;
+    audio.setAttribute('playsinline', '');
+    return audio;
+  }
 
   function ensureContext() {
     if (!ctx) {
@@ -20,6 +53,16 @@ BT.audio = (function() {
         src.connect(ctx.destination);
         src.start(0);
         unlocked = true;
+      } catch (e) { /* ignore */ }
+      try {
+        if (!silentAudio) silentAudio = createSilentAudio();
+        const p = silentAudio.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch (e) { /* ignore */ }
+    } else if (silentAudio && silentAudio.paused) {
+      try {
+        const p = silentAudio.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
       } catch (e) { /* ignore */ }
     }
     if (!ttsUnlocked && 'speechSynthesis' in window) {
