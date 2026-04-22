@@ -45,7 +45,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -234,6 +234,35 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getTemplates() {
+    return (load().templates || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'));
+  }
+
+  function getTemplate(id) { return (load().templates || []).find(t => t.id === id); }
+
+  function upsertTemplate(tpl) {
+    const data = load();
+    data.templates = data.templates || [];
+    const now = new Date().toISOString();
+    if (tpl.id) {
+      const i = data.templates.findIndex(t => t.id === tpl.id);
+      if (i >= 0) data.templates[i] = Object.assign({}, data.templates[i], tpl, { updatedAt: now });
+    } else {
+      tpl.id = BT.util.uuid('tpl_');
+      tpl.createdAt = now;
+      tpl.updatedAt = now;
+      data.templates.push(tpl);
+    }
+    save(data);
+    return tpl;
+  }
+
+  function deleteTemplate(id) {
+    const data = load();
+    data.templates = (data.templates || []).filter(t => t.id !== id);
+    save(data);
+  }
+
   function getSeasons() {
     const data = load();
     const set = new Set();
@@ -302,6 +331,7 @@ BT.storage = (function() {
     getTrainings, getTraining, upsertTraining, deleteTraining, restoreTraining,
     getNotes, getNote, upsertNote, deleteNote, restoreNote,
     getDrills, getDrill, upsertDrill, deleteDrill, restoreDrill,
+    getTemplates, getTemplate, upsertTemplate, deleteTemplate,
     getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,
     getShotCategories, setShotCategories,
     getSetting, setSetting,

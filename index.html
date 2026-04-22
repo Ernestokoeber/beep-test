@@ -304,6 +304,8 @@
             <div class="head-menu-panel">
               <button class="btn small" data-action="share-summary">📤 Text teilen</button>
               <button class="btn small" data-action="ai-summary">🤖 KI-Zusammenfassung</button>
+              <button class="btn small" data-action="load-template">📋 Aus Template laden</button>
+              <button class="btn small" data-action="save-as-template">💾 Als Template speichern</button>
               <button class="btn small" data-action="export-csv">CSV exportieren</button>
               <button class="btn small" data-action="export-json">JSON exportieren</button>
               <button class="btn small danger" data-action="delete">Löschen</button>
@@ -830,6 +832,22 @@
             <button type="button" class="btn" data-action="close">Abbrechen</button>
             <button type="button" class="btn primary" data-action="render-gif">GIF erzeugen</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-template-picker">
+    <div class="modal-backdrop" data-role="modal-backdrop">
+      <div class="modal" role="dialog" aria-label="Trainings-Template laden">
+        <div class="modal-head">
+          <h3>Trainings-Template laden</h3>
+          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="muted ps-small">Ersetzt Plan, Freiwurfzahl und Wurfkategorien dieses Trainings.</p>
+          <ul class="template-list" data-role="list"></ul>
+          <p class="empty hidden" data-role="empty">Keine Templates gespeichert. Erstelle eins über „💾 Als Template speichern" aus einem bestehenden Training.</p>
         </div>
       </div>
     </div>

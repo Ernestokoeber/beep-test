@@ -183,6 +183,8 @@ BT.training = (function() {
     $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTrainingAndShare(currentTraining));
     $('[data-action="export-csv"]', detailRoot).addEventListener('click', () => exportCSV(currentTraining));
     $('[data-action="export-json"]', detailRoot).addEventListener('click', () => exportJSON(currentTraining));
+    $('[data-action="save-as-template"]', detailRoot).addEventListener('click', () => saveCurrentAsTemplate());
+    $('[data-action="load-template"]', detailRoot).addEventListener('click', () => openTemplatePicker());
     $('[data-action="delete"]', detailRoot).addEventListener('click', () => {
       const snapshot = BT.storage.getTraining(currentTraining.id);
       if (!snapshot) { location.hash = '#/training'; return; }
@@ -2871,6 +2873,129 @@ BT.training = (function() {
     doc.setTextColor(120);
     doc.text('TSV Lindau Basketball · Erstellt ' + formatDate(new Date().toISOString().slice(0, 10)),
       margin, pageH - 20);
+  }
+
+  // ====== Trainings-Templates ======
+
+  function saveCurrentAsTemplate() {
+    const defaultName = 'Training ' + BT.util.formatDate(currentTraining.date);
+    const name = prompt('Name fuer das Template:', defaultName);
+    if (name == null) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const planDrills = ((currentTraining.plan && currentTraining.plan.drills) || [])
+      .filter(d => d && (d.name || '').trim())
+      .map(d => ({ name: d.name, minutes: d.minutes || 0, description: d.description || '' }));
+    const ftAttempted = (currentTraining.freethrows || [])
+      .reduce((max, e) => Math.max(max, e.attempted || 0), 0);
+    const shotCategories = (currentTraining.shots || [])
+      .map(c => c.category)
+      .filter(Boolean);
+    const tpl = {
+      name: trimmed,
+      plan: { drills: planDrills },
+      freethrowsAttempted: ftAttempted,
+      shotCategories
+    };
+    BT.storage.upsertTemplate(tpl);
+    if (BT.util.toast) BT.util.toast('Template „' + trimmed + '" gespeichert');
+  }
+
+  function openTemplatePicker() {
+    const templates = BT.storage.getTemplates();
+    const backdrop = renderTemplate('tpl-template-picker');
+    document.body.appendChild(backdrop);
+    const list = $('[data-role="list"]', backdrop);
+    const empty = $('[data-role="empty"]', backdrop);
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+    function close() {
+      if (!backdrop.parentNode) return;
+      backdrop.remove();
+      controller.abort();
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); }, { signal });
+    window.addEventListener('hashchange', close, { signal });
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop) close();
+      if (e.target.closest('[data-action="close"]')) close();
+      const applyBtn = e.target.closest('[data-action="apply-template"]');
+      if (applyBtn) {
+        const id = applyBtn.dataset.id;
+        applyTemplateToCurrent(id);
+        close();
+      }
+      const delBtn = e.target.closest('[data-action="delete-template"]');
+      if (delBtn) {
+        const id = delBtn.dataset.id;
+        const tpl = BT.storage.getTemplate(id);
+        if (tpl && confirm('Template „' + tpl.name + '" loeschen?')) {
+          BT.storage.deleteTemplate(id);
+          renderList();
+        }
+      }
+    }, { signal });
+
+    function renderList() {
+      const cur = BT.storage.getTemplates();
+      if (cur.length === 0) {
+        list.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      list.innerHTML = cur.map(t => {
+        const drillCount = ((t.plan && t.plan.drills) || []).length;
+        const bits = [];
+        if (drillCount > 0) bits.push(drillCount + ' Drill' + (drillCount === 1 ? '' : 's'));
+        if (t.freethrowsAttempted) bits.push('FT: ' + t.freethrowsAttempted);
+        if (Array.isArray(t.shotCategories) && t.shotCategories.length > 0) bits.push('Wurf: ' + t.shotCategories.join(', '));
+        return `<li class="template-item">
+          <div class="info">
+            <div class="name">${escapeHTML(t.name)}</div>
+            <div class="meta">${bits.map(escapeHTML).join(' · ')}</div>
+          </div>
+          <button type="button" class="btn small primary" data-action="apply-template" data-id="${t.id}">Laden</button>
+          <button type="button" class="btn small danger" data-action="delete-template" data-id="${t.id}" title="Template loeschen">✕</button>
+        </li>`;
+      }).join('');
+    }
+    renderList();
+    if (templates.length === 0) empty.classList.remove('hidden');
+  }
+
+  function applyTemplateToCurrent(templateId) {
+    const tpl = BT.storage.getTemplate(templateId);
+    if (!tpl) return;
+
+    // Plan-Drills uebernehmen
+    currentTraining.plan = currentTraining.plan || {};
+    currentTraining.plan.drills = ((tpl.plan && tpl.plan.drills) || [])
+      .map(d => ({ name: d.name, minutes: d.minutes || 0, description: d.description || '' }));
+
+    // Freiwurf-Zielzahl in plan.freethrows.attempted (wird bei neuen Entries als Default genutzt)
+    if (tpl.freethrowsAttempted) {
+      currentTraining.plan.freethrows = currentTraining.plan.freethrows || {};
+      currentTraining.plan.freethrows.attempted = tpl.freethrowsAttempted;
+    }
+
+    // Wurf-Kategorien anlegen (ohne bestehende zu ueberschreiben wenn schon Werte drin sind)
+    currentTraining.shots = currentTraining.shots || [];
+    const existing = new Set(currentTraining.shots.map(c => c.category));
+    for (const cat of (tpl.shotCategories || [])) {
+      if (!existing.has(cat)) currentTraining.shots.push({ category: cat, entries: [] });
+    }
+
+    save();
+
+    // UI frisch rendern
+    renderFreethrows();
+    renderShots();
+    if (typeof renderShotTabs === 'function') renderShotTabs();
+    if (typeof renderPlanBox === 'function') renderPlanBox();
+
+    if (BT.util.toast) BT.util.toast('Template „' + tpl.name + '" angewendet');
   }
 
   return { renderList, renderDetail, openPlayerStatsModal };

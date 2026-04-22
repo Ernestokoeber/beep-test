@@ -165,6 +165,7 @@ BT.history = (function() {
           notes: Array.isArray(data.notes) ? data.notes : [],
           freethrows: Array.isArray(data.freethrows) ? data.freethrows : [],
           drills: Array.isArray(data.drills) ? data.drills : [],
+          templates: Array.isArray(data.templates) ? data.templates : [],
           settings: mergedSettings
         });
       } else if (choice === 'm') {
@@ -181,6 +182,7 @@ BT.history = (function() {
           notes: mergeById(current.notes || [], data.notes || []),
           freethrows: mergeById(current.freethrows || [], data.freethrows || []),
           drills: mergeById(current.drills || [], data.drills || []),
+          templates: mergeById(current.templates || [], data.templates || []),
           settings: mergedSettings
         });
       } else {
