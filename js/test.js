@@ -5,26 +5,9 @@ BT.test = (function() {
 
   let setupRoot, runRoot;
   let selectedIds = new Set();
-  let wakeLock = null;
 
-  async function requestWakeLock() {
-    try {
-      if ('wakeLock' in navigator) {
-        wakeLock = await navigator.wakeLock.request('screen');
-        wakeLock.addEventListener('release', () => { wakeLock = null; });
-      }
-    } catch (e) { console.warn('Wake Lock nicht verfügbar:', e.message); }
-  }
-
-  function releaseWakeLock() {
-    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && runState && runState.running && !wakeLock) {
-      requestWakeLock();
-    }
-  });
+  function requestWakeLock() { BT.wake.acquire('beep-test'); }
+  function releaseWakeLock() { BT.wake.release('beep-test'); }
 
   // === SETUP VIEW ===
   function renderSetup(target) {

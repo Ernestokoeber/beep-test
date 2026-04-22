@@ -863,6 +863,7 @@ BT.training = (function() {
       if (sprintRunning) return;
       BT.audio.ensureContext();
       BT.audio.startBeep();
+      BT.wake.acquire('training-sprint');
       sprintStartTs = performance.now();
       sprintRunning = true;
       setSprintState('running');
@@ -874,6 +875,7 @@ BT.training = (function() {
     stopBtn.addEventListener('click', () => {
       if (!sprintRunning) return;
       sprintRunning = false;
+      BT.wake.release('training-sprint');
       if (sprintRaf) { cancelAnimationFrame(sprintRaf); sprintRaf = 0; }
       setSprintState('stopped');
       const list = $('[data-role="sprints"]', detailRoot);
@@ -882,6 +884,7 @@ BT.training = (function() {
 
     resetBtn.addEventListener('click', () => {
       sprintRunning = false;
+      BT.wake.release('training-sprint');
       if (sprintRaf) { cancelAnimationFrame(sprintRaf); sprintRaf = 0; }
       display.textContent = '00:00.00';
       setSprintState('ready');
@@ -1587,6 +1590,7 @@ BT.training = (function() {
   function startTimerWithSec(sec) {
     timerSelectedSec = sec;
     BT.audio.ensureContext();
+    BT.wake.acquire('training-timer');
     timerEndTs = performance.now() + sec * 1000;
     const display = $('[data-role="timer-display"]', detailRoot);
     if (display) display.textContent = formatTime(sec);
@@ -1614,6 +1618,7 @@ BT.training = (function() {
     $('[data-timer-action="start"]', detailRoot).addEventListener('click', () => {
       if (timerSelectedSec <= 0) return;
       BT.audio.ensureContext();
+      BT.wake.acquire('training-timer');
       timerEndTs = performance.now() + timerSelectedSec * 1000;
       setTimerState('running');
       tickTimer();
@@ -1655,6 +1660,7 @@ BT.training = (function() {
   function stopTimer() {
     if (timerRaf) cancelAnimationFrame(timerRaf);
     timerRaf = 0;
+    BT.wake.release('training-timer');
   }
 
   function formatTime(totalSec) {
@@ -2167,6 +2173,7 @@ BT.training = (function() {
       shareBtn.disabled = true;
       regenBtn.disabled = true;
       fallbackBox.classList.add('hidden');
+      BT.wake.acquire('training-ai-summary');
       try {
         const prev = previousEndedTraining(training);
         const t0 = Date.now();
@@ -2193,6 +2200,8 @@ BT.training = (function() {
         statusEl.textContent = '✗ Fehler: ' + e.message;
         regenBtn.disabled = false;
         fallbackBox.classList.remove('hidden');
+      } finally {
+        BT.wake.release('training-ai-summary');
       }
     }
 

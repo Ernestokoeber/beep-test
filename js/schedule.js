@@ -72,6 +72,7 @@ BT.schedule = (function() {
       if (!file) return;
 
       status.textContent = '⏳ Plan wird analysiert (kann 10-60 Sekunden dauern) ...';
+      BT.wake.acquire('schedule-pdf');
       try {
         const parsed = await BT.aiimport.parseWithGemini(file, apiKey, (msg) => {
           status.textContent = '⏳ ' + msg;
@@ -99,6 +100,8 @@ BT.schedule = (function() {
       } catch (e) {
         console.error(e);
         status.textContent = '✗ Fehler: ' + e.message;
+      } finally {
+        BT.wake.release('schedule-pdf');
       }
     });
   }

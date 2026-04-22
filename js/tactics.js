@@ -497,6 +497,7 @@ BT.tactics = (function() {
         return;
       }
 
+      BT.wake.acquire('tactics-ai');
       BT.aiimport.explainTactic(board, apiKey, (msg) => {
         statusEl.textContent = msg;
       }).then(text => {
@@ -507,6 +508,8 @@ BT.tactics = (function() {
         saveBtn.disabled = false;
       }).catch(err => {
         statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
+      }).finally(() => {
+        BT.wake.release('tactics-ai');
       });
     }
 
@@ -531,6 +534,7 @@ BT.tactics = (function() {
         statusEl.hidden = false;
         statusEl.textContent = 'gif.js wird geladen …';
 
+        BT.wake.acquire('tactics-gif');
         try {
           await loadGifLib();
           statusEl.textContent = 'Frames werden erzeugt …';
@@ -558,6 +562,8 @@ BT.tactics = (function() {
         } catch (err) {
           statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
           renderBtn.disabled = false;
+        } finally {
+          BT.wake.release('tactics-gif');
         }
       });
     }

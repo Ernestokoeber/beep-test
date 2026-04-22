@@ -18,6 +18,7 @@ const ASSETS = [
   './js/ratings.js',
   './js/heatmap.js',
   './js/audio.js',
+  './js/wake.js',
   './js/stats.js',
   './js/players.js',
   './js/test.js',
