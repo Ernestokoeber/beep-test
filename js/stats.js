@@ -332,9 +332,10 @@ BT.stats = (function() {
   ];
 
   function presentIdSet(training) {
+    const archived = new Set(BT.storage.getPlayers().filter(p => p.archived).map(p => p.id));
     const ids = new Set();
     for (const a of (training.attendance || [])) {
-      if (a && a.status === 'present') ids.add(a.playerId);
+      if (a && a.status === 'present' && !archived.has(a.playerId)) ids.add(a.playerId);
     }
     return ids;
   }

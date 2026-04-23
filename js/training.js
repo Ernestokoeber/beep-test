@@ -116,8 +116,17 @@ BT.training = (function() {
       .map(p => ({ playerId: p.id, status: null, late: false, note: '' }));
   }
 
+  function archivedPlayerIdSet() {
+    return new Set(BT.storage.getPlayers().filter(p => p.archived).map(p => p.id));
+  }
+
+  function activeAttendance(training) {
+    const archived = archivedPlayerIdSet();
+    return (training.attendance || []).filter(a => !archived.has(a.playerId));
+  }
+
   function presentPlayerIds(training) {
-    return (training.attendance || [])
+    return activeAttendance(training)
       .filter(a => a.status === 'present')
       .map(a => a.playerId);
   }
@@ -126,7 +135,7 @@ BT.training = (function() {
 
   function summarize(training) {
     const s = { present: 0, absent: 0, excused: 0, injured: 0, late: 0, pending: 0, total: 0 };
-    for (const a of training.attendance || []) {
+    for (const a of activeAttendance(training)) {
       s.total++;
       if (s[a.status] !== undefined) s[a.status]++;
       else s.pending++;
@@ -289,9 +298,9 @@ BT.training = (function() {
     list.innerHTML = '';
     const allPlayers = BT.storage.getPlayers();
 
-    const entries = (currentTraining.attendance || []).slice()
+    const entries = activeAttendance(currentTraining).slice()
       .map(a => ({ att: a, player: allPlayers.find(p => p.id === a.playerId) }))
-      .filter(e => e.player)
+      .filter(e => e.player && !e.player.archived)
       .sort((a, b) => a.player.name.localeCompare(b.player.name, 'de'));
 
     for (const { att, player } of entries) {
@@ -1680,7 +1689,7 @@ BT.training = (function() {
   function buildSummaryText(training) {
     const allPlayers = BT.storage.getPlayers();
     const nameOf = id => (allPlayers.find(p => p.id === id) || {}).name || '?';
-    const att = (training.attendance || []);
+    const att = activeAttendance(training);
     const present = att.filter(a => a.status === 'present');
     const absent = att.filter(a => a.status === 'absent');
     const excused = att.filter(a => a.status === 'excused');
@@ -1908,7 +1917,7 @@ BT.training = (function() {
 
     const allPlayers = BT.storage.getPlayers();
     const nameOf = id => (allPlayers.find(p => p.id === id) || {}).name || '?';
-    const att = training.attendance || [];
+    const att = activeAttendance(training);
     const presentList = att.filter(a => a.status === 'present');
     const absentList = att.filter(a => a.status === 'absent');
     const excusedList = att.filter(a => a.status === 'excused');
