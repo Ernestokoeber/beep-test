@@ -45,7 +45,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -263,6 +263,30 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getPhases() {
+    return (load().phases || []).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+  }
+
+  function upsertPhase(phase) {
+    const data = load();
+    data.phases = data.phases || [];
+    if (phase.id) {
+      const i = data.phases.findIndex(p => p.id === phase.id);
+      if (i >= 0) data.phases[i] = Object.assign({}, data.phases[i], phase);
+      else data.phases.push(phase);
+    } else {
+      phase.id = BT.util.uuid('ph_');
+      data.phases.push(phase);
+    }
+    save(data);
+    return phase;
+  }
+
+  function getPhaseForDate(dateStr) {
+    const phases = (load().phases || []);
+    return phases.find(p => p.start && p.end && dateStr >= p.start && dateStr <= p.end) || null;
+  }
+
   function getSeasons() {
     const data = load();
     const set = new Set();
@@ -335,6 +359,7 @@ BT.storage = (function() {
     getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,
     getShotCategories, setShotCategories,
     getSetting, setSetting,
+    getPhases, upsertPhase, getPhaseForDate,
     getSeasons, getActiveSeason, setActiveSeason, inActiveSeason
   };
 })();

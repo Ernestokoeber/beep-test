@@ -9,9 +9,16 @@ BT.aiimport = (function() {
   const PROMPT = `Du bekommst einen Basketball-Trainingsplan als PDF.
 Trainings finden Dienstag und Freitag jeweils 20:15-22:00 Uhr statt.
 
-Extrahiere alle einzelnen Trainings aus dem Plan und gib NUR valides JSON zurück (keine Markdown-Codeblöcke), mit dieser Struktur:
+Extrahiere alle Daten und gib NUR valides JSON zurück (keine Markdown-Codeblöcke), mit dieser Struktur:
 
 {
+  "phase": {
+    "name": "Phase X" oder "Phase X & Y" (z.B. "Phase 1 & 2"),
+    "focus": "Untertitel/Fokus der Phase (z.B. Athletik & Kondition)",
+    "start": "YYYY-MM-DD" (frühestes Datum im Plan),
+    "end": "YYYY-MM-DD" (spätestes Datum im Plan),
+    "goals": ["Ziel 1", "Ziel 2", ...]
+  },
   "trainings": [
     {
       "weekday": "tuesday" oder "friday",
@@ -29,6 +36,7 @@ Extrahiere alle einzelnen Trainings aus dem Plan und gib NUR valides JSON zurüc
 }
 
 Hinweise:
+- Das "phase"-Objekt ist Pflicht. Falls kein Phasenname erkennbar ist, verwende "Phase ?".
 - Wenn der Plan z.B. "Freiwürfe 20 Stk" sagt, setze freethrows.attempted = 20.
 - Wenn Übungen Zeitangaben haben (z.B. "10 min Aufwärmen"), trag das in drills.minutes ein.
 - Lass leere oder unklare Felder weg oder setze sie auf null.
@@ -185,7 +193,24 @@ Hinweise:
     return d.getFullYear() + '-' + m + '-' + day;
   }
 
+  function applyPhase(parsed) {
+    if (!parsed.phase || !parsed.phase.name) return null;
+    const p = parsed.phase;
+    const existing = BT.storage.getPhases().find(ph =>
+      ph.name === p.name || (p.start && ph.start === p.start)
+    );
+    return BT.storage.upsertPhase({
+      id: existing ? existing.id : undefined,
+      name: p.name || '',
+      focus: p.focus || '',
+      start: p.start || null,
+      end: p.end || null,
+      goals: Array.isArray(p.goals) ? p.goals : []
+    });
+  }
+
   function applyPlanToTrainings(parsed) {
+    applyPhase(parsed);
     const time = BT.storage.getSetting('regularTime', '20:15');
     const trainings = BT.storage.getTrainings();
     const usedDates = new Set();

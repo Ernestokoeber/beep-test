@@ -40,6 +40,7 @@ BT.dashboard = (function() {
       ? tf.made + '/' + tf.attempted + ' aus ' + tf.sessions + ' Sessions'
       : 'Noch keine Daten';
 
+    renderCurrentPhase(root);
     renderAlerts(root);
     renderFormOfWeek(root);
     renderTopAttenders(root);
@@ -47,6 +48,41 @@ BT.dashboard = (function() {
     renderShotCategories(root);
     renderPositionStats(root);
     renderTeamHeatmap(root);
+  }
+
+  function renderCurrentPhase(root) {
+    const banner = $('[data-role="phase-banner"]', root);
+    if (!banner || !BT.storage.getPhaseForDate) return;
+    const today = BT.util.todayISO();
+    const phase = BT.storage.getPhaseForDate(today);
+    if (!phase) { banner.classList.add('hidden'); return; }
+
+    banner.classList.remove('hidden');
+    $('[data-role="phase-banner-badge"]', banner).textContent = phase.name;
+    $('[data-role="phase-banner-focus"]', banner).textContent = phase.focus || '';
+
+    const start = new Date(phase.start);
+    const end = new Date(phase.end);
+    const now = new Date(today);
+    const total = Math.max(1, Math.round((end - start) / 86400000));
+    const elapsed = Math.max(0, Math.round((now - start) / 86400000));
+    const remaining = Math.max(0, total - elapsed);
+    const pct = Math.min(100, Math.round((elapsed / total) * 100));
+
+    $('[data-role="phase-banner-days"]', banner).textContent = remaining === 0 ? 'Letzter Tag' : 'noch ' + remaining + ' Tage';
+    $('[data-role="phase-banner-bar"]', banner).style.width = pct + '%';
+
+    const goalsList = $('[data-role="phase-banner-goals"]', banner);
+    if (Array.isArray(phase.goals) && phase.goals.length > 0) {
+      goalsList.innerHTML = phase.goals.map(g => '<li>' + escapeHTML(g) + '</li>').join('');
+      const btn = $('[data-action="toggle-phase-goals"]', banner);
+      btn.addEventListener('click', () => {
+        const hidden = goalsList.classList.toggle('hidden');
+        btn.textContent = hidden ? 'Ziele anzeigen' : 'Ziele ausblenden';
+      });
+    } else {
+      $('[data-action="toggle-phase-goals"]', banner).classList.add('hidden');
+    }
   }
 
   function renderAlerts(root) {
