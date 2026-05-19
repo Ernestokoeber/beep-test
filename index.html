@@ -751,6 +751,7 @@
         <div class="head-actions">
           <button class="btn small" data-action="ai-explain">🤖 Erklären</button>
           <button class="btn small" data-action="share-gif">📤 GIF teilen</button>
+          <button class="btn small" data-action="import-pdf">📄 PDF importieren</button>
           <button class="btn small" data-action="save-as-note">💾 Als Notiz speichern</button>
           <button class="btn small danger" data-action="reset-board">Zurücksetzen</button>
         </div>
@@ -851,6 +852,32 @@
           <div class="modal-foot">
             <button type="button" class="btn" data-action="close">Abbrechen</button>
             <button type="button" class="btn primary" data-action="render-gif">GIF erzeugen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-tactics-import-modal">
+    <div class="modal-backdrop">
+      <div class="modal" role="dialog" aria-label="Taktik-PDF importieren">
+        <div class="modal-head">
+          <h3>📄 Taktik-PDF importieren</h3>
+          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="muted">Lade ein PDF mit Spielzügen hoch. Gemini extrahiert die Taktiken und speichert sie als Notizen, verknüpft mit der gewählten Phase.</p>
+          <label class="block-label" style="margin-bottom:0.75rem">Phase
+            <select data-role="phase-select" style="margin-top:0.25rem"></select>
+          </label>
+          <div class="form-actions" style="margin-bottom:0.5rem">
+            <button type="button" class="btn primary" data-action="pick-pdf">📄 PDF auswählen …</button>
+          </div>
+          <p class="muted" data-role="status" hidden></p>
+          <div data-role="preview" hidden style="margin-top:0.5rem"></div>
+          <div class="modal-foot" style="margin-top:1rem">
+            <button type="button" class="btn" data-action="close">Abbrechen</button>
+            <button type="button" class="btn primary" data-action="confirm" hidden>Importieren</button>
           </div>
         </div>
       </div>

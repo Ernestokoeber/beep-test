@@ -467,5 +467,182 @@ Gib NUR den fertigen Erklärungstext zurück — keine Markdown-Überschriften, 
     throw lastErr || new Error('Alle Modelle fehlgeschlagen.');
   }
 
-  return { parseWithGemini, applyPlanToTrainings, summarizeTraining, explainTactic };
+  // ─── Tactics PDF import ────────────────────────────────────────────────────
+
+  const TACTICS_PDF_PROMPT = `Du bekommst ein Basketball-Taktik-PDF. Extrahiere alle Spielzüge/Plays.
+
+Gib NUR valides JSON zurück (keine Markdown-Codeblöcke):
+
+{
+  "plays": [
+    {
+      "name": "Spielzug-Name (z.B. 'Pick and Roll', 'Horns Set')",
+      "description": "2–4 Sätze Beschreibung des Spielzugs auf Deutsch",
+      "steps": [
+        {
+          "players": [
+            {"label": "1", "x": 120, "y": 380},
+            {"label": "2", "x": 380, "y": 380},
+            {"label": "3", "x": 80,  "y": 260},
+            {"label": "4", "x": 420, "y": 260},
+            {"label": "5", "x": 250, "y": 230}
+          ],
+          "ball": {"x": 250, "y": 380},
+          "arrows": [
+            {"x1": 120, "y1": 380, "x2": 200, "y2": 300, "style": "run"},
+            {"x1": 250, "y1": 380, "x2": 380, "y2": 380, "style": "pass"}
+          ],
+          "duration": 1.5
+        }
+      ]
+    }
+  ]
+}
+
+Koordinatensystem 500×470 Punkte: Korb bei (250, 50), Freiwurflinie ca. y=200, 3-Punkt-Linie ca. y=135.
+Standardpositionen falls kein Diagramm erkennbar:
+  Spieler 1 (Point Guard):    x=120, y=380
+  Spieler 2 (Shooting Guard): x=380, y=380
+  Spieler 3 (Small Forward):  x=80,  y=260
+  Spieler 4 (Power Forward):  x=420, y=260
+  Spieler 5 (Center):         x=250, y=230
+Stil "run" = Laufweg (grün), "pass" = Passweg (orange).
+Leere arrows-Liste wenn kein klares Bewegungsdiagramm vorhanden.
+Falls nur ein Schritt erkennbar: steps mit einem Eintrag.`;
+
+  const DEFAULT_POSITIONS = [
+    { id: 'p1', label: '1', x: 120, y: 380 },
+    { id: 'p2', label: '2', x: 380, y: 380 },
+    { id: 'p3', label: '3', x: 80,  y: 260 },
+    { id: 'p4', label: '4', x: 420, y: 260 },
+    { id: 'p5', label: '5', x: 250, y: 230 }
+  ];
+
+  async function callTacticsPdfOnce(model, apiKey, base64, mimeType, onProgress) {
+    const body = {
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: mimeType || 'application/pdf', data: base64 } },
+          { text: TACTICS_PDF_PROMPT }
+        ]
+      }],
+      generationConfig: { response_mime_type: 'application/json', temperature: 0.1 }
+    };
+    const url = BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey);
+    const ticker = startTicker(sec => { if (onProgress) onProgress(model + ' wartet … ' + sec + 's'); });
+    let res;
+    try {
+      res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    } finally {
+      stopTicker(ticker);
+    }
+    if (!res.ok) {
+      const errText = await res.text();
+      const err = new Error('HTTP ' + res.status + ': ' + errText.slice(0, 300));
+      err.status = res.status;
+      throw err;
+    }
+    if (onProgress) onProgress(model + ' antwortet, wird geparst …');
+    const data = await res.json();
+    const text = data && data.candidates && data.candidates[0]
+      && data.candidates[0].content && data.candidates[0].content.parts
+      && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    if (!text) throw new Error('Leere Antwort.');
+    let parsed;
+    try { parsed = JSON.parse(text); } catch (e) { throw new Error('Antwort kein gültiges JSON: ' + text.slice(0, 200)); }
+    if (!parsed.plays || !Array.isArray(parsed.plays)) throw new Error('Antwort enthält keine "plays"-Liste.');
+    return parsed;
+  }
+
+  async function parseTacticsPdfWithGemini(file, apiKey, onProgress) {
+    if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key eintragen.');
+    if (onProgress) onProgress('PDF wird gelesen …');
+    const base64 = await fileToBase64(file);
+    const mime = file.type || 'application/pdf';
+    const sizeKB = Math.round(base64.length * 0.75 / 1024);
+    if (onProgress) onProgress('PDF (' + sizeKB + ' KB) wird gesendet …');
+
+    let lastErr = null;
+    for (let i = 0; i < MODELS.length; i++) {
+      const model = MODELS[i];
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          if (onProgress) onProgress(model + ' — Versuch ' + attempt + '/3 …');
+          return await callTacticsPdfOnce(model, apiKey, base64, mime, onProgress);
+        } catch (e) {
+          lastErr = e;
+          const notFound = e.status === 404;
+          const transient = e.status === 503 || e.status === 429 || e.status === 500;
+          if (notFound) { if (onProgress) onProgress(model + ' nicht verfügbar, wechsle …'); break; }
+          if (!transient || attempt === 3) {
+            if (i < MODELS.length - 1) { if (onProgress) onProgress(model + ' fehlgeschlagen, wechsle …'); break; }
+            throw e;
+          }
+          const wait = 1500 * Math.pow(2, attempt - 1);
+          if (onProgress) onProgress(model + ' überlastet, warte ' + Math.round(wait / 1000) + 's …');
+          await sleep(wait);
+        }
+      }
+    }
+    throw lastErr || new Error('Alle Modelle fehlgeschlagen.');
+  }
+
+  function applyTacticsToPhaseTactics(parsed, phaseId) {
+    const existingNotes = BT.storage.getNotes();
+    const results = [];
+
+    for (const play of (parsed.plays || [])) {
+      if (!play.name) continue;
+      const tacticsTitle = 'Taktik: ' + play.name;
+
+      const rawSteps = Array.isArray(play.steps) && play.steps.length > 0 ? play.steps : [null];
+      const steps = rawSteps.map((s, si) => {
+        const players = (s && Array.isArray(s.players) && s.players.length === 5)
+          ? s.players.map((p, i) => ({
+              id: DEFAULT_POSITIONS[i].id,
+              label: String(p.label || DEFAULT_POSITIONS[i].label),
+              x: Number(p.x) || DEFAULT_POSITIONS[i].x,
+              y: Number(p.y) || DEFAULT_POSITIONS[i].y
+            }))
+          : DEFAULT_POSITIONS.map(p => ({ id: p.id, label: p.label, x: p.x, y: p.y }));
+
+        const ball = (s && s.ball)
+          ? { x: Number(s.ball.x) || 250, y: Number(s.ball.y) || 380 }
+          : { x: 250, y: 380 };
+
+        const arrows = (s && Array.isArray(s.arrows) ? s.arrows : []).map(a => ({
+          x1: Number(a.x1), y1: Number(a.y1),
+          x2: Number(a.x2), y2: Number(a.y2),
+          style: a.style === 'pass' ? 'pass' : 'run'
+        }));
+
+        const texts = (si === 0 && play.description)
+          ? [{ id: 'tx_' + Math.random().toString(36).slice(2, 7), x: 12, y: 455, text: play.description.slice(0, 100) }]
+          : [];
+
+        return {
+          id: 'st_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          players, ball, arrows, texts,
+          duration: (s && typeof s.duration === 'number') ? s.duration : 1.5
+        };
+      });
+
+      const board = { steps, currentStep: 0 };
+      const body = '[TACTIC] ' + play.name + '\n\n' + JSON.stringify(board);
+
+      const existing = existingNotes.find(n => n.title === tacticsTitle && n.phaseId === (phaseId || null));
+      const note = BT.storage.upsertNote({
+        id: existing ? existing.id : undefined,
+        title: tacticsTitle,
+        body,
+        phaseId: phaseId || null,
+        tacticDescription: play.description || ''
+      });
+      results.push({ name: play.name, action: existing ? 'updated' : 'created', id: note.id });
+    }
+
+    return results;
+  }
+
+  return { parseWithGemini, applyPlanToTrainings, summarizeTraining, explainTactic, parseTacticsPdfWithGemini, applyTacticsToPhaseTactics };
 })();

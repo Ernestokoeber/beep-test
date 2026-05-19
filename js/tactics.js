@@ -177,6 +177,11 @@ BT.tactics = (function() {
       openGifModal();
     });
 
+    $('[data-action="import-pdf"]', root).addEventListener('click', () => {
+      stopPlayback();
+      openImportModal();
+    });
+
     // ---------- Steps bar ----------
     $('[data-action="add-step"]', root).addEventListener('click', () => {
       stopPlayback();
@@ -510,6 +515,97 @@ BT.tactics = (function() {
         statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
       }).finally(() => {
         BT.wake.release('tactics-ai');
+      });
+    }
+
+    // ---------- Taktik-PDF-Import ----------
+    function openImportModal() {
+      const backdrop = renderTemplate('tpl-tactics-import-modal');
+      document.body.appendChild(backdrop);
+
+      const statusEl = $('[data-role="status"]', backdrop);
+      const previewEl = $('[data-role="preview"]', backdrop);
+      const confirmBtn = $('[data-action="confirm"]', backdrop);
+      const phaseSel = $('[data-role="phase-select"]', backdrop);
+
+      const phases = BT.storage.getPhases();
+      const today = BT.util.todayISO ? BT.util.todayISO() : new Date().toISOString().slice(0, 10);
+      const currentPhase = BT.storage.getPhaseForDate(today);
+      if (phases.length === 0) {
+        phaseSel.innerHTML = '<option value="">— keine Phase angelegt —</option>';
+      } else {
+        phaseSel.innerHTML = '<option value="">Keine Phase (unverknüpft)</option>' +
+          phases.map(p =>
+            '<option value="' + escapeHTML(p.id) + '"' + (currentPhase && p.id === currentPhase.id ? ' selected' : '') + '>' +
+            escapeHTML(p.name) + (p.focus ? ' – ' + escapeHTML(p.focus) : '') +
+            '</option>'
+          ).join('');
+      }
+
+      let parsedResult = null;
+
+      function close() { backdrop.remove(); }
+      backdrop.addEventListener('click', e => {
+        if (e.target === backdrop) close();
+        if (e.target.closest('[data-action="close"]')) close();
+      });
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); }
+      });
+
+      $('[data-action="pick-pdf"]', backdrop).addEventListener('click', async () => {
+        const apiKey = BT.storage.getSetting('geminiApiKey', '');
+        if (!apiKey) {
+          alert('Kein Gemini API Key hinterlegt. Trage ihn im „Plan"-Reiter ein.');
+          return;
+        }
+        const file = await BT.util.pickFile('application/pdf,.pdf');
+        if (!file) return;
+
+        statusEl.hidden = false;
+        statusEl.textContent = '⏳ PDF wird analysiert …';
+        confirmBtn.hidden = true;
+        previewEl.hidden = true;
+        parsedResult = null;
+
+        BT.wake.acquire('tactics-pdf-import');
+        try {
+          parsedResult = await BT.aiimport.parseTacticsPdfWithGemini(file, apiKey, msg => {
+            statusEl.textContent = '⏳ ' + msg;
+          });
+          const count = (parsedResult.plays || []).length;
+          statusEl.textContent = '✓ ' + count + ' Spielzug' + (count !== 1 ? 'züge' : '') + ' erkannt.';
+          if (count > 0) {
+            previewEl.hidden = false;
+            previewEl.innerHTML = '<ul class="notes-list" style="margin:0">' +
+              parsedResult.plays.map(p =>
+                '<li class="note-item"><div class="info">' +
+                '<div class="name">' + escapeHTML(p.name || '?') + '</div>' +
+                (p.description ? '<div class="meta muted">' + escapeHTML(p.description.slice(0, 100)) + (p.description.length > 100 ? '…' : '') + '</div>' : '') +
+                '<div class="meta">' + ((p.steps || []).length || 1) + ' Schritt(e)</div>' +
+                '</div></li>'
+              ).join('') +
+              '</ul>';
+            confirmBtn.hidden = false;
+          }
+        } catch (e) {
+          statusEl.textContent = '✗ Fehler: ' + (e && e.message ? e.message : String(e));
+        } finally {
+          BT.wake.release('tactics-pdf-import');
+        }
+      });
+
+      confirmBtn.addEventListener('click', () => {
+        if (!parsedResult) return;
+        const phaseId = phaseSel.value || null;
+        const results = BT.aiimport.applyTacticsToPhaseTactics(parsedResult, phaseId);
+        const created = results.filter(r => r.action === 'created').length;
+        const updated = results.filter(r => r.action === 'updated').length;
+        close();
+        if (toast) toast(created + ' Spielzug' + (created !== 1 ? 'züge' : '') + ' angelegt, ' + updated + ' aktualisiert.', {
+          actionLabel: 'Notizen öffnen',
+          action: () => { location.hash = '#/notes'; }
+        });
       });
     }
 
