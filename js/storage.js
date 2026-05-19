@@ -3,13 +3,30 @@ window.BT = window.BT || {};
 BT.storage = (function() {
   const KEY = 'beepTest_v1';
   const CURRENT_SCHEMA = 2;
+  const DEBOUNCE_MS = 300;
+
+  let _cache = null;
+  let _pendingTimer = null;
+
+  function _flushNow() {
+    if (_pendingTimer !== null) {
+      clearTimeout(_pendingTimer);
+      _pendingTimer = null;
+    }
+    if (_cache !== null) {
+      localStorage.setItem(KEY, JSON.stringify(_cache));
+    }
+  }
+
+  window.addEventListener('beforeunload', _flushNow);
 
   function load() {
+    if (_cache !== null) return _cache;
     try {
       const raw = localStorage.getItem(KEY);
-      if (!raw) return empty();
+      if (!raw) { _cache = empty(); return _cache; }
       const data = JSON.parse(raw);
-      if (!data.schemaVersion) return empty();
+      if (!data.schemaVersion) { _cache = empty(); return _cache; }
       data.players = data.players || [];
       data.sessions = data.sessions || [];
       data.trainings = data.trainings || [];
@@ -20,10 +37,12 @@ BT.storage = (function() {
         migrate(data);
         localStorage.setItem(KEY, JSON.stringify(data));
       }
-      return data;
+      _cache = data;
+      return _cache;
     } catch (e) {
       console.error('Storage load failed', e);
-      return empty();
+      _cache = empty();
+      return _cache;
     }
   }
 
@@ -41,7 +60,12 @@ BT.storage = (function() {
   }
 
   function save(data) {
-    localStorage.setItem(KEY, JSON.stringify(data));
+    _cache = data;
+    if (_pendingTimer !== null) clearTimeout(_pendingTimer);
+    _pendingTimer = setTimeout(() => {
+      _pendingTimer = null;
+      localStorage.setItem(KEY, JSON.stringify(_cache));
+    }, DEBOUNCE_MS);
   }
 
   function empty() {
@@ -349,7 +373,7 @@ BT.storage = (function() {
   }
 
   return {
-    load, save,
+    load, save, flush: _flushNow,
     getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer,
     getSessions, getSession, createSession, updateSession, deleteSession,
     getTrainings, getTraining, upsertTraining, deleteTraining, restoreTraining,
