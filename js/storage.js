@@ -40,12 +40,16 @@ BT.storage = (function() {
     }
   }
 
-  function save(data) {
+  function save(data, options) {
+    const config = options || {};
+    data.meta = data.meta || {};
+    if (!config.preserveTimestamp) data.meta.updatedAt = new Date().toISOString();
     localStorage.setItem(KEY, JSON.stringify(data));
+    if (!config.fromSync && window.BT && BT.sync && BT.sync.queueSave) BT.sync.queueSave(data);
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], settings: {} };
   }
 
   function getSetting(key, fallback) {

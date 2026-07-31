@@ -2307,8 +2307,7 @@ BT.training = (function() {
   }
 
   async function openAISummary(training) {
-    const apiKey = (BT.storage.getSetting('geminiApiKey', '') || '').trim();
-    const hasApiKey = !!apiKey;
+    const hasAIAccount = !!BT.api.getToken();
 
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
@@ -2359,17 +2358,16 @@ BT.training = (function() {
       statusEl.textContent = (prefixNote ? prefixNote + ' · ' : '') + '✓ Manuelle Zusammenfassung';
       copyBtn.disabled = false;
       shareBtn.disabled = false;
-      regenBtn.disabled = !hasApiKey;
+      regenBtn.disabled = !hasAIAccount;
       fallbackBox.classList.add('hidden');
     }
 
     manualBtn.addEventListener('click', () => applyManualSummary());
 
     async function run() {
-      if (!hasApiKey) {
-        // Empty state: kein API-Key → direkt manuelle Zusammenfassung statt alert()
+      if (!hasAIAccount) {
         regenBtn.disabled = true;
-        applyManualSummary('Gemini nicht konfiguriert');
+        applyManualSummary('Für KI bitte unter „Konto & Sync“ anmelden');
         return;
       }
       statusEl.textContent = '⏳ Gemini arbeitet …';
@@ -2388,7 +2386,7 @@ BT.training = (function() {
         }, 500);
         let text;
         try {
-          text = await BT.aiimport.summarizeTraining(training, prev, apiKey, msg => {
+          text = await BT.aiimport.summarizeTraining(training, prev, null, msg => {
             statusEl.textContent = '⏳ ' + msg;
           });
         } finally {

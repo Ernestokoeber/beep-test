@@ -52,20 +52,12 @@ BT.schedule = (function() {
   }
 
   function setupAIImport(root) {
-    const keyInput = $('[data-role="api-key"]', root);
     const status = $('[data-role="ai-status"]', root);
-    keyInput.value = BT.storage.getSetting('geminiApiKey', '');
-
-    $('[data-action="save-key"]', root).addEventListener('click', () => {
-      BT.storage.setSetting('geminiApiKey', keyInput.value.trim());
-      status.textContent = '✓ API Key gespeichert.';
-      setTimeout(() => { status.textContent = ''; }, 3000);
-    });
+    if (!BT.api.getToken()) status.textContent = 'Für den KI-Import bitte zuerst unter „Konto & Sync“ anmelden.';
 
     $('[data-action="upload-pdf"]', root).addEventListener('click', async () => {
-      const apiKey = (keyInput.value || BT.storage.getSetting('geminiApiKey', '')).trim();
-      if (!apiKey) {
-        alert('Bitte zuerst den Gemini API Key oben eintragen und speichern.');
+      if (!BT.api.getToken()) {
+        if (confirm('Für den geschützten KI-Import ist eine Anmeldung nötig. Jetzt Konto & Sync öffnen?')) location.hash = '#/account';
         return;
       }
       const file = await BT.util.pickFile('application/pdf,.pdf');
@@ -74,7 +66,7 @@ BT.schedule = (function() {
       status.textContent = '⏳ Plan wird analysiert (kann 10-60 Sekunden dauern) ...';
       BT.wake.acquire('schedule-pdf');
       try {
-        const parsed = await BT.aiimport.parseWithGemini(file, apiKey, (msg) => {
+        const parsed = await BT.aiimport.parseWithGemini(file, null, (msg) => {
           status.textContent = '⏳ ' + msg;
         });
         const summary = parsed.trainings.map((t, i) => {
