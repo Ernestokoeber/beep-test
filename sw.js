@@ -1,19 +1,15 @@
-const CACHE = 'beeptest-v88';
+const CACHE = 'beeptest-v91';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './manifest.webmanifest',
-  './icon.svg',
-  './icons/logo-64.png',
-  './icons/logo-128.png',
-  './icons/logo-192.png',
-  './icons/logo-512.png',
-  './icons/apple-touch-icon.png',
   './fonts/inter-latin.woff2',
   './fonts/monoton-latin.woff2',
   './js/util.js',
   './js/storage.js',
+  './js/api.js',
+  './js/sync.js',
   './js/levels.js',
   './js/ratings.js',
   './js/heatmap.js',
@@ -31,6 +27,8 @@ const ASSETS = [
   './js/schedule.js',
   './js/dashboard.js',
   './js/settings.js',
+  './js/account.js',
+  './js/install.js',
   './js/app.js'
 ];
 
@@ -51,6 +49,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
+  if (new URL(req.url).pathname.startsWith('/api/')) return;
 
   event.respondWith(
     caches.match(req).then((cached) => {

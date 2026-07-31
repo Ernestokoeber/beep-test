@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#004b2b">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="TSV Train">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://generativelanguage.googleapis.com https://cdn.jsdelivr.net; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TSV Coach">
+  <meta name="description" content="Die mobile Coaching- und Trainings-App von TSV Lindau Basketball für Planung, Leistungsdaten, Beep-Tests und Spielerentwicklung.">
+  <meta property="og:title" content="TSV Lindau Basketball · Coaching Center">
+  <meta property="og:description" content="Training planen, Spieler entwickeln und Teamleistung auswerten – mobil und offline nutzbar.">
+  <meta property="og:image" content="assets/TSVLogotransparent.png">
+  <meta property="og:type" content="website">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/logo-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="icons/logo-512.png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <title>TSVLindau Train-APP</title>
+  <link rel="icon" type="image/png" href="assets/TSVLogotransparent.png">
+  <link rel="apple-touch-icon" href="assets/TSVLogotransparent.png">
+  <title>TSV Lindau Basketball · Coaching Center</title>
   <link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/inter-latin.woff2">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -21,10 +24,18 @@
   <header class="topbar">
     <div class="topbar-head">
       <a href="#/dashboard" class="brand">
-        <img src="icons/logo-64.png" srcset="icons/logo-64.png 1x, icons/logo-128.png 2x" width="32" height="32" alt="TSV Lindau Basketball" class="brand-logo" decoding="async">
-        <h1 class="brand-text">Train-APP</h1>
+        <span class="brand-mark">
+          <img src="assets/TSVLogotransparent.png" width="40" height="48" alt="TSV Lindau Basketball" class="brand-logo" decoding="async">
+        </span>
+        <span class="brand-copy">
+          <span class="brand-kicker">TSV Lindau Basketball</span>
+          <h1 class="brand-text">Coaching Center</h1>
+        </span>
       </a>
       <div class="topbar-actions">
+        <button class="install-btn hidden" type="button" data-role="pwa-install" aria-label="App installieren">
+          <span aria-hidden="true">↓</span><span class="install-label">Installieren</span>
+        </button>
         <button class="theme-toggle" type="button" aria-label="Theme wechseln" data-role="theme-toggle">🌙</button>
         <a class="settings-btn" href="#/settings" aria-label="Einstellungen" title="Einstellungen">⚙️</a>
         <button class="hamburger" type="button" aria-label="Menü" aria-expanded="false" data-role="hamburger">
@@ -32,31 +43,64 @@
         </button>
       </div>
     </div>
-    <nav data-role="nav">
-      <a href="#/dashboard" data-nav="dashboard">Dashboard</a>
-      <a href="#/players" data-nav="players">Spieler</a>
-      <a href="#/training" data-nav="training">Training</a>
-      <a href="#/test/setup" data-nav="setup">Beep-Test</a>
-      <a href="#/schedule" data-nav="schedule">Plan</a>
-      <a href="#/drills" data-nav="drills">Drills</a>
-      <a href="#/tactics" data-nav="tactics">Taktik</a>
-      <a href="#/notes" data-nav="notes">Notizen</a>
-      <a href="#/history" data-nav="history">Historie</a>
+    <nav data-role="nav" aria-label="App-Navigation">
+      <span class="nav-section-label">Coaching</span>
+      <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></a>
+      <a href="#/training" data-nav="training"><span class="nav-icon" aria-hidden="true">▶</span><span>Training</span></a>
+      <a href="#/test/setup" data-nav="setup"><span class="nav-icon" aria-hidden="true">◷</span><span>Beep-Test</span></a>
+      <a href="#/players" data-nav="players"><span class="nav-icon" aria-hidden="true">◎</span><span>Spieler</span></a>
+      <span class="nav-section-label">Planung & Analyse</span>
+      <a href="#/schedule" data-nav="schedule"><span class="nav-icon" aria-hidden="true">▦</span><span>Trainingsplan</span></a>
+      <a href="#/drills" data-nav="drills"><span class="nav-icon" aria-hidden="true">◇</span><span>Drills</span></a>
+      <a href="#/tactics" data-nav="tactics"><span class="nav-icon" aria-hidden="true">⌁</span><span>Taktikboard</span></a>
+      <a href="#/notes" data-nav="notes"><span class="nav-icon" aria-hidden="true">□</span><span>Notizen</span></a>
+      <a href="#/history" data-nav="history"><span class="nav-icon" aria-hidden="true">↺</span><span>Historie</span></a>
+      <a href="#/account" data-nav="account"><span class="nav-icon" aria-hidden="true">◉</span><span>Konto & Sync</span></a>
+      <a class="club-link" href="https://www.tsv-lindau.de" target="_blank" rel="noopener noreferrer"><span class="nav-icon" aria-hidden="true">↗</span><span>Vereinswebsite</span></a>
     </nav>
   </header>
 
   <main id="app"></main>
 
+  <nav class="mobile-dock" aria-label="Schnellnavigation">
+    <a href="#/dashboard" data-mobile-nav="dashboard"><span aria-hidden="true">⌂</span><small>Home</small></a>
+    <a href="#/training" data-mobile-nav="training"><span aria-hidden="true">▶</span><small>Training</small></a>
+    <a class="mobile-dock-main" href="#/test/setup" data-mobile-nav="setup"><span aria-hidden="true">◷</span><small>Beep</small></a>
+    <a href="#/players" data-mobile-nav="players"><span aria-hidden="true">◎</span><small>Spieler</small></a>
+    <button type="button" data-role="mobile-more" aria-label="Weitere Bereiche öffnen" aria-expanded="false"><span aria-hidden="true">•••</span><small>Mehr</small></button>
+  </nav>
+
   <template id="tpl-dashboard">
     <section class="view">
+      <section class="coach-hero" aria-labelledby="coach-hero-title">
+        <div class="coach-hero-copy">
+          <span class="coach-eyebrow">TSV Lindau Basketball</span>
+          <h2 id="coach-hero-title">Dein Team. Dein Plan.<br><span>Ein System.</span></h2>
+          <p>Training steuern, Entwicklung sichtbar machen und in der Halle sofort handeln.</p>
+          <div class="coach-status-row">
+            <span class="connection-chip" data-role="connection-status"><i></i><span>Online</span></span>
+            <span class="today-chip" data-role="dashboard-date"></span>
+          </div>
+        </div>
+        <div class="coach-hero-actions">
+          <a class="hero-action hero-action-primary" href="#/training"><span>Training öffnen</span><strong>→</strong></a>
+          <a class="hero-action" href="#/test/setup"><span>Beep-Test starten</span><strong>→</strong></a>
+          <button class="hero-action hero-install hidden" type="button" data-role="pwa-install"><span>Auf Gerät installieren</span><strong>↓</strong></button>
+        </div>
+        <span class="coach-hero-number" aria-hidden="true">1850</span>
+      </section>
+
       <div class="section-head">
-        <h2>Dashboard</h2>
+        <div class="section-title-block">
+          <span class="section-kicker">Teamübersicht</span>
+          <h2>Dashboard</h2>
+        </div>
         <div>
           <label class="season-select">
             <span class="sr-only">Saison</span>
             <select data-role="season-select"></select>
           </label>
-          <button class="btn small" data-action="share-backup">📤 App teilen</button>
+          <button class="btn small" data-action="share-backup">📤 Backup teilen</button>
           <button class="btn small" data-action="import-backup">Importieren</button>
           <button class="btn small" data-action="export-season-csv">Saison CSV</button>
           <button class="btn small" data-action="export-season-json">Saison JSON</button>
@@ -527,13 +571,9 @@
 
       <h3>KI-Import (Plan aus PDF)</h3>
       <div class="player-form">
-        <p class="muted">Lade einen Trainingsplan als PDF hoch — Gemini extrahiert Inhalte und füllt die nächsten Termine vor (Notiz, Freiwürfe, Wurf-Kategorien, Drill-Liste).</p>
-        <label class="block-label">Gemini API Key
-          <input type="password" data-role="api-key" placeholder="AIza..." autocomplete="off">
-        </label>
-        <p class="muted">Kostenlos bei <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> anlegen. Wird nur lokal in deinem Browser gespeichert.</p>
+        <p class="muted">Lade einen Trainingsplan als PDF hoch — die serverseitig geschützte KI extrahiert Inhalte und füllt die nächsten Termine vor.</p>
+        <p class="muted">Kein API-Key im Browser: Die KI ist zentral für das TSV-Trainerteam konfiguriert. <a href="#/account">Konto &amp; Sync öffnen</a></p>
         <div class="form-actions">
-          <button class="btn" data-action="save-key">Key speichern</button>
           <button class="btn primary" data-action="upload-pdf">📄 Plan-PDF hochladen</button>
         </div>
         <p class="muted" data-role="ai-status"></p>
@@ -949,8 +989,101 @@
     </section>
   </template>
 
+  <template id="tpl-account">
+    <section class="view account-view">
+      <div class="section-head">
+        <div class="section-title-block">
+          <span class="section-kicker">Sicher auf allen Geräten</span>
+          <h2>Konto &amp; Synchronisierung</h2>
+        </div>
+      </div>
+
+      <section class="account-hero">
+        <div>
+          <span class="coach-eyebrow">TSV Team-Workspace</span>
+          <h3>Ein gemeinsamer Datenstand für das Trainerteam.</h3>
+          <p>Trainings, Spieler, Statistiken und Pläne bleiben offline verfügbar und werden nach der Anmeldung verschlüsselt über HTTPS synchronisiert.</p>
+        </div>
+        <div class="sync-indicator" data-role="sync-indicator">
+          <i></i><span data-role="sync-label">Gastmodus</span>
+        </div>
+      </section>
+
+      <div class="account-guest" data-role="account-guest">
+        <div class="auth-grid">
+          <form class="auth-card" data-role="login-form">
+            <span class="auth-card-number">01</span>
+            <h3>Anmelden</h3>
+            <p class="muted">Vorhandenes Trainerkonto verwenden.</p>
+            <label class="block-label">E-Mail
+              <input name="email" type="email" autocomplete="email" required>
+            </label>
+            <label class="block-label">Passwort
+              <input name="password" type="password" autocomplete="current-password" minlength="10" required>
+            </label>
+            <button class="btn primary" type="submit">Anmelden</button>
+          </form>
+
+          <form class="auth-card" data-role="register-form">
+            <span class="auth-card-number">02</span>
+            <h3>Trainerkonto anlegen</h3>
+            <p class="muted">Das reservierte erste TSV-Konto wird Administrator. Weitere Konten benötigen den Einladungscode.</p>
+            <label class="block-label">Name
+              <input name="displayName" type="text" autocomplete="name" minlength="2" maxlength="80" required>
+            </label>
+            <label class="block-label">E-Mail
+              <input name="email" type="email" autocomplete="email" required>
+            </label>
+            <label class="block-label">Passwort
+              <input name="password" type="password" autocomplete="new-password" minlength="10" required>
+            </label>
+            <label class="block-label">Einladungscode <span class="muted">(für weitere Konten)</span>
+              <input name="inviteCode" type="password" autocomplete="off">
+            </label>
+            <button class="btn primary" type="submit">Konto erstellen</button>
+          </form>
+        </div>
+        <p class="auth-status" data-role="auth-status" aria-live="polite"></p>
+      </div>
+
+      <section class="account-session hidden" data-role="account-session">
+        <div class="account-profile-card">
+          <div class="account-avatar" data-role="account-avatar">TS</div>
+          <div>
+            <span class="account-role" data-role="account-role"></span>
+            <h3 data-role="account-name"></h3>
+            <p class="muted" data-role="account-email"></p>
+          </div>
+        </div>
+        <div class="account-details">
+          <div><span>Team</span><strong data-role="account-team">—</strong></div>
+          <div><span>Letzte Synchronisierung</span><strong data-role="last-sync">—</strong></div>
+          <div><span>Workspace-Version</span><strong data-role="workspace-version">0</strong></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" type="button" data-action="sync-now">Jetzt synchronisieren</button>
+          <button class="btn" type="button" data-action="logout">Abmelden</button>
+        </div>
+        <p class="auth-status" data-role="session-status" aria-live="polite"></p>
+        <section class="team-members-card">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Berechtigungen</span>
+              <h3>Trainerteam</h3>
+            </div>
+          </div>
+          <p class="muted">Administratoren können Rollen ändern. Lesender Zugriff darf die gemeinsamen Teamdaten nicht überschreiben.</p>
+          <div class="team-members-list" data-role="team-members"></div>
+          <p class="auth-status" data-role="members-status" aria-live="polite"></p>
+        </section>
+      </section>
+    </section>
+  </template>
+
   <script defer src="js/util.js"></script>
   <script defer src="js/storage.js"></script>
+  <script defer src="js/api.js"></script>
+  <script defer src="js/sync.js"></script>
   <script defer src="js/levels.js"></script>
   <script defer src="js/ratings.js"></script>
   <script defer src="js/heatmap.js"></script>
@@ -968,6 +1101,8 @@
   <script defer src="js/schedule.js"></script>
   <script defer src="js/dashboard.js"></script>
   <script defer src="js/settings.js"></script>
+  <script defer src="js/account.js"></script>
+  <script defer src="js/install.js"></script>
   <script defer src="js/app.js"></script>
   <div class="toast-host" data-role="toast-host" aria-live="polite"></div>
 </body>

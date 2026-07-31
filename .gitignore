@@ -8,3 +8,7 @@ Thumbs.db
 # Lokale Daten-Backups (nicht versionieren)
 nach Training*.json
 beeptest_backup_*.json
+.env
+.env.local
+.vercel
+node_modules
