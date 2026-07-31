@@ -18,7 +18,7 @@ window.navigator.share = undefined;
 window.navigator.clipboard = { writeText: async () => {} };
 Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
 
-const scripts = [...html.matchAll(/<script defer src="(js\/[^"]+)"/g)].map(match => match[1]);
+const scripts = [...html.matchAll(/<script defer src="(js\/[^"]+)"/g)].map(match => match[1].split('?')[0]);
 for (const file of scripts) window.eval(readFileSync(resolve(root, file), 'utf8') + '\n//# sourceURL=' + file);
 window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 await new Promise(resolveWait => window.setTimeout(resolveWait, 100));
@@ -33,6 +33,7 @@ function route(hash) {
 }
 
 assert(window.document.querySelector('[data-role="coach-briefing"]'), 'Dashboard-Briefing fehlt');
+assert(window.document.querySelectorAll('.preview-kpi-card[href]').length === 4, 'Dashboard-Karten sind nicht vollständig verlinkt');
 
 const player = window.BT.storage.upsertPlayer({ name: 'Test Spieler', position: 'Guard', jerseyNumber: '11', availability: 'limited', goals: [] });
 route('#/player/' + player.id);
@@ -72,5 +73,19 @@ assert(window.document.querySelector('[data-role="plan-duration"]').value === '9
 assert(window.document.querySelector('.intensity-high'), 'Belastungsstufe fehlt');
 assert(window.document.querySelector('[data-role="checkin-card"]'), 'QR-Check-in fehlt');
 
-console.log('UI-Smoke-Test erfolgreich: Dashboard, Entwicklung, Spiele/Atlas und Training.');
+route('#/reports');
+assert(window.document.querySelector('.reports-view'), 'Auswertungs-Reiter fehlt');
+assert(window.document.querySelector('[data-role="report-player-rows"] tr'), 'Spieler-Gesamtauswertung wurde nicht gerendert');
+assert(window.document.querySelector('[data-action="report-csv"]'), 'CSV-Export der Gesamtauswertung fehlt');
+assert(window.document.querySelector('[data-action="report-pdf"]'), 'PDF-Export der Gesamtauswertung fehlt');
+
+route('#/account');
+const darkChoice = window.document.querySelector('[data-theme-choice="dark"]');
+assert(darkChoice, 'Darstellungswahl in Konto & Sync fehlt');
+darkChoice.click();
+assert(window.document.documentElement.getAttribute('data-theme') === 'dark', 'Dunkelmodus wurde nicht aktiviert');
+window.document.querySelector('[data-theme-choice="light"]').click();
+assert(!window.document.documentElement.hasAttribute('data-theme'), 'Hellmodus wurde nicht aktiviert');
+
+console.log('UI-Smoke-Test erfolgreich: Dashboard, Auswertung, Theme, Entwicklung, Spiele/Atlas und Training.');
 dom.window.close();

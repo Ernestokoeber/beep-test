@@ -22,7 +22,8 @@ for (const file of ['package.json', 'manifest.webmanifest', 'vercel.json']) JSON
 const serviceWorker = readFileSync(resolve(root, 'sw.js'), 'utf8');
 const assets = [...serviceWorker.matchAll(/'\.\/(.+?)'/g)].map((match) => match[1]);
 for (const asset of assets) {
-  if (!existsSync(resolve(root, asset))) throw new Error('Service-Worker-Asset fehlt: ' + asset);
+  const localAsset = asset.split('?')[0];
+  if (!existsSync(resolve(root, localAsset))) throw new Error('Service-Worker-Asset fehlt: ' + asset);
 }
 
 const frontend = ['index.html', ...scripts.filter((file) => file.startsWith('js/'))]

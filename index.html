@@ -18,7 +18,7 @@
   <link rel="apple-touch-icon" href="assets/TSVLogotransparent.png">
   <title>CourtHub · TSV Lindau Basketball</title>
   <link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/inter-latin.woff2">
-  <link rel="stylesheet" href="style.css?v=97">
+  <link rel="stylesheet" href="style.css?v=98">
 </head>
 <body>
   <header class="topbar">
@@ -50,6 +50,7 @@
       <a href="#/games" data-nav="games"><span class="nav-icon" aria-hidden="true">◉</span><span>Spiele &amp; Atlas</span></a>
       <a href="#/test/setup" data-nav="setup"><span class="nav-icon" aria-hidden="true">◷</span><span>Beep-Test</span></a>
       <a href="#/players" data-nav="players"><span class="nav-icon" aria-hidden="true">◎</span><span>Spieler</span></a>
+      <a href="#/reports" data-nav="reports"><span class="nav-icon" aria-hidden="true">▥</span><span>Auswertung</span></a>
       <span class="nav-section-label">Planung & Analyse</span>
       <a href="#/schedule" data-nav="schedule"><span class="nav-icon" aria-hidden="true">▦</span><span>Trainingsplan</span></a>
       <a href="#/drills" data-nav="drills"><span class="nav-icon" aria-hidden="true">◇</span><span>Drills</span></a>
@@ -112,32 +113,32 @@
       </section>
 
       <div class="dash-grid preview-kpi-grid">
-        <div class="dash-card preview-kpi-card">
+        <a class="dash-card preview-kpi-card" data-role="next-training-card" href="#/schedule" aria-label="Nächstes Training öffnen">
           <div class="dash-label">Nächstes Training</div>
           <svg class="dash-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h3v3H8z"/></svg>
           <div class="dash-big dash-big-copy" data-role="next-training-time">Noch offen</div>
           <div class="dash-sub" data-role="next-training-place">Training planen</div>
           <span class="hidden" data-role="trainings-count">0</span>
           <span class="hidden" data-role="next-training"></span>
-        </div>
-        <div class="dash-card preview-kpi-card">
+        </a>
+        <a class="dash-card preview-kpi-card" href="#/players" aria-label="Spielerliste öffnen">
           <div class="dash-label">Spieler</div>
           <svg class="dash-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M15 14a5 5 0 0 1 6 5v1"/></svg>
           <div class="dash-big" data-role="player-count">0</div>
           <div class="dash-sub">im Team</div>
-        </div>
-        <div class="dash-card preview-kpi-card">
+        </a>
+        <a class="dash-card preview-kpi-card" href="#/reports" aria-label="Anwesenheitsauswertung öffnen">
           <div class="dash-label">Anwesenheit</div>
           <svg class="dash-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 10-4.5"/><circle cx="17" cy="16" r="4"/><path d="m15.5 16 1 1 2-2"/></svg>
           <div class="dash-big"><span data-role="team-att-pct">0</span>%</div>
           <div class="dash-sub" data-role="team-att-sub">Team Ø</div>
-        </div>
-        <div class="dash-card preview-kpi-card">
+        </a>
+        <a class="dash-card preview-kpi-card" href="#/reports" aria-label="Wurfquoten-Auswertung öffnen">
           <div class="dash-label">Freiwürfe</div>
           <svg class="dash-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v9H5zM8 13l1 7h6l1-7M9 16h6M12 13v7"/><circle cx="12" cy="9" r="2"/></svg>
           <div class="dash-big"><span data-role="team-ft-pct">0</span>%</div>
           <div class="dash-sub" data-role="team-ft-sub">Team Ø</div>
-        </div>
+        </a>
       </div>
 
       <section class="next-training-panel" data-role="next-training-panel">
@@ -259,6 +260,66 @@
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-5"/></svg>
         <p class="empty-body">Noch keine Würfe auf der Karte erfasst.</p>
       </div>
+    </section>
+  </template>
+
+  <template id="tpl-reports">
+    <section class="view reports-view">
+      <div class="section-head reports-head">
+        <div class="section-title-block">
+          <span class="section-kicker">Gesamter Datenstand</span>
+          <h2>Auswertung</h2>
+          <p class="muted">Training, Spiele, Project Atlas und Beep-Test in einer aktuellen Teamübersicht.</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn" type="button" data-action="report-csv">CSV exportieren</button>
+          <button class="btn primary" type="button" data-action="report-pdf">PDF exportieren</button>
+        </div>
+      </div>
+
+      <div class="report-filter-bar">
+        <label>Saison
+          <select data-role="report-season"></select>
+        </label>
+        <label>Spieler
+          <select data-role="report-player"><option value="all">Alle Spieler</option></select>
+        </label>
+        <span class="report-as-of" data-role="report-as-of"></span>
+      </div>
+
+      <div class="report-summary-grid" data-role="report-summary"></div>
+      <section class="report-coverage" data-role="report-coverage"></section>
+
+      <section class="report-panel">
+        <div class="report-panel-head">
+          <div><span class="section-kicker">Teamleistung</span><h3>Wurfquoten und Spiele</h3></div>
+        </div>
+        <div class="report-team-grid" data-role="report-team"></div>
+        <div class="report-category-grid" data-role="report-categories"></div>
+      </section>
+
+      <section class="report-panel">
+        <div class="report-panel-head">
+          <div><span class="section-kicker">Kader</span><h3>Komplette Spielerübersicht</h3></div>
+          <span class="muted" data-role="report-player-count"></span>
+        </div>
+        <div class="table-scroll report-table-scroll">
+          <table class="results report-player-table">
+            <thead>
+              <tr><th>Spieler</th><th>Anwesenheit</th><th>Training FG</th><th>Training FT</th><th>Spiele</th><th>PPG</th><th>Spiel FG</th><th>Spiel FT</th><th>REB</th><th>AST</th><th>TO</th><th>Beep-Test</th></tr>
+            </thead>
+            <tbody data-role="report-player-rows"></tbody>
+          </table>
+        </div>
+        <div class="empty empty--field hidden" data-role="report-empty"><p class="empty-body">Für diese Auswahl liegen noch keine Spieler vor.</p></div>
+      </section>
+
+      <section class="report-panel">
+        <div class="report-panel-head">
+          <div><span class="section-kicker">Wurfprofil</span><h3>Wurfquoten jedes Spielers</h3></div>
+        </div>
+        <div class="report-player-cards" data-role="report-player-cards"></div>
+      </section>
     </section>
   </template>
 
@@ -1189,6 +1250,19 @@
         </div>
       </section>
 
+      <section class="appearance-card">
+        <div>
+          <span class="section-kicker">Darstellung</span>
+          <h3>Hell- oder Dunkelmodus</h3>
+          <p class="muted">Die Einstellung gilt auf diesem Gerät. „System“ übernimmt automatisch die iPhone- oder Browser-Einstellung.</p>
+        </div>
+        <div class="theme-choice" role="group" aria-label="Farbschema">
+          <button type="button" data-theme-choice="light">☀ Hell</button>
+          <button type="button" data-theme-choice="dark">☾ Dunkel</button>
+          <button type="button" data-theme-choice="system">◐ System</button>
+        </div>
+      </section>
+
       <div class="account-guest" data-role="account-guest">
         <div class="auth-grid">
           <form class="auth-card" data-role="login-form">
@@ -1281,11 +1355,12 @@
   <script defer src="js/history.js"></script>
   <script defer src="js/aiimport.js"></script>
   <script defer src="js/schedule.js"></script>
-  <script defer src="js/dashboard.js"></script>
+  <script defer src="js/dashboard.js?v=98"></script>
+  <script defer src="js/reports.js?v=98"></script>
   <script defer src="js/settings.js"></script>
-  <script defer src="js/account.js"></script>
+  <script defer src="js/account.js?v=98"></script>
   <script defer src="js/install.js"></script>
-  <script defer src="js/app.js"></script>
+  <script defer src="js/app.js?v=98"></script>
   <div class="toast-host" data-role="toast-host" aria-live="polite"></div>
 </body>
 </html>

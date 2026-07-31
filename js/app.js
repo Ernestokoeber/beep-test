@@ -1,21 +1,41 @@
 (function() {
   const app = document.getElementById('app');
+  const themeMedia = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+  function getThemePreference() {
+    return localStorage.getItem('beeptest_theme') || 'system';
+  }
+
+  function resolvedTheme(preference) {
+    if (preference === 'light' || preference === 'dark') return preference;
+    return themeMedia && themeMedia.matches ? 'dark' : 'light';
+  }
 
   function setupTheme() {
-    const stored = localStorage.getItem('beeptest_theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const theme = stored || (prefersDark ? 'dark' : 'light');
-    applyTheme(theme);
+    applyTheme(resolvedTheme(getThemePreference()));
 
     const btn = document.querySelector('[data-role="theme-toggle"]');
     if (btn) {
       btn.addEventListener('click', () => {
         const cur = document.documentElement.getAttribute('data-theme') || 'light';
         const next = cur === 'dark' ? 'light' : 'dark';
-        localStorage.setItem('beeptest_theme', next);
-        applyTheme(next);
+        setThemePreference(next);
       });
     }
+
+    if (themeMedia && themeMedia.addEventListener) {
+      themeMedia.addEventListener('change', () => {
+        if (getThemePreference() === 'system') applyTheme(resolvedTheme('system'));
+      });
+    }
+  }
+
+  function setThemePreference(preference) {
+    const value = ['light', 'dark', 'system'].includes(preference) ? preference : 'system';
+    if (value === 'system') localStorage.removeItem('beeptest_theme');
+    else localStorage.setItem('beeptest_theme', value);
+    applyTheme(resolvedTheme(value));
+    window.dispatchEvent(new CustomEvent('bt-theme-change', { detail: { preference: value, resolved: resolvedTheme(value) } }));
   }
 
   function applyTheme(theme) {
@@ -105,6 +125,8 @@
       BT.training.renderDetail(app, id);
     } else if (hash === '#/games') {
       BT.games.render(app);
+    } else if (hash === '#/reports') {
+      BT.reports.render(app);
     } else if (hash === '#/schedule') {
       BT.schedule.render(app);
     } else if (hash === '#/notes') {
@@ -148,6 +170,8 @@
       active = 'training';
     } else if (hash.startsWith('#/games')) {
       active = 'games';
+    } else if (hash.startsWith('#/reports')) {
+      active = 'reports';
     } else if (hash.startsWith('#/test')) {
       active = 'setup';
     } else if (hash.startsWith('#/schedule')) {
@@ -190,4 +214,7 @@
       });
     });
   }
+
+  window.BT = window.BT || {};
+  BT.app = { applyTheme, setThemePreference, getThemePreference, resolvedTheme };
 })();

@@ -26,14 +26,17 @@ BT.dashboard = (function() {
     const nextTime = $('[data-role="next-training-time"]', root);
     const nextPlace = $('[data-role="next-training-place"]', root);
     const nextLegacy = $('[data-role="next-training"]', root);
+    const nextCard = $('[data-role="next-training-card"]', root);
     if (nextTraining) {
       nextTime.textContent = formatDate(nextTraining.date) + (nextTraining.startTime ? ', ' + nextTraining.startTime : '');
       nextPlace.textContent = nextTraining.location || nextTraining.place || 'TSV Lindau';
       nextLegacy.textContent = nextTime.textContent;
+      nextCard.href = '#/training/' + encodeURIComponent(nextTraining.id);
     } else {
       nextTime.textContent = 'Noch offen';
-      nextPlace.innerHTML = '<a href="#/schedule">Training planen</a>';
+      nextPlace.textContent = 'Training planen';
       nextLegacy.textContent = 'Noch nicht geplant';
+      nextCard.href = '#/schedule';
     }
 
     const activePlayers = BT.storage.getPlayers().filter(player => !player.archived);

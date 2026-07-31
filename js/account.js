@@ -114,6 +114,22 @@ BT.account = (function() {
     const authStatus = root.querySelector('[data-role="auth-status"]');
     const sessionStatus = root.querySelector('[data-role="session-status"]');
 
+    const drawThemeChoice = () => {
+      const preference = BT.app && BT.app.getThemePreference ? BT.app.getThemePreference() : (localStorage.getItem('beeptest_theme') || 'system');
+      root.querySelectorAll('[data-theme-choice]').forEach((button) => {
+        const active = button.dataset.themeChoice === preference;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    };
+    root.querySelectorAll('[data-theme-choice]').forEach((button) => button.addEventListener('click', () => {
+      if (BT.app && BT.app.setThemePreference) BT.app.setThemePreference(button.dataset.themeChoice);
+      drawThemeChoice();
+      BT.util.toast('Darstellung geändert.');
+    }));
+    window.addEventListener('bt-theme-change', drawThemeChoice, { once: false });
+    drawThemeChoice();
+
     root.querySelector('[data-role="login-form"]').addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
@@ -164,6 +180,7 @@ BT.account = (function() {
     const onChange = () => {
       if (!root.isConnected) {
         window.removeEventListener('bt-sync-change', onChange);
+        window.removeEventListener('bt-theme-change', drawThemeChoice);
         return;
       }
       update(root);
