@@ -491,14 +491,13 @@ BT.tactics = (function() {
         }
       });
 
-      const apiKey = BT.storage.getSetting('geminiApiKey', '');
-      if (!apiKey) {
-        statusEl.textContent = 'Kein Gemini API Key hinterlegt. Trage ihn im „Plan"-Reiter ein und versuche es erneut.';
+      if (!BT.api.getToken()) {
+        statusEl.textContent = 'Bitte zuerst unter „Konto & Sync“ anmelden, um die geschützte KI-Erklärung zu nutzen.';
         return;
       }
 
       BT.wake.acquire('tactics-ai');
-      BT.aiimport.explainTactic(board, apiKey, (msg) => {
+      BT.aiimport.explainTactic(board, null, (msg) => {
         statusEl.textContent = msg;
       }).then(text => {
         resultText = text;

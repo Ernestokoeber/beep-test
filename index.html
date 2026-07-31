@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#004b2b">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="TSV Train">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://generativelanguage.googleapis.com https://cdn.jsdelivr.net; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CourtHub">
+  <meta name="description" content="CourtHub verbindet Trainingsplanung, Leistungsdaten, Beep-Tests, Spielerentwicklung und Spielanalyse für Basketballteams.">
+  <meta property="og:title" content="CourtHub · TSV Lindau Basketball">
+  <meta property="og:description" content="Training planen, Spieler entwickeln und Teamleistung auswerten – mobil und offline nutzbar.">
+  <meta property="og:image" content="assets/TSVLogotransparent.png">
+  <meta property="og:type" content="website">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/logo-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="icons/logo-512.png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <title>TSVLindau Train-APP</title>
+  <link rel="icon" type="image/png" href="assets/TSVLogotransparent.png">
+  <link rel="apple-touch-icon" href="assets/TSVLogotransparent.png">
+  <title>CourtHub · TSV Lindau Basketball</title>
   <link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/inter-latin.woff2">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -21,10 +24,18 @@
   <header class="topbar">
     <div class="topbar-head">
       <a href="#/dashboard" class="brand">
-        <img src="icons/logo-64.png" srcset="icons/logo-64.png 1x, icons/logo-128.png 2x" width="32" height="32" alt="TSV Lindau Basketball" class="brand-logo" decoding="async">
-        <h1 class="brand-text">Train-APP</h1>
+        <span class="brand-mark">
+          <img src="assets/TSVLogotransparent.png" width="40" height="48" alt="TSV Lindau Basketball" class="brand-logo" decoding="async">
+        </span>
+        <span class="brand-copy">
+          <span class="brand-kicker">TSV Lindau Basketball</span>
+          <h1 class="brand-text">CourtHub</h1>
+        </span>
       </a>
       <div class="topbar-actions">
+        <button class="install-btn hidden" type="button" data-role="pwa-install" aria-label="App installieren">
+          <span aria-hidden="true">↓</span><span class="install-label">Installieren</span>
+        </button>
         <button class="theme-toggle" type="button" aria-label="Theme wechseln" data-role="theme-toggle">🌙</button>
         <a class="settings-btn" href="#/settings" aria-label="Einstellungen" title="Einstellungen">⚙️</a>
         <button class="hamburger" type="button" aria-label="Menü" aria-expanded="false" data-role="hamburger">
@@ -32,31 +43,65 @@
         </button>
       </div>
     </div>
-    <nav data-role="nav">
-      <a href="#/dashboard" data-nav="dashboard">Dashboard</a>
-      <a href="#/players" data-nav="players">Spieler</a>
-      <a href="#/training" data-nav="training">Training</a>
-      <a href="#/test/setup" data-nav="setup">Beep-Test</a>
-      <a href="#/schedule" data-nav="schedule">Plan</a>
-      <a href="#/drills" data-nav="drills">Drills</a>
-      <a href="#/tactics" data-nav="tactics">Taktik</a>
-      <a href="#/notes" data-nav="notes">Notizen</a>
-      <a href="#/history" data-nav="history">Historie</a>
+    <nav data-role="nav" aria-label="App-Navigation">
+      <span class="nav-section-label">Coaching</span>
+      <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></a>
+      <a href="#/training" data-nav="training"><span class="nav-icon" aria-hidden="true">▶</span><span>Training</span></a>
+      <a href="#/games" data-nav="games"><span class="nav-icon" aria-hidden="true">◉</span><span>Spiele &amp; Atlas</span></a>
+      <a href="#/test/setup" data-nav="setup"><span class="nav-icon" aria-hidden="true">◷</span><span>Beep-Test</span></a>
+      <a href="#/players" data-nav="players"><span class="nav-icon" aria-hidden="true">◎</span><span>Spieler</span></a>
+      <span class="nav-section-label">Planung & Analyse</span>
+      <a href="#/schedule" data-nav="schedule"><span class="nav-icon" aria-hidden="true">▦</span><span>Trainingsplan</span></a>
+      <a href="#/drills" data-nav="drills"><span class="nav-icon" aria-hidden="true">◇</span><span>Drills</span></a>
+      <a href="#/tactics" data-nav="tactics"><span class="nav-icon" aria-hidden="true">⌁</span><span>Taktikboard</span></a>
+      <a href="#/notes" data-nav="notes"><span class="nav-icon" aria-hidden="true">□</span><span>Notizen</span></a>
+      <a href="#/history" data-nav="history"><span class="nav-icon" aria-hidden="true">↺</span><span>Historie</span></a>
+      <a href="#/account" data-nav="account"><span class="nav-icon" aria-hidden="true">◉</span><span>Konto & Sync</span></a>
+      <a class="club-link" href="https://www.tsv-lindau.de" target="_blank" rel="noopener noreferrer"><span class="nav-icon" aria-hidden="true">↗</span><span>Vereinswebsite</span></a>
     </nav>
   </header>
 
   <main id="app"></main>
 
+  <nav class="mobile-dock" aria-label="Schnellnavigation">
+    <a href="#/dashboard" data-mobile-nav="dashboard"><span aria-hidden="true">⌂</span><small>Home</small></a>
+    <a href="#/training" data-mobile-nav="training"><span aria-hidden="true">▶</span><small>Training</small></a>
+    <a class="mobile-dock-main" href="#/test/setup" data-mobile-nav="setup"><span aria-hidden="true">◷</span><small>Beep</small></a>
+    <a href="#/players" data-mobile-nav="players"><span aria-hidden="true">◎</span><small>Spieler</small></a>
+    <button type="button" data-role="mobile-more" aria-label="Weitere Bereiche öffnen" aria-expanded="false"><span aria-hidden="true">•••</span><small>Mehr</small></button>
+  </nav>
+
   <template id="tpl-dashboard">
     <section class="view">
+      <section class="coach-hero" aria-labelledby="coach-hero-title">
+        <div class="coach-hero-copy">
+          <span class="coach-eyebrow">TSV Lindau Basketball</span>
+          <h2 id="coach-hero-title">Dein Team. Dein Plan.<br><span>Ein System.</span></h2>
+          <p>Training steuern, Entwicklung sichtbar machen und in der Halle sofort handeln.</p>
+          <div class="coach-status-row">
+            <span class="connection-chip" data-role="connection-status"><i></i><span>Online</span></span>
+            <span class="today-chip" data-role="dashboard-date"></span>
+          </div>
+        </div>
+        <div class="coach-hero-actions">
+          <a class="hero-action hero-action-primary" href="#/training"><span>Training öffnen</span><strong>→</strong></a>
+          <a class="hero-action" href="#/test/setup"><span>Beep-Test starten</span><strong>→</strong></a>
+          <button class="hero-action hero-install hidden" type="button" data-role="pwa-install"><span>Auf Gerät installieren</span><strong>↓</strong></button>
+        </div>
+        <span class="coach-hero-number" aria-hidden="true">1850</span>
+      </section>
+
       <div class="section-head">
-        <h2>Dashboard</h2>
+        <div class="section-title-block">
+          <span class="section-kicker">Teamübersicht</span>
+          <h2>Dashboard</h2>
+        </div>
         <div>
           <label class="season-select">
             <span class="sr-only">Saison</span>
             <select data-role="season-select"></select>
           </label>
-          <button class="btn small" data-action="share-backup">📤 App teilen</button>
+          <button class="btn small" data-action="share-backup">📤 Backup teilen</button>
           <button class="btn small" data-action="import-backup">Importieren</button>
           <button class="btn small" data-action="export-season-csv">Saison CSV</button>
           <button class="btn small" data-action="export-season-json">Saison JSON</button>
@@ -79,6 +124,11 @@
           <div class="dash-big"><span data-role="team-ft-pct">0</span>%</div>
           <div class="dash-sub" data-role="team-ft-sub">—</div>
         </div>
+        <div class="dash-card">
+          <div class="dash-label">Nächstes Spiel</div>
+          <div class="dash-big dash-game" data-role="next-game-opponent">–</div>
+          <div class="dash-sub" data-role="next-game-meta"><a href="#/games">Spielplan öffnen</a></div>
+        </div>
       </div>
 
       <section class="phase-banner hidden" data-role="phase-banner">
@@ -97,6 +147,18 @@
       <section class="alerts-card hidden" data-role="alerts">
         <h3 class="alerts-head">🔔 Heute beachten</h3>
         <ul class="alerts-list" data-role="alerts-list"></ul>
+      </section>
+
+      <section class="coach-briefing" data-role="coach-briefing">
+        <div class="coach-briefing-head">
+          <div>
+            <span class="section-kicker">Nächster Einsatz</span>
+            <h3>Trainerbriefing</h3>
+          </div>
+          <button class="btn small" type="button" data-action="share-briefing">Briefing teilen</button>
+        </div>
+        <div class="coach-briefing-grid" data-role="coach-briefing-grid"></div>
+        <ul class="coach-briefing-list" data-role="coach-briefing-list"></ul>
       </section>
 
       <section class="form-of-week hidden" data-role="form-of-week">
@@ -177,7 +239,21 @@
           <label>Name *<input name="name" type="text" required maxlength="60"></label>
           <label>Geburtsdatum<input name="birthDate" type="date"></label>
           <label>Position<input name="position" type="text" maxlength="40" placeholder="z.B. Mittelfeld"></label>
+          <label>Trikotnummer<input name="jerseyNumber" type="text" maxlength="8" placeholder="z.B. 11"></label>
+          <label>Project-Atlas-ID<input name="atlasPlayerId" type="text" maxlength="100" placeholder="z.B. player-11"></label>
+          <label>Verfügbarkeit
+            <select name="availability">
+              <option value="ready">Einsatzbereit</option>
+              <option value="limited">Eingeschränkt</option>
+              <option value="injured">Verletzt</option>
+              <option value="away">Abwesend</option>
+            </select>
+          </label>
+          <label>Status bis<input name="availabilityUntil" type="date"></label>
         </div>
+        <label class="block-label">Hinweis für das Trainerteam
+          <input name="availabilityNote" type="text" maxlength="160" placeholder="z.B. Sprunggelenk – nur kontaktfrei">
+        </label>
         <div class="form-actions">
           <button type="submit" class="btn primary">Speichern</button>
           <button type="button" class="btn" data-action="cancel">Abbrechen</button>
@@ -303,6 +379,44 @@
     </section>
   </template>
 
+  <template id="tpl-games">
+    <section class="view games-view">
+      <div class="section-head">
+        <div class="section-title-block"><span class="section-kicker">Website · Spiel · Analyse · Training</span><h2>Spiele &amp; Project Atlas</h2></div>
+        <div class="head-actions">
+          <button class="btn small primary" type="button" data-action="sync-games">↻ TSV-Spielplan</button>
+          <button class="btn small" type="button" data-action="new-game">+ Spiel</button>
+          <button class="btn small" type="button" data-action="import-atlas">Atlas-Paket</button>
+        </div>
+      </div>
+      <p class="muted">Spieltermine kommen von der TSV-Webseite. Project Atlas liefert geprüfte Videoanalyse; CourtHub übernimmt daraus konkrete Trainingsaufgaben.</p>
+      <p class="auth-status" data-role="games-status" aria-live="polite"></p>
+
+      <form class="player-form hidden" data-role="game-form">
+        <input type="hidden" name="id">
+        <div class="form-row">
+          <label>Team<select name="team"><option value="herren">Herren</option><option value="u18">U18</option></select></label>
+          <label>Datum<input name="date" type="date" required></label>
+          <label>Zeit<input name="time" type="time"></label>
+          <label class="grow">Heim<input name="home" type="text" required maxlength="80"></label>
+          <label class="grow">Gast<input name="away" type="text" required maxlength="80"></label>
+          <label>Ergebnis<input name="score" type="text" maxlength="20" placeholder="72:65"></label>
+        </div>
+        <div class="form-actions"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-action="cancel-game">Abbrechen</button></div>
+      </form>
+
+      <div class="games-toolbar">
+        <label><span class="sr-only">Team filtern</span><select data-role="games-team"><option value="all">Alle Teams</option><option value="herren">Herren</option><option value="u18">U18</option></select></label>
+        <label class="grow"><span class="sr-only">Spiele suchen</span><input type="search" data-role="games-search" placeholder="Gegner suchen …"></label>
+      </div>
+      <div class="games-layout">
+        <ul class="game-list" data-role="game-list"></ul>
+        <section class="game-detail" data-role="game-detail"><div class="empty empty--field"><p class="empty-body">Spiel auswählen, um Beobachtungen, Spielerwerte und Atlas-Analyse zu bearbeiten.</p></div></section>
+      </div>
+      <div class="empty hidden" data-role="games-empty"><p class="empty-headline">Noch keine Spiele</p><p class="empty-body">Synchronisiere den TSV-Spielplan oder lege ein Spiel manuell an.</p></div>
+    </section>
+  </template>
+
   <template id="tpl-training-detail">
     <section class="view">
       <div class="section-head">
@@ -401,6 +515,28 @@
       </div>
 
       <div class="pane hidden" data-pane="attendance">
+        <section class="checkin-card" data-role="checkin-card">
+          <div class="checkin-card-copy">
+            <span class="section-kicker">Schneller Hallenstart</span>
+            <h3>QR-Anwesenheit</h3>
+            <p class="muted">Spieler melden sich über den zeitlich begrenzten Code an. Das Trainerteam prüft und übernimmt die Meldungen.</p>
+            <div class="form-actions">
+              <button class="btn small primary" type="button" data-action="checkin-create">QR-Code erstellen</button>
+              <button class="btn small" type="button" data-action="checkin-refresh">Meldungen laden</button>
+              <button class="btn small danger hidden" type="button" data-action="checkin-revoke">Code sperren</button>
+            </div>
+            <p class="auth-status" data-role="checkin-status" aria-live="polite"></p>
+          </div>
+          <div class="checkin-qr hidden" data-role="checkin-qr">
+            <img data-role="checkin-qr-image" alt="QR-Code für den Anwesenheits-Check-in">
+            <button class="btn small" type="button" data-action="checkin-share">Link teilen</button>
+          </div>
+          <div class="checkin-submissions hidden" data-role="checkin-submissions">
+            <strong data-role="checkin-count">0 Meldungen</strong>
+            <ul data-role="checkin-list"></ul>
+            <button class="btn small primary" type="button" data-action="checkin-apply">Als anwesend übernehmen</button>
+          </div>
+        </section>
         <div class="att-actions">
           <button class="btn small" data-action="reset-attendance">Anwesenheit zurücksetzen</button>
         </div>
@@ -515,6 +651,7 @@
         </div>
         <div class="form-actions">
           <button class="btn primary" data-action="save-schedule">Speichern</button>
+          <button class="btn" data-action="export-calendar">Kalender (.ics)</button>
         </div>
       </div>
 
@@ -527,13 +664,9 @@
 
       <h3>KI-Import (Plan aus PDF)</h3>
       <div class="player-form">
-        <p class="muted">Lade einen Trainingsplan als PDF hoch — Gemini extrahiert Inhalte und füllt die nächsten Termine vor (Notiz, Freiwürfe, Wurf-Kategorien, Drill-Liste).</p>
-        <label class="block-label">Gemini API Key
-          <input type="password" data-role="api-key" placeholder="AIza..." autocomplete="off">
-        </label>
-        <p class="muted">Kostenlos bei <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> anlegen. Wird nur lokal in deinem Browser gespeichert.</p>
+        <p class="muted">Lade einen Trainingsplan als PDF hoch — die serverseitig geschützte KI extrahiert Inhalte und füllt die nächsten Termine vor.</p>
+        <p class="muted">Kein API-Key im Browser: Die KI ist zentral für das TSV-Trainerteam konfiguriert. <a href="#/account">Konto &amp; Sync öffnen</a></p>
         <div class="form-actions">
-          <button class="btn" data-action="save-key">Key speichern</button>
           <button class="btn primary" data-action="upload-pdf">📄 Plan-PDF hochladen</button>
         </div>
         <p class="muted" data-role="ai-status"></p>
@@ -572,6 +705,38 @@
       <input type="text" class="note-title" data-role="title" placeholder="Titel (optional)" maxlength="120">
       <textarea class="note-body" data-role="body" placeholder="Notiz schreiben …" rows="14"></textarea>
       <p class="muted" data-role="meta"></p>
+
+    </section>
+  </template>
+
+  <template id="tpl-checkin">
+    <section class="checkin-public view">
+      <div class="checkin-public-brand">
+        <img src="assets/TSVLogotransparent.png" alt="TSV Lindau">
+        <div><span>TSV Lindau Basketball</span><h2>Anwesenheit</h2></div>
+      </div>
+      <div class="checkin-public-card">
+        <div data-role="checkin-loading">
+          <div class="checkin-spinner" aria-hidden="true"></div>
+          <p>Training wird geladen …</p>
+        </div>
+        <div class="hidden" data-role="checkin-form-wrap">
+          <span class="section-kicker">Training</span>
+          <h3 data-role="checkin-training-title">Anmelden</h3>
+          <p class="muted" data-role="checkin-training-meta"></p>
+          <form data-role="checkin-form">
+            <label>Wer bist du?
+              <select data-role="checkin-player" required><option value="">Bitte auswählen …</option></select>
+            </label>
+            <button class="btn primary big" type="submit">Ich bin da</button>
+          </form>
+          <p class="muted checkin-privacy">Die Meldung wird dem Trainerteam angezeigt und erst dort in die Anwesenheit übernommen.</p>
+        </div>
+        <div class="hidden checkin-success" data-role="checkin-success">
+          <div class="checkin-success-icon">✓</div><h3>Du bist eingecheckt</h3><p data-role="checkin-success-text"></p>
+        </div>
+        <div class="hidden checkin-error" data-role="checkin-error"><h3>Check-in nicht möglich</h3><p></p></div>
+      </div>
     </section>
   </template>
 
@@ -604,6 +769,25 @@
         <button class="btn small" data-action="print-report">🖨 Bericht drucken / PDF</button>
       </div>
       <p class="muted" data-role="meta"></p>
+
+      <section class="development-panel" data-role="development-panel">
+        <div class="development-head">
+          <div>
+            <span class="section-kicker">Individuelle Entwicklung</span>
+            <h3>Ziele &amp; Trainerfeedback</h3>
+          </div>
+          <button class="btn small primary" type="button" data-action="new-goal">+ Ziel</button>
+        </div>
+        <form class="goal-form hidden" data-role="goal-form">
+          <div class="form-row">
+            <label class="grow">Ziel<input name="title" type="text" required maxlength="100" placeholder="z.B. Freiwurfquote auf 70 %"></label>
+            <label>Zieldatum<input name="targetDate" type="date"></label>
+          </div>
+          <label class="block-label">Erster Trainerhinweis<textarea name="feedback" rows="2" maxlength="500" placeholder="Konkreter nächster Schritt"></textarea></label>
+          <div class="form-actions"><button class="btn small primary" type="submit">Ziel speichern</button><button class="btn small" type="button" data-action="cancel-goal">Abbrechen</button></div>
+        </form>
+        <div class="goal-list" data-role="goal-list"></div>
+      </section>
 
       <h3>Saison-Statistik</h3>
       <div class="dash-grid" data-role="player-stats"></div>
@@ -949,8 +1133,102 @@
     </section>
   </template>
 
+  <template id="tpl-account">
+    <section class="view account-view">
+      <div class="section-head">
+        <div class="section-title-block">
+          <span class="section-kicker">Sicher auf allen Geräten</span>
+          <h2>Konto &amp; Synchronisierung</h2>
+        </div>
+      </div>
+
+      <section class="account-hero">
+        <div>
+          <span class="coach-eyebrow">TSV Team-Workspace</span>
+          <h3>Ein gemeinsamer Datenstand für das Trainerteam.</h3>
+          <p>Trainings, Spieler, Statistiken und Pläne bleiben offline verfügbar und werden nach der Anmeldung verschlüsselt über HTTPS synchronisiert.</p>
+        </div>
+        <div class="sync-indicator" data-role="sync-indicator">
+          <i></i><span data-role="sync-label">Gastmodus</span>
+        </div>
+      </section>
+
+      <div class="account-guest" data-role="account-guest">
+        <div class="auth-grid">
+          <form class="auth-card" data-role="login-form">
+            <span class="auth-card-number">01</span>
+            <h3>Anmelden</h3>
+            <p class="muted">Vorhandenes Trainerkonto verwenden.</p>
+            <label class="block-label">E-Mail
+              <input name="email" type="email" autocomplete="email" required>
+            </label>
+            <label class="block-label">Passwort
+              <input name="password" type="password" autocomplete="current-password" minlength="10" required>
+            </label>
+            <button class="btn primary" type="submit">Anmelden</button>
+          </form>
+
+          <form class="auth-card" data-role="register-form">
+            <span class="auth-card-number">02</span>
+            <h3>Trainerkonto anlegen</h3>
+            <p class="muted">Das reservierte erste TSV-Konto wird Administrator. Weitere Konten benötigen den Einladungscode.</p>
+            <label class="block-label">Name
+              <input name="displayName" type="text" autocomplete="name" minlength="2" maxlength="80" required>
+            </label>
+            <label class="block-label">E-Mail
+              <input name="email" type="email" autocomplete="email" required>
+            </label>
+            <label class="block-label">Passwort
+              <input name="password" type="password" autocomplete="new-password" minlength="10" required>
+            </label>
+            <label class="block-label">Einladungscode <span class="muted">(für weitere Konten)</span>
+              <input name="inviteCode" type="password" autocomplete="off">
+            </label>
+            <button class="btn primary" type="submit">Konto erstellen</button>
+          </form>
+        </div>
+        <p class="auth-status" data-role="auth-status" aria-live="polite"></p>
+      </div>
+
+      <section class="account-session hidden" data-role="account-session">
+        <div class="account-profile-card">
+          <div class="account-avatar" data-role="account-avatar">TS</div>
+          <div>
+            <span class="account-role" data-role="account-role"></span>
+            <h3 data-role="account-name"></h3>
+            <p class="muted" data-role="account-email"></p>
+          </div>
+        </div>
+        <div class="account-details">
+          <div><span>Team</span><strong data-role="account-team">—</strong></div>
+          <div><span>Letzte Synchronisierung</span><strong data-role="last-sync">—</strong></div>
+          <div><span>Workspace-Version</span><strong data-role="workspace-version">0</strong></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" type="button" data-action="sync-now">Jetzt synchronisieren</button>
+          <button class="btn" type="button" data-action="logout">Abmelden</button>
+        </div>
+        <p class="auth-status" data-role="session-status" aria-live="polite"></p>
+        <section class="team-members-card">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Berechtigungen</span>
+              <h3>Trainerteam</h3>
+            </div>
+          </div>
+          <p class="muted">Administratoren können Rollen ändern. Lesender Zugriff darf die gemeinsamen Teamdaten nicht überschreiben.</p>
+          <div class="team-members-list" data-role="team-members"></div>
+          <p class="auth-status" data-role="members-status" aria-live="polite"></p>
+        </section>
+      </section>
+    </section>
+  </template>
+
   <script defer src="js/util.js"></script>
   <script defer src="js/storage.js"></script>
+  <script defer src="js/api.js"></script>
+  <script defer src="js/checkin.js"></script>
+  <script defer src="js/sync.js"></script>
   <script defer src="js/levels.js"></script>
   <script defer src="js/ratings.js"></script>
   <script defer src="js/heatmap.js"></script>
@@ -960,6 +1238,7 @@
   <script defer src="js/players.js"></script>
   <script defer src="js/test.js"></script>
   <script defer src="js/training.js"></script>
+  <script defer src="js/games.js"></script>
   <script defer src="js/notes.js"></script>
   <script defer src="js/drills.js"></script>
   <script defer src="js/tactics.js"></script>
@@ -968,6 +1247,8 @@
   <script defer src="js/schedule.js"></script>
   <script defer src="js/dashboard.js"></script>
   <script defer src="js/settings.js"></script>
+  <script defer src="js/account.js"></script>
+  <script defer src="js/install.js"></script>
   <script defer src="js/app.js"></script>
   <div class="toast-host" data-role="toast-host" aria-live="polite"></div>
 </body>

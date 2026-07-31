@@ -129,7 +129,7 @@ BT.history = (function() {
     const data = sanitizeForExport(BT.storage.load());
     data.exportedAt = new Date().toISOString();
     const filename = 'beeptest_backup_' + todayISO() + '.json';
-    const result = await shareOrDownloadJSON(filename, data, 'TSVLindau Train-APP Backup');
+    const result = await shareOrDownloadJSON(filename, data, 'CourtHub Backup');
     if (result === 'downloaded') {
       alert('Teilen wird vom Browser nicht unterstützt — Datei wurde stattdessen heruntergeladen.');
     }
@@ -151,12 +151,9 @@ BT.history = (function() {
         ? prompt('Backup importieren:\n  "m" = Mergen (bestehende Daten behalten, neue ergänzen)\n  "r" = Ersetzen (alle aktuellen Daten löschen)\n  Abbrechen = leer lassen', 'm')
         : 'r';
       if (!choice) return;
-      const localKey = (current.settings && current.settings.geminiApiKey) || '';
       if (choice === 'r') {
         const mergedSettings = Object.assign({}, data.settings || {});
-        // Never let an imported backup overwrite the local API key — keep local if set.
-        if (localKey) mergedSettings.geminiApiKey = localKey;
-        else delete mergedSettings.geminiApiKey;
+        delete mergedSettings.geminiApiKey;
         BT.storage.save({
           schemaVersion: 2,
           players: data.players,
@@ -170,10 +167,8 @@ BT.history = (function() {
         });
       } else if (choice === 'm') {
         const importedSettings = Object.assign({}, data.settings || {});
-        // Merge: always keep the local API key, ignore any from the backup.
         delete importedSettings.geminiApiKey;
         const mergedSettings = Object.assign({}, current.settings || {}, importedSettings);
-        if (localKey) mergedSettings.geminiApiKey = localKey;
         BT.storage.save({
           schemaVersion: 2,
           players: mergeById(current.players, data.players),

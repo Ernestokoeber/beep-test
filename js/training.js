@@ -111,9 +111,7 @@ BT.training = (function() {
   }
 
   function initialAttendance() {
-    return BT.storage.getPlayers()
-      .filter(p => !p.archived)
-      .map(p => ({ playerId: p.id, status: null, late: false, note: '' }));
+    return BT.storage.attendanceForActivePlayers(todayISO());
   }
 
   function archivedPlayerIdSet() {
@@ -148,6 +146,7 @@ BT.training = (function() {
   let detailRoot = null;
   let detailAbort = null;
   let currentShotCategory = null;
+  let checkinSubmissions = [];
 
   function renderDetail(target, id) {
     const training = BT.storage.getTraining(id);
@@ -261,6 +260,7 @@ BT.training = (function() {
     }
 
     renderAttendance();
+    setupCheckin();
     renderSummary();
     renderFreethrows();
     renderShotTabs();
@@ -287,7 +287,8 @@ BT.training = (function() {
     const existingIds = new Set((currentTraining.attendance || []).map(a => a.playerId));
     for (const p of active) {
       if (!existingIds.has(p.id)) {
-        currentTraining.attendance.push({ playerId: p.id, status: null, late: false, note: '' });
+        const seeded = BT.storage.attendanceForActivePlayers(currentTraining.date).find(entry => entry.playerId === p.id);
+        currentTraining.attendance.push(seeded || { playerId: p.id, status: null, late: false, note: '' });
       }
     }
     save();
@@ -353,6 +354,106 @@ BT.training = (function() {
 
       list.appendChild(card);
     }
+  }
+
+  function setupCheckin() {
+    const status = $('[data-role="checkin-status"]', detailRoot);
+    const createBtn = $('[data-action="checkin-create"]', detailRoot);
+    const refreshBtn = $('[data-action="checkin-refresh"]', detailRoot);
+    const revokeBtn = $('[data-action="checkin-revoke"]', detailRoot);
+    const shareBtn = $('[data-action="checkin-share"]', detailRoot);
+    const applyBtn = $('[data-action="checkin-apply"]', detailRoot);
+    if (!status || !createBtn) return;
+
+    function checkinUrl() {
+      const token = currentTraining.checkin && currentTraining.checkin.token;
+      return token ? location.origin + location.pathname + '#/checkin/' + encodeURIComponent(token) : '';
+    }
+
+    function renderCheckin() {
+      const checkin = currentTraining.checkin || {};
+      const hasToken = !!checkin.token && (!checkin.expiresAt || Date.parse(checkin.expiresAt) > Date.now());
+      const qr = $('[data-role="checkin-qr"]', detailRoot);
+      const submissions = $('[data-role="checkin-submissions"]', detailRoot);
+      qr.classList.toggle('hidden', !hasToken);
+      revokeBtn.classList.toggle('hidden', !hasToken);
+      createBtn.textContent = hasToken ? 'Neuen Code erstellen' : 'QR-Code erstellen';
+      if (hasToken) {
+        $('[data-role="checkin-qr-image"]', detailRoot).src = '/api/checkin/qr?token=' + encodeURIComponent(checkin.token);
+        status.textContent = 'Aktiv bis ' + new Date(checkin.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
+      }
+
+      submissions.classList.toggle('hidden', checkinSubmissions.length === 0);
+      $('[data-role="checkin-count"]', detailRoot).textContent = checkinSubmissions.length + (checkinSubmissions.length === 1 ? ' Meldung' : ' Meldungen');
+      $('[data-role="checkin-list"]', detailRoot).innerHTML = checkinSubmissions.map(item => {
+        const player = BT.storage.getPlayer(item.playerId);
+        return '<li><strong>' + escapeHTML(player ? player.name : item.playerName || 'Spieler') + '</strong><span>' + new Date(item.submittedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr</span></li>';
+      }).join('');
+    }
+
+    async function loadSubmissions(silent) {
+      if (!BT.api.getToken()) {
+        status.textContent = 'Für QR-Check-in bitte unter „Konto & Sync“ anmelden.';
+        return;
+      }
+      if (!silent) status.textContent = 'Meldungen werden geladen …';
+      try {
+        const result = await BT.api.getCheckin(currentTraining.id);
+        checkinSubmissions = result.submissions || [];
+        renderCheckin();
+        if (!result.active && !currentTraining.checkin) status.textContent = 'Noch kein aktiver Check-in.';
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    }
+
+    createBtn.addEventListener('click', async () => {
+      if (!BT.api.getToken()) { location.hash = '#/account'; return; }
+      createBtn.disabled = true;
+      status.textContent = 'Sicherer Code wird erstellt …';
+      try {
+        const result = await BT.api.createCheckin(currentTraining.id, 180);
+        currentTraining.checkin = { token: result.token, expiresAt: result.expiresAt };
+        checkinSubmissions = [];
+        save(); renderCheckin();
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        createBtn.disabled = false;
+      }
+    });
+
+    refreshBtn.addEventListener('click', () => loadSubmissions(false));
+    revokeBtn.addEventListener('click', async () => {
+      try {
+        await BT.api.revokeCheckin(currentTraining.id);
+        delete currentTraining.checkin;
+        checkinSubmissions = [];
+        save(); renderCheckin(); status.textContent = 'Code wurde gesperrt.';
+      } catch (error) { status.textContent = error.message; }
+    });
+    shareBtn.addEventListener('click', async () => {
+      const url = checkinUrl();
+      if (!url) return;
+      const payload = { title: 'TSV Lindau Anwesenheit', text: 'Bitte für das Training einchecken:', url };
+      if (navigator.share) {
+        try { await navigator.share(payload); return; } catch (error) { if (error.name === 'AbortError') return; }
+      }
+      await navigator.clipboard.writeText(url);
+      BT.util.toast('Check-in-Link kopiert.');
+    });
+    applyBtn.addEventListener('click', () => {
+      let changed = 0;
+      for (const item of checkinSubmissions) {
+        const attendance = (currentTraining.attendance || []).find(entry => entry.playerId === item.playerId);
+        if (attendance && attendance.status !== 'present') { attendance.status = 'present'; attendance.late = false; changed++; }
+      }
+      save(); renderAttendance(); renderSummary(); renderFreethrows(); renderShots();
+      BT.util.toast(changed + ' Meldungen als anwesend übernommen.');
+    });
+
+    renderCheckin();
+    if (BT.api.getToken()) loadSubmissions(true);
   }
 
   function renderSummary() {
@@ -1450,11 +1551,25 @@ BT.training = (function() {
     if (plan.freethrows && plan.freethrows.attempted) targets.push('Freiwürfe ' + plan.freethrows.attempted);
     for (const s of (plan.shots || [])) targets.push(escapeHTML(s.category || '') + ' ' + (parseInt(s.attempted, 10) || 0));
 
+    const plannedMinutes = plan.drills.reduce((sum, drill) => sum + (parseInt(drill.minutes, 10) || 0), 0);
+    const durationMinutes = Math.max(15, parseInt(plan.durationMinutes, 10) || 105);
+    const remaining = durationMinutes - plannedMinutes;
+    const loadFactors = { low: 1, medium: 2, high: 3 };
+    const loadPoints = plan.drills.reduce((sum, drill) => sum + (parseInt(drill.minutes, 10) || 0) * (loadFactors[drill.intensity || 'medium'] || 2), 0);
+    const fillPct = Math.min(100, Math.round((plannedMinutes / durationMinutes) * 100));
+
     sumEl.innerHTML = `
       <label class="plan-summary-field">
         <span class="muted">Beschreibung</span>
         <textarea data-role="plan-summary-input" rows="2" placeholder="z.B. Schwerpunkt Verteidigung & Korbleger">${escapeHTML(plan.summary || '')}</textarea>
       </label>
+      <div class="plan-load-grid">
+        <label class="plan-duration"><span>Trainingsdauer</span><span><input type="number" min="15" max="240" step="5" value="${durationMinutes}" data-role="plan-duration"> min</span></label>
+        <div><span>Verplant</span><strong>${plannedMinutes} min</strong></div>
+        <div><span>${remaining >= 0 ? 'Noch frei' : 'Überplant'}</span><strong class="${remaining < 0 ? 'plan-over' : ''}">${Math.abs(remaining)} min</strong></div>
+        <div><span>Belastung</span><strong>${loadPoints} Punkte</strong></div>
+      </div>
+      <div class="plan-progress" aria-label="${fillPct} Prozent der Trainingszeit verplant"><span style="width:${fillPct}%"></span></div>
       ${targets.length ? '<p class="muted">Vorgaben pro Spieler: ' + targets.join(' · ') + '</p>' : ''}
     `;
     const summaryInput = $('[data-role="plan-summary-input"]', sumEl);
@@ -1464,19 +1579,29 @@ BT.training = (function() {
         save();
       });
     }
+    const durationInput = $('[data-role="plan-duration"]', sumEl);
+    durationInput.addEventListener('change', () => {
+      plan.durationMinutes = Math.max(15, Math.min(240, parseInt(durationInput.value, 10) || 105));
+      BT.storage.setSetting('trainingDurationMinutes', plan.durationMinutes);
+      save(); renderPlanBox();
+    });
 
     const drillsEl = $('[data-role="plan-drills"]', detailRoot);
     drillsEl.innerHTML = '';
     plan.drills.forEach((d, idx) => {
       const li = document.createElement('li');
       li.className = 'plan-drill';
+      li.draggable = true;
+      li.dataset.planIndex = String(idx);
       const minLabel = d.minutes ? ' (' + d.minutes + ' min)' : '';
       const isFirst = idx === 0;
       const isLast = idx === plan.drills.length - 1;
 
       li.innerHTML = `
         <div class="plan-drill-head">
+          <span class="plan-drag" title="Ziehen zum Sortieren" aria-hidden="true">⋮⋮</span>
           <span class="drill-name">${escapeHTML(d.name || '')}${minLabel}</span>
+          <span class="intensity-chip intensity-${escapeHTML(d.intensity || 'medium')}">${d.intensity === 'low' ? 'Locker' : d.intensity === 'high' ? 'Intensiv' : 'Mittel'}</span>
           <div class="plan-drill-actions">
             ${d.minutes ? '<button class="btn small primary" data-action="timer">▶ Timer</button>' : ''}
             <button class="btn small" data-action="up" aria-label="Nach oben" ${isFirst ? 'disabled' : ''}>↑</button>
@@ -1490,6 +1615,7 @@ BT.training = (function() {
         <div class="plan-drill-edit hidden" data-role="edit-form">
           <label>Name<input type="text" data-field="name" value="${escapeHTML(d.name || '')}"></label>
           <label>Minuten<input type="number" min="0" step="1" data-field="minutes" value="${d.minutes || ''}"></label>
+          <label>Intensität<select data-field="intensity"><option value="low" ${d.intensity === 'low' ? 'selected' : ''}>Locker</option><option value="medium" ${!d.intensity || d.intensity === 'medium' ? 'selected' : ''}>Mittel</option><option value="high" ${d.intensity === 'high' ? 'selected' : ''}>Intensiv</option></select></label>
           <label>Beschreibung<textarea data-field="description" rows="2">${escapeHTML(d.description || '')}</textarea></label>
           <button type="button" class="btn small primary" data-action="edit-close">Fertig</button>
         </div>
@@ -1544,6 +1670,26 @@ BT.training = (function() {
         });
       });
 
+      li.addEventListener('dragstart', event => {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(idx));
+        li.classList.add('dragging');
+      });
+      li.addEventListener('dragend', () => li.classList.remove('dragging'));
+      li.addEventListener('dragover', event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      });
+      li.addEventListener('drop', event => {
+        event.preventDefault();
+        const from = parseInt(event.dataTransfer.getData('text/plain'), 10);
+        if (!Number.isInteger(from) || from === idx || !plan.drills[from]) return;
+        const moved = plan.drills.splice(from, 1)[0];
+        const destination = from < idx ? idx - 1 : idx;
+        plan.drills.splice(destination, 0, moved);
+        save(); renderPlanBox();
+      });
+
       const editCloseBtn = byAction('edit-close');
       if (editCloseBtn) {
         editCloseBtn.addEventListener('click', () => {
@@ -1555,7 +1701,7 @@ BT.training = (function() {
       if (swapBtn) {
         swapBtn.addEventListener('click', () => {
           BT.drills.openPicker(picked => {
-            plan.drills[idx] = { name: picked.name, minutes: picked.minutes || 0, description: picked.description || '' };
+            plan.drills[idx] = { name: picked.name, minutes: picked.minutes || 0, description: picked.description || '', intensity: picked.intensity || 'medium' };
             save();
             renderPlanBox();
           });
@@ -1587,7 +1733,7 @@ BT.training = (function() {
     `;
     controls.querySelector('[data-action="add-drill-from-lib"]').addEventListener('click', () => {
       BT.drills.openPicker(picked => {
-        plan.drills.push({ name: picked.name, minutes: picked.minutes || 0, description: picked.description || '' });
+        plan.drills.push({ name: picked.name, minutes: picked.minutes || 0, description: picked.description || '', intensity: picked.intensity || 'medium' });
         save();
         renderPlanBox();
       });
@@ -2307,8 +2453,7 @@ BT.training = (function() {
   }
 
   async function openAISummary(training) {
-    const apiKey = (BT.storage.getSetting('geminiApiKey', '') || '').trim();
-    const hasApiKey = !!apiKey;
+    const hasAIAccount = !!BT.api.getToken();
 
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
@@ -2359,17 +2504,16 @@ BT.training = (function() {
       statusEl.textContent = (prefixNote ? prefixNote + ' · ' : '') + '✓ Manuelle Zusammenfassung';
       copyBtn.disabled = false;
       shareBtn.disabled = false;
-      regenBtn.disabled = !hasApiKey;
+      regenBtn.disabled = !hasAIAccount;
       fallbackBox.classList.add('hidden');
     }
 
     manualBtn.addEventListener('click', () => applyManualSummary());
 
     async function run() {
-      if (!hasApiKey) {
-        // Empty state: kein API-Key → direkt manuelle Zusammenfassung statt alert()
+      if (!hasAIAccount) {
         regenBtn.disabled = true;
-        applyManualSummary('Gemini nicht konfiguriert');
+        applyManualSummary('Für KI bitte unter „Konto & Sync“ anmelden');
         return;
       }
       statusEl.textContent = '⏳ Gemini arbeitet …';
@@ -2388,7 +2532,7 @@ BT.training = (function() {
         }, 500);
         let text;
         try {
-          text = await BT.aiimport.summarizeTraining(training, prev, apiKey, msg => {
+          text = await BT.aiimport.summarizeTraining(training, prev, null, msg => {
             statusEl.textContent = '⏳ ' + msg;
           });
         } finally {
@@ -2894,7 +3038,7 @@ BT.training = (function() {
     if (!trimmed) return;
     const planDrills = ((currentTraining.plan && currentTraining.plan.drills) || [])
       .filter(d => d && (d.name || '').trim())
-      .map(d => ({ name: d.name, minutes: d.minutes || 0, description: d.description || '' }));
+      .map(d => ({ name: d.name, minutes: d.minutes || 0, description: d.description || '', intensity: d.intensity || 'medium' }));
     const ftAttempted = (currentTraining.freethrows || [])
       .reduce((max, e) => Math.max(max, e.attempted || 0), 0);
     const shotCategories = (currentTraining.shots || [])
@@ -2902,7 +3046,11 @@ BT.training = (function() {
       .filter(Boolean);
     const tpl = {
       name: trimmed,
-      plan: { drills: planDrills },
+      plan: {
+        drills: planDrills,
+        durationMinutes: currentTraining.plan && currentTraining.plan.durationMinutes || 105,
+        summary: currentTraining.plan && currentTraining.plan.summary || ''
+      },
       freethrowsAttempted: ftAttempted,
       shotCategories
     };
@@ -2981,7 +3129,9 @@ BT.training = (function() {
     // Plan-Drills uebernehmen
     currentTraining.plan = currentTraining.plan || {};
     currentTraining.plan.drills = ((tpl.plan && tpl.plan.drills) || [])
-      .map(d => ({ name: d.name, minutes: d.minutes || 0, description: d.description || '' }));
+      .map(d => ({ name: d.name, minutes: d.minutes || 0, description: d.description || '', intensity: d.intensity || 'medium' }));
+    currentTraining.plan.durationMinutes = tpl.plan && tpl.plan.durationMinutes || currentTraining.plan.durationMinutes || 105;
+    if (tpl.plan && tpl.plan.summary) currentTraining.plan.summary = tpl.plan.summary;
 
     // Freiwurf-Zielzahl in plan.freethrows.attempted (wird bei neuen Entries als Default genutzt)
     if (tpl.freethrowsAttempted) {

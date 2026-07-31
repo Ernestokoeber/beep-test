@@ -1,47 +1,6 @@
 window.BT = window.BT || {};
 
 BT.aiimport = (function() {
-  const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-2.5-pro'];
-  const BASE_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
-
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-  const PROMPT = `Du bekommst einen Basketball-Trainingsplan als PDF.
-Trainings finden Dienstag und Freitag jeweils 20:15-22:00 Uhr statt.
-
-Extrahiere alle Daten und gib NUR valides JSON zurück (keine Markdown-Codeblöcke), mit dieser Struktur:
-
-{
-  "phase": {
-    "name": "Phase X" oder "Phase X & Y" (z.B. "Phase 1 & 2"),
-    "focus": "Untertitel/Fokus der Phase (z.B. Athletik & Kondition)",
-    "start": "YYYY-MM-DD" (frühestes Datum im Plan),
-    "end": "YYYY-MM-DD" (spätestes Datum im Plan),
-    "goals": ["Ziel 1", "Ziel 2", ...]
-  },
-  "trainings": [
-    {
-      "weekday": "tuesday" oder "friday",
-      "date": "YYYY-MM-DD" wenn ein konkretes Datum erkennbar ist, sonst null,
-      "summary": "Kurze Zusammenfassung des Trainings, max. 200 Zeichen",
-      "freethrows": { "attempted": Anzahl Würfe pro Spieler } oder null,
-      "shots": [
-        { "category": "Kategorie-Name (z.B. Layup, Mitteldistanz, 3er)", "attempted": Anzahl pro Spieler }
-      ],
-      "drills": [
-        { "name": "Drill-Name", "minutes": Dauer in Minuten oder null, "description": "Kurze Beschreibung" }
-      ]
-    }
-  ]
-}
-
-Hinweise:
-- Das "phase"-Objekt ist Pflicht. Falls kein Phasenname erkennbar ist, verwende "Phase ?".
-- Wenn der Plan z.B. "Freiwürfe 20 Stk" sagt, setze freethrows.attempted = 20.
-- Wenn Übungen Zeitangaben haben (z.B. "10 min Aufwärmen"), trag das in drills.minutes ein.
-- Lass leere oder unklare Felder weg oder setze sie auf null.
-- Übersetze nichts, behalte deutsche Begriffe bei.`;
-
   async function fileToBase64(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -55,119 +14,22 @@ Hinweise:
     });
   }
 
-  async function callOnce(model, apiKey, base64, mimeType, onProgress) {
-    const body = {
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: mimeType || 'application/pdf', data: base64 } },
-          { text: PROMPT }
-        ]
-      }],
-      generationConfig: {
-        response_mime_type: 'application/json',
-        temperature: 0.1
-      }
-    };
-    const url = BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey);
-    console.log('[Gemini] POST', model, '— PDF', Math.round(base64.length * 0.75 / 1024), 'KB');
-    const t0 = Date.now();
-
-    const ticker = startTicker((sec) => {
-      if (onProgress) onProgress(model + ' wartet auf Antwort … ' + sec + 's');
-    });
-
-    let res;
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    } finally {
-      stopTicker(ticker);
-    }
-
-    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-    console.log('[Gemini] Antwort nach', elapsed + 's', 'Status:', res.status);
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.warn('[Gemini] Fehler-Body:', errText);
-      const err = new Error('HTTP ' + res.status + ': ' + errText.slice(0, 300));
-      err.status = res.status;
-      throw err;
-    }
-    if (onProgress) onProgress(model + ' antwortet (' + elapsed + 's), wird geparst …');
-    const data = await res.json();
-    console.log('[Gemini] Roh-Antwort:', data);
-    const text = data && data.candidates && data.candidates[0]
-      && data.candidates[0].content && data.candidates[0].content.parts
-      && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-    if (!text) throw new Error('Leere Antwort.');
-    let parsed;
-    try { parsed = JSON.parse(text); }
-    catch (e) { throw new Error('Antwort war kein gültiges JSON: ' + text.slice(0, 200)); }
-    if (!parsed.trainings || !Array.isArray(parsed.trainings)) {
-      throw new Error('Antwort enthält keine "trainings"-Liste.');
-    }
-    parsed._meta = { model, elapsedSec: parseFloat(elapsed), trainingsFound: parsed.trainings.length };
-    return parsed;
-  }
-
-  function startTicker(callback) {
-    const startTs = Date.now();
-    const id = setInterval(() => {
-      const sec = Math.floor((Date.now() - startTs) / 1000);
-      callback(sec);
-    }, 500);
-    callback(0);
-    return id;
-  }
-
-  function stopTicker(id) { clearInterval(id); }
-
-  async function parseWithGemini(file, apiKey, onProgress) {
-    if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key eintragen.');
+  async function parseWithGemini(file, _legacyApiKey, onProgress) {
+    if (!BT.api.getToken()) throw new Error('Bitte zuerst unter „Konto & Sync“ anmelden.');
     if (onProgress) onProgress('PDF wird gelesen …');
     const base64 = await fileToBase64(file);
     const mime = file.type || 'application/pdf';
     const sizeKB = Math.round(base64.length * 0.75 / 1024);
-    console.log('[Gemini] PDF geladen:', file.name, sizeKB + ' KB, MIME:', mime);
-    if (onProgress) onProgress('PDF (' + sizeKB + ' KB) wird gesendet …');
-
-    let lastErr = null;
-    for (let i = 0; i < MODELS.length; i++) {
-      const model = MODELS[i];
-      const maxAttempts = 3;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          if (onProgress) onProgress(model + ' — Versuch ' + attempt + '/' + maxAttempts + ' …');
-          const result = await callOnce(model, apiKey, base64, mime, onProgress);
-          console.log('[Gemini] Erfolg mit', model, '— ' + result._meta.trainingsFound + ' Trainings, ' + result._meta.elapsedSec + 's');
-          return result;
-        } catch (e) {
-          lastErr = e;
-          console.warn('[Gemini]', model, 'Versuch', attempt, 'fehlgeschlagen:', e.message);
-          const transient = e.status === 503 || e.status === 429 || e.status === 500;
-          const notFound = e.status === 404;
-          if (notFound) {
-            if (onProgress) onProgress(model + ' nicht verfügbar, wechsle …');
-            break;
-          }
-          if (!transient || attempt === maxAttempts) {
-            if (i < MODELS.length - 1) {
-              if (onProgress) onProgress(model + ' nicht erreichbar, wechsle zum nächsten …');
-              break;
-            }
-            throw e;
-          }
-          const wait = 1500 * Math.pow(2, attempt - 1);
-          if (onProgress) onProgress(model + ' überlastet (Status ' + (e.status || '?') + '), warte ' + Math.round(wait / 1000) + 's …');
-          await sleep(wait);
-        }
-      }
-    }
-    throw lastErr || new Error('Alle Modelle fehlgeschlagen.');
+    if (onProgress) onProgress('PDF (' + sizeKB + ' KB) wird geschützt analysiert …');
+    const startedAt = Date.now();
+    const response = await BT.api.ai('parsePlan', { fileBase64: base64, mimeType: mime });
+    const parsed = response.data;
+    parsed._meta = {
+      model: response.model,
+      elapsedSec: Number(((Date.now() - startedAt) / 1000).toFixed(1)),
+      trainingsFound: parsed.trainings.length
+    };
+    return parsed;
   }
 
   function dayKeyToNum(key) {
@@ -263,7 +125,7 @@ Hinweise:
           startTime: time,
           note: planObj.summary || '',
           plan: planObj,
-          attendance: BT.storage.getPlayers().filter(p => !p.archived).map(p => ({ playerId: p.id, status: null, late: false, note: '' })),
+          attendance: BT.storage.attendanceForActivePlayers(targetDate),
           freethrows: [],
           shots: planObj.shots.map(s => ({ category: s.category, entries: [] }))
         });
@@ -342,53 +204,14 @@ Daten (JSON) über das aktuelle und — falls vorhanden — das vorige Training 
     };
   }
 
-  async function callGeminiText(apiKey, payloadText, onProgress) {
-    const body = {
-      contents: [{ parts: [{ text: SUMMARY_PROMPT + '\n\n' + payloadText }] }],
-      generationConfig: { temperature: 0.6 }
-    };
-    let lastErr = null;
-    for (let i = 0; i < MODELS.length; i++) {
-      const model = MODELS[i];
-      const url = BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey);
-      if (onProgress) onProgress(model + ' fragt Gemini …');
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        if (!res.ok) {
-          const errText = await res.text();
-          const err = new Error('HTTP ' + res.status + ': ' + errText.slice(0, 200));
-          err.status = res.status;
-          if (res.status === 404 || res.status === 503 || res.status === 429) {
-            lastErr = err;
-            continue;
-          }
-          throw err;
-        }
-        const data = await res.json();
-        const text = data && data.candidates && data.candidates[0]
-          && data.candidates[0].content && data.candidates[0].content.parts
-          && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-        if (!text) throw new Error('Leere Antwort.');
-        return text.trim();
-      } catch (e) {
-        lastErr = e;
-        if (i === MODELS.length - 1) throw e;
-      }
-    }
-    throw lastErr || new Error('Alle Modelle fehlgeschlagen.');
-  }
-
-  async function summarizeTraining(training, previous, apiKey, onProgress) {
-    if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key im „Plan"-Reiter eintragen.');
+  async function summarizeTraining(training, previous, _legacyApiKey, onProgress) {
+    if (!BT.api.getToken()) throw new Error('Bitte zuerst unter „Konto & Sync“ anmelden.');
     const players = BT.storage.getPlayers();
     const lookup = (id) => players.find(p => p.id === id);
     const data = buildSummaryData(training, previous, lookup);
-    const payloadText = 'Trainingsdaten:\n' + JSON.stringify(data, null, 2);
-    return callGeminiText(apiKey, payloadText, onProgress);
+    if (onProgress) onProgress('Trainingsdaten werden geschützt ausgewertet …');
+    const response = await BT.api.ai('summarizeTraining', { data });
+    return response.text;
   }
 
   const TACTIC_PROMPT = `Du bist Basketball-Co-Trainer. Erkläre den folgenden Spielzug für U14-U18-Spieler in 5-8 knappen, konkreten Sätzen auf Deutsch.
@@ -425,46 +248,12 @@ Gib NUR den fertigen Erklärungstext zurück — keine Markdown-Überschriften, 
     return lines.join('\n');
   }
 
-  async function explainTactic(board, apiKey, onProgress) {
-    if (!apiKey) throw new Error('Bitte zuerst den Gemini API Key im „Plan"-Reiter eintragen.');
+  async function explainTactic(board, _legacyApiKey, onProgress) {
+    if (!BT.api.getToken()) throw new Error('Bitte zuerst unter „Konto & Sync“ anmelden.');
     const description = describeTactic(board);
-    const body = {
-      contents: [{ parts: [{ text: TACTIC_PROMPT + '\n\nSpielzug:\n' + description }] }],
-      generationConfig: { temperature: 0.5 }
-    };
-    let lastErr = null;
-    for (let i = 0; i < MODELS.length; i++) {
-      const model = MODELS[i];
-      const url = BASE_ENDPOINT + model + ':generateContent?key=' + encodeURIComponent(apiKey);
-      if (onProgress) onProgress(model + ' analysiert Spielzug …');
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        if (!res.ok) {
-          const errText = await res.text();
-          const err = new Error('HTTP ' + res.status + ': ' + errText.slice(0, 200));
-          err.status = res.status;
-          if (res.status === 404 || res.status === 503 || res.status === 429) {
-            lastErr = err;
-            continue;
-          }
-          throw err;
-        }
-        const data = await res.json();
-        const text = data && data.candidates && data.candidates[0]
-          && data.candidates[0].content && data.candidates[0].content.parts
-          && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-        if (!text) throw new Error('Leere Antwort.');
-        return text.trim();
-      } catch (e) {
-        lastErr = e;
-        if (i === MODELS.length - 1) throw e;
-      }
-    }
-    throw lastErr || new Error('Alle Modelle fehlgeschlagen.');
+    if (onProgress) onProgress('Spielzug wird geschützt analysiert …');
+    const response = await BT.api.ai('explainTactic', { description });
+    return response.text;
   }
 
   return { parseWithGemini, applyPlanToTrainings, summarizeTraining, explainTactic };

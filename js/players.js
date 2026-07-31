@@ -30,6 +30,11 @@ BT.players = (function() {
     form.elements.name.value = player ? player.name : '';
     form.elements.birthDate.value = player ? (player.birthDate || '') : '';
     form.elements.position.value = player ? (player.position || '') : '';
+    form.elements.jerseyNumber.value = player ? (player.jerseyNumber || '') : '';
+    form.elements.atlasPlayerId.value = player ? (player.atlasPlayerId || '') : '';
+    form.elements.availability.value = player ? (player.availability || 'ready') : 'ready';
+    form.elements.availabilityUntil.value = player ? (player.availabilityUntil || '') : '';
+    form.elements.availabilityNote.value = player ? (player.availabilityNote || '') : '';
     form.elements.name.focus();
   }
 
@@ -46,7 +51,12 @@ BT.players = (function() {
       id: f.elements.id.value || undefined,
       name: f.elements.name.value.trim(),
       birthDate: f.elements.birthDate.value || null,
-      position: f.elements.position.value.trim() || null
+      position: f.elements.position.value.trim() || null,
+      jerseyNumber: f.elements.jerseyNumber.value.trim() || null,
+      atlasPlayerId: f.elements.atlasPlayerId.value.trim() || null,
+      availability: f.elements.availability.value || 'ready',
+      availabilityUntil: f.elements.availabilityUntil.value || null,
+      availabilityNote: f.elements.availabilityNote.value.trim() || null
     };
     if (!data.name) return;
     BT.storage.upsertPlayer(data);
@@ -78,12 +88,14 @@ BT.players = (function() {
       const age = ageFrom(p.birthDate);
       const metaParts = [];
       if (p.position) metaParts.push(escapeHTML(p.position));
+      if (p.jerseyNumber) metaParts.push('#' + escapeHTML(p.jerseyNumber));
       if (age !== null) metaParts.push(age + ' Jahre');
       const flame = currentTab === 'active' ? renderStreakFlame(p.id) : '';
       const sparkline = currentTab === 'active' ? renderFTSparkline(p.id) : '';
+      const availability = availabilityBadge(p);
       li.innerHTML = `
         <div class="info" data-open>
-          <div class="name">${escapeHTML(p.name)}${flame ? ' ' + flame : ''}</div>
+          <div class="name">${escapeHTML(p.name)}${flame ? ' ' + flame : ''} ${availability}</div>
           <div class="meta">${metaParts.join(' · ') || '&nbsp;'}</div>
         </div>
         ${sparkline ? `<div class="player-spark">${sparkline}</div>` : ''}
@@ -134,9 +146,13 @@ BT.players = (function() {
     const age = ageFrom(player.birthDate);
     const metaParts = [];
     if (player.position) metaParts.push(escapeHTML(player.position));
+    if (player.jerseyNumber) metaParts.push('#' + escapeHTML(player.jerseyNumber));
+    if (player.atlasPlayerId) metaParts.push('Atlas verbunden');
     if (age !== null) metaParts.push(age + ' Jahre');
     if (player.archived) metaParts.push('archiviert');
     $('[data-role="meta"]', node).innerHTML = metaParts.join(' · ') || '&nbsp;';
+
+    renderGoals(node, player);
 
     renderPlayerSeasonStats(node, player);
     renderStreakTile(node, player);
@@ -177,6 +193,116 @@ BT.players = (function() {
       `;
       rows.appendChild(tr);
     });
+  }
+
+  const AVAILABILITY = {
+    ready: { label: 'Einsatzbereit', cls: 'ok' },
+    limited: { label: 'Eingeschränkt', cls: 'warn' },
+    injured: { label: 'Verletzt', cls: 'bad' },
+    away: { label: 'Abwesend', cls: 'muted-chip' }
+  };
+
+  function effectiveAvailability(player) {
+    const until = player.availabilityUntil;
+    if (until && until < BT.util.todayISO()) return 'ready';
+    return player.availability || 'ready';
+  }
+
+  function availabilityBadge(player) {
+    const state = effectiveAvailability(player);
+    if (state === 'ready') return '';
+    const item = AVAILABILITY[state] || AVAILABILITY.ready;
+    const until = player.availabilityUntil ? ' bis ' + BT.util.formatDate(player.availabilityUntil) : '';
+    return '<span class="att-chip ' + item.cls + '" title="' + escapeHTML((player.availabilityNote || item.label) + until) + '">' + item.label + '</span>';
+  }
+
+  function renderGoals(node, player) {
+    const list = $('[data-role="goal-list"]', node);
+    const form = $('[data-role="goal-form"]', node);
+    const goals = player.goals || (player.goals = []);
+
+    $('[data-action="new-goal"]', node).addEventListener('click', () => {
+      form.classList.remove('hidden');
+      form.elements.title.focus();
+    });
+    $('[data-action="cancel-goal"]', node).addEventListener('click', () => {
+      form.reset();
+      form.classList.add('hidden');
+    });
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const title = form.elements.title.value.trim();
+      if (!title) return;
+      const feedback = form.elements.feedback.value.trim();
+      goals.unshift({
+        id: BT.util.uuid('goal_'), title,
+        targetDate: form.elements.targetDate.value || null,
+        progress: 0, status: 'active', createdAt: new Date().toISOString(),
+        feedback: feedback ? [{ id: BT.util.uuid('fb_'), text: feedback, createdAt: new Date().toISOString() }] : []
+      });
+      BT.storage.upsertPlayer(player);
+      form.reset();
+      form.classList.add('hidden');
+      drawGoals();
+    });
+
+    function saveGoals() {
+      player.goals = goals;
+      BT.storage.upsertPlayer(player);
+    }
+
+    function drawGoals() {
+      if (!goals.length) {
+        list.innerHTML = '<div class="empty empty--field"><p class="empty-body">Noch kein Entwicklungsziel. Ein konkretes Ziel macht Gespräche und Fortschritte nachvollziehbar.</p></div>';
+        return;
+      }
+      list.innerHTML = goals.map(goal => {
+        const feedback = Array.isArray(goal.feedback) ? goal.feedback : [];
+        const due = goal.targetDate ? BT.util.formatDate(goal.targetDate) : 'ohne Termin';
+        const done = goal.status === 'done';
+        return `<article class="goal-card ${done ? 'is-done' : ''}" data-goal-id="${goal.id}">
+          <div class="goal-card-head"><div><h4>${escapeHTML(goal.title)}</h4><span class="muted">Ziel: ${escapeHTML(due)}</span></div><span class="att-chip ${done ? 'ok' : 'warn'}">${done ? 'Erreicht' : 'Aktiv'}</span></div>
+          <div class="goal-progress-row"><input type="range" min="0" max="100" step="5" value="${Number(goal.progress || 0)}" data-goal-progress aria-label="Fortschritt"><strong data-goal-progress-label>${Number(goal.progress || 0)} %</strong></div>
+          <div class="goal-progress"><span style="width:${Number(goal.progress || 0)}%"></span></div>
+          <ul class="goal-feedback">${feedback.slice().reverse().map(item => '<li><span>' + escapeHTML(BT.util.formatDate((item.createdAt || '').slice(0, 10))) + '</span>' + escapeHTML(item.text) + '</li>').join('')}</ul>
+          <div class="goal-feedback-form"><input type="text" maxlength="500" data-goal-feedback placeholder="Neues Trainerfeedback …"><button class="btn small" type="button" data-goal-action="feedback">Hinzufügen</button></div>
+          <div class="goal-actions"><button class="btn small" type="button" data-goal-action="toggle">${done ? 'Wieder öffnen' : 'Als erreicht markieren'}</button><button class="btn small danger" type="button" data-goal-action="delete">Löschen</button></div>
+        </article>`;
+      }).join('');
+
+      list.querySelectorAll('[data-goal-id]').forEach(card => {
+        const goal = goals.find(item => item.id === card.dataset.goalId);
+        if (!goal) return;
+        const progress = card.querySelector('[data-goal-progress]');
+        progress.addEventListener('input', () => {
+          goal.progress = Number(progress.value);
+          card.querySelector('[data-goal-progress-label]').textContent = goal.progress + ' %';
+          card.querySelector('.goal-progress span').style.width = goal.progress + '%';
+          if (goal.progress === 100) goal.status = 'done';
+          saveGoals();
+        });
+        card.querySelector('[data-goal-action="feedback"]').addEventListener('click', () => {
+          const input = card.querySelector('[data-goal-feedback]');
+          const text = input.value.trim();
+          if (!text) return;
+          goal.feedback = Array.isArray(goal.feedback) ? goal.feedback : [];
+          goal.feedback.push({ id: BT.util.uuid('fb_'), text, createdAt: new Date().toISOString() });
+          saveGoals(); drawGoals();
+        });
+        card.querySelector('[data-goal-action="toggle"]').addEventListener('click', () => {
+          goal.status = goal.status === 'done' ? 'active' : 'done';
+          if (goal.status === 'done') goal.progress = 100;
+          saveGoals(); drawGoals();
+        });
+        card.querySelector('[data-goal-action="delete"]').addEventListener('click', () => {
+          const index = goals.indexOf(goal);
+          if (index >= 0) goals.splice(index, 1);
+          saveGoals(); drawGoals();
+        });
+      });
+    }
+
+    drawGoals();
   }
 
   function renderPlayerHeatmap(node, player) {

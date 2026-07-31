@@ -46,26 +46,19 @@ BT.schedule = (function() {
       BT.storage.setSetting('regularLookahead', parseInt($('[data-role="lookahead"]', root).value, 10) || 6);
       renderUpcoming(root);
     });
+    $('[data-action="export-calendar"]', root).addEventListener('click', exportCalendar);
 
     renderUpcoming(root);
     setupAIImport(root);
   }
 
   function setupAIImport(root) {
-    const keyInput = $('[data-role="api-key"]', root);
     const status = $('[data-role="ai-status"]', root);
-    keyInput.value = BT.storage.getSetting('geminiApiKey', '');
-
-    $('[data-action="save-key"]', root).addEventListener('click', () => {
-      BT.storage.setSetting('geminiApiKey', keyInput.value.trim());
-      status.textContent = '✓ API Key gespeichert.';
-      setTimeout(() => { status.textContent = ''; }, 3000);
-    });
+    if (!BT.api.getToken()) status.textContent = 'Für den KI-Import bitte zuerst unter „Konto & Sync“ anmelden.';
 
     $('[data-action="upload-pdf"]', root).addEventListener('click', async () => {
-      const apiKey = (keyInput.value || BT.storage.getSetting('geminiApiKey', '')).trim();
-      if (!apiKey) {
-        alert('Bitte zuerst den Gemini API Key oben eintragen und speichern.');
+      if (!BT.api.getToken()) {
+        if (confirm('Für den geschützten KI-Import ist eine Anmeldung nötig. Jetzt Konto & Sync öffnen?')) location.hash = '#/account';
         return;
       }
       const file = await BT.util.pickFile('application/pdf,.pdf');
@@ -74,7 +67,7 @@ BT.schedule = (function() {
       status.textContent = '⏳ Plan wird analysiert (kann 10-60 Sekunden dauern) ...';
       BT.wake.acquire('schedule-pdf');
       try {
-        const parsed = await BT.aiimport.parseWithGemini(file, apiKey, (msg) => {
+        const parsed = await BT.aiimport.parseWithGemini(file, null, (msg) => {
           status.textContent = '⏳ ' + msg;
         });
         const summary = parsed.trainings.map((t, i) => {
@@ -121,17 +114,8 @@ BT.schedule = (function() {
     }
     empty.classList.add('hidden');
 
-    const dayNums = days.map(k => (DAYS.find(d => d.key === k) || {}).num).filter(n => n !== undefined);
-    const [hh, mm] = time.split(':').map(x => parseInt(x, 10));
     const now = new Date();
-
-    const upcoming = [];
-    for (let i = 0; i < 60 && upcoming.length < lookahead; i++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() + i);
-      d.setHours(hh || 20, mm || 15, 0, 0);
-      if (dayNums.includes(d.getDay()) && d > now) upcoming.push(d);
-    }
+    const upcoming = upcomingDates(days, time, lookahead, now);
 
     const trainings = BT.storage.getTrainings();
 
@@ -165,7 +149,7 @@ BT.schedule = (function() {
             date: iso,
             startTime: time,
             note: '',
-            attendance: BT.storage.getPlayers().filter(p => !p.archived).map(p => ({ playerId: p.id, status: null, late: false, note: '' })),
+            attendance: BT.storage.attendanceForActivePlayers(iso),
             freethrows: [],
             shots: []
           });
@@ -189,6 +173,52 @@ BT.schedule = (function() {
       }
       list.appendChild(li);
     }
+  }
+
+  function upcomingDates(days, time, lookahead, now) {
+    const dayNums = days.map(k => (DAYS.find(d => d.key === k) || {}).num).filter(n => n !== undefined);
+    const [hh, mm] = String(time || '20:15').split(':').map(x => parseInt(x, 10));
+    const start = now || new Date();
+    const result = [];
+    for (let i = 0; i < 180 && result.length < lookahead; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      d.setHours(hh || 20, mm || 15, 0, 0);
+      if (dayNums.includes(d.getDay()) && d > start) result.push(d);
+    }
+    return result;
+  }
+
+  function icsDate(date) {
+    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  }
+
+  function icsEscape(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+  }
+
+  function exportCalendar() {
+    const days = BT.storage.getSetting('regularDays', []);
+    if (!Array.isArray(days) || !days.length) {
+      BT.util.toast('Bitte zuerst reguläre Trainingstage auswählen.');
+      return;
+    }
+    const time = BT.storage.getSetting('regularTime', '20:15');
+    const lookahead = Math.max(6, BT.storage.getSetting('regularLookahead', 6));
+    const dates = upcomingDates(days, time, lookahead, new Date());
+    const trainings = BT.storage.getTrainings();
+    const duration = Math.max(15, BT.storage.getSetting('trainingDurationMinutes', 105));
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//CourtHub//TSV Lindau Basketball//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+    dates.forEach(start => {
+      const iso = start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-' + String(start.getDate()).padStart(2, '0');
+      const training = trainings.find(item => item.date === iso) || {};
+      const end = new Date(start.getTime() + duration * 60000);
+      const summary = training.plan && training.plan.summary ? training.plan.summary : training.note || 'Teamtraining';
+      lines.push('BEGIN:VEVENT', 'UID:' + icsEscape(training.id || iso + '-' + time) + '@tsv-lindau.de', 'DTSTAMP:' + icsDate(new Date()), 'DTSTART:' + icsDate(start), 'DTEND:' + icsDate(end), 'SUMMARY:' + icsEscape('TSV Lindau Basketball – ' + summary), 'DESCRIPTION:' + icsEscape(training.note || 'Training des TSV Lindau Basketball'), 'END:VEVENT');
+    });
+    lines.push('END:VCALENDAR');
+    BT.util.downloadBlob('tsv-lindau-trainings.ics', new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' }));
+    BT.util.toast(dates.length + ' Termine als Kalender exportiert.');
   }
 
   return { render };

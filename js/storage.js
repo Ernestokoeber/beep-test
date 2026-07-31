@@ -2,7 +2,7 @@ window.BT = window.BT || {};
 
 BT.storage = (function() {
   const KEY = 'beepTest_v1';
-  const CURRENT_SCHEMA = 2;
+  const CURRENT_SCHEMA = 3;
 
   function load() {
     try {
@@ -16,6 +16,7 @@ BT.storage = (function() {
       data.notes = data.notes || [];
       data.freethrows = data.freethrows || [];
       data.drills = data.drills || [];
+      data.games = data.games || [];
       if (data.schemaVersion < CURRENT_SCHEMA) {
         migrate(data);
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -38,14 +39,26 @@ BT.storage = (function() {
       }
       data.schemaVersion = 2;
     }
+    if (data.schemaVersion < 3) {
+      data.games = data.games || [];
+      for (const player of data.players) {
+        if (!player.availability) player.availability = 'ready';
+        if (!Array.isArray(player.goals)) player.goals = [];
+      }
+      data.schemaVersion = 3;
+    }
   }
 
-  function save(data) {
+  function save(data, options) {
+    const config = options || {};
+    data.meta = data.meta || {};
+    if (!config.preserveTimestamp) data.meta.updatedAt = new Date().toISOString();
     localStorage.setItem(KEY, JSON.stringify(data));
+    if (!config.fromSync && window.BT && BT.sync && BT.sync.queueSave) BT.sync.queueSave(data);
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -62,6 +75,18 @@ BT.storage = (function() {
   }
 
   function getPlayers() { return load().players; }
+
+  function attendanceForActivePlayers(date) {
+    const targetDate = date || BT.util.todayISO();
+    return getPlayers().filter(player => !player.archived).map(player => {
+      const activeStatus = !player.availabilityUntil || player.availabilityUntil >= targetDate;
+      const availability = activeStatus ? (player.availability || 'ready') : 'ready';
+      let status = null;
+      if (availability === 'injured') status = 'injured';
+      else if (availability === 'away') status = 'excused';
+      return { playerId: player.id, status, late: false, note: availability === 'ready' ? '' : (player.availabilityNote || '') };
+    });
+  }
 
   function getPlayer(id) { return load().players.find(p => p.id === id); }
 
@@ -348,15 +373,47 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getGames() {
+    return (load().games || []).slice().sort((a, b) => ((b.date || '') + (b.time || '')).localeCompare((a.date || '') + (a.time || '')));
+  }
+
+  function getGame(id) { return (load().games || []).find(game => game.id === id || game.externalId === id); }
+
+  function upsertGame(game) {
+    const data = load();
+    data.games = data.games || [];
+    const index = data.games.findIndex(item => item.id === game.id || (game.externalId && item.externalId === game.externalId));
+    const now = new Date().toISOString();
+    if (index >= 0) {
+      data.games[index] = Object.assign({}, data.games[index], game, { id: data.games[index].id, updatedAt: now });
+      game = data.games[index];
+    } else {
+      game.id = game.id || BT.util.uuid('game_');
+      game.createdAt = now;
+      game.updatedAt = now;
+      game.seasonId = game.seasonId || BT.util.seasonForDate(game.date);
+      data.games.push(game);
+    }
+    save(data);
+    return game;
+  }
+
+  function deleteGame(id) {
+    const data = load();
+    data.games = (data.games || []).filter(game => game.id !== id);
+    save(data);
+  }
+
   return {
     load, save,
-    getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer,
+    getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer, attendanceForActivePlayers,
     getSessions, getSession, createSession, updateSession, deleteSession,
     getTrainings, getTraining, upsertTraining, deleteTraining, restoreTraining,
     getNotes, getNote, upsertNote, deleteNote, restoreNote,
     getDrills, getDrill, upsertDrill, deleteDrill, restoreDrill,
     getTemplates, getTemplate, upsertTemplate, deleteTemplate,
     getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,
+    getGames, getGame, upsertGame, deleteGame,
     getShotCategories, setShotCategories,
     getSetting, setSetting,
     getPhases, upsertPhase, getPhaseForDate,

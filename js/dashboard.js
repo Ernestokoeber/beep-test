@@ -40,14 +40,78 @@ BT.dashboard = (function() {
       ? tf.made + '/' + tf.attempted + ' aus ' + tf.sessions + ' Sessions'
       : 'Noch keine Daten';
 
+    renderNextGame(root);
+
     renderCurrentPhase(root);
     renderAlerts(root);
+    renderCoachBriefing(root);
     renderFormOfWeek(root);
     renderTopAttenders(root);
     renderTopFT(root);
     renderShotCategories(root);
     renderPositionStats(root);
     renderTeamHeatmap(root);
+  }
+
+  function renderNextGame(root) {
+    const today = todayISO();
+    const game = BT.storage.getGames().filter(item => (item.date || '') >= today && !item.score && item.status !== 'cancelled' && item.status !== 'abgesagt')
+      .sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')))[0];
+    if (!game) return;
+    const opponent = /lindau/i.test(game.home || '') ? game.away : game.home;
+    $('[data-role="next-game-opponent"]', root).textContent = opponent || 'Gegner offen';
+    $('[data-role="next-game-meta"]', root).innerHTML = '<a href="#/games">' + formatDate(game.date) + (game.time ? ' · ' + escapeHTML(game.time) : '') + ' · ' + (game.team === 'u18' ? 'U18' : 'Herren') + '</a>';
+  }
+
+  function renderCoachBriefing(root) {
+    const grid = $('[data-role="coach-briefing-grid"]', root);
+    const list = $('[data-role="coach-briefing-list"]', root);
+    const players = BT.storage.getPlayers().filter(player => !player.archived);
+    const today = todayISO();
+    const next = BT.storage.getTrainings()
+      .filter(training => (training.date || '') >= today)
+      .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')))[0];
+    const unavailable = players.filter(player => {
+      if (player.availabilityUntil && player.availabilityUntil < today) return false;
+      return player.availability && player.availability !== 'ready';
+    });
+    const activeGoals = players.flatMap(player => (player.goals || [])
+      .filter(goal => goal.status !== 'done')
+      .map(goal => ({ player, goal })));
+    const dueGoals = activeGoals.filter(item => item.goal.targetDate && item.goal.targetDate <= today);
+    const openAttendance = next ? (next.attendance || []).filter(entry => !entry.status).length : 0;
+    const plannedMinutes = next && next.plan ? (next.plan.drills || []).reduce((sum, drill) => sum + (Number(drill.minutes) || 0), 0) : 0;
+
+    grid.innerHTML = `
+      <div><span>Nächstes Training</span><strong>${next ? formatDate(next.date) + (next.startTime ? ' · ' + escapeHTML(next.startTime) : '') : 'Noch nicht geplant'}</strong></div>
+      <div><span>Kader bereit</span><strong>${players.length - unavailable.length} / ${players.length}</strong></div>
+      <div><span>Planumfang</span><strong>${plannedMinutes ? plannedMinutes + ' min' : 'Noch offen'}</strong></div>
+      <div><span>Aktive Ziele</span><strong>${activeGoals.length}</strong></div>
+    `;
+
+    const notes = [];
+    unavailable.forEach(player => notes.push({ cls: 'warn', text: player.name + ': ' + ({ limited: 'eingeschränkt', injured: 'verletzt', away: 'abwesend' }[player.availability] || player.availability) + (player.availabilityNote ? ' – ' + player.availabilityNote : '') }));
+    dueGoals.forEach(item => notes.push({ cls: 'warn', text: 'Ziel fällig: ' + item.player.name + ' – ' + item.goal.title }));
+    if (next && openAttendance) notes.push({ cls: 'info', text: openAttendance + ' Anwesenheitsstatus für das nächste Training noch offen' });
+    if (!next) notes.push({ cls: 'info', text: 'Nächstes Training im Trainingsplan anlegen' });
+    if (!notes.length) notes.push({ cls: 'ok', text: 'Kader, Ziele und nächstes Training sind aktuell ohne offene Hinweise.' });
+    list.innerHTML = notes.slice(0, 8).map(item => '<li class="briefing-' + item.cls + '">' + escapeHTML(item.text) + '</li>').join('');
+
+    const briefingText = [
+      'TSV Lindau Basketball · Trainerbriefing',
+      next ? 'Training: ' + formatDate(next.date) + (next.startTime ? ' · ' + next.startTime + ' Uhr' : '') : 'Training: noch nicht geplant',
+      'Kader bereit: ' + (players.length - unavailable.length) + '/' + players.length,
+      plannedMinutes ? 'Planumfang: ' + plannedMinutes + ' Minuten' : 'Planumfang: noch offen',
+      ...notes.map(item => '• ' + item.text)
+    ].join('\n');
+    $('[data-action="share-briefing"]', root).addEventListener('click', async () => {
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Trainerbriefing', text: briefingText }); return; }
+        catch (error) { if (error.name === 'AbortError') return; }
+      }
+      try { await navigator.clipboard.writeText(briefingText); BT.util.toast('Trainerbriefing kopiert.'); }
+      catch { BT.util.downloadBlob('trainerbriefing-' + today + '.txt', new Blob([briefingText], { type: 'text/plain;charset=utf-8' })); }
+    });
   }
 
   function renderCurrentPhase(root) {
