@@ -1680,7 +1680,7 @@ table.results tr:last-child td { border-bottom: none; }
     width: var(--rail-width);
     padding: 1.4rem 1rem 1.25rem;
     gap: 0.9rem;
-    border-right: 0;
+    border: 0 !important;
     background: linear-gradient(165deg, #005c3a 0%, #004b2b 58%, #00341f 100%);
     box-shadow: 0.55rem 0 2rem #001b1024;
   }
@@ -1749,11 +1749,11 @@ table.results tr:last-child td { border-bottom: none; }
 
   .topbar nav a:hover,
   .topbar nav a.active {
-    border: 0;
-    background: #ffffff18;
-    color: #ffffff;
-    box-shadow: none;
-    transform: none;
+    border: 0 !important;
+    background: rgba(255, 255, 255, 0.14) !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+    transform: none !important;
   }
 
   .topbar .nav-icon,
