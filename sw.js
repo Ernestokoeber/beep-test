@@ -1,15 +1,9 @@
-const CACHE = 'beeptest-v90';
+const CACHE = 'beeptest-v91';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './manifest.webmanifest',
-  './icon.svg',
-  './icons/logo-64.png',
-  './icons/logo-128.png',
-  './icons/logo-192.png',
-  './icons/logo-512.png',
-  './icons/apple-touch-icon.png',
   './fonts/inter-latin.woff2',
   './fonts/monoton-latin.woff2',
   './js/util.js',
