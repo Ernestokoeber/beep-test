@@ -18,7 +18,7 @@
   <link rel="apple-touch-icon" href="assets/TSVLogotransparent.png">
   <title>CourtHub · TSV Lindau Basketball</title>
   <link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/inter-latin.woff2">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=95">
 </head>
 <body>
   <header class="topbar">
@@ -64,18 +64,18 @@
   <main id="app"></main>
 
   <nav class="mobile-dock" aria-label="Schnellnavigation">
-    <a href="#/dashboard" data-mobile-nav="dashboard"><span aria-hidden="true">⌂</span><small>Home</small></a>
+    <a href="#/dashboard" data-mobile-nav="dashboard"><span aria-hidden="true">⌂</span><small>Dashboard</small></a>
     <a href="#/training" data-mobile-nav="training"><span aria-hidden="true">▶</span><small>Training</small></a>
-    <a class="mobile-dock-main" href="#/test/setup" data-mobile-nav="setup"><span aria-hidden="true">◷</span><small>Beep</small></a>
+    <a class="mobile-dock-main" href="#/test/setup" data-mobile-nav="setup"><span aria-hidden="true">⌁</span><small>Beep-Test</small></a>
     <a href="#/players" data-mobile-nav="players"><span aria-hidden="true">◎</span><small>Spieler</small></a>
-    <a href="#/account" data-mobile-nav="account"><span aria-hidden="true">⚙</span><small>Konto</small></a>
+    <a href="#/account" data-mobile-nav="account"><span aria-hidden="true">⚙</span><small>Konto &amp; Sync</small></a>
   </nav>
 
   <template id="tpl-dashboard">
     <section class="view dashboard-view">
       <section class="coach-hero" aria-labelledby="coach-hero-title">
         <div class="coach-hero-copy">
-          <span class="coach-eyebrow">CourtHub</span>
+          <span class="coach-eyebrow">Coaching Center</span>
           <h2 id="coach-hero-title">Bereit fürs<br>nächste Training?</h2>
           <div class="coach-hero-actions">
             <a class="hero-action hero-action-primary" href="#/schedule"><span aria-hidden="true">▣</span><strong>Training planen</strong></a>
