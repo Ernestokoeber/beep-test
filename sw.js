@@ -1,4 +1,4 @@
-const CACHE = 'courthub-v93';
+const CACHE = 'courthub-v94';
 const ASSETS = [
   './',
   './index.html',

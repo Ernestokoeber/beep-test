@@ -19,16 +19,26 @@ BT.dashboard = (function() {
     const trainings = active === 'all' ? allTrainings : allTrainings.filter(t => t.seasonId === active);
     $('[data-role="trainings-count"]', root).textContent = trainings.length;
 
-    const next = BT.stats.nextTrainingCountdown();
-    const nextEl = $('[data-role="next-training"]', root);
-    if (next) {
-      const dStr = next.date.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-      const tStr = next.date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-      const inStr = next.diffDays > 0 ? 'in ' + next.diffDays + ' Tagen' : 'in ' + next.diffHours + ' h';
-      nextEl.textContent = 'Nächstes: ' + dStr + ' ' + tStr + ' (' + inStr + ')';
+    const today = todayISO();
+    const nextTraining = allTrainings
+      .filter(training => (training.date || '') >= today)
+      .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')))[0];
+    const nextTime = $('[data-role="next-training-time"]', root);
+    const nextPlace = $('[data-role="next-training-place"]', root);
+    const nextLegacy = $('[data-role="next-training"]', root);
+    if (nextTraining) {
+      nextTime.textContent = formatDate(nextTraining.date) + (nextTraining.startTime ? ', ' + nextTraining.startTime : '');
+      nextPlace.textContent = nextTraining.location || nextTraining.place || 'TSV Lindau';
+      nextLegacy.textContent = nextTime.textContent;
     } else {
-      nextEl.innerHTML = '<a href="#/schedule">Plan einrichten</a>';
+      nextTime.textContent = 'Noch offen';
+      nextPlace.innerHTML = '<a href="#/schedule">Training planen</a>';
+      nextLegacy.textContent = 'Noch nicht geplant';
     }
+
+    const activePlayers = BT.storage.getPlayers().filter(player => !player.archived);
+    $('[data-role="player-count"]', root).textContent = activePlayers.length;
+    renderNextTrainingAgenda(root, nextTraining);
 
     const ta = BT.stats.teamAttendance();
     $('[data-role="team-att-pct"]', root).textContent = ta.pct;
@@ -53,6 +63,50 @@ BT.dashboard = (function() {
     renderTeamHeatmap(root);
   }
 
+  function renderNextTrainingAgenda(root, training) {
+    const container = $('[data-role="next-training-agenda"]', root);
+    if (!container) return;
+    const drills = training && training.plan && Array.isArray(training.plan.drills) ? training.plan.drills : [];
+    if (!training) {
+      container.innerHTML = '<div class="agenda-empty"><strong>Noch kein Training geplant</strong><span>Lege den nächsten Termin und den Ablauf im Trainingsplan an.</span><a class="btn primary small" href="#/schedule">Training planen</a></div>';
+      return;
+    }
+    if (!drills.length) {
+      container.innerHTML = '<div class="agenda-empty"><strong>' + formatDate(training.date) + (training.startTime ? ' · ' + escapeHTML(training.startTime) : '') + '</strong><span>Für dieses Training ist noch kein Ablauf hinterlegt.</span><a class="btn primary small" href="#/training/' + encodeURIComponent(training.id) + '">Ablauf ergänzen</a></div>';
+      return;
+    }
+
+    const start = /^\d{2}:\d{2}$/.test(training.startTime || '') ? training.startTime : '20:15';
+    let elapsed = 0;
+    container.innerHTML = drills.slice(0, 8).map((drill, index) => {
+      const minutes = Math.max(0, Number(drill.minutes) || 0);
+      const time = addMinutes(start, elapsed);
+      elapsed += minutes;
+      const icon = agendaIcon(drill.name, index);
+      return '<a class="agenda-row" href="#/training/' + encodeURIComponent(training.id) + '">' +
+        '<span class="agenda-row-icon agenda-icon-' + (index % 4) + '" aria-hidden="true">' + icon + '</span>' +
+        '<span class="agenda-row-copy"><strong>' + escapeHTML(drill.name || 'Trainingsblock') + '</strong>' +
+        (drill.description ? '<small>' + escapeHTML(drill.description) + '</small>' : '') + '</span>' +
+        '<time>' + time + '</time><span class="agenda-arrow" aria-hidden="true">›</span></a>';
+    }).join('');
+  }
+
+  function addMinutes(time, minutes) {
+    const parts = time.split(':').map(Number);
+    const total = ((parts[0] * 60 + parts[1] + minutes) % 1440 + 1440) % 1440;
+    return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
+  }
+
+  function agendaIcon(name, index) {
+    const value = String(name || '').toLowerCase();
+    if (/warm|aktiv|mobil/.test(value)) return '●';
+    if (/ball|drib|handling/.test(value)) return '▲';
+    if (/team|takt|horns|5-out|defen/.test(value)) return '●●';
+    if (/wurf|freiwurf|abschluss|shoot/.test(value)) return '▣';
+    if (/cool|feedback|stretch/.test(value)) return '▤';
+    return ['●', '▲', '●●', '▣'][index % 4];
+  }
+
   function renderNextGame(root) {
     const today = todayISO();
     const game = BT.storage.getGames().filter(item => (item.date || '') >= today && !item.score && item.status !== 'cancelled' && item.status !== 'abgesagt')
@@ -60,7 +114,7 @@ BT.dashboard = (function() {
     if (!game) return;
     const opponent = /lindau/i.test(game.home || '') ? game.away : game.home;
     $('[data-role="next-game-opponent"]', root).textContent = opponent || 'Gegner offen';
-    $('[data-role="next-game-meta"]', root).innerHTML = '<a href="#/games">' + formatDate(game.date) + (game.time ? ' · ' + escapeHTML(game.time) : '') + ' · ' + (game.team === 'u18' ? 'U18' : 'Herren') + '</a>';
+    $('[data-role="next-game-meta"]', root).textContent = formatDate(game.date) + (game.time ? ' · ' + game.time : '') + ' · ' + (game.team === 'u18' ? 'U18' : 'Herren') + ' →';
   }
 
   function renderCoachBriefing(root) {
