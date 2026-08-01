@@ -113,5 +113,26 @@ assert(window.document.documentElement.getAttribute('data-theme') === 'dark', 'D
 window.document.querySelector('[data-theme-choice="light"]').click();
 assert(!window.document.documentElement.hasAttribute('data-theme'), 'Hellmodus wurde nicht aktiviert');
 
-console.log('UI-Smoke-Test erfolgreich: Dashboard, Auswertung, Theme, Entwicklung, Spiele/Atlas und Training.');
+player.tableDutyLicense = true;
+window.BT.storage.upsertPlayer(player);
+const dutyPlayer2 = window.BT.storage.upsertPlayer({ name: 'Kampfgericht Zwei', position: 'Guard', jerseyNumber: '12', tableDutyEnabled: true, tableDutyLicense: false, goals: [] });
+const dutyPlayer3 = window.BT.storage.upsertPlayer({ name: 'Kampfgericht Drei', position: 'Center', jerseyNumber: '13', tableDutyEnabled: true, tableDutyLicense: false, goals: [] });
+route('#/tablecrew');
+window.document.querySelector('[data-action="tablecrew-preset"]').click();
+assert(window.BT.storage.getTableDuties().length === 6, 'Die sechs U14-Heimspiele wurden nicht vollständig übernommen');
+window.document.querySelector('[data-action="tablecrew-auto"]').click();
+const dutyGames = window.BT.storage.getTableDuties();
+dutyGames.forEach(gameEntry => {
+  const assigned = Object.values(gameEntry.assignments || {}).filter(Boolean);
+  assert(assigned.length === 3 && new Set(assigned).size === 3, 'Kampfgericht ist nicht mit drei verschiedenen Personen besetzt');
+  const laptop = window.BT.storage.getPlayer(gameEntry.assignments.laptop);
+  assert(laptop && laptop.tableDutyLicense === true, 'Laptop wurde ohne Lizenz besetzt');
+});
+const kaufbeurenDuty = dutyGames.find(gameEntry => gameEntry.date === '2027-02-27');
+assert(kaufbeurenDuty && kaufbeurenDuty.away === 'DJK Kaufbeuren', 'Heimspiel gegen Kaufbeuren fehlt');
+assert(window.BT.tablecrew.meetingTime(kaufbeurenDuty.time) === '13:45', 'Treffpunkt wurde nicht 45 Minuten vor Spielbeginn berechnet');
+assert(window.document.querySelector('[data-action="tablecrew-excel"]'), 'Excel-Export für das Kampfgericht fehlt');
+assert(window.document.querySelector('[data-action="tablecrew-pdf"]'), 'PDF-Export für das Kampfgericht fehlt');
+
+console.log('UI-Smoke-Test erfolgreich: Dashboard, Auswertung, Theme, Entwicklung, Spiele/Atlas, Training und Kampfgericht.');
 dom.window.close();

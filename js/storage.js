@@ -19,6 +19,7 @@ BT.storage = (function() {
       data.freethrows = data.freethrows || [];
       data.drills = data.drills || [];
       data.games = data.games || [];
+      data.tableDuties = data.tableDuties || [];
       if (data.schemaVersion < CURRENT_SCHEMA) {
         migrate(data);
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -75,7 +76,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], tableDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -421,6 +422,46 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getTableDuties() {
+    return (load().tableDuties || []).slice().sort((a, b) =>
+      ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || ''))
+    );
+  }
+
+  function getTableDuty(id) {
+    return (load().tableDuties || []).find(item => item.id === id);
+  }
+
+  function upsertTableDuty(item) {
+    const data = load();
+    data.tableDuties = data.tableDuties || [];
+    const now = new Date().toISOString();
+    const index = item.id ? data.tableDuties.findIndex(entry => entry.id === item.id) : -1;
+    if (index >= 0) {
+      data.tableDuties[index] = Object.assign({}, data.tableDuties[index], item, {
+        id: data.tableDuties[index].id,
+        updatedAt: now
+      });
+      item = data.tableDuties[index];
+    } else {
+      item.id = item.id || BT.util.uuid('duty_');
+      item.createdAt = now;
+      item.updatedAt = now;
+      item.assignments = item.assignments || {};
+      item.meetingMinutesBefore = Number(item.meetingMinutesBefore) || 45;
+      data.tableDuties.push(item);
+    }
+    item.seasonId = item.seasonId || BT.util.seasonForDate(item.date);
+    save(data);
+    return item;
+  }
+
+  function deleteTableDuty(id) {
+    const data = load();
+    data.tableDuties = (data.tableDuties || []).filter(item => item.id !== id);
+    save(data);
+  }
+
   return {
     load, save, withReadCache,
     getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer, attendanceForActivePlayers,
@@ -431,6 +472,7 @@ BT.storage = (function() {
     getTemplates, getTemplate, upsertTemplate, deleteTemplate,
     getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,
     getGames, getGame, upsertGame, deleteGame,
+    getTableDuties, getTableDuty, upsertTableDuty, deleteTableDuty,
     getShotCategories, setShotCategories,
     getSetting, setSetting,
     getPhases, upsertPhase, getPhaseForDate,

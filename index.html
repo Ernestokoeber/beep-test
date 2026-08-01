@@ -18,7 +18,7 @@
   <link rel="apple-touch-icon" href="assets/TSVLogotransparent.png">
   <title>CourtHub · TSV Lindau Basketball</title>
   <link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/inter-latin.woff2">
-  <link rel="stylesheet" href="style.css?v=99">
+  <link rel="stylesheet" href="style.css?v=101">
 </head>
 <body>
   <header class="topbar">
@@ -48,6 +48,7 @@
       <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></a>
       <a href="#/training" data-nav="training"><span class="nav-icon" aria-hidden="true">▶</span><span>Training</span></a>
       <a href="#/games" data-nav="games"><span class="nav-icon" aria-hidden="true">◉</span><span>Spiele &amp; Atlas</span></a>
+      <a href="#/tablecrew" data-nav="tablecrew"><span class="nav-icon" aria-hidden="true">▤</span><span>Kampfgericht</span></a>
       <a href="#/test/setup" data-nav="setup"><span class="nav-icon" aria-hidden="true">◷</span><span>Beep-Test</span></a>
       <a href="#/players" data-nav="players"><span class="nav-icon" aria-hidden="true">◎</span><span>Spieler</span></a>
       <a href="#/reports" data-nav="reports"><span class="nav-icon" aria-hidden="true">▥</span><span>Auswertung</span></a>
@@ -497,6 +498,63 @@
         <p class="empty-body">Erstelle dein erstes Training, um Anwesenheit und Wurfstatistiken zu tracken.</p>
         <button class="btn primary" data-action="new-training">+ Neues Training</button>
       </div>
+    </section>
+  </template>
+
+  <template id="tpl-tablecrew">
+    <section class="view tablecrew-view">
+      <div class="section-head tablecrew-head">
+        <div class="section-title-block">
+          <span class="section-kicker">Jugend-Heimspiele · Herren-Kader</span>
+          <h2>Kampfgericht planen</h2>
+        </div>
+        <div class="head-actions">
+          <button class="btn small" type="button" data-action="tablecrew-preset">U14-Spielplan übernehmen</button>
+          <button class="btn small" type="button" data-action="tablecrew-new-game">+ Heimspiel</button>
+          <button class="btn small primary" type="button" data-action="tablecrew-auto">Fair vorauswählen</button>
+        </div>
+      </div>
+      <p class="muted">Pro Heimspiel werden drei verschiedene Personen eingeplant. Der Laptop/Spielbericht ist lizenzpflichtig; Treffpunkt ist automatisch 45 Minuten vor Spielbeginn.</p>
+      <p class="auth-status" data-role="tablecrew-status" aria-live="polite"></p>
+
+      <div class="tablecrew-kpis" data-role="tablecrew-kpis"></div>
+
+      <section class="tablecrew-roster-panel">
+        <div class="section-head compact">
+          <div><span class="section-kicker">Vorauswahl</span><h3>Herren-Kader und Lizenzen</h3></div>
+          <span class="muted">Änderungen werden sofort gespeichert.</span>
+        </div>
+        <div class="tablecrew-roster" data-role="tablecrew-roster"></div>
+      </section>
+
+      <form class="player-form hidden" data-role="tablecrew-game-form">
+        <input type="hidden" name="id">
+        <div class="form-row">
+          <label>Jugendteam<select name="team"><option value="u14">U14</option><option value="u16">U16</option><option value="u18">U18</option></select></label>
+          <label>Spiel-Nr.<input name="gameNo" type="text" maxlength="20" inputmode="numeric"></label>
+          <label>Datum<input name="date" type="date" required></label>
+          <label>Spielbeginn<input name="time" type="time" required></label>
+          <label class="grow">Heim<input name="home" type="text" maxlength="80" required value="TSV 1850 Lindau"></label>
+          <label class="grow">Gast<input name="away" type="text" maxlength="80" required></label>
+          <label class="grow">Halle<input name="venue" type="text" maxlength="100" value="Dreifachhalle"></label>
+        </div>
+        <p class="muted">Der Treffpunkt wird aus dem Spielbeginn automatisch berechnet.</p>
+        <div class="form-actions"><button class="btn primary" type="submit">Heimspiel speichern</button><button class="btn" type="button" data-action="tablecrew-cancel-game">Abbrechen</button></div>
+      </form>
+
+      <section class="tablecrew-plan-panel">
+        <div class="section-head compact">
+          <div><span class="section-kicker">Saisonplanung</span><h3>Heimspiele und Besetzung</h3></div>
+          <div class="head-actions"><button class="btn small" type="button" data-action="tablecrew-clear">Besetzung leeren</button><button class="btn small" type="button" data-action="tablecrew-excel">Excel</button><button class="btn small" type="button" data-action="tablecrew-pdf">PDF</button></div>
+        </div>
+        <div class="tablecrew-games" data-role="tablecrew-games"></div>
+        <div class="empty empty--field hidden" data-role="tablecrew-empty"><p class="empty-headline">Noch keine Jugend-Heimspiele</p><p class="empty-body">Übernimm die bekannten U14-Termine oder lege ein Heimspiel manuell an.</p></div>
+      </section>
+
+      <section class="tablecrew-workload-panel">
+        <div class="section-head compact"><div><span class="section-kicker">Fairness</span><h3>Einsatzübersicht</h3></div></div>
+        <div class="table-scroll"><table class="results tablecrew-workload"><thead><tr><th>Spieler</th><th>Lizenz</th><th>Gesamt</th><th>Laptop</th><th>24 Sek.</th><th>Punktetafel</th></tr></thead><tbody data-role="tablecrew-workload"></tbody></table></div>
+      </section>
     </section>
   </template>
 
@@ -1359,10 +1417,10 @@
   </template>
 
   <script defer src="js/util.js"></script>
-  <script defer src="js/storage.js?v=100"></script>
+  <script defer src="js/storage.js?v=101"></script>
   <script defer src="js/api.js"></script>
   <script defer src="js/checkin.js"></script>
-  <script defer src="js/sync.js"></script>
+  <script defer src="js/sync.js?v=101"></script>
   <script defer src="js/levels.js"></script>
   <script defer src="js/ratings.js"></script>
   <script defer src="js/heatmap.js"></script>
@@ -1373,6 +1431,7 @@
   <script defer src="js/test.js"></script>
   <script defer src="js/training.js?v=100"></script>
   <script defer src="js/games.js"></script>
+  <script defer src="js/tablecrew.js?v=101"></script>
   <script defer src="js/notes.js"></script>
   <script defer src="js/drills.js"></script>
   <script defer src="js/tactics.js"></script>
@@ -1384,7 +1443,7 @@
   <script defer src="js/settings.js"></script>
   <script defer src="js/account.js?v=100"></script>
   <script defer src="js/install.js"></script>
-  <script defer src="js/app.js?v=100"></script>
+  <script defer src="js/app.js?v=101"></script>
   <div class="toast-host" data-role="toast-host" aria-live="polite"></div>
 </body>
 </html>

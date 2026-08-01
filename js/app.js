@@ -133,6 +133,8 @@
       BT.training.renderDetail(app, id);
     } else if (hash === '#/games') {
       BT.games.render(app);
+    } else if (hash === '#/tablecrew') {
+      BT.tablecrew.render(app);
     } else if (hash === '#/reports') {
       BT.reports.render(app);
     } else if (hash === '#/schedule') {
@@ -178,6 +180,8 @@
       active = 'training';
     } else if (hash.startsWith('#/games')) {
       active = 'games';
+    } else if (hash.startsWith('#/tablecrew')) {
+      active = 'tablecrew';
     } else if (hash.startsWith('#/reports')) {
       active = 'reports';
     } else if (hash.startsWith('#/test')) {
