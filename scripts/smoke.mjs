@@ -134,5 +134,62 @@ assert(window.BT.tablecrew.meetingTime(kaufbeurenDuty.time) === '13:45', 'Treffp
 assert(window.document.querySelector('[data-action="tablecrew-excel"]'), 'Excel-Export für das Kampfgericht fehlt');
 assert(window.document.querySelector('[data-action="tablecrew-pdf"]'), 'PDF-Export für das Kampfgericht fehlt');
 
-console.log('UI-Smoke-Test erfolgreich: Dashboard, Auswertung, Theme, Entwicklung, Spiele/Atlas, Training und Kampfgericht.');
+assert(window.BT.seasonplanner.parseLeagueId('https://www.basketball-bund.net/static/#/liga/54509/spielplan') === 54509, 'Liga-ID wird nicht aus dem offiziellen Link gelesen');
+window.BT.seasonplanner.saveScheduleConfig({
+  url: 'https://www.basketball-bund.net/static/#/liga/54509/spielplan',
+  teamId: 258298,
+  teamName: 'TSV Lindau'
+});
+[
+  ['2026-10-11', 'TSV Lindau', 'BG Illertal 3'],
+  ['2026-10-17', 'TSV Wasserburg/Günzburg', 'TSV Lindau'],
+  ['2027-03-06', 'TSV Ottobeuren 2', 'TSV Lindau']
+].forEach((entry, index) => window.BT.storage.upsertGame({
+  externalId: 'dbb_test_' + index,
+  officialMatchId: String(2924661 + index),
+  source: 'basketball-bund', provider: 'TeamSL', team: 'herren', leagueId: 54509,
+  date: entry[0], time: '17:00', home: entry[1], away: entry[2], status: 'upcoming'
+}));
+window.BT.storage.setSetting('regularDays', ['tue', 'fri']);
+window.BT.storage.setSetting('regularTime', '20:15');
+const seasonGames = window.BT.storage.getGames().filter(entry => entry.source === 'basketball-bund');
+const seasonSlots = window.BT.seasonplanner.buildSlots(seasonGames, { days: ['tue', 'fri'], time: '20:15', startDate: '2026-08-01' });
+assert(seasonSlots.length > 20, 'Saisontermine bis zum letzten Spiel fehlen');
+assert(!seasonSlots.some(slot => slot.date >= '2026-08-03' && slot.date <= '2026-09-14'), 'Training wurde in den Sommerferien geplant');
+assert(!seasonSlots.some(slot => slot.date >= '2026-12-24' && slot.date <= '2027-01-08'), 'Training wurde in den Weihnachtsferien geplant');
+assert(seasonSlots.some(slot => slot.weekday === 'tue' && slot.load === 'high'), 'Dienstag ist nicht als Haupttrainingstag priorisiert');
+const protectedSlot = seasonSlots[0];
+window.BT.storage.upsertTraining({
+  date: protectedSlot.date, startTime: '20:15', note: 'Manuell geschützt',
+  attendance: [], freethrows: [], shots: [], plan: { summary: 'Manuell', drills: [] }
+});
+const aiSeasonResponse = {
+  trainings: seasonSlots.map(slot => ({
+    date: slot.date,
+    summary: slot.weekday === 'tue' ? 'Haupttraining' : 'Freitagsfestigung',
+    freethrows: { attempted: 20 },
+    shots: [{ category: 'Catch-and-Shoot', attempted: 20 }],
+    drills: [
+      { name: 'KI Warm-up', minutes: 15, intensity: 'low', description: 'Mobilisieren und Ballgefühl' },
+      { name: 'KI Hauptblock', minutes: 65, intensity: slot.load, description: 'Spielnaher Schwerpunkt' },
+      { name: 'KI 5-gegen-5', minutes: 25, intensity: slot.load, description: 'Strukturiertes Abschlussspiel' }
+    ],
+    fridayVariants: slot.weekday === 'fri' ? {
+      over8: [{ name: 'KI Teamtaktik', minutes: 105, intensity: slot.load, description: '4-gegen-4 und 5-gegen-5' }],
+      eightOrLess: [{ name: 'KI Small-Sided', minutes: 105, intensity: slot.load, description: '1-gegen-1 bis 3-gegen-3' }]
+    } : null
+  }))
+};
+const appliedSeason = window.BT.seasonplanner.applyAIPlan(aiSeasonResponse, seasonSlots);
+assert(appliedSeason.protected === 1, 'Manuell erstelltes Training wurde nicht geschützt');
+assert(appliedSeason.created === seasonSlots.length - 1, 'KI-Saisontrainings wurden nicht vollständig angelegt');
+assert(window.BT.storage.getDrills().some(drill => drill.source === 'ai-season'), 'KI-Trainingsblöcke fehlen in der Drill-Bibliothek');
+assert(window.BT.storage.getTemplates().some(template => template.source === 'ai-season'), 'KI-Trainings fehlen in der Vorlagenbibliothek');
+const fridayTraining = window.BT.storage.getTrainings().find(entry => entry.planning?.source === 'ai-season' && entry.plan?.variants);
+assert(fridayTraining && fridayTraining.plan.variants.over8.length && fridayTraining.plan.variants.eightOrLess.length, 'Freitagsvarianten für die Spielerzahl fehlen');
+route('#/schedule');
+assert(window.document.querySelector('[data-action="generate-season"]'), 'KI-Saisonplanung fehlt im Trainingsplan');
+assert(window.document.querySelector('[data-role="season-plan-summary"]'), 'Saisonübersicht fehlt');
+
+console.log('UI-Smoke-Test erfolgreich: Dashboard, Auswertung, Theme, Entwicklung, Spiele/Atlas, Training, Kampfgericht und KI-Saisonplanung.');
 dom.window.close();

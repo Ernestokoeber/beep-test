@@ -170,16 +170,19 @@ BT.training = (function() {
 
     $('[data-role="date"]', detailRoot).addEventListener('change', e => {
       currentTraining.date = e.target.value;
+      markPlanEdited();
       save();
       $('[data-role="title"]', detailRoot).textContent = 'Training vom ' + formatDate(currentTraining.date);
     });
     $('[data-role="time"]', detailRoot).addEventListener('change', e => {
       currentTraining.startTime = e.target.value;
       BT.storage.setSetting('trainingStartTime', e.target.value);
+      markPlanEdited();
       save();
     });
     $('[data-role="note"]', detailRoot).addEventListener('input', e => {
       currentTraining.note = e.target.value;
+      markPlanEdited();
       save();
     });
 
@@ -863,6 +866,13 @@ BT.training = (function() {
 
   function save() {
     BT.storage.upsertTraining(currentTraining);
+  }
+
+  function markPlanEdited() {
+    if (!currentTraining.planning || currentTraining.planning.source !== 'ai-season') return;
+    currentTraining.planning.coachEdited = true;
+    currentTraining.planning.status = 'coach-edited';
+    currentTraining.planning.editedAt = new Date().toISOString();
   }
 
   const FITNESS_FIELDS = [
@@ -1566,6 +1576,17 @@ BT.training = (function() {
     const loadFactors = { low: 1, medium: 2, high: 3 };
     const loadPoints = plan.drills.reduce((sum, drill) => sum + (parseInt(drill.minutes, 10) || 0) * (loadFactors[drill.intensity || 'medium'] || 2), 0);
     const fillPct = Math.min(100, Math.round((plannedMinutes / durationMinutes) * 100));
+    const presentCount = presentPlayerIds(currentTraining).length;
+    const hasFridayVariants = plan.variants && (plan.variants.over8?.length || plan.variants.eightOrLess?.length);
+    const fridayVariantMarkup = hasFridayVariants ? `
+      <div class="friday-variant-box">
+        <div><span class="section-kicker">Freitagsregel</span><strong>${presentCount ? presentCount + ' Spieler aktuell anwesend' : 'Spielerzahl noch offen'}</strong></div>
+        <p class="muted">Mehr als 8: Teamtaktik und 5-gegen-5 · 8 oder weniger: Skills und Small-Sided Games.</p>
+        <div class="form-actions">
+          <button type="button" class="btn small ${presentCount > 8 ? 'primary' : ''}" data-plan-variant="over8">Variante &gt; 8 übernehmen</button>
+          <button type="button" class="btn small ${presentCount > 0 && presentCount <= 8 ? 'primary' : ''}" data-plan-variant="eightOrLess">Variante ≤ 8 übernehmen</button>
+        </div>
+      </div>` : '';
 
     sumEl.innerHTML = `
       <label class="plan-summary-field">
@@ -1580,11 +1601,24 @@ BT.training = (function() {
       </div>
       <div class="plan-progress" aria-label="${fillPct} Prozent der Trainingszeit verplant"><span style="width:${fillPct}%"></span></div>
       ${targets.length ? '<p class="muted">Vorgaben pro Spieler: ' + targets.join(' · ') + '</p>' : ''}
+      ${fridayVariantMarkup}
     `;
+    sumEl.querySelectorAll('[data-plan-variant]').forEach(button => {
+      button.addEventListener('click', () => {
+        const selected = plan.variants?.[button.dataset.planVariant] || [];
+        if (!selected.length) { BT.util.toast('Für diese Spielerzahl wurde keine KI-Variante erzeugt.'); return; }
+        plan.drills = selected.map(drill => Object.assign({}, drill));
+        markPlanEdited();
+        save();
+        renderPlanBox();
+        BT.util.toast('Freitagsvariante wurde übernommen und bleibt manuell geschützt.');
+      });
+    });
     const summaryInput = $('[data-role="plan-summary-input"]', sumEl);
     if (summaryInput) {
       summaryInput.addEventListener('input', () => {
         plan.summary = summaryInput.value;
+        markPlanEdited();
         save();
       });
     }
@@ -1592,6 +1626,7 @@ BT.training = (function() {
     durationInput.addEventListener('change', () => {
       plan.durationMinutes = Math.max(15, Math.min(240, parseInt(durationInput.value, 10) || 105));
       BT.storage.setSetting('trainingDurationMinutes', plan.durationMinutes);
+      markPlanEdited();
       save(); renderPlanBox();
     });
 
@@ -1646,6 +1681,7 @@ BT.training = (function() {
           const tmp = plan.drills[idx - 1];
           plan.drills[idx - 1] = plan.drills[idx];
           plan.drills[idx] = tmp;
+          markPlanEdited();
           save();
           renderPlanBox();
         });
@@ -1657,6 +1693,7 @@ BT.training = (function() {
           const tmp = plan.drills[idx + 1];
           plan.drills[idx + 1] = plan.drills[idx];
           plan.drills[idx] = tmp;
+          markPlanEdited();
           save();
           renderPlanBox();
         });
@@ -1675,6 +1712,7 @@ BT.training = (function() {
           const field = inp.dataset.field;
           if (field === 'minutes') d.minutes = parseInt(inp.value, 10) || 0;
           else d[field] = inp.value;
+          markPlanEdited();
           save();
         });
       });
@@ -1696,6 +1734,7 @@ BT.training = (function() {
         const moved = plan.drills.splice(from, 1)[0];
         const destination = from < idx ? idx - 1 : idx;
         plan.drills.splice(destination, 0, moved);
+        markPlanEdited();
         save(); renderPlanBox();
       });
 
@@ -1711,6 +1750,7 @@ BT.training = (function() {
         swapBtn.addEventListener('click', () => {
           BT.drills.openPicker(picked => {
             plan.drills[idx] = { name: picked.name, minutes: picked.minutes || 0, description: picked.description || '', intensity: picked.intensity || 'medium' };
+            markPlanEdited();
             save();
             renderPlanBox();
           });
@@ -1721,10 +1761,12 @@ BT.training = (function() {
       if (removeBtn) {
         removeBtn.addEventListener('click', () => {
           const removed = plan.drills.splice(idx, 1)[0];
+          markPlanEdited();
           save();
           renderPlanBox();
           BT.util.toastUndo('Drill „' + (removed.name || '') + '" entfernt', () => {
             plan.drills.splice(idx, 0, removed);
+            markPlanEdited();
             save();
             renderPlanBox();
           });
@@ -1743,6 +1785,7 @@ BT.training = (function() {
     controls.querySelector('[data-action="add-drill-from-lib"]').addEventListener('click', () => {
       BT.drills.openPicker(picked => {
         plan.drills.push({ name: picked.name, minutes: picked.minutes || 0, description: picked.description || '', intensity: picked.intensity || 'medium' });
+        markPlanEdited();
         save();
         renderPlanBox();
       });
@@ -3152,6 +3195,7 @@ BT.training = (function() {
       if (!existing.has(cat)) currentTraining.shots.push({ category: cat, entries: [] });
     }
 
+    markPlanEdited();
     save();
 
     // UI frisch rendern

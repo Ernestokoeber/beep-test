@@ -1,14 +1,14 @@
-const CACHE = 'courthub-v101';
+const CACHE = 'courthub-v102';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=101',
+  './style.css?v=102',
   './manifest.webmanifest',
   './fonts/inter-latin.woff2',
   './fonts/monoton-latin.woff2',
   './js/util.js',
   './js/storage.js?v=101',
-  './js/api.js',
+  './js/api.js?v=102',
   './js/checkin.js',
   './js/sync.js?v=101',
   './js/levels.js',
@@ -19,21 +19,22 @@ const ASSETS = [
   './js/stats.js?v=100',
   './js/players.js',
   './js/test.js',
-  './js/training.js?v=100',
-  './js/games.js',
+  './js/training.js?v=102',
+  './js/games.js?v=102',
   './js/tablecrew.js?v=101',
+  './js/seasonplanner.js?v=102',
   './js/notes.js',
   './js/drills.js',
   './js/tactics.js',
   './js/history.js',
   './js/aiimport.js',
-  './js/schedule.js',
+  './js/schedule.js?v=102',
   './js/dashboard.js?v=100',
   './js/reports.js?v=98',
   './js/settings.js',
   './js/account.js?v=100',
   './js/install.js',
-  './js/app.js?v=101'
+  './js/app.js?v=102'
 ];
 
 self.addEventListener('install', (event) => {

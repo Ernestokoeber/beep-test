@@ -3717,6 +3717,93 @@ table.results tr:last-child td { border-bottom: none; }
   color: var(--success);
 }
 
+/* Offizieller Spielplan und KI-Saisonplanung. */
+.schedule-source {
+  margin-bottom: 1rem;
+}
+
+.schedule-source summary {
+  cursor: pointer;
+  list-style-position: outside;
+}
+
+.schedule-source[open] summary {
+  margin-bottom: 1rem;
+}
+
+.season-ai-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.season-ai-panel .section-head {
+  margin-bottom: 0;
+}
+
+.season-plan-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.season-plan-summary > div {
+  min-width: 0;
+  padding: 0.9rem;
+  border: 0.0625rem solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface-2);
+}
+
+.season-plan-summary span,
+.season-plan-summary strong {
+  display: block;
+}
+
+.season-plan-summary span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.season-plan-summary strong {
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+  font-size: 1.05rem;
+}
+
+.season-coach-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.season-coach-inputs textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+
+.season-source-note {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.friday-variant-box {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+  padding: 0.85rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+}
+
+.friday-variant-box strong,
+.friday-variant-box p {
+  display: block;
+  margin: 0.2rem 0 0;
+}
+
 @media (max-width: 900px) {
   .coach-briefing-grid,
   .plan-load-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3725,6 +3812,7 @@ table.results tr:last-child td { border-bottom: none; }
   .game-observation-grid,
   .atlas-analysis-grid { grid-template-columns: 1fr; }
   .tablecrew-roster { grid-template-columns: 1fr; }
+  .season-plan-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 600px) {
@@ -3753,12 +3841,14 @@ table.results tr:last-child td { border-bottom: none; }
   .tablecrew-role:last-child { border-bottom: 0; }
   .tablecrew-roster-row { grid-template-columns: 1fr 1fr; }
   .tablecrew-player { grid-column: 1 / -1; }
+  .season-coach-inputs { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 420px) {
   .tablecrew-kpis { grid-template-columns: 1fr; }
   .tablecrew-head .head-actions,
   .section-head.compact .head-actions { grid-template-columns: 1fr; }
+  .season-plan-summary { grid-template-columns: 1fr; }
 }
 
 /* Konto, Rollen und Team-Synchronisierung */

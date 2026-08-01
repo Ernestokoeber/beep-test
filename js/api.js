@@ -79,7 +79,15 @@ BT.api = (function() {
     submitPublicCheckin: (token, playerId) => request('/checkin/public', {
       method: 'POST', auth: false, body: { token, playerId }
     }),
-    syncWebsiteGames: () => request('/games/sync'),
+    syncWebsiteGames: (config) => {
+      const value = config || {};
+      const query = new URLSearchParams({
+        leagueId: String(value.leagueId || 54509),
+        teamId: String(value.teamId ?? 258298),
+        teamName: String(value.teamName || 'TSV Lindau')
+      });
+      return request('/games/sync?' + query.toString());
+    },
     getAtlasAnalysis: (atlasGameId) => request('/games/atlas?gameId=' + encodeURIComponent(atlasGameId))
   };
 })();

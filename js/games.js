@@ -12,6 +12,10 @@ BT.games = (function() {
     const status = $('[data-role="games-status"]', root);
     const teamFilter = $('[data-role="games-team"]', root);
     const search = $('[data-role="games-search"]', root);
+    const source = BT.seasonplanner.scheduleConfig();
+    $('[data-role="schedule-url"]', root).value = source.url;
+    $('[data-role="schedule-team-id"]', root).value = source.teamId;
+    $('[data-role="schedule-team-name"]', root).value = source.teamName;
 
     $('[data-action="new-game"]', root).addEventListener('click', () => openForm());
     $('[data-action="cancel-game"]', root).addEventListener('click', closeForm);
@@ -31,14 +35,25 @@ BT.games = (function() {
       closeForm(); drawList(); drawDetail();
     });
 
+    $('[data-action="save-schedule-source"]', root).addEventListener('click', () => {
+      const config = BT.seasonplanner.saveScheduleConfig({
+        url: $('[data-role="schedule-url"]', root).value.trim(),
+        teamId: Number($('[data-role="schedule-team-id"]', root).value),
+        teamName: $('[data-role="schedule-team-name"]', root).value.trim()
+      });
+      $('[data-role="schedule-team-id"]', root).value = config.teamId;
+      status.textContent = 'Spielplan-Konfiguration gespeichert: Liga ' + config.leagueId + ' · ' + config.teamName + '.';
+    });
+
     $('[data-action="sync-games"]', root).addEventListener('click', async event => {
       const button = event.currentTarget;
       if (!BT.api.getToken()) { location.hash = '#/account'; return; }
-      button.disabled = true; status.textContent = 'TSV-Spielplan wird geladen …';
+      button.disabled = true; status.textContent = 'Offizieller TeamSL-Spielplan wird geladen …';
       try {
-        const result = await BT.api.syncWebsiteGames();
+        const result = await BT.api.syncWebsiteGames(BT.seasonplanner.scheduleConfig());
         result.games.forEach(game => BT.storage.upsertGame(game));
-        status.textContent = result.games.length + ' Spiele von der TSV-Webseite synchronisiert.';
+        BT.seasonplanner.saveScheduleConfig({ teamId: result.team.id, teamName: result.team.name });
+        status.textContent = result.games.length + ' Spiele direkt aus TeamSL synchronisiert · ' + result.league.name + '.';
         drawList(); if (selectedGameId) drawDetail();
       } catch (error) { status.textContent = error.message; }
       finally { button.disabled = false; }
@@ -105,7 +120,7 @@ BT.games = (function() {
     const players = BT.storage.getPlayers().filter(player => !player.archived).sort((a, b) => a.name.localeCompare(b.name, 'de'));
 
     wrap.innerHTML = `<div class="game-detail-head">
-      <div><span class="section-kicker">${escapeHTML(game.team === 'u18' ? 'U18' : 'Herren')} · ${escapeHTML(result)}</span><h3>${escapeHTML(game.home)} <span>${escapeHTML(game.score || '–:–')}</span> ${escapeHTML(game.away)}</h3><p class="muted">${formatDate(game.date)}${game.time ? ' · ' + escapeHTML(game.time) + ' Uhr' : ''} · Quelle: ${game.source === 'tsv-website' ? 'TSV-Webseite' : 'manuell'}</p></div>
+      <div><span class="section-kicker">${escapeHTML(game.team === 'u18' ? 'U18' : 'Herren')} · ${escapeHTML(result)}</span><h3>${escapeHTML(game.home)} <span>${escapeHTML(game.score || '–:–')}</span> ${escapeHTML(game.away)}</h3><p class="muted">${formatDate(game.date)}${game.time ? ' · ' + escapeHTML(game.time) + ' Uhr' : ''} · Quelle: ${game.source === 'basketball-bund' ? 'DBB TeamSL' : game.source === 'tsv-website' ? 'TSV-Webseite' : 'manuell'}${game.matchNo ? ' · Spiel ' + escapeHTML(game.matchNo) : ''}</p></div>
       <div class="head-actions"><button class="btn small" data-action="edit-selected">Bearbeiten</button><button class="btn small" data-action="share-game">Bericht teilen</button></div>
     </div>
 

@@ -1,7 +1,7 @@
 window.BT = window.BT || {};
 
 BT.schedule = (function() {
-  const { $, $$, renderTemplate, todayISO } = BT.util;
+  const { $, $$, renderTemplate, todayISO, escapeHTML, formatDate } = BT.util;
 
   const DAYS = [
     { key: 'mon', label: 'Mo', num: 1 },
@@ -17,7 +17,7 @@ BT.schedule = (function() {
     const root = renderTemplate('tpl-schedule');
     target.appendChild(root);
 
-    const selectedDays = new Set(BT.storage.getSetting('regularDays', []));
+    const selectedDays = new Set(BT.storage.getSetting('regularDays', ['tue', 'fri']));
     const time = BT.storage.getSetting('regularTime', '20:15');
     const lookahead = BT.storage.getSetting('regularLookahead', 6);
 
@@ -45,11 +45,133 @@ BT.schedule = (function() {
       BT.storage.setSetting('regularTime', $('[data-role="time"]', root).value || '20:15');
       BT.storage.setSetting('regularLookahead', parseInt($('[data-role="lookahead"]', root).value, 10) || 6);
       renderUpcoming(root);
+      renderSeasonSummary(root);
     });
     $('[data-action="export-calendar"]', root).addEventListener('click', exportCalendar);
 
     renderUpcoming(root);
+    setupSeasonPlanner(root);
     setupAIImport(root);
+  }
+
+  function seasonCoachInput(root) {
+    return {
+      goal: $('[data-role="season-goal"]', root).value.trim(),
+      focus: $('[data-role="season-focus"]', root).value.trim(),
+      problems: $('[data-role="season-problems"]', root).value.trim(),
+      roster: $('[data-role="season-roster"]', root).value.trim()
+    };
+  }
+
+  function seasonGames() {
+    const config = BT.seasonplanner.scheduleConfig();
+    return BT.storage.getGames().filter(game =>
+      game.source === 'basketball-bund' && Number(game.leagueId) === Number(config.leagueId)
+    );
+  }
+
+  function plannerSlots() {
+    return BT.seasonplanner.buildSlots(seasonGames(), {
+      days: BT.storage.getSetting('regularDays', ['tue', 'fri']),
+      time: BT.storage.getSetting('regularTime', '20:15'),
+      startDate: todayISO()
+    });
+  }
+
+  function renderSeasonSummary(root) {
+    const games = seasonGames().filter(game => !game.cancelled).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const slots = plannerSlots();
+    const state = $('[data-role="season-plan-state"]', root);
+    const summary = $('[data-role="season-plan-summary"]', root);
+    if (!games.length) {
+      state.textContent = 'Spielplan fehlt';
+      state.className = 'att-chip warn';
+      summary.innerHTML = '<div class="empty empty--field"><p class="empty-body">Synchronisiere zuerst den offiziellen Herren-Spielplan.</p></div>';
+      return;
+    }
+    const trainings = BT.storage.getTrainings();
+    const drafts = slots.filter(slot => trainings.some(training => training.date === slot.date && training.planning?.source === 'ai-season')).length;
+    const protectedCount = slots.filter(slot => trainings.some(training => training.date === slot.date && (training.status === 'completed' || training.endedAt || training.planning?.coachEdited || training.planning?.source !== 'ai-season'))).length;
+    state.textContent = drafts ? drafts + ' KI-Entwürfe' : slots.length + ' Termine bereit';
+    state.className = 'att-chip ' + (drafts ? 'ok' : 'muted-chip');
+    summary.innerHTML = `
+      <div><span>Offizielle Spiele</span><strong>${games.length}</strong></div>
+      <div><span>Letztes Saisonspiel</span><strong>${escapeHTML(formatDate(games.at(-1).date))}</strong></div>
+      <div><span>Trainingstermine</span><strong>${slots.length}</strong></div>
+      <div><span>Geschützte Einheiten</span><strong>${protectedCount}</strong></div>`;
+  }
+
+  function setupSeasonPlanner(root) {
+    const saved = BT.storage.getSetting('seasonCoachInput', {
+      goal: '',
+      focus: 'Horns, 5-Out, No-Middle Defense, Helpside-Kommunikation, Rebounding und Transition',
+      problems: '', roster: ''
+    });
+    $('[data-role="season-goal"]', root).value = saved.goal || '';
+    $('[data-role="season-focus"]', root).value = saved.focus || '';
+    $('[data-role="season-problems"]', root).value = saved.problems || '';
+    $('[data-role="season-roster"]', root).value = saved.roster || '';
+    renderSeasonSummary(root);
+
+    $('[data-action="preview-season"]', root).addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const status = $('[data-role="season-ai-status"]', root);
+      button.disabled = true;
+      try {
+        if (BT.api.getToken()) {
+          status.textContent = 'Offizieller Spielplan wird aktualisiert …';
+          const result = await BT.api.syncWebsiteGames(BT.seasonplanner.scheduleConfig());
+          result.games.forEach(game => BT.storage.upsertGame(game));
+          BT.seasonplanner.saveScheduleConfig({ teamId: result.team.id, teamName: result.team.name });
+        }
+        const slots = plannerSlots();
+        if (!slots.length) throw new Error('Es konnten keine Trainingstermine bis zum letzten Saisonspiel berechnet werden.');
+        renderSeasonSummary(root);
+        status.textContent = slots.length + ' Termine geprüft. Bayerische Schulferien, Feiertage und Spieltage werden ausgelassen.';
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    $('[data-action="generate-season"]', root).addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const status = $('[data-role="season-ai-status"]', root);
+      if (!BT.api.getToken()) {
+        if (confirm('Für die geschützte KI-Saisonplanung ist eine Anmeldung nötig. Jetzt Konto & Sync öffnen?')) location.hash = '#/account';
+        return;
+      }
+      button.disabled = true;
+      BT.wake.acquire('season-ai-plan');
+      try {
+        const preferences = seasonCoachInput(root);
+        BT.storage.setSetting('seasonCoachInput', preferences);
+        status.textContent = 'Offizieller Herren-Spielplan wird synchronisiert …';
+        const synced = await BT.api.syncWebsiteGames(BT.seasonplanner.scheduleConfig());
+        synced.games.forEach(game => BT.storage.upsertGame(game));
+        BT.seasonplanner.saveScheduleConfig({ teamId: synced.team.id, teamName: synced.team.name });
+        const slots = plannerSlots();
+        if (!slots.length) throw new Error('Keine regulären Trainingstermine bis zum letzten Saisonspiel gefunden.');
+        if (!confirm(slots.length + ' Trainings bis ' + formatDate(slots.at(-1).date) + ' durch die KI planen?\n\nManuelle und absolvierte Einheiten bleiben unverändert.')) {
+          status.textContent = 'Saisonplanung abgebrochen.';
+          return;
+        }
+        status.textContent = 'KI plant ' + slots.length + ' Einheiten anhand von Spielabständen, Coach-Eingaben und bisherigen Daten …';
+        const payload = BT.seasonplanner.buildAIPayload(slots, preferences);
+        const response = await BT.api.ai('planSeason', { data: payload });
+        const applied = BT.seasonplanner.applyAIPlan(response.data, slots);
+        renderSeasonSummary(root);
+        renderUpcoming(root);
+        status.textContent = 'Saisonplanung erstellt: ' + applied.created + ' neu, ' + applied.updated + ' aktualisiert, ' + applied.protected + ' geschützt' + (applied.missing ? ', ' + applied.missing + ' KI-Antworten fehlten' : '') + '.';
+      } catch (error) {
+        console.error(error);
+        status.textContent = 'KI-Saisonplanung fehlgeschlagen: ' + error.message;
+      } finally {
+        BT.wake.release('season-ai-plan');
+        button.disabled = false;
+      }
+    });
   }
 
   function setupAIImport(root) {
@@ -104,7 +226,7 @@ BT.schedule = (function() {
     const empty = $('[data-role="upcoming-empty"]', root);
     list.innerHTML = '';
 
-    const days = BT.storage.getSetting('regularDays', []);
+    const days = BT.storage.getSetting('regularDays', ['tue', 'fri']);
     const time = BT.storage.getSetting('regularTime', '20:15');
     const lookahead = BT.storage.getSetting('regularLookahead', 6);
 
