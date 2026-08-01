@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const html = readFileSync(resolve(root, 'index.html'), 'utf8');
+const css = readFileSync(resolve(root, 'style.css'), 'utf8');
 const dom = new JSDOM(html, { url: 'https://coach.tsv-lindau.de/#/dashboard', runScripts: 'outside-only', pretendToBeVisual: true });
 const { window } = dom;
 
@@ -26,6 +27,12 @@ await new Promise(resolveWait => window.setTimeout(resolveWait, 100));
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+const viewportMeta = window.document.querySelector('meta[name="viewport"]')?.content || '';
+assert(viewportMeta.includes('viewport-fit=cover'), 'Safe-Area-Unterstützung im Viewport fehlt');
+assert(viewportMeta.includes('interactive-widget=resizes-content'), 'Viewport reagiert nicht auf Bildschirm und Tastatur');
+assert(!/user-scalable\s*=\s*no|maximum-scale\s*=\s*1/.test(viewportMeta), 'Pinch-to-Zoom darf nicht deaktiviert sein');
+assert(css.includes('position: fixed !important;') && css.includes('-webkit-backdrop-filter: none;'), 'Mobile Dock ist auf iOS nicht stabil verankert');
 
 function route(hash) {
   window.location.hash = hash;

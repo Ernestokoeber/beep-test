@@ -7388,3 +7388,43 @@ textarea:focus,
     box-shadow: 0 0.65rem 1.4rem #001b1045;
   }
 }
+
+/* Mobile PWA shell: stabil am sichtbaren Geräte-Viewport, ohne Zoom oder
+   Betriebssystem-Gesten zu blockieren. Diese Kaskade bleibt bewusst zuletzt. */
+:root {
+  --app-viewport-height: 100dvh;
+  --mobile-dock-height: 4.55rem;
+}
+
+html {
+  min-height: 100%;
+  min-height: var(--app-viewport-height);
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: var(--app-viewport-height);
+  overflow-x: clip;
+}
+
+@media (max-width: 900px) {
+  body {
+    padding-bottom: calc(var(--mobile-dock-height) + env(safe-area-inset-bottom));
+  }
+
+  .mobile-dock {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    isolation: isolate;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

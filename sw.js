@@ -1,8 +1,8 @@
-const CACHE = 'courthub-v103';
+const CACHE = 'courthub-v104';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=103',
+  './style.css?v=104',
   './manifest.webmanifest',
   './fonts/inter-latin.woff2',
   './fonts/monoton-latin.woff2',
@@ -34,7 +34,7 @@ const ASSETS = [
   './js/settings.js',
   './js/account.js?v=100',
   './js/install.js',
-  './js/app.js?v=102'
+  './js/app.js?v=103'
 ];
 
 self.addEventListener('install', (event) => {

@@ -65,6 +65,37 @@
     if (window.ResizeObserver) new ResizeObserver(apply).observe(topbar);
   }
 
+  function setupViewportMetrics() {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    let frame = 0;
+
+    const apply = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const scale = viewport && viewport.scale ? viewport.scale : 1;
+
+        // Beim Pinch-Zoom bleibt das Layout unverändert. Nur bei normaler
+        // Skalierung folgen Vollbildbereiche der tatsächlich sichtbaren Höhe.
+        if (scale <= 1.01) {
+          const height = viewport && viewport.height ? viewport.height : window.innerHeight;
+          if (height) root.style.setProperty('--app-viewport-height', Math.round(height * 100) / 100 + 'px');
+        }
+
+        root.dataset.viewportZoomed = scale > 1.01 ? 'true' : 'false';
+      });
+    };
+
+    apply();
+    window.addEventListener('resize', apply, { passive: true });
+    window.addEventListener('orientationchange', apply, { passive: true });
+    if (viewport) {
+      viewport.addEventListener('resize', apply, { passive: true });
+      viewport.addEventListener('scroll', apply, { passive: true });
+    }
+  }
+
   function setupHamburger() {
     const btn = document.querySelector('[data-role="hamburger"]');
     const moreBtn = document.querySelector('[data-role="mobile-more"]');
@@ -210,7 +241,7 @@
   function init() {
     if (initialized) return;
     initialized = true;
-    setupTheme(); setupHamburger(); setupTopbarHeight(); route();
+    setupTheme(); setupHamburger(); setupViewportMetrics(); setupTopbarHeight(); route();
     if (BT.sync && BT.sync.init) BT.sync.init();
   }
   if (document.readyState === 'loading') {
