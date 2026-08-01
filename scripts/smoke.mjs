@@ -98,6 +98,25 @@ assert(endedTraining.endedAt && endedTraining.status === 'completed', 'Training 
 route('#/training');
 assert(window.document.querySelectorAll('[data-role="upcoming-list"] > li').length === 1, 'Anstehende Trainings sind nicht sauber getrennt');
 assert(window.document.querySelectorAll('[data-role="completed-list"] > li').length === 1, 'Absolvierte Trainings sind nicht sauber getrennt');
+assert(window.document.querySelector('[data-role="completed-list"] [data-delete-training]'), 'Löschen fehlt bei absolvierten Trainings');
+
+const deletableFromList = window.BT.storage.upsertTraining({
+  date: new Date(Date.now() + 259200000).toISOString().slice(0, 10), startTime: '20:15', note: 'Aus Liste löschen',
+  attendance: [], freethrows: [], shots: []
+});
+route('#/training');
+const listDeleteButton = window.document.querySelector('[data-delete-training="' + deletableFromList.id + '"]');
+assert(listDeleteButton, 'Sichtbarer Löschbutton in der Trainingsliste fehlt');
+listDeleteButton.click();
+assert(!window.BT.storage.getTraining(deletableFromList.id), 'Training wurde aus der Liste nicht gelöscht');
+
+const deletableFromDetail = window.BT.storage.upsertTraining({
+  date: new Date(Date.now() + 345600000).toISOString().slice(0, 10), startTime: '20:15', note: 'Im Detail löschen',
+  attendance: [], freethrows: [], shots: []
+});
+route('#/training/' + deletableFromDetail.id);
+window.document.querySelector('[data-action="delete"]').click();
+assert(!window.BT.storage.getTraining(deletableFromDetail.id), 'Training wurde im Detail nicht gelöscht');
 
 route('#/reports');
 assert(window.document.querySelector('.reports-view'), 'Auswertungs-Reiter fehlt');

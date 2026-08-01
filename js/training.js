@@ -22,6 +22,29 @@ BT.training = (function() {
     target.appendChild(root);
 
     root.addEventListener('click', e => {
+      const deleteButton = e.target.closest('[data-delete-training]');
+      if (deleteButton) {
+        e.preventDefault();
+        e.stopPropagation();
+        const training = BT.storage.getTraining(deleteButton.dataset.deleteTraining);
+        if (!training) {
+          BT.util.toast('Das Training wurde bereits gelöscht.');
+          target.replaceChildren();
+          renderList(target);
+          return;
+        }
+        deleteTrainingWithUndo(training, {
+          afterDelete() {
+            target.replaceChildren();
+            renderList(target);
+          },
+          afterRestore() {
+            target.replaceChildren();
+            renderList(target);
+          }
+        });
+        return;
+      }
       if (e.target.closest('[data-action="new-training"]')) {
         const t = BT.storage.upsertTraining({
           date: todayISO(),
@@ -67,7 +90,7 @@ BT.training = (function() {
   function buildTrainingItem(t, isPast) {
     const summary = summarize(t);
     const li = document.createElement('li');
-    if (isPast) li.classList.add('past');
+    li.className = 'training-list-item' + (isPast ? ' past' : '');
     const a = document.createElement('a');
     a.href = '#/training/' + t.id;
     const endedBadge = t.endedAt ? '<span class="att-chip ok">🏁 Beendet</span> ' : '';
@@ -91,7 +114,29 @@ BT.training = (function() {
       </div>
     `;
     li.appendChild(a);
+    const actions = document.createElement('div');
+    actions.className = 'actions training-list-actions';
+    actions.innerHTML = `<button type="button" class="btn small danger" data-delete-training="${escapeHTML(t.id)}" aria-label="Training vom ${escapeHTML(formatDate(t.date))} löschen">Löschen</button>`;
+    li.appendChild(actions);
     return li;
+  }
+
+  function deleteTrainingWithUndo(training, callbacks) {
+    if (!training || !training.id) return false;
+    const config = callbacks || {};
+    if (!confirm('Training vom ' + formatDate(training.date) + ' wirklich löschen?')) return false;
+    const snapshot = training;
+    BT.storage.deleteTraining(training.id);
+    if (BT.storage.getTraining(training.id)) {
+      alert('Das Training konnte nicht gelöscht werden. Bitte erneut versuchen.');
+      return false;
+    }
+    if (typeof config.afterDelete === 'function') config.afterDelete();
+    BT.util.toastUndo('Training vom ' + formatDate(snapshot.date) + ' gelöscht', () => {
+      BT.storage.restoreTraining(snapshot);
+      if (typeof config.afterRestore === 'function') config.afterRestore(snapshot);
+    });
+    return true;
   }
 
   function renderTrendBadge(training) {
@@ -196,11 +241,9 @@ BT.training = (function() {
     $('[data-action="delete"]', detailRoot).addEventListener('click', () => {
       const snapshot = BT.storage.getTraining(currentTraining.id);
       if (!snapshot) { location.hash = '#/training'; return; }
-      BT.storage.deleteTraining(currentTraining.id);
-      location.hash = '#/training';
-      BT.util.toastUndo('Training vom ' + BT.util.formatDate(snapshot.date) + ' gelöscht', () => {
-        BT.storage.restoreTraining(snapshot);
-        location.hash = '#/training/' + snapshot.id;
+      deleteTrainingWithUndo(snapshot, {
+        afterDelete() { location.hash = '#/training'; },
+        afterRestore(restored) { location.hash = '#/training/' + restored.id; }
       });
     });
 

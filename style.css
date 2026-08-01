@@ -68,6 +68,15 @@
   opacity: 0.88;
 }
 
+.training-list-item > a {
+  flex: 1;
+  min-width: 0;
+}
+
+.training-list-actions {
+  flex: 0 0 auto;
+}
+
 [data-theme="dark"] .training-list-section {
   background: #0d251b;
   border-color: #2e4b3d;
@@ -80,6 +89,15 @@
 
   .training-list-section {
     padding: 0.9rem;
+  }
+
+  .training-list-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .training-list-actions .btn {
+    width: 100%;
   }
 }
 @font-face {

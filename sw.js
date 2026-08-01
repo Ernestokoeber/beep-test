@@ -1,8 +1,8 @@
-const CACHE = 'courthub-v102';
+const CACHE = 'courthub-v103';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=102',
+  './style.css?v=103',
   './manifest.webmanifest',
   './fonts/inter-latin.woff2',
   './fonts/monoton-latin.woff2',
@@ -19,7 +19,7 @@ const ASSETS = [
   './js/stats.js?v=100',
   './js/players.js',
   './js/test.js',
-  './js/training.js?v=102',
+  './js/training.js?v=103',
   './js/games.js?v=102',
   './js/tablecrew.js?v=101',
   './js/seasonplanner.js?v=102',
