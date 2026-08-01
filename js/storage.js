@@ -3,8 +3,10 @@ window.BT = window.BT || {};
 BT.storage = (function() {
   const KEY = 'beepTest_v1';
   const CURRENT_SCHEMA = 3;
+  let readCache = null;
 
   function load() {
+    if (readCache) return readCache;
     try {
       const raw = localStorage.getItem(KEY);
       if (!raw) return empty();
@@ -25,6 +27,21 @@ BT.storage = (function() {
     } catch (e) {
       console.error('Storage load failed', e);
       return empty();
+    }
+  }
+
+  // Statistik-Ansichten lesen denselben Datenbestand sehr oft hintereinander.
+  // Innerhalb dieses begrenzten Blocks reicht ein einziger JSON-Parse; nach dem
+  // Callback wird der Cache immer verworfen, damit normale Schreibvorgaenge ihr
+  // bisheriges Verhalten behalten.
+  function withReadCache(callback) {
+    if (typeof callback !== 'function') throw new TypeError('callback muss eine Funktion sein.');
+    if (readCache) return callback(readCache);
+    readCache = load();
+    try {
+      return callback(readCache);
+    } finally {
+      readCache = null;
     }
   }
 
@@ -405,7 +422,7 @@ BT.storage = (function() {
   }
 
   return {
-    load, save,
+    load, save, withReadCache,
     getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer, attendanceForActivePlayers,
     getSessions, getSession, createSession, updateSession, deleteSession,
     getTrainings, getTraining, upsertTraining, deleteTraining, restoreTraining,

@@ -16,7 +16,11 @@ BT.stats = (function() {
   }
 
   function endedTrainings() {
-    return BT.storage.getTrainings().filter(isEnded).filter(BT.storage.inActiveSeason);
+    const activeSeason = BT.storage.getActiveSeason();
+    return BT.storage.getTrainings().filter(function(training) {
+      if (!isEnded(training)) return false;
+      return !activeSeason || activeSeason === 'all' || training.seasonId === activeSeason;
+    });
   }
 
   function allEndedTrainings() {

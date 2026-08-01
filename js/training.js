@@ -3163,5 +3163,17 @@ BT.training = (function() {
     if (BT.util.toast) BT.util.toast('Template „' + tpl.name + '" angewendet');
   }
 
-  return { renderList, renderDetail, openPlayerStatsModal };
+  function cleanup() {
+    if (detailAbort) detailAbort.abort();
+    detailAbort = null;
+    if (timerRaf) cancelAnimationFrame(timerRaf);
+    timerRaf = 0;
+    if (sprintRaf) cancelAnimationFrame(sprintRaf);
+    sprintRaf = 0;
+    sprintRunning = false;
+    BT.wake.release('training-timer');
+    BT.wake.release('training-sprint');
+  }
+
+  return { renderList, renderDetail, openPlayerStatsModal, cleanup };
 })();

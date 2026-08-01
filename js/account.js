@@ -1,6 +1,7 @@
 window.BT = window.BT || {};
 
 BT.account = (function() {
+  let renderAbort = null;
   const ROLE_LABELS = {
     admin: 'Administrator',
     coach: 'Trainer',
@@ -109,6 +110,9 @@ BT.account = (function() {
   }
 
   function render(target) {
+    cleanup();
+    renderAbort = new AbortController();
+    const signal = renderAbort.signal;
     const root = BT.util.renderTemplate('tpl-account');
     target.appendChild(root);
     const authStatus = root.querySelector('[data-role="auth-status"]');
@@ -127,7 +131,7 @@ BT.account = (function() {
       drawThemeChoice();
       BT.util.toast('Darstellung geändert.');
     }));
-    window.addEventListener('bt-theme-change', drawThemeChoice, { once: false });
+    window.addEventListener('bt-theme-change', drawThemeChoice, { signal });
     drawThemeChoice();
 
     root.querySelector('[data-role="login-form"]').addEventListener('submit', async (event) => {
@@ -185,10 +189,15 @@ BT.account = (function() {
       }
       update(root);
     };
-    window.addEventListener('bt-sync-change', onChange, { once: false });
+    window.addEventListener('bt-sync-change', onChange, { signal });
     update(root);
     if (BT.sync.getState().user) loadMembers(root);
   }
 
-  return { render };
+  function cleanup() {
+    if (renderAbort) renderAbort.abort();
+    renderAbort = null;
+  }
+
+  return { render, cleanup };
 })();

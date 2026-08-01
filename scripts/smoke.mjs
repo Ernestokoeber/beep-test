@@ -35,6 +35,19 @@ function route(hash) {
 assert(window.document.querySelector('[data-role="coach-briefing"]'), 'Dashboard-Briefing fehlt');
 assert(window.document.querySelectorAll('.preview-kpi-card[href]').length === 4, 'Dashboard-Karten sind nicht vollständig verlinkt');
 
+const storagePrototype = Object.getPrototypeOf(window.localStorage);
+const originalStorageGetItem = storagePrototype.getItem;
+let dashboardDataReads = 0;
+storagePrototype.getItem = function(key) {
+  if (key === 'beepTest_v1') dashboardDataReads++;
+  return originalStorageGetItem.call(this, key);
+};
+const dashboardProbe = window.document.createElement('div');
+window.BT.dashboard.render(dashboardProbe);
+storagePrototype.getItem = originalStorageGetItem;
+assert(dashboardDataReads === 1, 'Dashboard lädt den vollständigen Datenbestand mehrfach: ' + dashboardDataReads);
+assert(dashboardProbe.querySelector('[data-role="coach-briefing"]'), 'Optimiertes Dashboard wurde nicht vollständig gerendert');
+
 const player = window.BT.storage.upsertPlayer({ name: 'Test Spieler', position: 'Guard', jerseyNumber: '11', availability: 'limited', goals: [] });
 route('#/player/' + player.id);
 assert(window.document.querySelector('[data-role="development-panel"]'), 'Spielerziele fehlen');

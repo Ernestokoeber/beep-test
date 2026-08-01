@@ -97,17 +97,25 @@
 
   function route() {
     const hash = location.hash || '#/dashboard';
-    app.innerHTML = '';
+    const isDashboard = hash === '#/dashboard' || hash === '#/' || hash === '';
+    if (!isDashboard) app.innerHTML = '';
     if (BT.test && BT.test.cleanup) BT.test.cleanup();
     if (BT.checkin && BT.checkin.cleanup) BT.checkin.cleanup();
+    if (BT.training && BT.training.cleanup) BT.training.cleanup();
+    if (BT.account && BT.account.cleanup) BT.account.cleanup();
 
     setActiveNav(hash);
 
     if (hash.startsWith('#/checkin/')) {
       const token = decodeURIComponent(hash.slice('#/checkin/'.length));
       BT.checkin.render(app, token);
-    } else if (hash === '#/dashboard' || hash === '#/' || hash === '') {
-      BT.dashboard.render(app);
+    } else if (isDashboard) {
+      // Das bisherige Menue bleibt sichtbar, bis das Dashboard vollstaendig in
+      // einem losgeloesten Fragment aufgebaut wurde. So entsteht beim Wechsel
+      // kein leerer Bildschirm.
+      const dashboardView = document.createDocumentFragment();
+      BT.dashboard.render(dashboardView);
+      app.replaceChildren(dashboardView);
     } else if (hash === '#/players') {
       BT.players.render(app);
     } else if (hash.startsWith('#/player/')) {

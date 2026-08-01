@@ -4,6 +4,13 @@ BT.dashboard = (function() {
   const { $, renderTemplate, escapeHTML, downloadCSV, downloadJSON, todayISO, formatDate } = BT.util;
 
   function render(target) {
+    if (BT.storage.withReadCache) {
+      return BT.storage.withReadCache(() => renderDashboard(target));
+    }
+    return renderDashboard(target);
+  }
+
+  function renderDashboard(target) {
     const root = renderTemplate('tpl-dashboard');
     target.appendChild(root);
 
