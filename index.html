@@ -18,7 +18,7 @@
   <link rel="apple-touch-icon" href="assets/TSVLogotransparent.png">
   <title>CourtHub · TSV Lindau Basketball</title>
   <link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/inter-latin.woff2">
-  <link rel="stylesheet" href="style.css?v=98">
+  <link rel="stylesheet" href="style.css?v=99">
 </head>
 <body>
   <header class="topbar">
@@ -466,7 +466,31 @@
         <h2>Training</h2>
         <button class="btn primary" data-action="new-training">+ Neues Training</button>
       </div>
-      <ul class="session-list" data-role="list"></ul>
+      <div class="training-list-sections">
+        <section class="training-list-section training-list-section--upcoming">
+          <div class="training-list-section-head">
+            <div><span class="section-kicker">Planung</span><h3>Anstehend</h3></div>
+            <span class="training-list-count" data-role="upcoming-count">0</span>
+          </div>
+          <ul class="session-list" data-role="upcoming-list"></ul>
+          <div class="empty empty--field hidden" data-role="upcoming-list-empty">
+            <p class="empty-headline">Kein Training anstehend</p>
+            <p class="empty-body">Lege ein neues Training an oder übernimm einen Termin aus dem Trainingsplan.</p>
+          </div>
+        </section>
+
+        <section class="training-list-section training-list-section--completed">
+          <div class="training-list-section-head">
+            <div><span class="section-kicker">Dokumentation</span><h3>Absolviert</h3></div>
+            <span class="training-list-count" data-role="completed-count">0</span>
+          </div>
+          <ul class="session-list" data-role="completed-list"></ul>
+          <div class="empty empty--field hidden" data-role="completed-list-empty">
+            <p class="empty-headline">Noch kein Training absolviert</p>
+            <p class="empty-body">Beendete Trainings erscheinen hier automatisch mit ihren erfassten Ergebnissen.</p>
+          </div>
+        </section>
+      </div>
       <div class="empty hidden" data-role="empty">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <p class="empty-headline">Noch keine Trainings erfasst</p>
@@ -522,7 +546,7 @@
           <h2 data-role="title">Training</h2>
         </div>
         <div class="head-actions">
-          <button class="btn small primary" data-action="end-training">🏁 Beenden</button>
+          <button class="btn small primary" data-action="end-training">🏁 Training beenden</button>
           <details class="head-menu">
             <summary class="btn small head-menu-toggle" aria-label="Weitere Aktionen">⋯ Mehr</summary>
             <div class="head-menu-panel">
@@ -1344,10 +1368,10 @@
   <script defer src="js/heatmap.js"></script>
   <script defer src="js/audio.js"></script>
   <script defer src="js/wake.js"></script>
-  <script defer src="js/stats.js"></script>
+  <script defer src="js/stats.js?v=99"></script>
   <script defer src="js/players.js"></script>
   <script defer src="js/test.js"></script>
-  <script defer src="js/training.js"></script>
+  <script defer src="js/training.js?v=99"></script>
   <script defer src="js/games.js"></script>
   <script defer src="js/notes.js"></script>
   <script defer src="js/drills.js"></script>

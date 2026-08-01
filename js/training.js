@@ -35,7 +35,10 @@ BT.training = (function() {
       }
     });
 
-    const list = $('[data-role="list"]', root);
+    const upcomingList = $('[data-role="upcoming-list"]', root);
+    const completedList = $('[data-role="completed-list"]', root);
+    const upcomingEmpty = $('[data-role="upcoming-list-empty"]', root);
+    const completedEmpty = $('[data-role="completed-list-empty"]', root);
     const empty = $('[data-role="empty"]', root);
     const trainings = BT.storage.getTrainings();
 
@@ -44,27 +47,21 @@ BT.training = (function() {
       return;
     }
 
-    const today = todayISO();
-    const upcoming = trainings.filter(t => (t.date || '') >= today)
+    const isEnded = training => BT.stats && BT.stats.isEnded
+      ? BT.stats.isEnded(training)
+      : !!training.endedAt;
+    const upcoming = trainings.filter(t => !isEnded(t))
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const past = trainings.filter(t => (t.date || '') < today)
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const completed = trainings.filter(isEnded)
+      .sort((a, b) => (b.endedAt || b.date || '').localeCompare(a.endedAt || a.date || ''));
 
-    if (upcoming.length > 0) {
-      const head = document.createElement('li');
-      head.className = 'list-section-head';
-      head.textContent = 'Anstehend (' + upcoming.length + ')';
-      list.appendChild(head);
-      for (const t of upcoming) list.appendChild(buildTrainingItem(t, false));
-    }
+    $('[data-role="upcoming-count"]', root).textContent = String(upcoming.length);
+    $('[data-role="completed-count"]', root).textContent = String(completed.length);
+    upcomingEmpty.classList.toggle('hidden', upcoming.length > 0);
+    completedEmpty.classList.toggle('hidden', completed.length > 0);
 
-    if (past.length > 0) {
-      const head = document.createElement('li');
-      head.className = 'list-section-head past';
-      head.textContent = 'Absolviert (' + past.length + ')';
-      list.appendChild(head);
-      for (const t of past) list.appendChild(buildTrainingItem(t, true));
-    }
+    for (const t of upcoming) upcomingList.appendChild(buildTrainingItem(t, false));
+    for (const t of completed) completedList.appendChild(buildTrainingItem(t, true));
   }
 
   function buildTrainingItem(t, isPast) {
@@ -74,7 +71,7 @@ BT.training = (function() {
     const a = document.createElement('a');
     a.href = '#/training/' + t.id;
     const endedBadge = t.endedAt ? '<span class="att-chip ok">🏁 Beendet</span> ' : '';
-    const badge = isPast && !t.endedAt ? '<span class="att-chip muted-chip">Absolviert</span> ' : '';
+    const badge = isPast && !t.endedAt ? '<span class="att-chip muted-chip">✓ Absolviert</span> ' : '';
     const trendBadge = isPast ? renderTrendBadge(t) : '';
     a.innerHTML = `
       <div class="info">
@@ -188,7 +185,7 @@ BT.training = (function() {
 
     $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
     $('[data-action="ai-summary"]', detailRoot).addEventListener('click', () => openAISummary(currentTraining));
-    $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTrainingAndShare(currentTraining));
+    $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTraining(currentTraining));
     $('[data-action="export-csv"]', detailRoot).addEventListener('click', () => exportCSV(currentTraining));
     $('[data-action="export-json"]', detailRoot).addEventListener('click', () => exportJSON(currentTraining));
     $('[data-action="save-as-template"]', detailRoot).addEventListener('click', () => saveCurrentAsTemplate());
@@ -480,14 +477,26 @@ BT.training = (function() {
         if (currentTraining.endedAt) {
           if (!confirm('Training wieder öffnen? Es fällt dann aus der Spielerstatistik heraus, bis es erneut beendet wird.')) return;
           delete currentTraining.endedAt;
+          if (currentTraining.status === 'completed') delete currentTraining.status;
         } else {
           currentTraining.endedAt = new Date().toISOString();
+          currentTraining.status = 'completed';
         }
         save();
         renderSummary();
       });
       el._toggleEndedBound = true;
     }
+    updateTrainingEndControls();
+  }
+
+  function updateTrainingEndControls() {
+    if (!detailRoot || !currentTraining) return;
+    const btn = $('[data-action="end-training"]', detailRoot);
+    if (!btn) return;
+    const ended = !!currentTraining.endedAt || currentTraining.status === 'completed';
+    btn.disabled = ended;
+    btn.textContent = ended ? '✓ Training beendet' : '🏁 Training beenden';
   }
 
   function getOrCreateFT(playerId) {
@@ -2407,39 +2416,36 @@ BT.training = (function() {
     }
   }
 
-  async function endTrainingAndShare(training) {
-    if (!confirm('Training beenden und Bericht als PDF teilen?\n\nDas Training wird als abgeschlossen markiert und fliesst ab sofort in die Spielerstatistik ein.')) return;
-    const btn = $('[data-action="end-training"]', detailRoot);
-    const orig = btn ? btn.textContent : '';
-    try {
-      if (btn) { btn.disabled = true; btn.textContent = '⏳ PDF wird erstellt…'; }
-      if (!training.endedAt) {
-        training.endedAt = new Date().toISOString();
-        BT.storage.upsertTraining(training);
-        renderSummary();
-      }
-      const JsPDFCtor = await loadJsPDF();
-      const doc = new JsPDFCtor({ unit: 'pt', format: 'a4' });
-      buildTrainingPDF(doc, training);
-      const blob = doc.output('blob');
-      const filename = 'Trainingsbericht_' + training.date + '.pdf';
-      const file = new File([blob], filename, { type: 'application/pdf' });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], title: 'Trainingsbericht ' + formatDate(training.date) });
-          return;
-        } catch (e) {
-          if (e && e.name === 'AbortError') return;
-        }
-      }
-      downloadBlob(filename, blob);
-      alert('Teilen wird vom Browser nicht unterstützt — PDF wurde heruntergeladen.');
-    } catch (e) {
-      alert('Fehler beim PDF-Erstellen: ' + e.message);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = orig; }
+  function endTraining(training) {
+    if (training.endedAt || training.status === 'completed') {
+      BT.util.toast('Das Training ist bereits beendet.');
+      updateTrainingEndControls();
+      return;
     }
+
+    const pending = summarize(training).pending;
+    const pendingNote = pending > 0
+      ? '\n\nHinweis: Bei ' + pending + ' Spielern ist die Anwesenheit noch offen.'
+      : '';
+    if (!confirm('Training jetzt beenden?\n\nEs wird sofort als absolviert gespeichert und in die Auswertung übernommen.' + pendingNote)) return;
+
+    training.endedAt = new Date().toISOString();
+    training.status = 'completed';
+    BT.storage.upsertTraining(training);
+
+    const saved = BT.storage.getTraining(training.id);
+    if (!saved || !saved.endedAt || saved.status !== 'completed') {
+      delete training.endedAt;
+      delete training.status;
+      updateTrainingEndControls();
+      alert('Das Training konnte nicht als beendet gespeichert werden. Bitte erneut versuchen.');
+      return;
+    }
+
+    currentTraining = saved;
+    renderSummary();
+    BT.util.toast('Training beendet und unter „Absolviert“ gespeichert.');
+    location.hash = '#/training';
   }
 
   function previousEndedTraining(training) {

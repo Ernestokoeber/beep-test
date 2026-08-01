@@ -64,14 +64,27 @@ assert(window.document.querySelector('.atlas-stat-strip'), 'Echter Atlas-Vertrag
 assert(window.document.querySelector('.atlas-linked'), 'Atlas-Spieler wurde nicht über Trikotnummer zugeordnet');
 assert(window.document.querySelector('[data-player-id="' + player.id + '"] [data-stat="points"]').value === '12', 'Atlas-Boxscore wurde nicht übernommen');
 
+const futureTrainingDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+const secondTrainingDate = new Date(Date.now() + 172800000).toISOString().slice(0, 10);
 const training = window.BT.storage.upsertTraining({
-  date: '2026-08-02', startTime: '20:15', note: '', attendance: [{ playerId: player.id, status: null, late: false, note: '' }], freethrows: [], shots: [],
+  date: futureTrainingDate, startTime: '20:15', note: '', attendance: [{ playerId: player.id, status: null, late: false, note: '' }], freethrows: [], shots: [],
   plan: { durationMinutes: 90, drills: [{ name: 'Defense', minutes: 20, intensity: 'high' }] }
+});
+window.BT.storage.upsertTraining({
+  date: secondTrainingDate, startTime: '20:15', note: 'Folgetraining', attendance: [{ playerId: player.id, status: null, late: false, note: '' }], freethrows: [], shots: []
 });
 route('#/training/' + training.id);
 assert(window.document.querySelector('[data-role="plan-duration"]').value === '90', 'Trainingsdauer wurde nicht geladen');
 assert(window.document.querySelector('.intensity-high'), 'Belastungsstufe fehlt');
 assert(window.document.querySelector('[data-role="checkin-card"]'), 'QR-Check-in fehlt');
+assert(!window.document.querySelector('[data-action="export-pdf"]'), 'Einzelner Trainings-PDF-Export darf nicht mehr angeboten werden');
+window.document.querySelector('[data-action="end-training"]').click();
+await new Promise(resolveWait => window.setTimeout(resolveWait, 20));
+const endedTraining = window.BT.storage.getTraining(training.id);
+assert(endedTraining.endedAt && endedTraining.status === 'completed', 'Training wurde durch Beenden nicht abgeschlossen gespeichert');
+route('#/training');
+assert(window.document.querySelectorAll('[data-role="upcoming-list"] > li').length === 1, 'Anstehende Trainings sind nicht sauber getrennt');
+assert(window.document.querySelectorAll('[data-role="completed-list"] > li').length === 1, 'Absolvierte Trainings sind nicht sauber getrennt');
 
 route('#/reports');
 assert(window.document.querySelector('.reports-view'), 'Auswertungs-Reiter fehlt');

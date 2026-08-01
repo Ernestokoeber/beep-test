@@ -5,7 +5,7 @@ BT.stats = (function() {
 
   function isEnded(t) {
     if (!t) return false;
-    if (t.endedAt) return true;
+    if (t.endedAt || t.status === 'completed') return true;
     // Fallback fuer Altdaten ohne explizites endedAt:
     // Trainings deren Datum in der Vergangenheit liegt gelten als abgeschlossen.
     if (t.date) {

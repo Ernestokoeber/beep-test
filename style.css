@@ -6,6 +6,82 @@
   src: url('fonts/inter-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+
+/* Trainingsstatus: anstehende und absolvierte Einheiten klar getrennt. */
+.training-list-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.training-list-section {
+  min-width: 0;
+  padding: 1rem;
+  border: 0.0625rem solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.training-list-section--upcoming {
+  border-top: 0.25rem solid #f58220;
+}
+
+.training-list-section--completed {
+  border-top: 0.25rem solid #00633e;
+}
+
+.training-list-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.training-list-section-head h3 {
+  margin: 0.15rem 0 0;
+}
+
+.training-list-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.65rem;
+  border-radius: 999rem;
+  background: #00633e;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.training-list-section--upcoming .training-list-count {
+  background: #f58220;
+}
+
+.training-list-section .session-list {
+  margin: 0;
+}
+
+.training-list-section .session-list li.past a {
+  opacity: 0.88;
+}
+
+[data-theme="dark"] .training-list-section {
+  background: #0d251b;
+  border-color: #2e4b3d;
+}
+
+@media (max-width: 900px) {
+  .training-list-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .training-list-section {
+    padding: 0.9rem;
+  }
+}
 @font-face {
   font-family: 'Monoton';
   font-style: normal;
