@@ -267,7 +267,7 @@ const batchResult = await window.BT.seasonplanner.planInBatches(batchPayload, as
   batchSizes.push(data.slots.length);
   return { data: { trainings: data.slots.map(slot => ({ date: slot.date, drills: [] })) } };
 });
-assert(batchSizes.join(',') === '8,8,1', 'Saisonplanung teilt Slots nicht in sichere Blöcke');
+assert(batchSizes.join(',') === '4,4,4,4,1', 'Saisonplanung teilt Slots nicht in sichere Blöcke');
 assert(batchResult.trainings.length === 17, 'Antworten aller Blöcke wurden nicht gesammelt');
 
 let rejectedBatch = false;
