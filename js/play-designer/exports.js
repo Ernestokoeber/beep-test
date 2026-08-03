@@ -1,6 +1,136 @@
-const core=window.BT.tactics.__core;
-function toast(message){if(window.BT.util?.toast)window.BT.util.toast(message);}
-function loadScript(src,test){if(test())return Promise.resolve();return new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=src;script.onload=resolve;script.onerror=()=>reject(new Error('Zusatzmodul konnte nicht geladen werden.'));document.head.appendChild(script);});}
-function drawCanvas(context,snapshot,width,height){const sx=width/500,sy=height/470;context.save();context.scale(sx,sy);const g=context.createLinearGradient(0,0,500,0);g.addColorStop(0,'#b87536');g.addColorStop(.5,'#dda55f');g.addColorStop(1,'#c17b3c');context.fillStyle=g;context.fillRect(0,0,500,470);context.strokeStyle='#fff';context.lineWidth=2.4;context.strokeRect(10,10,480,450);context.strokeRect(160,10,180,190);context.beginPath();context.arc(250,200,60,0,Math.PI*2);context.stroke();context.beginPath();context.arc(250,10,144,0,Math.PI);context.stroke();context.beginPath();context.moveTo(220,40);context.lineTo(280,40);context.stroke();core.elements(snapshot).forEach(element=>{if(element.type==='offense'||element.type==='defense'){context.beginPath();context.fillStyle=element.type==='offense'?'#f38a22':'#123d68';context.strokeStyle='#fff';context.lineWidth=3;context.arc(element.x,element.y,20,0,Math.PI*2);context.fill();context.stroke();context.fillStyle='#fff';context.font='900 12px sans-serif';context.textAlign='center';context.fillText(element.role||'',element.x,element.y+4);}else if(element.type==='ball'){context.beginPath();context.fillStyle='#f97316';context.arc(element.x,element.y,10,0,Math.PI*2);context.fill();}else if(element.type==='zone'){context.fillStyle='rgba(14,165,233,.16)';context.strokeStyle='#38bdf8';context.fillRect(element.x-element.width/2,element.y-element.height/2,element.width,element.height);context.strokeRect(element.x-element.width/2,element.y-element.height/2,element.width,element.height);}else if(element.type==='label'){context.fillStyle='#fff';context.font='800 15px sans-serif';context.textAlign='center';context.fillText(element.text||'',element.x,element.y);}});context.restore();}
-export async function exportPdf(boardInput){const board=core.normalizeBoard(boardInput);try{await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',()=>!!window.jspdf?.jsPDF);const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'pt',format:'a4'}),canvas=document.createElement('canvas');canvas.width=1000;canvas.height=940;const context=canvas.getContext('2d');board.steps.forEach((step,index)=>{if(index)doc.addPage();context.clearRect(0,0,canvas.width,canvas.height);drawCanvas(context,step,canvas.width,canvas.height);doc.setFontSize(20);doc.text(board.title||'CourtHub Play',36,36);doc.setFontSize(10);doc.text((board.description||board.category||'').slice(0,140),36,54);doc.addImage(canvas.toDataURL('image/jpeg',.9),'JPEG',190,68,430,404);doc.text(`Schritt ${index+1} / ${board.steps.length} · ${step.duration.toFixed(1)} s`,190,493);});doc.save((board.title||'courthub-play').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.pdf');toast('Play-PDF erstellt.');}catch(error){toast('PDF-Export fehlgeschlagen: '+error.message);}}
-export async function exportGif(boardInput){const board=core.normalizeBoard(boardInput);try{await loadScript('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js',()=>!!window.GIF);const canvas=document.createElement('canvas');canvas.width=500;canvas.height=470;const context=canvas.getContext('2d'),gif=new window.GIF({workers:2,quality:12,width:500,height:470,workerScript:'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js',background:'#c98a48'}),total=window.BT.tactics.boardDuration(board),fps=12,frames=Math.max(2,Math.ceil(total*fps));for(let index=0;index<=frames;index++){context.clearRect(0,0,500,470);drawCanvas(context,window.BT.tactics.snapshotAt(board,total*index/frames),500,470);gif.addFrame(context,{delay:Math.round(1000/fps),copy:true});}const blob=await new Promise((resolve,reject)=>{gif.on('finished',resolve);gif.on('abort',()=>reject(new Error('GIF-Erzeugung abgebrochen.')));gif.render();}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download=(board.title||'courthub-play').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.gif';document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Animiertes GIF erstellt.');}catch(error){toast('GIF-Export fehlgeschlagen: '+error.message);}}
+import { createCourt, drawCourt, COURT_VIEW } from './rendering.js';
+
+const core = window.BT.tactics.__core;
+
+function toast(message) {
+  if (window.BT.util?.toast) window.BT.util.toast(message);
+}
+
+function loadScript(src, test) {
+  if (test()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Zusatzmodul konnte nicht geladen werden.'));
+    document.head.appendChild(script);
+  });
+}
+
+async function drawSnapshot(context, snapshot, width, height, sourceStep) {
+  const svg = createCourt('chpd-export-court');
+  drawCourt(svg, snapshot, {
+    sourceStep: sourceStep || snapshot._sourceStep,
+    showGuides: true
+  });
+  svg.setAttribute('width', String(COURT_VIEW.width));
+  svg.setAttribute('height', String(COURT_VIEW.height));
+  const serialized = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const value = new Image();
+      value.onload = () => resolve(value);
+      value.onerror = () => reject(new Error('Perspektivische Play-Ansicht konnte nicht gerendert werden.'));
+      value.src = url;
+    });
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function exportPdf(boardInput) {
+  const board = core.normalizeBoard(boardInput);
+  try {
+    await loadScript(
+      'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
+      () => !!window.jspdf?.jsPDF
+    );
+    const doc = new window.jspdf.jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: 'a4'
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 1520;
+    canvas.height = 1100;
+    const context = canvas.getContext('2d');
+
+    for (let index = 0; index < board.steps.length; index += 1) {
+      const step = board.steps[index];
+      if (index) doc.addPage();
+      await drawSnapshot(context, step, canvas.width, canvas.height, step);
+      doc.setFontSize(20);
+      doc.text(board.title || 'CourtHub Play', 36, 36);
+      doc.setFontSize(10);
+      doc.text((board.description || board.category || '').slice(0, 140), 36, 54);
+      doc.addImage(canvas.toDataURL('image/jpeg', .92), 'JPEG', 118, 68, 606, 438);
+      doc.text(
+        `Schritt ${index + 1} / ${board.steps.length} · ${step.duration.toFixed(1)} s · Perspective Court`,
+        118,
+        522
+      );
+    }
+
+    doc.save(
+      (board.title || 'courthub-play').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.pdf'
+    );
+    toast('Play-PDF im Perspektiv-Look erstellt.');
+  } catch (error) {
+    toast('PDF-Export fehlgeschlagen: ' + error.message);
+  }
+}
+
+export async function exportGif(boardInput) {
+  const board = core.normalizeBoard(boardInput);
+  try {
+    await loadScript(
+      'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js',
+      () => !!window.GIF
+    );
+    const width = 608;
+    const height = 440;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    const gif = new window.GIF({
+      workers: 2,
+      quality: 11,
+      width,
+      height,
+      workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js',
+      background: '#050b12'
+    });
+    const total = window.BT.tactics.boardDuration(board);
+    const fps = 12;
+    const frames = Math.max(2, Math.ceil(total * fps));
+
+    for (let index = 0; index <= frames; index += 1) {
+      const snapshot = window.BT.tactics.snapshotAt(board, total * index / frames);
+      await drawSnapshot(context, snapshot, width, height, snapshot._sourceStep);
+      gif.addFrame(context, { delay: Math.round(1000 / fps), copy: true });
+    }
+
+    const blob = await new Promise((resolve, reject) => {
+      gif.on('finished', resolve);
+      gif.on('abort', () => reject(new Error('GIF-Erzeugung abgebrochen.')));
+      gif.render();
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download =
+      (board.title || 'courthub-play').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.gif';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Animiertes GIF im Perspektiv-Look erstellt.');
+  } catch (error) {
+    toast('GIF-Export fehlgeschlagen: ' + error.message);
+  }
+}
