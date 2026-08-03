@@ -15,11 +15,8 @@ BT.tactics = (function() {
     return {
       id: newStepId(),
       players: [
-        { id: 'p1', label: '1', x: 120, y: 380 },
-        { id: 'p2', label: '2', x: 380, y: 380 },
-        { id: 'p3', label: '3', x: 80, y: 260 },
-        { id: 'p4', label: '4', x: 420, y: 260 },
-        { id: 'p5', label: '5', x: 250, y: 230 }
+        { id: 'p1', label: 'PG', team: 'offense', x: 120, y: 380 }, { id: 'p2', label: 'Wing', team: 'offense', x: 380, y: 380 }, { id: 'p3', label: 'Wing', team: 'offense', x: 80, y: 260 }, { id: 'p4', label: 'Big', team: 'offense', x: 420, y: 260 }, { id: 'p5', label: 'Big', team: 'offense', x: 250, y: 230 },
+        { id: 'd1', label: 'PG', team: 'defense', x: 120, y: 330 }, { id: 'd2', label: 'Wing', team: 'defense', x: 380, y: 330 }, { id: 'd3', label: 'Wing', team: 'defense', x: 110, y: 210 }, { id: 'd4', label: 'Big', team: 'defense', x: 390, y: 210 }, { id: 'd5', label: 'Big', team: 'defense', x: 250, y: 180 }
       ],
       ball: { x: 250, y: 380 },
       arrows: [],
@@ -398,7 +395,7 @@ BT.tactics = (function() {
       tokensLayer.innerHTML = '';
       for (const p of snapshot.players) {
         const g = document.createElementNS(SVG_NS, 'g');
-        g.setAttribute('class', 'tactics-player');
+        g.setAttribute('class', 'tactics-player tactics-token ' + (p.team || 'offense'));
         const c = document.createElementNS(SVG_NS, 'circle');
         c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 18);
         g.appendChild(c);

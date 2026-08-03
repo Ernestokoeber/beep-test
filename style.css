@@ -4484,6 +4484,8 @@ table.results tr:last-child td { border-bottom: none; }
   user-select: none;
   pointer-events: none;
 }
+.tactics-court .tactics-token.defense circle { fill: #2e6eaa; stroke: #123a61; }
+.tactics-court .tactics-token.defense text { fill: #fff; font-size: 11px; }
 .tactics-court .tactics-ball circle {
   fill: #e67e22;
   stroke: #7a3f11;
