@@ -290,6 +290,8 @@ const retriedResult = await window.BT.seasonplanner.planInBatches(
 assert(retryCalls === 2, 'Ungültiger KI-Block wurde nicht einmal erneut angefragt');
 assert(retriedResult.trainings.length === 4, 'Erfolgreicher Retry liefert nicht alle Trainings zurück');
 assert(retryProgress.some(item => item.attempt === 2), 'Retry-Fortschritt wird nicht gemeldet');
+assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 1 }) === 'KI plant Block 2 von 5 …', 'Erster Blockstatus ist falsch');
+assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 2 }) === 'KI versucht Block 2 von 5 erneut …', 'Retry-Blockstatus ist falsch');
 
 const invalidResponses = [
   { data: { trainings: [
