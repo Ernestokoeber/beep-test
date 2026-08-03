@@ -2,6 +2,7 @@ window.BT = window.BT || {};
 
 BT.history = (function() {
   const { $, renderTemplate, formatDate, escapeHTML, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, todayISO } = BT.util;
+  const IMPORT_LISTS = ['players', 'sessions', 'trainings', 'games', 'tableDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases'];
 
   function renderList(target) {
     const root = renderTemplate('tpl-history');
@@ -135,6 +136,37 @@ BT.history = (function() {
     }
   }
 
+  function importList(data, key) {
+    return Array.isArray(data?.[key]) ? data[key] : [];
+  }
+
+  function hasImportableData(data) {
+    return IMPORT_LISTS.some(key => importList(data, key).length > 0);
+  }
+
+  function importSettings(data) {
+    const settings = Object.assign({}, data?.settings || {});
+    delete settings.geminiApiKey;
+    return settings;
+  }
+
+  function applyBackup(data, mode) {
+    const current = BT.storage.load();
+    if (mode === 'r') {
+      const replacement = { schemaVersion: 2, settings: importSettings(data) };
+      IMPORT_LISTS.forEach(key => { replacement[key] = importList(data, key); });
+      BT.storage.save(replacement);
+      return;
+    }
+    if (mode === 'm') {
+      const merged = { schemaVersion: 2, settings: Object.assign({}, current.settings || {}, importSettings(data)) };
+      IMPORT_LISTS.forEach(key => { merged[key] = mergeById(importList(current, key), importList(data, key)); });
+      BT.storage.save(merged);
+      return;
+    }
+    throw new Error('Ungültiger Importmodus.');
+  }
+
   async function importBackup() {
     const file = await pickFile('application/json,.json');
     if (!file) return;
@@ -146,44 +178,12 @@ BT.history = (function() {
         return;
       }
       const current = BT.storage.load();
-      const hasData = current.players.length > 0 || current.sessions.length > 0 || (current.trainings || []).length > 0;
+      const hasData = hasImportableData(current);
       const choice = hasData
         ? prompt('Backup importieren:\n  "m" = Mergen (bestehende Daten behalten, neue ergänzen)\n  "r" = Ersetzen (alle aktuellen Daten löschen)\n  Abbrechen = leer lassen', 'm')
         : 'r';
       if (!choice) return;
-      if (choice === 'r') {
-        const mergedSettings = Object.assign({}, data.settings || {});
-        delete mergedSettings.geminiApiKey;
-        BT.storage.save({
-          schemaVersion: 2,
-          players: data.players,
-          sessions: data.sessions,
-          trainings: Array.isArray(data.trainings) ? data.trainings : [],
-          notes: Array.isArray(data.notes) ? data.notes : [],
-          freethrows: Array.isArray(data.freethrows) ? data.freethrows : [],
-          drills: Array.isArray(data.drills) ? data.drills : [],
-          templates: Array.isArray(data.templates) ? data.templates : [],
-          settings: mergedSettings
-        });
-      } else if (choice === 'm') {
-        const importedSettings = Object.assign({}, data.settings || {});
-        delete importedSettings.geminiApiKey;
-        const mergedSettings = Object.assign({}, current.settings || {}, importedSettings);
-        BT.storage.save({
-          schemaVersion: 2,
-          players: mergeById(current.players, data.players),
-          sessions: mergeById(current.sessions, data.sessions),
-          trainings: mergeById(current.trainings || [], data.trainings || []),
-          notes: mergeById(current.notes || [], data.notes || []),
-          freethrows: mergeById(current.freethrows || [], data.freethrows || []),
-          drills: mergeById(current.drills || [], data.drills || []),
-          templates: mergeById(current.templates || [], data.templates || []),
-          settings: mergedSettings
-        });
-      } else {
-        alert('Ungültige Auswahl.');
-        return;
-      }
+      applyBackup(data, choice);
       alert('Import erfolgreich.');
       location.reload();
     } catch (e) {
@@ -198,5 +198,5 @@ BT.history = (function() {
     return Array.from(map.values());
   }
 
-  return { renderList, renderDetail, shareBackup, exportBackup, importBackup };
+  return { renderList, renderDetail, shareBackup, exportBackup, importBackup, applyBackup, hasImportableData };
 })();

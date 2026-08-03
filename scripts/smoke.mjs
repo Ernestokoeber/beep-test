@@ -217,5 +217,28 @@ route('#/schedule');
 assert(window.document.querySelector('[data-action="generate-season"]'), 'KI-Saisonplanung fehlt im Trainingsplan');
 assert(window.document.querySelector('[data-role="season-plan-summary"]'), 'Saisonübersicht fehlt');
 
+const importBackup = {
+  schemaVersion: 2,
+  players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [],
+  games: [{ id: 'import-game', home: 'TSV Lindau', away: 'Import Team' }],
+  tableDuties: [{ id: 'import-duty', date: '2026-10-11', assignments: {} }],
+  phases: [{ id: 'import-phase', name: 'Importphase', start: '2026-10-01', end: '2026-10-31' }],
+  settings: { importMarker: 'replace' }
+};
+window.BT.storage.save({ schemaVersion: 2, players: [], sessions: [], trainings: [], games: [{ id: 'old-game' }], tableDuties: [{ id: 'old-duty' }], notes: [], freethrows: [], drills: [], templates: [], phases: [{ id: 'old-phase' }], settings: {} }, { fromSync: true });
+assert(window.BT.history.hasImportableData(window.BT.storage.load()), 'Spiel-, Kampfgerichts- oder Phasendaten werden nicht als vorhandene Importdaten erkannt');
+window.BT.history.applyBackup(importBackup, 'r');
+let imported = window.BT.storage.load();
+assert(imported.games.map(entry => entry.id).join(',') === 'import-game', 'Ersetzen übernimmt Spiele nicht vollständig');
+assert(imported.tableDuties.map(entry => entry.id).join(',') === 'import-duty', 'Ersetzen übernimmt Kampfgerichte nicht vollständig');
+assert(imported.phases.map(entry => entry.id).join(',') === 'import-phase', 'Ersetzen übernimmt Saisonphasen nicht vollständig');
+
+window.BT.storage.save({ schemaVersion: 2, players: [], sessions: [], trainings: [], games: [{ id: 'import-game', home: 'Bestehend' }], tableDuties: [{ id: 'import-duty', date: '2026-09-01', assignments: {} }], notes: [], freethrows: [], drills: [], templates: [], phases: [{ id: 'import-phase', name: 'Bestehend' }], settings: {} }, { fromSync: true });
+window.BT.history.applyBackup({ ...importBackup, games: [...importBackup.games, { id: 'new-game' }], tableDuties: [...importBackup.tableDuties, { id: 'new-duty', assignments: {} }], phases: [...importBackup.phases, { id: 'new-phase' }] }, 'm');
+imported = window.BT.storage.load();
+assert(imported.games.length === 2 && imported.games.find(entry => entry.id === 'import-game').home === 'Bestehend', 'Merge überschreibt vorhandene Spiele oder ergänzt neue nicht');
+assert(imported.tableDuties.length === 2 && imported.tableDuties.some(entry => entry.id === 'new-duty'), 'Merge ergänzt Kampfgerichte nicht');
+assert(imported.phases.length === 2 && imported.phases.some(entry => entry.id === 'new-phase'), 'Merge ergänzt Saisonphasen nicht');
+
 console.log('UI-Smoke-Test erfolgreich: Dashboard, Auswertung, Theme, Entwicklung, Spiele/Atlas, Training, Kampfgericht und KI-Saisonplanung.');
 dom.window.close();
