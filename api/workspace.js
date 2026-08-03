@@ -1,7 +1,7 @@
 import { query } from './_lib/db.js';
 import { canWrite, requireMembership } from './_lib/auth.js';
 import { method, noStore, safeError } from './_lib/http.js';
-import { filterWorkspaceForRole } from './_lib/workspace-data.js';
+import { filterWorkspaceForRole, hasValidTacticsShape } from './_lib/workspace-data.js';
 
 const MAX_WORKSPACE_BYTES = 4 * 1024 * 1024;
 
@@ -37,6 +37,9 @@ export default async function handler(req, res) {
     }
     if (!Number.isInteger(expectedVersion) || expectedVersion < 0) {
       return res.status(400).json({ error: 'Ungültige Workspace-Version.' });
+    }
+    if (!hasValidTacticsShape(data)) {
+      return res.status(400).json({ error: 'Ungültige Taktikdaten.' });
     }
     const serialized = JSON.stringify(data);
     if (Buffer.byteLength(serialized, 'utf8') > MAX_WORKSPACE_BYTES) {

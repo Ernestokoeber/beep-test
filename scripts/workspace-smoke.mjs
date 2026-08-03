@@ -1,4 +1,4 @@
-import { filterWorkspaceForRole } from '../api/_lib/workspace-data.js';
+import { filterWorkspaceForRole, hasValidTacticsShape } from '../api/_lib/workspace-data.js';
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -7,4 +7,6 @@ const viewer = filterWorkspaceForRole(source, 'viewer');
 assert(viewer.tactics.map(item => item.id).join(',') === 'live', 'Viewer erhält unveröffentlichte Taktiken');
 assert(source.tactics.length === 2, 'Serverfilter verändert den kanonischen Workspace');
 assert(filterWorkspaceForRole({ tactics: 'invalid' }, 'viewer').tactics.length === 0, 'Ungültige Taktiken werden für Viewer nicht sicher geleert');
+assert(hasValidTacticsShape({ tactics: [] }), 'Leeres Taktikarray wird nicht als gültiger Workspace akzeptiert');
+assert(!hasValidTacticsShape({ tactics: {} }), 'Ungültige Taktikdaten werden vom Workspace-Endpunkt nicht abgewiesen');
 console.log('Workspace-Smoke-Test erfolgreich.');

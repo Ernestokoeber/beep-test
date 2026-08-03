@@ -20,6 +20,7 @@ BT.storage = (function() {
       data.drills = data.drills || [];
       data.games = data.games || [];
       data.tableDuties = data.tableDuties || [];
+      data.tactics = data.tactics || [];
       if (data.schemaVersion < CURRENT_SCHEMA) {
         migrate(data);
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -228,6 +229,36 @@ BT.storage = (function() {
   function deleteNote(id) {
     const data = load();
     data.notes = data.notes.filter(n => n.id !== id);
+    save(data);
+  }
+
+  function getTactics() {
+    return (load().tactics || []).slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  }
+
+  function getTactic(id) { return (load().tactics || []).find(tactic => tactic.id === id); }
+
+  function upsertTactic(tactic) {
+    const data = load();
+    data.tactics = data.tactics || [];
+    const now = new Date().toISOString();
+    if (tactic.id) {
+      const index = data.tactics.findIndex(item => item.id === tactic.id);
+      if (index >= 0) data.tactics[index] = Object.assign({}, data.tactics[index], tactic, { updatedAt: now });
+      else data.tactics.push(Object.assign({}, tactic, { createdAt: tactic.createdAt || now, updatedAt: now }));
+    } else {
+      tactic.id = BT.util.uuid('tac_');
+      tactic.createdAt = now;
+      tactic.updatedAt = now;
+      data.tactics.push(tactic);
+    }
+    save(data);
+    return tactic;
+  }
+
+  function deleteTactic(id) {
+    const data = load();
+    data.tactics = (data.tactics || []).filter(tactic => tactic.id !== id);
     save(data);
   }
 
@@ -468,6 +499,7 @@ BT.storage = (function() {
     getSessions, getSession, createSession, updateSession, deleteSession,
     getTrainings, getTraining, upsertTraining, deleteTraining, restoreTraining,
     getNotes, getNote, upsertNote, deleteNote, restoreNote,
+    getTactics, getTactic, upsertTactic, deleteTactic,
     getDrills, getDrill, upsertDrill, deleteDrill, restoreDrill,
     getTemplates, getTemplate, upsertTemplate, deleteTemplate,
     getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,

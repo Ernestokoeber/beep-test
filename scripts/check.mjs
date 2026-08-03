@@ -8,7 +8,7 @@ const scripts = [
   'js/util.js', 'js/storage.js', 'js/api.js', 'js/sync.js', 'js/aiimport.js',
   'js/schedule.js', 'js/seasonplanner.js', 'js/training.js', 'js/tactics.js', 'js/tablecrew.js', 'js/account.js', 'js/app.js',
   'js/checkin.js', 'js/games.js',
-  'api/_lib/db.js', 'api/_lib/http.js', 'api/_lib/auth.js',
+  'api/_lib/db.js', 'api/_lib/http.js', 'api/_lib/auth.js', 'api/_lib/workspace-data.js',
   'api/auth/register.js', 'api/auth/login.js', 'api/auth/me.js',
   'api/workspace.js', 'api/members.js', 'api/ai/gemini.js'
   , 'api/_lib/checkin.js', 'api/checkin/manage.js', 'api/checkin/public.js', 'api/checkin/qr.js',
