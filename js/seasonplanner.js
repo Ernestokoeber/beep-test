@@ -164,14 +164,38 @@ BT.seasonplanner = (function() {
     );
   }
 
+  function validateBatchResponse(response, slots) {
+    const trainings = response?.data?.trainings;
+    if (!Array.isArray(trainings)) throw new Error('KI-Antwort enthält keine Trainingsliste.');
+    const expectedDates = slots.map(slot => slot.date);
+    const receivedDates = trainings.map(training => String(training?.date || ''));
+    const expected = new Set(expectedDates);
+    const hasExactDates = receivedDates.length === expectedDates.length &&
+      new Set(receivedDates).size === receivedDates.length &&
+      receivedDates.every(date => expected.has(date));
+    if (!hasExactDates) throw new Error('KI-Antwort enthält nicht genau die erwarteten Trainingstermine.');
+    return trainings;
+  }
+
   async function planInBatches(payload, requestBatch, onProgress) {
     const batches = splitAIPayload(payload);
     const trainings = [];
     for (let index = 0; index < batches.length; index++) {
-      if (onProgress) onProgress(index + 1, batches.length);
-      const response = await requestBatch(batches[index]);
-      if (!Array.isArray(response?.data?.trainings)) throw new Error('KI-Antwort enthält keine Trainingsliste.');
-      trainings.push(...response.data.trainings);
+      let lastError = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        if (onProgress) onProgress({ block: index + 1, total: batches.length, attempt });
+        try {
+          const response = await requestBatch(batches[index]);
+          trainings.push(...validateBatchResponse(response, batches[index].slots));
+          lastError = null;
+          break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (lastError) {
+        throw new Error('KI-Block ' + (index + 1) + ' von ' + batches.length + ' fehlgeschlagen: ' + lastError.message);
+      }
     }
     return { trainings };
   }
@@ -300,6 +324,6 @@ BT.seasonplanner = (function() {
 
   return {
     BAVARIA_SCHOOL_BREAKS, parseLeagueId, scheduleConfig, saveScheduleConfig,
-    closureFor, buildSlots, buildAIPayload, splitAIPayload, planInBatches, applyAIPlan
+    closureFor, buildSlots, buildAIPayload, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan
   };
 })();
