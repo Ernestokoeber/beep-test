@@ -285,19 +285,52 @@ route('#/schedule');
 assert(window.document.querySelector('[data-action="generate-season"]'), 'KI-Saisonplanung fehlt im Trainingsplan');
 assert(window.document.querySelector('[data-role="season-plan-summary"]'), 'Saisonübersicht fehlt');
 
+const migratedTactic = window.BT.tactics.normalizeBoard({
+  players: [{ id: 'p1', label: '1', x: 120, y: 380 }],
+  ball: { x: 250, y: 380 },
+  arrows: [{ x1: 1, y1: 2, x2: 3, y2: 4, style: 'pass' }],
+  texts: [{ x: 1, y: 2, text: 'Horns' }]
+});
+assert(migratedTactic.steps[0].elements.filter(item => item.type === 'offense').length === 1, 'Alte Spieler werden nicht zu Angriff-Tokens migriert');
+assert(migratedTactic.steps[0].elements.some(item => item.type === 'arrow' && item.kind === 'pass'), 'Alter Passpfeil wird nicht migriert');
+
+route('#/tactics');
+assert(window.document.querySelector('[data-tool="offense"]'), 'Angriffs-Token-Werkzeug fehlt');
+assert(window.document.querySelector('[data-tool="defense"]'), 'Verteidigungs-Token-Werkzeug fehlt');
+assert(window.document.querySelector('[data-action="save-tactic"]'), 'Speichern in die Team-Taktiken fehlt');
+assert(window.document.querySelector('[data-action="export-pdf"]'), 'PDF-Export des Taktikboards fehlt');
+assert(window.document.querySelector('[data-role="tactic-template"]'), 'Vorlagenauswahl fehlt');
+assert(window.document.querySelectorAll('.tactics-token.offense').length === 5, 'Startboard enthÃ¤lt nicht fÃ¼nf Angreifer');
+assert(window.document.querySelectorAll('.tactics-token.defense').length === 5, 'Startboard enthÃ¤lt nicht fÃ¼nf Verteidiger');
+assert(window.BT.tactics.templates().map(template => template.id).join(',') === 'zone-2-3,five-out,horns,no-middle', 'Die vier freigegebenen Taktikvorlagen fehlen');
+const clonedTacticStep = window.BT.tactics.cloneStep(migratedTactic.steps[0]);
+assert(clonedTacticStep.elements.find(item => item.type === 'offense').id === migratedTactic.steps[0].elements.find(item => item.type === 'offense').id, 'Schrittklone verlieren Token-IDs und können nicht animiert werden');
+const exportStyles = ['run', 'pass', 'dribble', 'screen', 'closeout', 'rotation'].map(kind => window.BT.tactics.arrowStyle(kind).color);
+assert(new Set(exportStyles).size === 6, 'GIF- und PDF-Export unterscheiden die sechs Pfeiltypen nicht');
+const pdfLayout = window.BT.tactics.pdfLayout();
+assert(pdfLayout.courtY + pdfLayout.courtHeight < pdfLayout.legendY && pdfLayout.legendY < pdfLayout.pageHeight, 'Taktik-PDF überlappt Legende oder Seitenrand');
+assert(css.includes('.tactics-preview-court .tactics-arrow.run') && css.includes('.tactics-preview-court .tactics-arrow.pass'), 'Spieleransicht zeichnet Lauf- und Passpfeile nicht');
+const storedTactic = window.BT.storage.upsertTactic({ title: 'Smoke Play', steps: migratedTactic.steps, published: true });
+assert(window.BT.storage.getTactics().some(item => item.id === storedTactic.id), 'Gespeicherte Taktik fehlt im gemeinsamen Speicher');
+route('#/tactics/player');
+assert(window.document.querySelector('[data-role="player-tactics"]'), 'Spieleransicht fÃ¼r angemeldete Teammitglieder fehlt');
+assert(window.document.body.textContent.includes('Bitte zuerst anmelden'), 'Die Spieleransicht ist ohne Anmeldung nicht geschÃ¼tzt');
+
 const importBackup = {
   schemaVersion: 2,
   players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [],
   games: [{ id: 'import-game', home: 'TSV Lindau', away: 'Import Team' }],
+  tactics: [{ id: 'import-tactic', title: 'Importierte Taktik', steps: [], published: true }],
   tableDuties: [{ id: 'import-duty', date: '2026-10-11', assignments: {} }],
   phases: [{ id: 'import-phase', name: 'Importphase', start: '2026-10-01', end: '2026-10-31' }],
   settings: { importMarker: 'replace' }
 };
-window.BT.storage.save({ schemaVersion: 2, players: [], sessions: [], trainings: [], games: [{ id: 'old-game' }], tableDuties: [{ id: 'old-duty' }], notes: [], freethrows: [], drills: [], templates: [], phases: [{ id: 'old-phase' }], settings: {} }, { fromSync: true });
+window.BT.storage.save({ schemaVersion: 2, players: [], sessions: [], trainings: [], games: [{ id: 'old-game' }], tactics: [{ id: 'old-tactic' }], tableDuties: [{ id: 'old-duty' }], notes: [], freethrows: [], drills: [], templates: [], phases: [{ id: 'old-phase' }], settings: {} }, { fromSync: true });
 assert(window.BT.history.hasImportableData(window.BT.storage.load()), 'Spiel-, Kampfgerichts- oder Phasendaten werden nicht als vorhandene Importdaten erkannt');
 window.BT.history.applyBackup(importBackup, 'r');
 let imported = window.BT.storage.load();
 assert(imported.games.map(entry => entry.id).join(',') === 'import-game', 'Ersetzen übernimmt Spiele nicht vollständig');
+assert(imported.tactics.map(entry => entry.id).join(',') === 'import-tactic', 'Ersetzen übernimmt Teamtaktiken nicht vollständig');
 assert(imported.tableDuties.map(entry => entry.id).join(',') === 'import-duty', 'Ersetzen übernimmt Kampfgerichte nicht vollständig');
 assert(imported.phases.map(entry => entry.id).join(',') === 'import-phase', 'Ersetzen übernimmt Saisonphasen nicht vollständig');
 

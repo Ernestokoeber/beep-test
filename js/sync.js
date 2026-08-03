@@ -31,7 +31,7 @@ BT.sync = (function() {
 
   function hasTeamData(data) {
     if (!data || typeof data !== 'object') return false;
-    return ['players', 'sessions', 'trainings', 'games', 'tableDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases']
+    return ['players', 'sessions', 'trainings', 'games', 'tableDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics']
       .some((key) => Array.isArray(data[key]) && data[key].length > 0);
   }
 
@@ -102,6 +102,13 @@ BT.sync = (function() {
     const remote = await BT.api.getWorkspace();
     const local = BT.storage.load();
     storeVersion(remote.version);
+
+    if (user?.role === 'viewer') {
+      applyRemote(remote.data, remote.version);
+      lastSyncAt = remote.updatedAt || new Date().toISOString();
+      setStatus('synced');
+      return;
+    }
 
     if (!hasTeamData(remote.data) && hasTeamData(local)) {
       await push(local, remote.version);

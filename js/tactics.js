@@ -1,825 +1,262 @@
 window.BT = window.BT || {};
 
 BT.tactics = (function() {
-  const { $, $$, renderTemplate, escapeHTML, formatDate, toast, toastUndo, uuid } = BT.util;
+  const { $, $$, renderTemplate, formatDate, toast, toastUndo, uuid } = BT.util;
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const STORAGE_KEY = 'tacticsBoardDraft';
-  const GIF_LIB_URL = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js';
-  const GIF_WORKER_URL = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js';
+  const WRITER_ROLES = new Set(['admin', 'coach', 'assistant']);
+  const ARROW_KINDS = new Set(['run', 'pass', 'dribble', 'screen', 'closeout', 'rotation']);
+  const ARROW_STYLES = {
+    run: { color: '#004b2b', rgb: [0, 75, 43], dash: [] }, pass: { color: '#e8a14d', rgb: [232, 161, 77], dash: [8, 6] },
+    dribble: { color: '#7b4ea3', rgb: [123, 78, 163], dash: [3, 5] }, screen: { color: '#4d5968', rgb: [77, 89, 104], dash: [1, 0] },
+    closeout: { color: '#2e6eaa', rgb: [46, 110, 170], dash: [10, 3] }, rotation: { color: '#8c4a20', rgb: [140, 74, 32], dash: [8, 4, 2, 4] }
+  };
+  let pdfLoading = null;
+  let gifLoading = null;
 
-  function newStepId() {
-    return 'st_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  function id(prefix) { return uuid ? uuid(prefix) : prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function stepId() { return id('st_'); }
+  function number(value, fallback) { return Number.isFinite(Number(value)) ? Number(value) : fallback; }
+  function point(value) { return { x: clamp(number(value.x, 250), 10, 490), y: clamp(number(value.y, 235), 10, 460) }; }
+  function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+  function copy(value) { return JSON.parse(JSON.stringify(value)); }
+
+  function startingElements() {
+    const offense = [[120, 380], [380, 380], [80, 260], [420, 260], [250, 230]];
+    const defense = [[120, 330], [380, 330], [110, 210], [390, 210], [250, 180]];
+    const roles = ['PG', 'Wing', 'Wing', 'Big', 'Big'];
+    return [
+      ...offense.map((item, index) => ({ id: 'o' + (index + 1), type: 'offense', role: roles[index], x: item[0], y: item[1] })),
+      ...defense.map((item, index) => ({ id: 'd' + (index + 1), type: 'defense', role: roles[index], x: item[0], y: item[1] })),
+      { id: 'ball', type: 'ball', x: 250, y: 380 }
+    ];
   }
 
-  function defaultStep() {
-    return {
-      id: newStepId(),
-      players: [
-        { id: 'p1', label: '1', x: 120, y: 380 },
-        { id: 'p2', label: '2', x: 380, y: 380 },
-        { id: 'p3', label: '3', x: 80, y: 260 },
-        { id: 'p4', label: '4', x: 420, y: 260 },
-        { id: 'p5', label: '5', x: 250, y: 230 }
-      ],
-      ball: { x: 250, y: 380 },
-      arrows: [],
-      texts: [],
-      duration: 1.5
-    };
+  function defaultStep() { return { id: stepId(), duration: 1.5, elements: startingElements() }; }
+  function defaultBoard() { return { title: '', description: '', steps: [defaultStep()], currentStep: 0, published: false, publishedAt: null }; }
+
+  function validElement(raw, index) {
+    if (!raw || typeof raw !== 'object') return null;
+    const type = raw.type;
+    const key = raw.id || id('el_');
+    if (type === 'offense' || type === 'defense' || type === 'ball') return Object.assign({ id: key, type }, type === 'ball' ? point(raw) : { role: String(raw.role || raw.label || 'Wing').slice(0, 20), ...point(raw) });
+    if (type === 'arrow' && ARROW_KINDS.has(raw.kind || raw.style || 'run')) return { id: key, type, kind: raw.kind || raw.style || 'run', ...point({ x: raw.x1, y: raw.y1 }), x2: clamp(number(raw.x2, 250), 10, 490), y2: clamp(number(raw.y2, 235), 10, 460) };
+    if (type === 'cone') return { id: key, type, ...point(raw) };
+    if (type === 'zone') return { id: key, type, shape: raw.shape === 'circle' ? 'circle' : 'rect', ...point(raw), width: clamp(number(raw.width, 80), 30, 300), height: clamp(number(raw.height, 60), 30, 300) };
+    if (type === 'label') return { id: key, type, ...point(raw), text: String(raw.text || '').slice(0, 40) };
+    return null;
   }
 
-  function defaultBoard() { return { steps: [defaultStep()], currentStep: 0 }; }
-
-  function migrate(obj) {
-    if (!obj) return defaultBoard();
-    if (!obj.steps && obj.players && obj.ball) {
-      return {
-        steps: [{
-          id: 'st_legacy',
-          players: obj.players,
-          ball: obj.ball,
-          arrows: obj.arrows || [],
-          texts: obj.texts || [],
-          duration: 1.5
-        }],
-        currentStep: 0
-      };
-    }
-    if (!obj.steps || !Array.isArray(obj.steps) || obj.steps.length === 0) return defaultBoard();
-    obj.steps.forEach(s => {
-      if (!s.id) s.id = newStepId();
-      if (!Array.isArray(s.players)) s.players = [];
-      if (!s.ball) s.ball = { x: 250, y: 380 };
-      if (!Array.isArray(s.arrows)) s.arrows = [];
-      if (!Array.isArray(s.texts)) s.texts = [];
-      if (typeof s.duration !== 'number') s.duration = 1.5;
+  function normalizeStep(raw, index) {
+    const legacyElements = Array.isArray(raw && raw.elements) ? raw.elements : [
+      ...((raw && raw.players) || []).map(player => ({ id: player.id, type: player.team === 'defense' ? 'defense' : 'offense', role: player.label, x: player.x, y: player.y })),
+      ...((raw && raw.ball) ? [{ id: 'ball', type: 'ball', x: raw.ball.x, y: raw.ball.y }] : []),
+      ...((raw && raw.arrows) || []).map((arrow, arrowIndex) => ({ id: arrow.id || 'a_' + index + '_' + arrowIndex, type: 'arrow', kind: arrow.kind || arrow.style, x1: arrow.x1, y1: arrow.y1, x2: arrow.x2, y2: arrow.y2 })),
+      ...((raw && raw.texts) || []).map((label, labelIndex) => ({ id: label.id || 'l_' + index + '_' + labelIndex, type: 'label', x: label.x, y: label.y, text: label.text }))
+    ];
+    const counts = { offense: 0, defense: 0, ball: 0, drawings: 0 };
+    const elements = [];
+    legacyElements.forEach((candidate, candidateIndex) => {
+      const element = validElement(candidate, candidateIndex);
+      if (!element) return;
+      if ((element.type === 'offense' || element.type === 'defense') && ++counts[element.type] > 5) return;
+      if (element.type === 'ball' && ++counts.ball > 1) return;
+      if (!['offense', 'defense', 'ball'].includes(element.type) && ++counts.drawings > 30) return;
+      elements.push(element);
     });
-    if (typeof obj.currentStep !== 'number' || obj.currentStep < 0 || obj.currentStep >= obj.steps.length) obj.currentStep = 0;
-    return obj;
+    return { id: raw && raw.id || stepId(), duration: clamp(number(raw && raw.duration, 1.5), .3, 10), elements };
+  }
+
+  function normalizeBoard(input) {
+    const source = input && typeof input === 'object' ? input : {};
+    const hasLegacyBoard = !Array.isArray(source.steps) && (Array.isArray(source.players) || source.ball);
+    const rawSteps = hasLegacyBoard ? [source] : (Array.isArray(source.steps) ? source.steps : []);
+    const steps = rawSteps.map(normalizeStep);
+    const fallback = defaultBoard();
+    return {
+      id: source.id,
+      title: String(source.title || ''),
+      description: String(source.description || ''),
+      published: source.published === true,
+      publishedAt: source.publishedAt || null,
+      createdAt: source.createdAt || null,
+      createdBy: source.createdBy || null,
+      updatedAt: source.updatedAt || null,
+      steps: steps.length ? steps : fallback.steps,
+      currentStep: clamp(Math.floor(number(source.currentStep, 0)), 0, Math.max(0, (steps.length || 1) - 1))
+    };
   }
 
   function loadDraft() {
-    try {
-      const raw = BT.storage.getSetting(STORAGE_KEY, null);
-      if (!raw) return defaultBoard();
-      return migrate(typeof raw === 'string' ? JSON.parse(raw) : raw);
-    } catch (e) {
-      return defaultBoard();
+    try { return normalizeBoard(BT.storage.getSetting(STORAGE_KEY, null)); }
+    catch (_) { return defaultBoard(); }
+  }
+  function saveDraft(board) { BT.storage.setSetting(STORAGE_KEY, normalizeBoard(board)); }
+  function cloneStep(step) { return { id: stepId(), duration: step.duration, elements: copy(step.elements) }; }
+  function elements(step, type) { return (step.elements || []).filter(item => !type || item.type === type); }
+  function drawingCount(step) { return elements(step).filter(item => !['offense', 'defense', 'ball'].includes(item.type)).length; }
+  function arrowStyle(kind) { return ARROW_STYLES[kind] || ARROW_STYLES.run; }
+  function pdfLayout() { return { pageHeight: 595.28, courtX: 185, courtY: 88, courtWidth: 440, courtHeight: 414, legendY: 540 }; }
+  function currentUser() { return BT.sync && BT.sync.getState ? BT.sync.getState().user : null; }
+  function canEdit() { const user = currentUser(); return !!(user && WRITER_ROLES.has(user.role)); }
+
+  function templateBoard(idValue) {
+    const board = defaultBoard();
+    const first = board.steps[0];
+    const byId = key => first.elements.find(item => item.id === key);
+    const set = (key, x, y) => Object.assign(byId(key), { x, y });
+    if (idValue === 'zone-2-3') {
+      board.title = '2–3 Zone'; board.description = 'Zwei oben, drei unten – Paint schützen und Ecken schließen.';
+      [["d1", 185, 255], ["d2", 315, 255], ["d3", 110, 150], ["d4", 390, 150], ["d5", 250, 120]].forEach(row => set(...row));
+      first.elements.push({ id: id('zone_'), type: 'zone', shape: 'rect', x: 250, y: 195, width: 270, height: 150 }, { id: id('label_'), type: 'label', x: 250, y: 85, text: '2–3 Zone: Paint zuerst' });
+    } else if (idValue === 'five-out') {
+      board.title = '5-Out'; board.description = 'Maximale Breite, Drive-and-Kick und konsequente Besetzung der Ecken.';
+      [["o1", 250, 360], ["o2", 75, 330], ["o3", 425, 330], ["o4", 70, 160], ["o5", 430, 160]].forEach(row => set(...row));
+      first.elements.push({ id: id('a_'), type: 'arrow', kind: 'run', x: 250, y: 360, x2: 340, y2: 245 });
+    } else if (idValue === 'horns') {
+      board.title = 'Horns'; board.description = 'Zwei Bigs an den Elbows, Entscheidung aus dem High Pick-and-Roll.';
+      [["o1", 250, 375], ["o2", 80, 320], ["o3", 420, 320], ["o4", 180, 215], ["o5", 320, 215]].forEach(row => set(...row));
+      first.elements.push({ id: id('a_'), type: 'arrow', kind: 'screen', x: 180, y: 215, x2: 250, y2: 300 }, { id: id('a_'), type: 'arrow', kind: 'run', x: 250, y: 375, x2: 310, y2: 245 });
+    } else if (idValue === 'no-middle') {
+      board.title = 'No-Middle Defense'; board.description = 'Ball zum Seitenaus lenken, Mitte schließen, Baseline-Hilfe rotieren.';
+      [["d1", 220, 350], ["d2", 95, 290], ["d3", 405, 290], ["d4", 155, 175], ["d5", 345, 175]].forEach(row => set(...row));
+      first.elements.push({ id: id('a_'), type: 'arrow', kind: 'closeout', x: 220, y: 350, x2: 180, y2: 315 }, { id: id('label_'), type: 'label', x: 250, y: 95, text: 'Mitte dicht – Baseline Hilfe' });
     }
+    return board;
   }
-
-  function saveDraft(board) { BT.storage.setSetting(STORAGE_KEY, board); }
-
-  function cloneStep(s) {
-    return {
-      id: newStepId(),
-      players: s.players.map(p => ({ id: p.id, label: p.label, x: p.x, y: p.y })),
-      ball: { x: s.ball.x, y: s.ball.y },
-      arrows: [],
-      texts: [],
-      duration: s.duration || 1.5
-    };
-  }
-
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
-  function pointNearSegment(px, py, x1, y1, x2, y2, tol) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const len2 = dx * dx + dy * dy;
-    if (len2 === 0) return Math.hypot(px - x1, py - y1) < tol;
-    const t = clamp(((px - x1) * dx + (py - y1) * dy) / len2, 0, 1);
-    const qx = x1 + t * dx, qy = y1 + t * dy;
-    return Math.hypot(px - qx, py - qy) < tol;
-  }
+  const TEMPLATE_INFO = [
+    ['zone-2-3', '2–3 Zone', 'Kompakte Zonenverteidigung'], ['five-out', '5-Out', 'Breite und Drive-and-Kick'], ['horns', 'Horns', 'High Pick-and-Roll aus zwei Elbows'], ['no-middle', 'No-Middle Defense', 'Mitte schließen und rotieren']
+  ];
+  function templates() { return TEMPLATE_INFO.map(([idValue, title, description]) => ({ id: idValue, title, description, board: templateBoard(idValue) })); }
 
   function render(target) {
     const root = renderTemplate('tpl-tactics');
     target.appendChild(root);
-
     let board = loadDraft();
-    let tool = 'move';
-    let arrowStart = null;
-    let playback = { running: false, fromStep: 0, startTs: 0, rafId: null };
-    let drag = null;
-
+    let tool = 'move', arrowStart = null, drag = null, selectedId = null;
+    let playback = { running: false, from: 0, started: 0, frame: null };
     const svg = $('[data-role="tactics-svg"]', root);
-    const tokensLayer = $('[data-role="tokens-layer"]', svg);
-    const arrowsLayer = $('[data-role="arrows-layer"]', svg);
-    const textsLayer = $('[data-role="texts-layer"]', svg);
-    const hint = $('[data-role="tool-hint"]', root);
-    const stepsList = $('[data-role="steps-list"]', root);
-    const stepDurationInput = $('[data-role="step-duration"]', root);
-    const playbackStatus = $('[data-role="playback-status"]', root);
-    const playToggleBtn = $('[data-action="play-toggle"]', root);
-
-    const HINTS = {
-      move: 'Tippe einen Spieler oder den Ball und ziehe ihn an die gewünschte Stelle.',
-      run: 'Laufweg: Erst Startpunkt tippen, dann Endpunkt. Durchgezogene grüne Linie.',
-      pass: 'Passweg: Erst Startpunkt tippen, dann Endpunkt. Gestrichelte orange Linie.',
-      text: 'Tippe auf die Karte, um eine Textnotiz (Play-Name, Coaching-Point) zu setzen.',
-      erase: 'Tippe Spieler, Ball, Pfeil oder Text zum Löschen.'
-    };
-
+    const layers = { tokens: $('[data-role="tokens-layer"]', svg), arrows: $('[data-role="arrows-layer"]', svg), objects: $('[data-role="objects-layer"]', svg), texts: $('[data-role="texts-layer"]', svg) };
+    const hint = $('[data-role="tool-hint"]', root), stepsList = $('[data-role="steps-list"]', root), duration = $('[data-role="step-duration"]', root), status = $('[data-role="playback-status"]', root);
+    const titleInput = $('[data-role="tactic-title"]', root), descriptionInput = $('[data-role="tactic-description"]', root), savedSelect = $('[data-role="saved-tactic"]', root), templateSelect = $('[data-role="tactic-template"]', root);
+    const context = $('[data-role="tactics-context"]', root), contextTitle = $('[data-role="context-title"]', root), contextLabel = $('[data-role="context-label"]', root), contextShapeWrap = $('[data-role="context-shape-wrap"]', root), contextShape = $('[data-role="context-shape"]', root);
+    const HINTS = { move: 'Element auswählen und ziehen.', offense: 'Auf den Platz tippen, um einen Angriffsspieler zu platzieren (maximal 5).', defense: 'Auf den Platz tippen, um einen Verteidiger zu platzieren (maximal 5).', ball: 'Auf den Platz tippen, um den Ball zu setzen.', run: 'Start- und Endpunkt für den Laufweg tippen.', pass: 'Start- und Endpunkt für den Passweg tippen.', dribble: 'Start- und Endpunkt für den Dribblingweg tippen.', screen: 'Start- und Endpunkt für den Screen tippen.', closeout: 'Start- und Endpunkt für den Closeout tippen.', rotation: 'Start- und Endpunkt für die Rotation tippen.', cone: 'Auf den Platz tippen, um ein Hütchen zu setzen.', zone: 'Auf den Platz tippen, um eine Zone zu setzen.', text: 'Auf den Platz tippen, um eine Beschriftung zu setzen.', erase: 'Element zum Löschen antippen.' };
     function cur() { return board.steps[board.currentStep]; }
-
-    // ---------- Tool buttons ----------
-    $$('.tactics-tool', root).forEach(btn => {
-      btn.addEventListener('click', () => {
-        stopPlayback();
-        $$('.tactics-tool', root).forEach(b => {
-          b.classList.remove('active');
-          b.setAttribute('aria-pressed', 'false');
-        });
-        btn.classList.add('active');
-        btn.setAttribute('aria-pressed', 'true');
-        tool = btn.dataset.tool;
-        arrowStart = null;
-        hint.textContent = HINTS[tool] || '';
-        renderAll();
-      });
+    function persist() { saveDraft(board); }
+    function editable() { if (canEdit()) return true; if (toast) toast('Zum Bearbeiten und Speichern bitte als Trainerteam anmelden.'); return false; }
+    function select(element) {
+      selectedId = element ? element.id : null;
+      context.hidden = !element;
+      if (!element) return;
+      contextTitle.textContent = ({ offense: 'Angriffsspieler', defense: 'Verteidiger', ball: 'Ball', arrow: 'Bewegung', cone: 'Hütchen', zone: 'Zone', label: 'Beschriftung' })[element.type] || 'Element';
+      contextLabel.value = element.role || element.text || '';
+      contextLabel.disabled = !['offense', 'defense', 'label'].includes(element.type) || !canEdit();
+      contextShapeWrap.hidden = element.type !== 'zone'; contextShape.value = element.shape || 'rect'; contextShape.disabled = !canEdit();
+    }
+    function selected() { return cur().elements.find(element => element.id === selectedId); }
+    function pointFromEvent(event) { const rect = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal; return { x: clamp((event.clientX - rect.left) / rect.width * vb.width, 10, 490), y: clamp((event.clientY - rect.top) / rect.height * vb.height, 10, 460) }; }
+    function hitAt(x, y) {
+      const list = cur().elements;
+      for (let index = list.length - 1; index >= 0; index--) { const element = list[index];
+        if (['offense', 'defense'].includes(element.type) && Math.hypot(element.x - x, element.y - y) < 23) return element;
+        if (element.type === 'ball' && Math.hypot(element.x - x, element.y - y) < 14) return element;
+        if (element.type === 'cone' && Math.hypot(element.x - x, element.y - y) < 15) return element;
+        if (element.type === 'zone' && Math.abs(element.x - x) < element.width / 2 && Math.abs(element.y - y) < element.height / 2) return element;
+        if (element.type === 'label' && Math.abs(element.x - x) < 65 && Math.abs(element.y - y) < 16) return element;
+        if (element.type === 'arrow' && nearSegment(x, y, element.x, element.y, element.x2, element.y2, 9)) return element;
+      } return null;
+    }
+    function updateInputs() { titleInput.value = board.title || ''; descriptionInput.value = board.description || ''; duration.value = cur().duration; }
+    function drawElement(element, parent) {
+      const make = name => document.createElementNS(SVG_NS, name);
+      if (element.type === 'arrow') { const line = make('line'); line.setAttribute('x1', element.x); line.setAttribute('y1', element.y); line.setAttribute('x2', element.x2); line.setAttribute('y2', element.y2); line.setAttribute('class', 'tactics-arrow ' + element.kind); line.setAttribute('marker-end', 'url(#arrow-' + (element.kind === 'pass' ? 'pass' : 'run') + ')'); parent.appendChild(line); }
+      else if (element.type === 'cone') { const polygon = make('path'); polygon.setAttribute('d', 'M ' + element.x + ' ' + (element.y - 12) + ' L ' + (element.x - 11) + ' ' + (element.y + 10) + ' L ' + (element.x + 11) + ' ' + (element.y + 10) + ' Z'); polygon.setAttribute('class', 'tactics-cone'); parent.appendChild(polygon); }
+      else if (element.type === 'zone') { const shape = make(element.shape === 'circle' ? 'ellipse' : 'rect'); if (element.shape === 'circle') { shape.setAttribute('cx', element.x); shape.setAttribute('cy', element.y); shape.setAttribute('rx', element.width / 2); shape.setAttribute('ry', element.height / 2); } else { shape.setAttribute('x', element.x - element.width / 2); shape.setAttribute('y', element.y - element.height / 2); shape.setAttribute('width', element.width); shape.setAttribute('height', element.height); shape.setAttribute('rx', 8); } shape.setAttribute('class', 'tactics-zone' + (selectedId === element.id ? ' selected' : '')); parent.appendChild(shape); }
+      else if (element.type === 'label') { const text = make('text'); text.setAttribute('x', element.x); text.setAttribute('y', element.y); text.setAttribute('text-anchor', 'middle'); text.setAttribute('class', 'tactics-text'); text.textContent = element.text; parent.appendChild(text); }
+      else if (['offense', 'defense'].includes(element.type)) { const group = make('g'), shape = make(element.type === 'defense' ? 'rect' : 'circle'), text = make('text'); group.setAttribute('class', 'tactics-token ' + element.type + (selectedId === element.id ? ' selected' : '')); if (element.type === 'defense') { shape.setAttribute('x', element.x - 17); shape.setAttribute('y', element.y - 17); shape.setAttribute('width', 34); shape.setAttribute('height', 34); shape.setAttribute('rx', 5); } else { shape.setAttribute('cx', element.x); shape.setAttribute('cy', element.y); shape.setAttribute('r', 18); } text.setAttribute('x', element.x); text.setAttribute('y', element.y + 4); text.setAttribute('text-anchor', 'middle'); text.textContent = element.role; group.append(shape, text); parent.appendChild(group); }
+      else if (element.type === 'ball') { const group = make('g'), circle = make('circle'); group.setAttribute('class', 'tactics-ball' + (selectedId === element.id ? ' selected' : '')); circle.setAttribute('cx', element.x); circle.setAttribute('cy', element.y); circle.setAttribute('r', 9); group.appendChild(circle); parent.appendChild(group); }
+    }
+    function renderBoard(snapshot) {
+      Object.values(layers).forEach(layer => { layer.innerHTML = ''; });
+      elements(snapshot, 'zone').forEach(item => drawElement(item, layers.objects)); elements(snapshot, 'cone').forEach(item => drawElement(item, layers.objects));
+      elements(snapshot, 'arrow').forEach(item => drawElement(item, layers.arrows)); elements(snapshot, 'label').forEach(item => drawElement(item, layers.texts));
+      elements(snapshot).filter(item => ['offense', 'defense', 'ball'].includes(item.type)).forEach(item => drawElement(item, layers.tokens));
+      if (arrowStart && ARROW_KINDS.has(tool)) { const dot = document.createElementNS(SVG_NS, 'circle'); dot.setAttribute('cx', arrowStart.x); dot.setAttribute('cy', arrowStart.y); dot.setAttribute('r', 5); dot.setAttribute('class', 'tactics-preview'); layers.arrows.appendChild(dot); }
+    }
+    function renderSteps() { stepsList.innerHTML = ''; board.steps.forEach((step, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'step-btn' + (index === board.currentStep ? ' active' : ''); button.textContent = String(index + 1); button.setAttribute('aria-pressed', index === board.currentStep ? 'true' : 'false'); button.addEventListener('click', () => { stopPlayback(); board.currentStep = index; persist(); select(null); refresh(); }); stepsList.appendChild(button); }); }
+    function refresh() { renderBoard(cur()); renderSteps(); updateInputs(); status.textContent = 'Schritt ' + (board.currentStep + 1) + ' / ' + board.steps.length; }
+    function stopPlayback() { if (playback.frame) cancelAnimationFrame(playback.frame); playback.running = false; playback.frame = null; $('[data-action="play-toggle"]', root).textContent = '▶️'; }
+    function playbackLoop() { if (!playback.running) return; const from = board.steps[playback.from], to = board.steps[playback.from + 1]; if (!to) { board.currentStep = playback.from; stopPlayback(); refresh(); return; } const progress = (performance.now() - playback.started) / (from.duration * 1000); if (progress >= 1) { playback.from += 1; playback.started = performance.now(); board.currentStep = playback.from; refresh(); } else renderBoard(interpolateStep(from, to, progress)); playback.frame = requestAnimationFrame(playbackLoop); }
+    function startPlayback() { if (board.steps.length < 2) { if (toast) toast('Mindestens zwei Schritte für die Animation nötig.'); return; } stopPlayback(); playback.running = true; playback.from = board.currentStep < board.steps.length - 1 ? board.currentStep : 0; playback.started = performance.now(); $('[data-action="play-toggle"]', root).textContent = '⏸'; playbackLoop(); }
+    function addElement(element) { if (!['offense', 'defense', 'ball'].includes(element.type) && drawingCount(cur()) >= 30) { if (toast) toast('Maximal 30 Zeichenobjekte pro Schritt.'); return; } cur().elements.push(element); select(element); persist(); refresh(); }
+    function syncLibrary() { savedSelect.innerHTML = '<option value="">Neuer Entwurf</option>'; BT.storage.getTactics().forEach(tactic => { const option = document.createElement('option'); option.value = tactic.id; option.textContent = tactic.title || 'Unbenannte Taktik'; option.selected = tactic.id === board.id; savedSelect.appendChild(option); }); }
+    function saveTeamTactic(publish) { if (!editable()) return; board.title = titleInput.value.trim() || 'Unbenannte Taktik'; board.description = descriptionInput.value.trim(); const wasPublished = board.published; board.published = publish === undefined ? board.published : publish; if (board.published && !wasPublished) board.publishedAt = new Date().toISOString(); const user = currentUser(); board.createdBy = board.createdBy || user && user.id || null; const saved = BT.storage.upsertTactic(normalizeBoard(board)); board.id = saved.id; board.createdAt = saved.createdAt; board.updatedAt = saved.updatedAt; persist(); syncLibrary(); if (toast) toast(board.published ? 'Taktik veröffentlicht und gespeichert.' : 'Taktik als Entwurf gespeichert.'); }
+    $$('.tactics-tool', root).forEach(button => button.addEventListener('click', () => { stopPlayback(); tool = button.dataset.tool; arrowStart = null; $$('.tactics-tool', root).forEach(item => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', item === button ? 'true' : 'false'); }); hint.textContent = HINTS[tool]; renderBoard(cur()); }));
+    templateSelect.innerHTML += templates().map(template => '<option value="' + template.id + '">' + template.title + '</option>').join('');
+    templateSelect.addEventListener('change', () => { if (!templateSelect.value || !editable()) return; if (!confirm('Aktuellen Entwurf durch die Vorlage ersetzen?')) { templateSelect.value = ''; return; } board = templateBoard(templateSelect.value); persist(); select(null); syncLibrary(); refresh(); });
+    savedSelect.addEventListener('change', () => { const tactic = BT.storage.getTactic(savedSelect.value); if (tactic) { board = normalizeBoard(tactic); persist(); select(null); refresh(); } });
+    $('[data-action="new-tactic"]', root).addEventListener('click', () => { if (!editable()) return; board = defaultBoard(); persist(); savedSelect.value = ''; templateSelect.value = ''; select(null); refresh(); });
+    $('[data-action="save-tactic"]', root).addEventListener('click', () => saveTeamTactic());
+    $('[data-action="publish-tactic"]', root).addEventListener('click', () => saveTeamTactic(!board.published));
+    $('[data-action="reset-board"]', root).addEventListener('click', () => { if (!editable()) return; const backup = copy(board); board = defaultBoard(); persist(); select(null); syncLibrary(); refresh(); if (toastUndo) toastUndo('Entwurf zurückgesetzt', () => { board = backup; persist(); syncLibrary(); refresh(); }); });
+    $('[data-action="add-step"]', root).addEventListener('click', () => { if (!editable()) return; board.steps.splice(board.currentStep + 1, 0, cloneStep(cur())); board.currentStep++; persist(); select(null); refresh(); });
+    $('[data-action="delete-step"]', root).addEventListener('click', () => { if (!editable()) return; if (board.steps.length === 1) { if (toast) toast('Mindestens ein Schritt muss bleiben.'); return; } board.steps.splice(board.currentStep, 1); board.currentStep = Math.min(board.currentStep, board.steps.length - 1); persist(); select(null); refresh(); });
+    duration.addEventListener('change', () => { if (!editable()) return; cur().duration = clamp(number(duration.value, cur().duration), .3, 10); persist(); refresh(); });
+    titleInput.addEventListener('change', () => { board.title = titleInput.value.slice(0, 80); persist(); }); descriptionInput.addEventListener('change', () => { board.description = descriptionInput.value.slice(0, 180); persist(); });
+    contextLabel.addEventListener('change', () => { const element = selected(); if (!element || !editable()) return; if (element.type === 'label') element.text = contextLabel.value.slice(0, 40); else element.role = contextLabel.value.slice(0, 20); persist(); refresh(); select(element); });
+    contextShape.addEventListener('change', () => { const element = selected(); if (!element || element.type !== 'zone' || !editable()) return; element.shape = contextShape.value; persist(); refresh(); select(element); });
+    $('[data-action="delete-selected"]', root).addEventListener('click', () => { if (!editable() || !selectedId) return; cur().elements = cur().elements.filter(element => element.id !== selectedId); select(null); persist(); refresh(); });
+    $('[data-action="play-toggle"]', root).addEventListener('click', () => playback.running ? (stopPlayback(), refresh()) : startPlayback());
+    $('[data-action="play-prev"]', root).addEventListener('click', () => { stopPlayback(); if (board.currentStep) board.currentStep--; persist(); refresh(); });
+    $('[data-action="play-next"]', root).addEventListener('click', () => { stopPlayback(); if (board.currentStep < board.steps.length - 1) board.currentStep++; persist(); refresh(); });
+    $('[data-action="ai-explain"]', root).addEventListener('click', () => openExplainModal(board));
+    $('[data-action="share-gif"]', root).addEventListener('click', () => openGifModal(board));
+    $('[data-action="export-pdf"]', root).addEventListener('click', () => exportPdf(board));
+    svg.addEventListener('pointerdown', event => {
+      if (playback.running || !editable()) return; const p = pointFromEvent(event), hit = hitAt(p.x, p.y);
+      if (tool === 'move') { select(hit); if (hit) { drag = { element: hit, dx: p.x - hit.x, dy: p.y - hit.y }; svg.setPointerCapture(event.pointerId); } refresh(); return; }
+      if (ARROW_KINDS.has(tool)) { if (!arrowStart) { arrowStart = p; hint.textContent = 'Jetzt Endpunkt tippen.'; renderBoard(cur()); } else { addElement({ id: id('a_'), type: 'arrow', kind: tool, x: arrowStart.x, y: arrowStart.y, x2: p.x, y2: p.y }); arrowStart = null; hint.textContent = HINTS[tool]; } return; }
+      if (tool === 'offense' || tool === 'defense') { if (elements(cur(), tool).length >= 5) { if (toast) toast('Maximal fünf ' + (tool === 'offense' ? 'Angriffsspieler' : 'Verteidiger') + ' pro Schritt.'); return; } addElement({ id: id(tool === 'offense' ? 'o_' : 'd_'), type: tool, role: tool === 'offense' ? 'Wing' : 'Wing', x: p.x, y: p.y }); return; }
+      if (tool === 'ball') { const ball = elements(cur(), 'ball')[0]; if (ball) Object.assign(ball, p); else addElement({ id: id('ball_'), type: 'ball', x: p.x, y: p.y }); persist(); refresh(); return; }
+      if (tool === 'cone') { addElement({ id: id('cone_'), type: 'cone', x: p.x, y: p.y }); return; }
+      if (tool === 'zone') { addElement({ id: id('zone_'), type: 'zone', shape: 'rect', x: p.x, y: p.y, width: 100, height: 70 }); return; }
+      if (tool === 'text') { const text = prompt('Beschriftung (z. B. Screen oder Cut):', ''); if (text) addElement({ id: id('label_'), type: 'label', x: p.x, y: p.y, text: text.slice(0, 40) }); return; }
+      if (tool === 'erase' && hit) { cur().elements = cur().elements.filter(element => element !== hit); select(null); persist(); refresh(); }
     });
-
-    // ---------- Section-head actions ----------
-    $('[data-action="reset-board"]', root).addEventListener('click', () => {
-      stopPlayback();
-      const backup = JSON.parse(JSON.stringify(board));
-      board = defaultBoard();
-      saveDraft(board);
-      renderAll();
-      renderSteps();
-      if (toastUndo) toastUndo('Taktikboard zurückgesetzt', () => {
-        board = backup;
-        saveDraft(board);
-        renderAll();
-        renderSteps();
-      });
-    });
-
-    $('[data-action="save-as-note"]', root).addEventListener('click', () => {
-      const title = prompt('Titel der Taktik (wird als Notiz gespeichert):', 'Taktik ' + formatDate(BT.util.todayISO()));
-      if (!title) return;
-      const serialized = JSON.stringify(board, null, 2);
-      const body = '[TACTIC] ' + title + '\n\n' + serialized;
-      const note = BT.storage.upsertNote({ title: 'Taktik: ' + title, body });
-      if (toast) toast('„' + title + '" als Notiz gespeichert', {
-        actionLabel: 'Öffnen',
-        action: () => { location.hash = '#/notes/' + note.id; }
-      });
-    });
-
-    $('[data-action="ai-explain"]', root).addEventListener('click', () => {
-      stopPlayback();
-      openExplainModal();
-    });
-
-    $('[data-action="share-gif"]', root).addEventListener('click', () => {
-      stopPlayback();
-      openGifModal();
-    });
-
-    // ---------- Steps bar ----------
-    $('[data-action="add-step"]', root).addEventListener('click', () => {
-      stopPlayback();
-      const clone = cloneStep(cur());
-      board.steps.splice(board.currentStep + 1, 0, clone);
-      board.currentStep += 1;
-      saveDraft(board);
-      renderSteps();
-      renderAll();
-    });
-
-    $('[data-action="delete-step"]', root).addEventListener('click', () => {
-      if (board.steps.length <= 1) {
-        if (toast) toast('Mindestens ein Schritt muss bleiben.');
-        return;
-      }
-      stopPlayback();
-      board.steps.splice(board.currentStep, 1);
-      if (board.currentStep >= board.steps.length) board.currentStep = board.steps.length - 1;
-      saveDraft(board);
-      renderSteps();
-      renderAll();
-    });
-
-    stepDurationInput.addEventListener('change', () => {
-      const v = parseFloat(stepDurationInput.value);
-      if (isNaN(v) || v <= 0) { stepDurationInput.value = cur().duration; return; }
-      cur().duration = Math.min(10, Math.max(0.3, v));
-      saveDraft(board);
-      updatePlaybackStatus();
-    });
-
-    // ---------- Playback ----------
-    playToggleBtn.addEventListener('click', () => {
-      if (playback.running) stopPlayback(); else startPlayback();
-    });
-    $('[data-action="play-prev"]', root).addEventListener('click', () => {
-      stopPlayback();
-      if (board.currentStep > 0) { board.currentStep -= 1; saveDraft(board); renderSteps(); renderAll(); }
-    });
-    $('[data-action="play-next"]', root).addEventListener('click', () => {
-      stopPlayback();
-      if (board.currentStep < board.steps.length - 1) { board.currentStep += 1; saveDraft(board); renderSteps(); renderAll(); }
-    });
-
-    function startPlayback() {
-      if (board.steps.length < 2) {
-        if (toast) toast('Mindestens 2 Schritte für Playback nötig.');
-        return;
-      }
-      playback.running = true;
-      playback.fromStep = board.currentStep < board.steps.length - 1 ? board.currentStep : 0;
-      playback.startTs = performance.now();
-      playToggleBtn.textContent = '⏸';
-      loopPlayback();
-    }
-
-    function stopPlayback() {
-      if (playback.rafId) cancelAnimationFrame(playback.rafId);
-      playback.running = false;
-      playback.rafId = null;
-      playToggleBtn.textContent = '▶️';
-      renderAll();
-    }
-
-    function loopPlayback() {
-      if (!playback.running) return;
-      const fromIdx = playback.fromStep;
-      const toIdx = fromIdx + 1;
-      if (toIdx >= board.steps.length) {
-        board.currentStep = fromIdx;
-        stopPlayback();
-        renderSteps();
-        return;
-      }
-      const elapsed = (performance.now() - playback.startTs) / 1000;
-      const dur = Math.max(0.2, board.steps[fromIdx].duration || 1.5);
-      let t = elapsed / dur;
-      if (t >= 1) {
-        playback.fromStep = toIdx;
-        playback.startTs = performance.now();
-        board.currentStep = toIdx;
-        renderSteps();
-        renderInterpolated(board.steps[toIdx], null, 0);
-        playback.rafId = requestAnimationFrame(loopPlayback);
-        return;
-      }
-      renderInterpolated(board.steps[fromIdx], board.steps[toIdx], t);
-      playback.rafId = requestAnimationFrame(loopPlayback);
-    }
-
-    function updatePlaybackStatus() {
-      playbackStatus.textContent = 'Schritt ' + (board.currentStep + 1) + ' / ' + board.steps.length;
-      stepDurationInput.value = cur().duration;
-    }
-
-    // ---------- SVG point helper ----------
-    function svgPoint(clientX, clientY) {
-      const rect = svg.getBoundingClientRect();
-      const vb = svg.viewBox.baseVal;
-      const x = (clientX - rect.left) / rect.width * vb.width;
-      const y = (clientY - rect.top) / rect.height * vb.height;
-      return { x: clamp(x, 10, 490), y: clamp(y, 10, 460) };
-    }
-
-    function tokenUnderPoint(x, y, radius) {
-      const r = radius || 22;
-      const s = cur();
-      for (const p of s.players) {
-        if (Math.hypot(p.x - x, p.y - y) < r) return { type: 'player', obj: p };
-      }
-      if (Math.hypot(s.ball.x - x, s.ball.y - y) < 14) return { type: 'ball', obj: s.ball };
-      return null;
-    }
-
-    function arrowUnderPoint(x, y) {
-      for (const a of cur().arrows) {
-        if (pointNearSegment(x, y, a.x1, a.y1, a.x2, a.y2, 8)) return a;
-      }
-      return null;
-    }
-
-    function textUnderPoint(x, y) {
-      for (const t of cur().texts) {
-        if (Math.abs(t.x - x) < 60 && Math.abs(t.y - y) < 14) return t;
-      }
-      return null;
-    }
-
-    // ---------- Pointer handling (editing current step) ----------
-    svg.addEventListener('pointerdown', e => {
-      if (playback.running) return;
-      const pt = svgPoint(e.clientX, e.clientY);
-
-      if (tool === 'move') {
-        const hit = tokenUnderPoint(pt.x, pt.y);
-        if (hit) {
-          drag = { kind: hit.type, target: hit.obj, offsetX: pt.x - hit.obj.x, offsetY: pt.y - hit.obj.y };
-          svg.setPointerCapture(e.pointerId);
-        }
-        return;
-      }
-      if (tool === 'run' || tool === 'pass') {
-        if (!arrowStart) {
-          arrowStart = pt;
-          hint.textContent = 'Jetzt Endpunkt tippen.';
-          renderArrowPreview();
-        } else {
-          cur().arrows.push({
-            id: uuid ? uuid('a_') : 'a_' + Date.now(),
-            style: tool,
-            x1: arrowStart.x, y1: arrowStart.y,
-            x2: pt.x, y2: pt.y
-          });
-          arrowStart = null;
-          hint.textContent = HINTS[tool];
-          saveDraft(board);
-          renderAll();
-        }
-        return;
-      }
-      if (tool === 'text') {
-        const value = prompt('Text (z.B. „Screen", „Cut"):', '');
-        if (!value) return;
-        cur().texts.push({
-          id: uuid ? uuid('t_') : 't_' + Date.now(),
-          x: pt.x, y: pt.y,
-          text: value.slice(0, 40)
-        });
-        saveDraft(board);
-        renderAll();
-        return;
-      }
-      if (tool === 'erase') {
-        const hitTok = tokenUnderPoint(pt.x, pt.y);
-        if (hitTok && hitTok.type === 'player') {
-          cur().players = cur().players.filter(p => p !== hitTok.obj);
-          saveDraft(board); renderAll(); return;
-        }
-        if (hitTok && hitTok.type === 'ball') return;
-        const hitArr = arrowUnderPoint(pt.x, pt.y);
-        if (hitArr) { cur().arrows = cur().arrows.filter(a => a !== hitArr); saveDraft(board); renderAll(); return; }
-        const hitTxt = textUnderPoint(pt.x, pt.y);
-        if (hitTxt) { cur().texts = cur().texts.filter(t => t !== hitTxt); saveDraft(board); renderAll(); return; }
-      }
-    });
-
-    svg.addEventListener('pointermove', e => {
-      if (!drag) return;
-      const pt = svgPoint(e.clientX, e.clientY);
-      drag.target.x = pt.x - drag.offsetX;
-      drag.target.y = pt.y - drag.offsetY;
-      renderTokens(cur());
-    });
-
-    svg.addEventListener('pointerup', e => {
-      if (drag) { drag = null; saveDraft(board); try { svg.releasePointerCapture(e.pointerId); } catch (_) {} }
-    });
-    svg.addEventListener('pointercancel', () => { drag = null; });
-
-    // ---------- Renderers ----------
-    function renderTokens(snapshot) {
-      tokensLayer.innerHTML = '';
-      for (const p of snapshot.players) {
-        const g = document.createElementNS(SVG_NS, 'g');
-        g.setAttribute('class', 'tactics-player');
-        const c = document.createElementNS(SVG_NS, 'circle');
-        c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 18);
-        g.appendChild(c);
-        const t = document.createElementNS(SVG_NS, 'text');
-        t.setAttribute('x', p.x); t.setAttribute('y', p.y + 5); t.setAttribute('text-anchor', 'middle');
-        t.textContent = p.label;
-        g.appendChild(t);
-        tokensLayer.appendChild(g);
-      }
-      const bg = document.createElementNS(SVG_NS, 'g');
-      bg.setAttribute('class', 'tactics-ball');
-      const bc = document.createElementNS(SVG_NS, 'circle');
-      bc.setAttribute('cx', snapshot.ball.x); bc.setAttribute('cy', snapshot.ball.y); bc.setAttribute('r', 9);
-      bg.appendChild(bc);
-      tokensLayer.appendChild(bg);
-    }
-
-    function renderArrows(snapshot) {
-      arrowsLayer.innerHTML = '';
-      for (const a of snapshot.arrows) {
-        const l = document.createElementNS(SVG_NS, 'line');
-        l.setAttribute('x1', a.x1); l.setAttribute('y1', a.y1);
-        l.setAttribute('x2', a.x2); l.setAttribute('y2', a.y2);
-        l.setAttribute('class', 'tactics-arrow ' + (a.style === 'pass' ? 'pass' : 'run'));
-        l.setAttribute('marker-end', 'url(#arrow-' + (a.style === 'pass' ? 'pass' : 'run') + ')');
-        arrowsLayer.appendChild(l);
-      }
-      renderArrowPreview();
-    }
-
-    function renderArrowPreview() {
-      const existing = arrowsLayer.querySelector('[data-role="preview"]');
-      if (existing) existing.remove();
-      if (!playback.running && (tool === 'run' || tool === 'pass') && arrowStart) {
-        const dot = document.createElementNS(SVG_NS, 'circle');
-        dot.setAttribute('data-role', 'preview');
-        dot.setAttribute('cx', arrowStart.x); dot.setAttribute('cy', arrowStart.y);
-        dot.setAttribute('r', 5);
-        dot.setAttribute('fill', tool === 'pass' ? 'var(--primary)' : 'var(--cta)');
-        arrowsLayer.appendChild(dot);
-      }
-    }
-
-    function renderTexts(snapshot) {
-      textsLayer.innerHTML = '';
-      for (const t of snapshot.texts) {
-        const el = document.createElementNS(SVG_NS, 'text');
-        el.setAttribute('x', t.x); el.setAttribute('y', t.y); el.setAttribute('text-anchor', 'middle');
-        el.setAttribute('class', 'tactics-text');
-        el.textContent = t.text;
-        textsLayer.appendChild(el);
-      }
-    }
-
-    function renderInterpolated(fromStep, toStep, t) {
-      const interp = interpolateSnapshot(fromStep, toStep, t);
-      renderArrows(fromStep);
-      renderTexts(fromStep);
-      renderTokens(interp);
-    }
-
-    function renderAll() {
-      const s = cur();
-      renderArrows(s);
-      renderTexts(s);
-      renderTokens(s);
-      updatePlaybackStatus();
-    }
-
-    function renderSteps() {
-      stepsList.innerHTML = '';
-      board.steps.forEach((s, i) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'step-btn' + (i === board.currentStep ? ' active' : '');
-        btn.textContent = String(i + 1);
-        btn.setAttribute('aria-pressed', i === board.currentStep ? 'true' : 'false');
-        btn.addEventListener('click', () => {
-          stopPlayback();
-          board.currentStep = i;
-          saveDraft(board);
-          renderSteps();
-          renderAll();
-        });
-        stepsList.appendChild(btn);
-      });
-    }
-
-    // ---------- KI-Erklärung ----------
-    function openExplainModal() {
-      const backdrop = renderTemplate('tpl-tactics-ai-modal');
-      document.body.appendChild(backdrop);
-      const statusEl = $('[data-role="status"]', backdrop);
-      const textEl = $('[data-role="text"]', backdrop);
-      const saveBtn = $('[data-action="save-note"]', backdrop);
-      let resultText = null;
-
-      function close() { backdrop.remove(); }
-      backdrop.addEventListener('click', e => {
-        if (e.target === backdrop) close();
-        if (e.target.closest('[data-action="close"]')) close();
-        if (e.target.closest('[data-action="save-note"]') && resultText) {
-          BT.storage.upsertNote({ title: 'Taktik-Erklärung (' + formatDate(BT.util.todayISO()) + ')', body: resultText });
-          if (toast) toast('Als Notiz gespeichert.');
-          close();
-        }
-      });
-
-      if (!BT.api.getToken()) {
-        statusEl.textContent = 'Bitte zuerst unter „Konto & Sync“ anmelden, um die geschützte KI-Erklärung zu nutzen.';
-        return;
-      }
-
-      BT.wake.acquire('tactics-ai');
-      BT.aiimport.explainTactic(board, null, (msg) => {
-        statusEl.textContent = msg;
-      }).then(text => {
-        resultText = text;
-        statusEl.hidden = true;
-        textEl.hidden = false;
-        textEl.textContent = text;
-        saveBtn.disabled = false;
-      }).catch(err => {
-        statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
-      }).finally(() => {
-        BT.wake.release('tactics-ai');
-      });
-    }
-
-    // ---------- GIF-Export ----------
-    function openGifModal() {
-      const backdrop = renderTemplate('tpl-tactics-gif-modal');
-      document.body.appendChild(backdrop);
-      const statusEl = $('[data-role="status"]', backdrop);
-      const renderBtn = $('[data-action="render-gif"]', backdrop);
-
-      let currentGif = null;
-      let closed = false;
-
-      function close() {
-        if (closed) return;
-        closed = true;
-        if (currentGif) {
-          try { currentGif.abort(); } catch (_) {}
-          currentGif = null;
-        }
-        backdrop.remove();
-        window.removeEventListener('hashchange', close);
-      }
-      window.addEventListener('hashchange', close);
-      backdrop.addEventListener('click', e => {
-        if (e.target === backdrop) close();
-        if (e.target.closest('[data-action="close"]')) close();
-      });
-
-      renderBtn.addEventListener('click', async () => {
-        if (currentGif) return;
-        const speed = backdrop.querySelector('input[name="gifspeed"]:checked').value;
-        const override = speed === 'kept' ? null : parseFloat(speed);
-
-        renderBtn.disabled = true;
-        statusEl.hidden = false;
-        statusEl.textContent = 'gif.js wird geladen …';
-
-        BT.wake.acquire('tactics-gif');
-        try {
-          await loadGifLib();
-          if (closed) return;
-          statusEl.textContent = 'Frames werden erzeugt …';
-          const blob = await renderGif(board, override, (pct) => {
-            if (!closed) statusEl.textContent = 'GIF wird kodiert … ' + Math.round(pct * 100) + '%';
-          }, g => { currentGif = g; });
-          currentGif = null;
-          if (closed) return;
-          statusEl.textContent = 'Fertig! Teilen wird geöffnet …';
-          const file = new File([blob], 'taktik.gif', { type: 'image/gif' });
-          const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
-          if (canShareFile && navigator.share) {
-            try {
-              await navigator.share({ files: [file], title: 'Taktik' });
-              close();
-              return;
-            } catch (_) { /* fall through to download */ }
-          }
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = 'taktik.gif';
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
-          statusEl.textContent = 'GIF gespeichert (Teilen nicht verfügbar).';
-          renderBtn.disabled = false;
-        } catch (err) {
-          currentGif = null;
-          if (!closed) {
-            statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
-            renderBtn.disabled = false;
-          }
-        } finally {
-          BT.wake.release('tactics-gif');
-        }
-      });
-    }
-
-    // ---------- Load from saved tactic note ----------
-    const loadFromNoteId = BT.storage.getSetting('tacticsLoadFromNote', null);
-    if (loadFromNoteId) {
-      BT.storage.setSetting('tacticsLoadFromNote', null);
-      const note = BT.storage.getNote(loadFromNoteId);
-      if (note && typeof note.body === 'string' && note.body.startsWith('[TACTIC]')) {
-        const jsonStart = note.body.indexOf('{');
-        if (jsonStart !== -1) {
-          try {
-            const parsed = JSON.parse(note.body.slice(jsonStart));
-            const migrated = migrate(parsed);
-            if (migrated && Array.isArray(migrated.steps) && migrated.steps.length > 0) {
-              board = migrated;
-              saveDraft(board);
-              const label = (note.title || '').replace(/^Taktik:\s*/, '') || 'Taktik';
-              if (toast) toast('Taktik „' + label + '" geladen');
-            }
-          } catch (e) {
-            if (toast) toast('Taktik konnte nicht geladen werden');
-          }
-        }
-      }
-    }
-
-    renderSteps();
-    renderAll();
+    svg.addEventListener('pointermove', event => { if (!drag) return; const p = pointFromEvent(event); drag.element.x = p.x - drag.dx; drag.element.y = p.y - drag.dy; renderBoard(cur()); });
+    svg.addEventListener('pointerup', event => { if (drag) { drag = null; persist(); try { svg.releasePointerCapture(event.pointerId); } catch (_) {} } }); svg.addEventListener('pointercancel', () => { drag = null; });
+    const legacyNote = BT.storage.getSetting('tacticsLoadFromNote', null);
+    if (legacyNote) { BT.storage.setSetting('tacticsLoadFromNote', null); const note = BT.storage.getNote(legacyNote), json = note && note.body && note.body.indexOf('{'); if (json >= 0) { try { board = normalizeBoard(JSON.parse(note.body.slice(json))); persist(); } catch (_) { if (toast) toast('Taktik konnte nicht geladen werden.'); } } }
+    syncLibrary(); refresh();
   }
 
-  // ---------- Interpolation ----------
-  function interpolateSnapshot(fromStep, toStep, t) {
-    if (!toStep) return fromStep;
-    const ease = t;
-    const toById = new Map();
-    for (const p of toStep.players) toById.set(p.id, p);
-    const players = fromStep.players.map(fp => {
-      const tp = toById.get(fp.id);
-      if (!tp) return { id: fp.id, label: fp.label, x: fp.x, y: fp.y };
-      return {
-        id: fp.id, label: fp.label,
-        x: fp.x + (tp.x - fp.x) * ease,
-        y: fp.y + (tp.y - fp.y) * ease
-      };
-    });
-    const fb = fromStep.ball, tb = toStep.ball;
-    const ball = { x: fb.x + (tb.x - fb.x) * ease, y: fb.y + (tb.y - fb.y) * ease };
-    return { players, ball, arrows: fromStep.arrows, texts: fromStep.texts };
+  function renderPlayer(target) {
+    const root = document.createElement('section'); root.className = 'view tactics-player-view'; root.dataset.role = 'player-tactics'; target.appendChild(root);
+    const user = currentUser();
+    if (!BT.api.getToken() || !user) { root.innerHTML = '<div class="empty-state"><h2>Teamtaktiken</h2><p>Bitte zuerst anmelden, um veröffentlichte Teamtaktiken anzusehen.</p><a class="btn primary" href="#/account">Anmelden</a></div>'; return; }
+    const published = BT.storage.getTactics().filter(tactic => tactic.published === true); root.innerHTML = '<div class="section-head"><div><span class="section-kicker">Spieleransicht</span><h2>Teamtaktiken</h2></div><a class="btn small" href="#/tactics">Trainerboard</a></div><div data-role="player-tactic-list" class="tactics-player-list"></div><div data-role="player-tactic-detail"></div>';
+    const list = $('[data-role="player-tactic-list"]', root), detail = $('[data-role="player-tactic-detail"]', root);
+    if (!published.length) { list.innerHTML = '<p class="muted">Es wurden noch keine Taktiken veröffentlicht.</p>'; return; }
+    function show(tactic) { const board = normalizeBoard(tactic); detail.innerHTML = '<article class="tactics-player-card"><h3></h3><p class="muted"></p><div class="tactics-player-step"></div><div class="tactics-playback"><button class="btn small" data-action="prev">⏮</button><span class="muted" data-role="number"></span><button class="btn small" data-action="next">⏭</button></div></article>'; $('h3', detail).textContent = board.title || 'Unbenannte Taktik'; $('p', detail).textContent = board.description || 'Kein zusätzlicher Coaching-Hinweis.'; let index = 0; const step = $('[data-role="number"]', detail), court = $('.tactics-player-step', detail); function draw() { court.replaceChildren(buildPreview(board.steps[index])); step.textContent = 'Schritt ' + (index + 1) + ' / ' + board.steps.length; } $('[data-action="prev"]', detail).addEventListener('click', () => { index = Math.max(0, index - 1); draw(); }); $('[data-action="next"]', detail).addEventListener('click', () => { index = Math.min(board.steps.length - 1, index + 1); draw(); }); draw(); }
+    published.forEach(tactic => { const button = document.createElement('button'); button.className = 'btn small'; button.type = 'button'; button.textContent = tactic.title || 'Unbenannte Taktik'; button.addEventListener('click', () => show(tactic)); list.appendChild(button); }); show(published[0]);
   }
 
-  // ---------- Gif library loader ----------
-  let gifLibLoading = null;
-  function loadGifLib() {
-    if (window.GIF) return Promise.resolve();
-    if (gifLibLoading) return gifLibLoading;
-    gifLibLoading = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = GIF_LIB_URL;
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error('gif.js konnte nicht geladen werden.'));
-      document.head.appendChild(s);
-    });
-    return gifLibLoading;
+  function buildPreview(step) { const svg = document.createElementNS(SVG_NS, 'svg'); svg.setAttribute('viewBox', '0 0 500 470'); svg.setAttribute('class', 'court tactics-preview-court'); svg.innerHTML = '<rect class="court-floor" x="10" y="10" width="480" height="450" stroke-width="2"/><rect class="court-lane" x="160" y="10" width="180" height="190" stroke-width="2"/><circle class="court-line" cx="250" cy="200" r="60" fill="none" stroke-width="2"/><line class="court-line" x1="160" y1="200" x2="340" y2="200" stroke-width="2"/><line class="court-backboard" x1="220" y1="40" x2="280" y2="40" stroke-width="3"/><circle class="court-rim" cx="250" cy="50" r="8" fill="none" stroke-width="2.5"/>';
+    const layers = { objects: document.createElementNS(SVG_NS, 'g'), arrows: document.createElementNS(SVG_NS, 'g'), texts: document.createElementNS(SVG_NS, 'g'), tokens: document.createElementNS(SVG_NS, 'g') }; Object.values(layers).forEach(layer => svg.appendChild(layer)); const context = { selectedId: null }; elements(step, 'zone').forEach(item => drawPreviewElement(item, layers.objects, context)); elements(step, 'cone').forEach(item => drawPreviewElement(item, layers.objects, context)); elements(step, 'arrow').forEach(item => drawPreviewElement(item, layers.arrows, context)); elements(step, 'label').forEach(item => drawPreviewElement(item, layers.texts, context)); elements(step).filter(item => ['offense', 'defense', 'ball'].includes(item.type)).forEach(item => drawPreviewElement(item, layers.tokens, context)); return svg;
   }
+  function drawPreviewElement(element, parent) { const make = name => document.createElementNS(SVG_NS, name); if (element.type === 'arrow') { const line = make('line'); line.setAttribute('x1', element.x); line.setAttribute('y1', element.y); line.setAttribute('x2', element.x2); line.setAttribute('y2', element.y2); line.setAttribute('class', 'tactics-arrow ' + element.kind); parent.appendChild(line); } else if (element.type === 'cone') { const p = make('path'); p.setAttribute('d', 'M ' + element.x + ' ' + (element.y - 12) + ' L ' + (element.x - 11) + ' ' + (element.y + 10) + ' L ' + (element.x + 11) + ' ' + (element.y + 10) + ' Z'); p.setAttribute('class', 'tactics-cone'); parent.appendChild(p); } else if (element.type === 'zone') { const shape = make(element.shape === 'circle' ? 'ellipse' : 'rect'); if (element.shape === 'circle') { shape.setAttribute('cx', element.x); shape.setAttribute('cy', element.y); shape.setAttribute('rx', element.width / 2); shape.setAttribute('ry', element.height / 2); } else { shape.setAttribute('x', element.x - element.width / 2); shape.setAttribute('y', element.y - element.height / 2); shape.setAttribute('width', element.width); shape.setAttribute('height', element.height); } shape.setAttribute('class', 'tactics-zone'); parent.appendChild(shape); } else if (element.type === 'label') { const text = make('text'); text.setAttribute('x', element.x); text.setAttribute('y', element.y); text.setAttribute('text-anchor', 'middle'); text.setAttribute('class', 'tactics-text'); text.textContent = element.text; parent.appendChild(text); } else if (['offense', 'defense'].includes(element.type)) { const group = make('g'), shape = make(element.type === 'defense' ? 'rect' : 'circle'), text = make('text'); group.setAttribute('class', 'tactics-token ' + element.type); if (element.type === 'defense') { shape.setAttribute('x', element.x - 17); shape.setAttribute('y', element.y - 17); shape.setAttribute('width', 34); shape.setAttribute('height', 34); } else { shape.setAttribute('cx', element.x); shape.setAttribute('cy', element.y); shape.setAttribute('r', 18); } text.setAttribute('x', element.x); text.setAttribute('y', element.y + 4); text.setAttribute('text-anchor', 'middle'); text.textContent = element.role; group.append(shape, text); parent.appendChild(group); } else if (element.type === 'ball') { const circle = make('circle'); circle.setAttribute('class', 'tactics-ball'); circle.setAttribute('cx', element.x); circle.setAttribute('cy', element.y); circle.setAttribute('r', 9); parent.appendChild(circle); } }
 
-  // ---------- Canvas drawing for GIF frames ----------
-  function drawCourt(ctx) {
-    ctx.fillStyle = '#f5e6c8';
-    ctx.fillRect(0, 0, 500, 470);
-    ctx.strokeStyle = '#7a4a1a';
-    ctx.lineWidth = 2;
-    // Floor outline
-    ctx.strokeRect(10, 10, 480, 450);
-    // Lane
-    ctx.fillStyle = 'rgba(232, 161, 77, 0.3)';
-    ctx.fillRect(160, 10, 180, 190);
-    ctx.strokeRect(160, 10, 180, 190);
-    // Free-throw circle (top of key)
-    ctx.beginPath();
-    ctx.arc(250, 200, 60, 0, Math.PI * 2);
-    ctx.stroke();
-    // Free-throw line
-    ctx.beginPath();
-    ctx.moveTo(160, 200); ctx.lineTo(340, 200); ctx.stroke();
-    // Restricted area arc under basket
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(250, 50, 40, Math.PI, 0, true);
-    ctx.stroke();
-    // Backboard
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(220, 40); ctx.lineTo(280, 40); ctx.stroke();
-    // Rim
-    ctx.strokeStyle = '#cc3300';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(250, 50, 8, 0, Math.PI * 2);
-    ctx.stroke();
-    // 3-point corners + arc
-    ctx.strokeStyle = '#7a4a1a';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(50, 10); ctx.lineTo(50, 135); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(450, 10); ctx.lineTo(450, 135); ctx.stroke();
-    // 3pt arc: matches SVG path `M 50 135 A 200 200 0 0 0 450 135` — semicircle bulging up toward rim
-    ctx.beginPath();
-    ctx.arc(250, 135, 200, Math.PI, 0, true);
-    ctx.stroke();
-  }
+  function nearSegment(px, py, x1, y1, x2, y2, tolerance) { const dx = x2 - x1, dy = y2 - y1, length = dx * dx + dy * dy; if (!length) return Math.hypot(px - x1, py - y1) < tolerance; const t = clamp(((px - x1) * dx + (py - y1) * dy) / length, 0, 1); return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t)) < tolerance; }
+  function interpolateStep(from, to, ratio) { if (!to) return from; const target = new Map(elements(to).filter(item => ['offense', 'defense', 'ball'].includes(item.type)).map(item => [item.id, item])); return Object.assign({}, from, { elements: elements(from).map(item => { const next = target.get(item.id); return next && ['offense', 'defense', 'ball'].includes(item.type) ? Object.assign({}, item, { x: item.x + (next.x - item.x) * ratio, y: item.y + (next.y - item.y) * ratio }) : item; }) }); }
 
-  function drawArrow(ctx, a) {
-    const isPass = a.style === 'pass';
-    ctx.strokeStyle = isPass ? 'rgb(232, 161, 77)' : '#004b2b';
-    ctx.fillStyle = ctx.strokeStyle;
-    ctx.lineWidth = 3;
-    if (isPass) ctx.setLineDash([8, 6]); else ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(a.x1, a.y1);
-    ctx.lineTo(a.x2, a.y2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // Arrowhead
-    const ang = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
-    const size = 10;
-    ctx.beginPath();
-    ctx.moveTo(a.x2, a.y2);
-    ctx.lineTo(a.x2 - size * Math.cos(ang - 0.5), a.y2 - size * Math.sin(ang - 0.5));
-    ctx.lineTo(a.x2 - size * Math.cos(ang + 0.5), a.y2 - size * Math.sin(ang + 0.5));
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  function drawText(ctx, t) {
-    ctx.fillStyle = '#004b2b';
-    ctx.font = 'bold 16px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    // Halo for readability
-    ctx.strokeStyle = 'rgba(245, 230, 200, 0.9)';
-    ctx.lineWidth = 3;
-    ctx.strokeText(t.text, t.x, t.y);
-    ctx.fillText(t.text, t.x, t.y);
-  }
-
-  function drawPlayer(ctx, p) {
-    ctx.fillStyle = 'rgb(232, 161, 77)';
-    ctx.strokeStyle = '#004b2b';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#004b2b';
-    ctx.font = 'bold 16px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(p.label, p.x, p.y);
-  }
-
-  function drawBall(ctx, b) {
-    ctx.fillStyle = '#cc3300';
-    ctx.strokeStyle = '#7a2200';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  function drawSnapshot(ctx, snapshot) {
-    drawCourt(ctx);
-    for (const a of snapshot.arrows) drawArrow(ctx, a);
-    for (const t of snapshot.texts) drawText(ctx, t);
-    for (const p of snapshot.players) drawPlayer(ctx, p);
-    drawBall(ctx, snapshot.ball);
-  }
-
-  // ---------- GIF rendering ----------
-  async function renderGif(board, overrideDurationSec, onProgress, onInstance) {
-    const W = 400, H = 376;
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    const scale = W / 500;
-    const fps = 10;
-
-    const gif = new window.GIF({
-      workers: 2,
-      quality: 12,
-      width: W,
-      height: H,
-      workerScript: GIF_WORKER_URL,
-      background: '#f5e6c8'
-    });
-    if (onInstance) onInstance(gif);
-
-    function renderFrameToCanvas(snapshot) {
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      ctx.scale(scale, scale);
-      drawSnapshot(ctx, snapshot);
-      ctx.restore();
-    }
-
-    for (let i = 0; i < board.steps.length; i++) {
-      const from = board.steps[i];
-      const to = board.steps[i + 1] || null;
-      const dur = (overrideDurationSec != null ? overrideDurationSec : (from.duration || 1.5));
-      if (to) {
-        const frames = Math.max(2, Math.ceil(dur * fps));
-        const delay = Math.max(20, Math.round((dur * 1000) / frames));
-        for (let f = 0; f < frames; f++) {
-          const t = f / frames;
-          const snap = interpolateSnapshot(from, to, t);
-          renderFrameToCanvas(snap);
-          gif.addFrame(ctx, { delay, copy: true });
-        }
-      } else {
-        // Last step: hold final frame longer
-        renderFrameToCanvas(from);
-        gif.addFrame(ctx, { delay: Math.round(dur * 1000), copy: true });
-      }
-    }
-
-    return new Promise((resolve, reject) => {
-      gif.on('progress', (p) => { if (onProgress) onProgress(p); });
-      gif.on('finished', (blob) => resolve(blob));
-      gif.on('abort', () => reject(new Error('GIF-Erzeugung abgebrochen.')));
-      try { gif.render(); } catch (e) { reject(e); }
-    });
-  }
-
-  return { render };
+  function openExplainModal(board) { const backdrop = renderTemplate('tpl-tactics-ai-modal'); document.body.appendChild(backdrop); const status = $('[data-role="status"]', backdrop), result = $('[data-role="text"]', backdrop), save = $('[data-action="save-note"]', backdrop); let explanation = ''; const close = () => backdrop.remove(); backdrop.addEventListener('click', event => { if (event.target === backdrop || event.target.closest('[data-action="close"]')) close(); if (event.target.closest('[data-action="save-note"]') && explanation) { BT.storage.upsertNote({ title: 'Taktik-Erklärung ' + formatDate(BT.util.todayISO()), body: explanation }); close(); } }); if (!BT.api.getToken()) { status.textContent = 'Bitte zuerst unter „Konto & Sync“ anmelden, um die geschützte KI-Erklärung zu nutzen.'; return; } BT.wake.acquire('tactics-ai'); BT.aiimport.explainTactic(board, null, message => { status.textContent = message; }).then(text => { explanation = text; status.hidden = true; result.hidden = false; result.textContent = text; save.disabled = false; }).catch(error => { status.textContent = 'Fehler: ' + error.message; }).finally(() => BT.wake.release('tactics-ai')); }
+  function openGifModal(board) { const backdrop = renderTemplate('tpl-tactics-gif-modal'); document.body.appendChild(backdrop); const status = $('[data-role="status"]', backdrop), button = $('[data-action="render-gif"]', backdrop); backdrop.addEventListener('click', event => { if (event.target === backdrop || event.target.closest('[data-action="close"]')) backdrop.remove(); }); button.addEventListener('click', async () => { button.disabled = true; status.hidden = false; status.textContent = 'GIF wird erzeugt …'; try { const blob = await renderGif(board, parseFloat(backdrop.querySelector('input[name="gifspeed"]:checked').value) || null, progress => { status.textContent = 'GIF wird kodiert … ' + Math.round(progress * 100) + '%'; }); download('taktik.gif', blob); status.textContent = 'GIF gespeichert.'; } catch (error) { status.textContent = 'Fehler: ' + error.message; } finally { button.disabled = false; } }); }
+  function loadGif() { if (window.GIF) return Promise.resolve(); if (gifLoading) return gifLoading; gifLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js'; script.onload = resolve; script.onerror = () => reject(new Error('gif.js konnte nicht geladen werden.')); document.head.appendChild(script); }); return gifLoading; }
+  async function renderGif(board, override, progress) { await loadGif(); const canvas = document.createElement('canvas'), W = 400, H = 376, scale = W / 500; canvas.width = W; canvas.height = H; const context = canvas.getContext('2d'), gif = new window.GIF({ workers: 2, quality: 12, width: W, height: H, workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js', background: '#f5e6c8' }); function frame(step) { context.save(); context.clearRect(0, 0, W, H); context.scale(scale, scale); drawCanvasStep(context, step); context.restore(); } for (let index = 0; index < board.steps.length; index++) { const from = board.steps[index], to = board.steps[index + 1], seconds = override || from.duration; if (to) { const count = Math.max(2, Math.ceil(seconds * 10)); for (let f = 0; f < count; f++) { frame(interpolateStep(from, to, f / count)); gif.addFrame(context, { delay: Math.round(seconds * 1000 / count), copy: true }); } } else { frame(from); gif.addFrame(context, { delay: Math.round(seconds * 1000), copy: true }); } } return new Promise((resolve, reject) => { gif.on('progress', progress); gif.on('finished', resolve); gif.on('abort', () => reject(new Error('GIF-Erzeugung abgebrochen.'))); gif.render(); }); }
+  function drawCanvasStep(context, step) { context.fillStyle = '#f5e6c8'; context.fillRect(0, 0, 500, 470); context.strokeStyle = '#7a4a1a'; context.lineWidth = 2; context.strokeRect(10, 10, 480, 450); context.strokeRect(160, 10, 180, 190); context.beginPath(); context.arc(250, 200, 60, 0, Math.PI * 2); context.stroke(); elements(step).forEach(element => { if (element.type === 'zone') { context.fillStyle = 'rgba(46,110,170,.16)'; context.strokeStyle = '#2e6eaa'; if (element.shape === 'circle') { context.beginPath(); context.ellipse(element.x, element.y, element.width / 2, element.height / 2, 0, 0, Math.PI * 2); context.fill(); context.stroke(); } else { context.fillRect(element.x - element.width / 2, element.y - element.height / 2, element.width, element.height); context.strokeRect(element.x - element.width / 2, element.y - element.height / 2, element.width, element.height); } } else if (element.type === 'arrow') { const style = arrowStyle(element.kind); context.strokeStyle = style.color; context.lineWidth = element.kind === 'screen' ? 5 : 3; context.setLineDash(style.dash); context.beginPath(); context.moveTo(element.x, element.y); context.lineTo(element.x2, element.y2); context.stroke(); context.lineWidth = 2; context.setLineDash([]); } else if (element.type === 'cone') { context.fillStyle = '#e8a14d'; context.beginPath(); context.moveTo(element.x, element.y - 12); context.lineTo(element.x - 10, element.y + 10); context.lineTo(element.x + 10, element.y + 10); context.fill(); } else if (element.type === 'label') { context.fillStyle = '#004b2b'; context.font = 'bold 14px sans-serif'; context.textAlign = 'center'; context.fillText(element.text, element.x, element.y); } else if (['offense', 'defense'].includes(element.type)) { context.fillStyle = element.type === 'offense' ? '#e8a14d' : '#2e6eaa'; context.strokeStyle = '#123a61'; if (element.type === 'offense') { context.beginPath(); context.arc(element.x, element.y, 18, 0, Math.PI * 2); context.fill(); context.stroke(); } else { context.fillRect(element.x - 17, element.y - 17, 34, 34); context.strokeRect(element.x - 17, element.y - 17, 34, 34); } context.fillStyle = '#fff'; context.font = 'bold 11px sans-serif'; context.textAlign = 'center'; context.fillText(element.role, element.x, element.y + 4); } else if (element.type === 'ball') { context.fillStyle = '#e67e22'; context.beginPath(); context.arc(element.x, element.y, 9, 0, Math.PI * 2); context.fill(); } }); }
+  function loadPdf() { if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF); if (pdfLoading) return pdfLoading; pdfLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'; script.onload = () => window.jspdf && window.jspdf.jsPDF ? resolve(window.jspdf.jsPDF) : reject(new Error('PDF-Modul konnte nicht gestartet werden.')); script.onerror = () => reject(new Error('PDF-Modul konnte nicht geladen werden.')); document.head.appendChild(script); }); return pdfLoading; }
+  async function exportPdf(board) { try { const JsPDF = await loadPdf(), doc = new JsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' }), layout = pdfLayout(); board.steps.forEach((step, index) => { if (index) doc.addPage(); doc.setFontSize(20); doc.text(board.title || 'Taktikboard', 40, 38); doc.setFontSize(11); doc.text(board.description || 'CourtHub Teamtaktik', 40, 57); doc.text('Schritt ' + (index + 1) + ' von ' + board.steps.length + ' · ' + step.duration + ' s', 40, 74); drawPdfCourt(doc, step, layout.courtX, layout.courtY, layout.courtWidth, layout.courtHeight); doc.setFontSize(9); doc.text('Legende: O Angriff · X Verteidigung · ● Ball · Grün Laufweg · Orange Pass · Lila Dribbling · Grau Screen · Blau Closeout · Braun Rotation', 40, layout.legendY); }); const blob = doc.output('blob'); download((board.title || 'taktik').replace(/[^a-z0-9]+/gi, '_').toLowerCase() + '.pdf', blob); if (toast) toast('Taktik-PDF erstellt.'); } catch (error) { if (toast) toast('PDF-Export fehlgeschlagen: ' + error.message); } }
+  function drawPdfCourt(doc, step, x, y, width, height) { const sx = width / 500, sy = height / 470, px = value => x + value * sx, py = value => y + value * sy; doc.setDrawColor(122, 74, 26); doc.rect(x, y, width, height); doc.rect(px(160), py(10), 180 * sx, 190 * sy); doc.circle(px(250), py(200), 60 * sx); elements(step).forEach(element => { if (element.type === 'zone') { doc.setDrawColor(46, 110, 170); if (element.shape === 'circle') doc.ellipse(px(element.x), py(element.y), element.width * sx / 2, element.height * sy / 2); else doc.rect(px(element.x - element.width / 2), py(element.y - element.height / 2), element.width * sx, element.height * sy); } else if (element.type === 'arrow') { const style = arrowStyle(element.kind); doc.setDrawColor(...style.rgb); if (style.dash.length) doc.setLineDashPattern(style.dash, 0); doc.setLineWidth(element.kind === 'screen' ? 3 : 1); doc.line(px(element.x), py(element.y), px(element.x2), py(element.y2)); doc.setLineDashPattern([], 0); doc.setLineWidth(1); } else if (['offense', 'defense'].includes(element.type)) { doc.setFillColor(element.type === 'offense' ? 232 : 46, element.type === 'offense' ? 161 : 110, element.type === 'offense' ? 77 : 170); if (element.type === 'offense') doc.circle(px(element.x), py(element.y), 13 * sx, 'FD'); else doc.rect(px(element.x) - 13 * sx, py(element.y) - 13 * sy, 26 * sx, 26 * sy, 'FD'); doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.text(element.role, px(element.x), py(element.y) + 3, { align: 'center' }); doc.setTextColor(0, 0, 0); } else if (element.type === 'ball') { doc.setFillColor(230, 126, 34); doc.circle(px(element.x), py(element.y), 7 * sx, 'FD'); } else if (element.type === 'cone') { doc.setFillColor(232, 161, 77); doc.triangle(px(element.x), py(element.y - 10), px(element.x - 9), py(element.y + 9), px(element.x + 9), py(element.y + 9), 'F'); } else if (element.type === 'label') { doc.setFontSize(10); doc.text(element.text, px(element.x), py(element.y), { align: 'center' }); } }); }
+  function download(filename, blob) { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); anchor.remove(); }, 500); }
+  return { render, renderPlayer, normalizeBoard, templates, cloneStep, interpolateStep, arrowStyle, pdfLayout };
 })();

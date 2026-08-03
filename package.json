@@ -9,7 +9,7 @@
   "scripts": {
     "check": "node scripts/check.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run check && npm run smoke",
+    "test": "npm run check && npm run smoke && node scripts/workspace-smoke.mjs",
     "dev": "vercel dev"
   },
   "dependencies": {

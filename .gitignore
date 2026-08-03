@@ -4,6 +4,7 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/
+.superpowers/
 
 # Lokale Daten-Backups (nicht versionieren)
 nach Training*.json

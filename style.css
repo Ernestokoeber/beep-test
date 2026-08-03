@@ -4472,19 +4472,41 @@ table.results tr:last-child td { border-bottom: none; }
 }
 
 .tactics-court { touch-action: none; cursor: crosshair; }
-.tactics-court .tactics-player circle {
+.tactics-court .tactics-token.offense circle, .tactics-preview-court .tactics-token.offense circle {
   fill: var(--primary);
   stroke: var(--cta);
   stroke-width: 2;
 }
-.tactics-court .tactics-player text {
+.tactics-court .tactics-token text, .tactics-preview-court .tactics-token text {
   fill: #fff;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 11px;
   user-select: none;
   pointer-events: none;
 }
-.tactics-court .tactics-ball circle {
+
+.tactics-library {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr)) auto;
+  gap: 8px;
+  align-items: end;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.tactics-library label, .tactics-context label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.tactics-library input, .tactics-library select, .tactics-context input, .tactics-context select { min-width: 0; box-sizing: border-box; width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; }
+.tactics-context { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin: 8px 0; padding: 10px; border: 1px solid var(--border); border-left: 4px solid var(--cta); border-radius: 8px; background: var(--surface-2); }
+.tactics-context strong { min-width: 110px; }
+.tactics-player-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tactics-player-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface); }
+.tactics-player-step { max-width: 650px; margin: 12px auto; }
+.tactics-preview-court { display: block; width: 100%; height: auto; }
+.tactics-court .tactics-token.defense rect, .tactics-preview-court .tactics-token.defense rect { fill: #2e6eaa; stroke: #123a61; stroke-width: 2; }
+.tactics-court .tactics-token.selected > :first-child, .tactics-court .tactics-ball.selected circle { stroke: #111; stroke-width: 4; }
+.tactics-court .tactics-ball circle, .tactics-preview-court .tactics-ball {
   fill: #e67e22;
   stroke: #7a3f11;
   stroke-width: 1.5;
@@ -4493,11 +4515,19 @@ table.results tr:last-child td { border-bottom: none; }
   stroke-width: 3;
   fill: none;
 }
-.tactics-court .tactics-arrow.run { stroke: var(--cta); }
-.tactics-court .tactics-arrow.pass {
+.tactics-court .tactics-arrow.run, .tactics-preview-court .tactics-arrow.run { stroke: var(--cta); }
+.tactics-court .tactics-arrow.pass, .tactics-preview-court .tactics-arrow.pass {
   stroke: var(--primary);
   stroke-dasharray: 6 4;
 }
+.tactics-court .tactics-arrow.dribble, .tactics-preview-court .tactics-arrow.dribble { stroke: #7b4ea3; stroke-dasharray: 3 5; }
+.tactics-court .tactics-arrow.screen, .tactics-preview-court .tactics-arrow.screen { stroke: #4d5968; stroke-width: 5; }
+.tactics-court .tactics-arrow.closeout, .tactics-preview-court .tactics-arrow.closeout { stroke: #2e6eaa; stroke-dasharray: 10 3; }
+.tactics-court .tactics-arrow.rotation, .tactics-preview-court .tactics-arrow.rotation { stroke: #8c4a20; stroke-dasharray: 8 4 2 4; }
+.tactics-court .tactics-zone, .tactics-preview-court .tactics-zone { fill: rgba(46, 110, 170, .16); stroke: #2e6eaa; stroke-width: 2; }
+.tactics-court .tactics-zone.selected { stroke: #111; stroke-width: 4; }
+.tactics-court .tactics-cone, .tactics-preview-court .tactics-cone { fill: #e8a14d; stroke: #7a4a1a; stroke-width: 1.5; }
+.tactics-court .tactics-preview { fill: var(--cta); }
 .tactics-court .tactics-text {
   fill: var(--text);
   font-size: 14px;
@@ -4512,6 +4542,8 @@ table.results tr:last-child td { border-bottom: none; }
   font-size: 12px;
   margin-top: 8px;
 }
+
+@media (max-width: 740px) { .tactics-library { grid-template-columns: 1fr 1fr; } }
 
 .ai-summary-text {
   width: 100%;
