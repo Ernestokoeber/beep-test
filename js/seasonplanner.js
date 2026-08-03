@@ -19,6 +19,7 @@ BT.seasonplanner = (function() {
   ]);
 
   const DAY_NUMBERS = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const SEASON_BATCH_SIZE = 8;
 
   function dateAtNoon(iso) {
     return new Date(String(iso || '') + 'T12:00:00');
@@ -155,6 +156,26 @@ BT.seasonplanner = (function() {
     };
   }
 
+  function splitAIPayload(payload, batchSize = SEASON_BATCH_SIZE) {
+    const slots = Array.isArray(payload?.slots) ? payload.slots : [];
+    const size = Math.max(1, Number(batchSize) || SEASON_BATCH_SIZE);
+    return Array.from({ length: Math.ceil(slots.length / size) }, (_, index) =>
+      Object.assign({}, payload, { slots: slots.slice(index * size, (index + 1) * size) })
+    );
+  }
+
+  async function planInBatches(payload, requestBatch, onProgress) {
+    const batches = splitAIPayload(payload);
+    const trainings = [];
+    for (let index = 0; index < batches.length; index++) {
+      if (onProgress) onProgress(index + 1, batches.length);
+      const response = await requestBatch(batches[index]);
+      if (!Array.isArray(response?.data?.trainings)) throw new Error('KI-Antwort enthält keine Trainingsliste.');
+      trainings.push(...response.data.trainings);
+    }
+    return { trainings };
+  }
+
   function normalizeDrills(input, fallbackIntensity, durationMinutes) {
     const allowed = new Set(['low', 'medium', 'high']);
     const drills = Array.isArray(input) ? input.filter(drill => drill && drill.name).map(drill => ({
@@ -279,6 +300,6 @@ BT.seasonplanner = (function() {
 
   return {
     BAVARIA_SCHOOL_BREAKS, parseLeagueId, scheduleConfig, saveScheduleConfig,
-    closureFor, buildSlots, buildAIPayload, applyAIPlan
+    closureFor, buildSlots, buildAIPayload, splitAIPayload, planInBatches, applyAIPlan
   };
 })();

@@ -213,6 +213,31 @@ assert(window.BT.storage.getDrills().some(drill => drill.source === 'ai-season')
 assert(window.BT.storage.getTemplates().some(template => template.source === 'ai-season'), 'KI-Trainings fehlen in der Vorlagenbibliothek');
 const fridayTraining = window.BT.storage.getTrainings().find(entry => entry.planning?.source === 'ai-season' && entry.plan?.variants);
 assert(fridayTraining && fridayTraining.plan.variants.over8.length && fridayTraining.plan.variants.eightOrLess.length, 'Freitagsvarianten für die Spielerzahl fehlen');
+const batchPayload = window.BT.seasonplanner.buildAIPayload(
+  Array.from({ length: 17 }, (_, index) => ({
+    date: '2027-06-' + String(index + 1).padStart(2, '0'), weekday: 'tue', time: '20:15', load: 'medium', loadReason: 'Test'
+  })),
+  { focus: 'Defense' }
+);
+const batchSizes = [];
+const batchResult = await window.BT.seasonplanner.planInBatches(batchPayload, async data => {
+  batchSizes.push(data.slots.length);
+  return { data: { trainings: data.slots.map(slot => ({ date: slot.date, drills: [] })) } };
+});
+assert(batchSizes.join(',') === '8,8,1', 'Saisonplanung teilt Slots nicht in sichere Blöcke');
+assert(batchResult.trainings.length === 17, 'Antworten aller Blöcke wurden nicht gesammelt');
+
+let rejectedBatch = false;
+try {
+  await window.BT.seasonplanner.planInBatches(batchPayload, async data => {
+    if (data.slots[0].date === '2027-06-17') throw new Error('Blockfehler');
+    return { data: { trainings: [] } };
+  });
+} catch (error) {
+  rejectedBatch = error.message === 'Blockfehler';
+}
+assert(rejectedBatch, 'Ein Blockfehler bricht die Saisonplanung nicht zuverlässig ab');
+
 route('#/schedule');
 assert(window.document.querySelector('[data-action="generate-season"]'), 'KI-Saisonplanung fehlt im Trainingsplan');
 assert(window.document.querySelector('[data-role="season-plan-summary"]'), 'Saisonübersicht fehlt');

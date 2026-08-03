@@ -109,14 +109,14 @@ function buildRequest(action, payload) {
   }
   if (action === 'planSeason') {
     const data = payload.data || {};
-    if (!Array.isArray(data.slots) || !data.slots.length || data.slots.length > 120) {
+    if (!Array.isArray(data.slots) || !data.slots.length || data.slots.length > 8) {
       throw Object.assign(new Error('Für die Saisonplanung fehlen gültige Trainingstermine.'), { status: 400 });
     }
     const serialized = JSON.stringify(data);
     if (serialized.length > 250_000) throw Object.assign(new Error('Die Saisonplanungsdaten sind zu umfangreich.'), { status: 413 });
     return {
       parts: [{ text: SEASON_PLAN_PROMPT + '\n\nPlanungsdaten:\n' + serialized }],
-      generationConfig: { response_mime_type: 'application/json', temperature: 0.25, maxOutputTokens: 32768 },
+      generationConfig: { response_mime_type: 'application/json', temperature: 0.25, maxOutputTokens: 8192 },
       json: true
     };
   }

@@ -157,10 +157,13 @@ BT.schedule = (function() {
           status.textContent = 'Saisonplanung abgebrochen.';
           return;
         }
-        status.textContent = 'KI plant ' + slots.length + ' Einheiten anhand von Spielabständen, Coach-Eingaben und bisherigen Daten …';
         const payload = BT.seasonplanner.buildAIPayload(slots, preferences);
-        const response = await BT.api.ai('planSeason', { data: payload });
-        const applied = BT.seasonplanner.applyAIPlan(response.data, slots);
+        const result = await BT.seasonplanner.planInBatches(
+          payload,
+          data => BT.api.ai('planSeason', { data }),
+          (current, total) => { status.textContent = 'KI plant Block ' + current + ' von ' + total + ' …'; }
+        );
+        const applied = BT.seasonplanner.applyAIPlan(result, slots);
         renderSeasonSummary(root);
         renderUpcoming(root);
         status.textContent = 'Saisonplanung erstellt: ' + applied.created + ' neu, ' + applied.updated + ' aktualisiert, ' + applied.protected + ' geschützt' + (applied.missing ? ', ' + applied.missing + ' KI-Antworten fehlten' : '') + '.';
