@@ -13,6 +13,12 @@ BT.schedule = (function() {
     { key: 'sun', label: 'So', num: 0 }
   ];
 
+  function seasonPlanningProgressText({ block, total, attempt }) {
+    return attempt === 2
+      ? 'KI versucht Block ' + block + ' von ' + total + ' erneut …'
+      : 'KI plant Block ' + block + ' von ' + total + ' …';
+  }
+
   function render(target) {
     const root = renderTemplate('tpl-schedule');
     target.appendChild(root);
@@ -161,7 +167,7 @@ BT.schedule = (function() {
         const result = await BT.seasonplanner.planInBatches(
           payload,
           data => BT.api.ai('planSeason', { data }),
-          (current, total) => { status.textContent = 'KI plant Block ' + current + ' von ' + total + ' …'; }
+          progress => { status.textContent = seasonPlanningProgressText(progress); }
         );
         const applied = BT.seasonplanner.applyAIPlan(result, slots);
         renderSeasonSummary(root);
@@ -346,5 +352,5 @@ BT.schedule = (function() {
     BT.util.toast(dates.length + ' Termine als Kalender exportiert.');
   }
 
-  return { render };
+  return { render, seasonPlanningProgressText };
 })();
