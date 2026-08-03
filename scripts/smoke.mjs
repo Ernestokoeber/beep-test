@@ -270,14 +270,59 @@ const batchResult = await window.BT.seasonplanner.planInBatches(batchPayload, as
 assert(batchSizes.join(',') === '4,4,4,4,1', 'Saisonplanung teilt Slots nicht in sichere Blöcke');
 assert(batchResult.trainings.length === 17, 'Antworten aller Blöcke wurden nicht gesammelt');
 
+function responseForSlots(slots) {
+  return { data: { trainings: slots.map(slot => ({ date: slot.date, summary: 'KI ' + slot.date, drills: [] })) } };
+}
+
+const firstBatchPayload = { ...batchPayload, slots: batchPayload.slots.slice(0, 4) };
+let retryCalls = 0;
+const retryProgress = [];
+const retriedResult = await window.BT.seasonplanner.planInBatches(
+  firstBatchPayload,
+  async data => {
+    retryCalls++;
+    return retryCalls === 1
+      ? { data: { trainings: [{ date: data.slots[0].date, drills: [] }] } }
+      : responseForSlots(data.slots);
+  },
+  progress => retryProgress.push(progress)
+);
+assert(retryCalls === 2, 'Ungültiger KI-Block wurde nicht einmal erneut angefragt');
+assert(retriedResult.trainings.length === 4, 'Erfolgreicher Retry liefert nicht alle Trainings zurück');
+assert(retryProgress.some(item => item.attempt === 2), 'Retry-Fortschritt wird nicht gemeldet');
+
+const invalidResponses = [
+  { data: { trainings: [
+    { date: firstBatchPayload.slots[0].date, drills: [] },
+    { date: firstBatchPayload.slots[0].date, drills: [] },
+    { date: firstBatchPayload.slots[2].date, drills: [] },
+    { date: firstBatchPayload.slots[3].date, drills: [] }
+  ] } },
+  { data: { trainings: firstBatchPayload.slots.slice(0, 3).map(slot => ({ date: slot.date, drills: [] })).concat({ date: '2099-01-01', drills: [] }) } }
+];
+for (const invalidResponse of invalidResponses) {
+  let calls = 0;
+  let rejected = false;
+  try {
+    await window.BT.seasonplanner.planInBatches(
+      firstBatchPayload,
+      async () => { calls++; return invalidResponse; }
+    );
+  } catch (error) {
+    rejected = /^KI-Block 1 von 1 fehlgeschlagen:/.test(error.message);
+  }
+  assert(calls === 2, 'Ungültige KI-Antwort wurde nicht exakt zweimal angefragt');
+  assert(rejected, 'Endgültig ungültige KI-Antwort benennt den fehlerhaften Block nicht');
+}
+
 let rejectedBatch = false;
 try {
   await window.BT.seasonplanner.planInBatches(batchPayload, async data => {
     if (data.slots[0].date === '2027-06-17') throw new Error('Blockfehler');
-    return { data: { trainings: [] } };
+    return responseForSlots(data.slots);
   });
 } catch (error) {
-  rejectedBatch = error.message === 'Blockfehler';
+  rejectedBatch = error.message === 'KI-Block 5 von 5 fehlgeschlagen: Blockfehler';
 }
 assert(rejectedBatch, 'Ein Blockfehler bricht die Saisonplanung nicht zuverlässig ab');
 
