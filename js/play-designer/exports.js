@@ -1,4 +1,5 @@
 import { createCourt, drawCourt, COURT_VIEW } from './rendering.js';
+import { enhanceCourt } from './court-enhancements.js';
 
 const core = window.BT.tactics.__core;
 
@@ -23,6 +24,7 @@ async function drawSnapshot(context, snapshot, width, height, sourceStep) {
     sourceStep: sourceStep || snapshot._sourceStep,
     showGuides: true
   });
+  enhanceCourt(svg, { interactive: false });
   svg.setAttribute('width', String(COURT_VIEW.width));
   svg.setAttribute('height', String(COURT_VIEW.height));
   const serialized = new XMLSerializer().serializeToString(svg);
@@ -32,7 +34,7 @@ async function drawSnapshot(context, snapshot, width, height, sourceStep) {
     const image = await new Promise((resolve, reject) => {
       const value = new Image();
       value.onload = () => resolve(value);
-      value.onerror = () => reject(new Error('Perspektivische Play-Ansicht konnte nicht gerendert werden.'));
+      value.onerror = () => reject(new Error('Play-Ansicht konnte nicht gerendert werden.'));
       value.src = url;
     });
     context.clearRect(0, 0, width, height);
@@ -69,7 +71,7 @@ export async function exportPdf(boardInput) {
       doc.text((board.description || board.category || '').slice(0, 140), 36, 54);
       doc.addImage(canvas.toDataURL('image/jpeg', .92), 'JPEG', 118, 68, 606, 438);
       doc.text(
-        `Schritt ${index + 1} / ${board.steps.length} · ${step.duration.toFixed(1)} s · Perspective Court`,
+        `Schritt ${index + 1} / ${board.steps.length} · ${step.duration.toFixed(1)} s · Hallenparkett`,
         118,
         522
       );
@@ -78,7 +80,7 @@ export async function exportPdf(boardInput) {
     doc.save(
       (board.title || 'courthub-play').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.pdf'
     );
-    toast('Play-PDF im Perspektiv-Look erstellt.');
+    toast('Play-PDF mit Hallenparkett erstellt.');
   } catch (error) {
     toast('PDF-Export fehlgeschlagen: ' + error.message);
   }
@@ -129,7 +131,7 @@ export async function exportGif(boardInput) {
     anchor.click();
     anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('Animiertes GIF im Perspektiv-Look erstellt.');
+    toast('Animiertes GIF mit Hallenparkett erstellt.');
   } catch (error) {
     toast('GIF-Export fehlgeschlagen: ' + error.message);
   }
