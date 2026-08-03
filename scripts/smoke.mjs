@@ -303,6 +303,13 @@ assert(window.document.querySelector('[data-role="tactic-template"]'), 'Vorlagen
 assert(window.document.querySelectorAll('.tactics-token.offense').length === 5, 'Startboard enthÃ¤lt nicht fÃ¼nf Angreifer');
 assert(window.document.querySelectorAll('.tactics-token.defense').length === 5, 'Startboard enthÃ¤lt nicht fÃ¼nf Verteidiger');
 assert(window.BT.tactics.templates().map(template => template.id).join(',') === 'zone-2-3,five-out,horns,no-middle', 'Die vier freigegebenen Taktikvorlagen fehlen');
+const clonedTacticStep = window.BT.tactics.cloneStep(migratedTactic.steps[0]);
+assert(clonedTacticStep.elements.find(item => item.type === 'offense').id === migratedTactic.steps[0].elements.find(item => item.type === 'offense').id, 'Schrittklone verlieren Token-IDs und können nicht animiert werden');
+const exportStyles = ['run', 'pass', 'dribble', 'screen', 'closeout', 'rotation'].map(kind => window.BT.tactics.arrowStyle(kind).color);
+assert(new Set(exportStyles).size === 6, 'GIF- und PDF-Export unterscheiden die sechs Pfeiltypen nicht');
+const pdfLayout = window.BT.tactics.pdfLayout();
+assert(pdfLayout.courtY + pdfLayout.courtHeight < pdfLayout.legendY && pdfLayout.legendY < pdfLayout.pageHeight, 'Taktik-PDF überlappt Legende oder Seitenrand');
+assert(css.includes('.tactics-preview-court .tactics-arrow.run') && css.includes('.tactics-preview-court .tactics-arrow.pass'), 'Spieleransicht zeichnet Lauf- und Passpfeile nicht');
 const storedTactic = window.BT.storage.upsertTactic({ title: 'Smoke Play', steps: migratedTactic.steps, published: true });
 assert(window.BT.storage.getTactics().some(item => item.id === storedTactic.id), 'Gespeicherte Taktik fehlt im gemeinsamen Speicher');
 route('#/tactics/player');

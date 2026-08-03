@@ -4515,8 +4515,8 @@ table.results tr:last-child td { border-bottom: none; }
   stroke-width: 3;
   fill: none;
 }
-.tactics-court .tactics-arrow.run { stroke: var(--cta); }
-.tactics-court .tactics-arrow.pass {
+.tactics-court .tactics-arrow.run, .tactics-preview-court .tactics-arrow.run { stroke: var(--cta); }
+.tactics-court .tactics-arrow.pass, .tactics-preview-court .tactics-arrow.pass {
   stroke: var(--primary);
   stroke-dasharray: 6 4;
 }
