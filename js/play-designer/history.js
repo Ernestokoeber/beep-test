@@ -19,6 +19,10 @@ export function createHistory(initialValue, options = {}) {
     future = [];
   }
 
+  function replace(value) {
+    present = copy(value);
+  }
+
   function commit(value) {
     const next = copy(value);
     if (equal(present, next)) return false;
@@ -45,6 +49,7 @@ export function createHistory(initialValue, options = {}) {
 
   return {
     reset,
+    replace,
     commit,
     undo,
     redo,
