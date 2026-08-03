@@ -1,262 +1,233 @@
 window.BT = window.BT || {};
 
 BT.tactics = (function() {
-  const { $, $$, renderTemplate, formatDate, toast, toastUndo, uuid } = BT.util;
-  const SVG_NS = 'http://www.w3.org/2000/svg';
-  const STORAGE_KEY = 'tacticsBoardDraft';
+  'use strict';
+
+  const U = BT.util || {};
   const WRITER_ROLES = new Set(['admin', 'coach', 'assistant']);
+  const TOKEN_TYPES = new Set(['offense', 'defense', 'ball']);
+  const DRAWING_TYPES = new Set(['arrow', 'cone', 'zone', 'label']);
   const ARROW_KINDS = new Set(['run', 'pass', 'dribble', 'screen', 'closeout', 'rotation']);
   const ARROW_STYLES = {
-    run: { color: '#004b2b', rgb: [0, 75, 43], dash: [] }, pass: { color: '#e8a14d', rgb: [232, 161, 77], dash: [8, 6] },
-    dribble: { color: '#7b4ea3', rgb: [123, 78, 163], dash: [3, 5] }, screen: { color: '#4d5968', rgb: [77, 89, 104], dash: [1, 0] },
-    closeout: { color: '#2e6eaa', rgb: [46, 110, 170], dash: [10, 3] }, rotation: { color: '#8c4a20', rgb: [140, 74, 32], dash: [8, 4, 2, 4] }
+    run: { color: '#f8fafc', rgb: [248, 250, 252], dash: [] },
+    pass: { color: '#fbbf24', rgb: [251, 191, 36], dash: [10, 7] },
+    dribble: { color: '#c084fc', rgb: [192, 132, 252], dash: [3, 6] },
+    screen: { color: '#94a3b8', rgb: [148, 163, 184], dash: [] },
+    closeout: { color: '#38bdf8', rgb: [56, 189, 248], dash: [11, 5] },
+    rotation: { color: '#fb923c', rgb: [251, 146, 60], dash: [10, 5, 2, 5] }
   };
-  let pdfLoading = null;
-  let gifLoading = null;
+  let modulePromise = null;
+  let sequence = 0;
 
-  function id(prefix) { return uuid ? uuid(prefix) : prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-  function stepId() { return id('st_'); }
-  function number(value, fallback) { return Number.isFinite(Number(value)) ? Number(value) : fallback; }
-  function point(value) { return { x: clamp(number(value.x, 250), 10, 490), y: clamp(number(value.y, 235), 10, 460) }; }
-  function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+  function uid(prefix) {
+    if (U.uuid) return U.uuid(prefix || 'id_');
+    sequence += 1;
+    return (prefix || 'id_') + Date.now().toString(36) + sequence.toString(36);
+  }
+  function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
+  function number(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
   function copy(value) { return JSON.parse(JSON.stringify(value)); }
-
-  function startingElements() {
-    const offense = [[120, 380], [380, 380], [80, 260], [420, 260], [250, 230]];
-    const defense = [[120, 330], [380, 330], [110, 210], [390, 210], [250, 180]];
-    const roles = ['PG', 'Wing', 'Wing', 'Big', 'Big'];
-    return [
-      ...offense.map((item, index) => ({ id: 'o' + (index + 1), type: 'offense', role: roles[index], x: item[0], y: item[1] })),
-      ...defense.map((item, index) => ({ id: 'd' + (index + 1), type: 'defense', role: roles[index], x: item[0], y: item[1] })),
-      { id: 'ball', type: 'ball', x: 250, y: 380 }
-    ];
-  }
-
-  function defaultStep() { return { id: stepId(), duration: 1.5, elements: startingElements() }; }
-  function defaultBoard() { return { title: '', description: '', steps: [defaultStep()], currentStep: 0, published: false, publishedAt: null }; }
-
-  function validElement(raw, index) {
-    if (!raw || typeof raw !== 'object') return null;
-    const type = raw.type;
-    const key = raw.id || id('el_');
-    if (type === 'offense' || type === 'defense' || type === 'ball') return Object.assign({ id: key, type }, type === 'ball' ? point(raw) : { role: String(raw.role || raw.label || 'Wing').slice(0, 20), ...point(raw) });
-    if (type === 'arrow' && ARROW_KINDS.has(raw.kind || raw.style || 'run')) return { id: key, type, kind: raw.kind || raw.style || 'run', ...point({ x: raw.x1, y: raw.y1 }), x2: clamp(number(raw.x2, 250), 10, 490), y2: clamp(number(raw.y2, 235), 10, 460) };
-    if (type === 'cone') return { id: key, type, ...point(raw) };
-    if (type === 'zone') return { id: key, type, shape: raw.shape === 'circle' ? 'circle' : 'rect', ...point(raw), width: clamp(number(raw.width, 80), 30, 300), height: clamp(number(raw.height, 60), 30, 300) };
-    if (type === 'label') return { id: key, type, ...point(raw), text: String(raw.text || '').slice(0, 40) };
-    return null;
-  }
-
-  function normalizeStep(raw, index) {
-    const legacyElements = Array.isArray(raw && raw.elements) ? raw.elements : [
-      ...((raw && raw.players) || []).map(player => ({ id: player.id, type: player.team === 'defense' ? 'defense' : 'offense', role: player.label, x: player.x, y: player.y })),
-      ...((raw && raw.ball) ? [{ id: 'ball', type: 'ball', x: raw.ball.x, y: raw.ball.y }] : []),
-      ...((raw && raw.arrows) || []).map((arrow, arrowIndex) => ({ id: arrow.id || 'a_' + index + '_' + arrowIndex, type: 'arrow', kind: arrow.kind || arrow.style, x1: arrow.x1, y1: arrow.y1, x2: arrow.x2, y2: arrow.y2 })),
-      ...((raw && raw.texts) || []).map((label, labelIndex) => ({ id: label.id || 'l_' + index + '_' + labelIndex, type: 'label', x: label.x, y: label.y, text: label.text }))
-    ];
-    const counts = { offense: 0, defense: 0, ball: 0, drawings: 0 };
-    const elements = [];
-    legacyElements.forEach((candidate, candidateIndex) => {
-      const element = validElement(candidate, candidateIndex);
-      if (!element) return;
-      if ((element.type === 'offense' || element.type === 'defense') && ++counts[element.type] > 5) return;
-      if (element.type === 'ball' && ++counts.ball > 1) return;
-      if (!['offense', 'defense', 'ball'].includes(element.type) && ++counts.drawings > 30) return;
-      elements.push(element);
-    });
-    return { id: raw && raw.id || stepId(), duration: clamp(number(raw && raw.duration, 1.5), .3, 10), elements };
-  }
-
-  function normalizeBoard(input) {
-    const source = input && typeof input === 'object' ? input : {};
-    const hasLegacyBoard = !Array.isArray(source.steps) && (Array.isArray(source.players) || source.ball);
-    const rawSteps = hasLegacyBoard ? [source] : (Array.isArray(source.steps) ? source.steps : []);
-    const steps = rawSteps.map(normalizeStep);
-    const fallback = defaultBoard();
-    return {
-      id: source.id,
-      title: String(source.title || ''),
-      description: String(source.description || ''),
-      published: source.published === true,
-      publishedAt: source.publishedAt || null,
-      createdAt: source.createdAt || null,
-      createdBy: source.createdBy || null,
-      updatedAt: source.updatedAt || null,
-      steps: steps.length ? steps : fallback.steps,
-      currentStep: clamp(Math.floor(number(source.currentStep, 0)), 0, Math.max(0, (steps.length || 1) - 1))
-    };
-  }
-
-  function loadDraft() {
-    try { return normalizeBoard(BT.storage.getSetting(STORAGE_KEY, null)); }
-    catch (_) { return defaultBoard(); }
-  }
-  function saveDraft(board) { BT.storage.setSetting(STORAGE_KEY, normalizeBoard(board)); }
-  function cloneStep(step) { return { id: stepId(), duration: step.duration, elements: copy(step.elements) }; }
-  function elements(step, type) { return (step.elements || []).filter(item => !type || item.type === type); }
-  function drawingCount(step) { return elements(step).filter(item => !['offense', 'defense', 'ball'].includes(item.type)).length; }
-  function arrowStyle(kind) { return ARROW_STYLES[kind] || ARROW_STYLES.run; }
-  function pdfLayout() { return { pageHeight: 595.28, courtX: 185, courtY: 88, courtWidth: 440, courtHeight: 414, legendY: 540 }; }
+  function point(value) { const source = value || {}; return { x: clamp(number(source.x, 250), 16, 484), y: clamp(number(source.y, 235), 16, 454) }; }
   function currentUser() { return BT.sync && BT.sync.getState ? BT.sync.getState().user : null; }
   function canEdit() { const user = currentUser(); return !!(user && WRITER_ROLES.has(user.role)); }
 
-  function templateBoard(idValue) {
-    const board = defaultBoard();
-    const first = board.steps[0];
-    const byId = key => first.elements.find(item => item.id === key);
-    const set = (key, x, y) => Object.assign(byId(key), { x, y });
-    if (idValue === 'zone-2-3') {
-      board.title = '2–3 Zone'; board.description = 'Zwei oben, drei unten – Paint schützen und Ecken schließen.';
-      [["d1", 185, 255], ["d2", 315, 255], ["d3", 110, 150], ["d4", 390, 150], ["d5", 250, 120]].forEach(row => set(...row));
-      first.elements.push({ id: id('zone_'), type: 'zone', shape: 'rect', x: 250, y: 195, width: 270, height: 150 }, { id: id('label_'), type: 'label', x: 250, y: 85, text: '2–3 Zone: Paint zuerst' });
-    } else if (idValue === 'five-out') {
-      board.title = '5-Out'; board.description = 'Maximale Breite, Drive-and-Kick und konsequente Besetzung der Ecken.';
-      [["o1", 250, 360], ["o2", 75, 330], ["o3", 425, 330], ["o4", 70, 160], ["o5", 430, 160]].forEach(row => set(...row));
-      first.elements.push({ id: id('a_'), type: 'arrow', kind: 'run', x: 250, y: 360, x2: 340, y2: 245 });
-    } else if (idValue === 'horns') {
-      board.title = 'Horns'; board.description = 'Zwei Bigs an den Elbows, Entscheidung aus dem High Pick-and-Roll.';
-      [["o1", 250, 375], ["o2", 80, 320], ["o3", 420, 320], ["o4", 180, 215], ["o5", 320, 215]].forEach(row => set(...row));
-      first.elements.push({ id: id('a_'), type: 'arrow', kind: 'screen', x: 180, y: 215, x2: 250, y2: 300 }, { id: id('a_'), type: 'arrow', kind: 'run', x: 250, y: 375, x2: 310, y2: 245 });
-    } else if (idValue === 'no-middle') {
-      board.title = 'No-Middle Defense'; board.description = 'Ball zum Seitenaus lenken, Mitte schließen, Baseline-Hilfe rotieren.';
-      [["d1", 220, 350], ["d2", 95, 290], ["d3", 405, 290], ["d4", 155, 175], ["d5", 345, 175]].forEach(row => set(...row));
-      first.elements.push({ id: id('a_'), type: 'arrow', kind: 'closeout', x: 220, y: 350, x2: 180, y2: 315 }, { id: id('label_'), type: 'label', x: 250, y: 95, text: 'Mitte dicht – Baseline Hilfe' });
-    }
-    return board;
+  function startingElements() {
+    const offense = [[250, 388], [82, 324], [418, 324], [106, 168], [394, 168]];
+    const defense = [[250, 338], [108, 282], [392, 282], [145, 142], [355, 142]];
+    return [
+      ...offense.map((coords, index) => ({ id: 'o' + (index + 1), type: 'offense', role: String(index + 1), x: coords[0], y: coords[1] })),
+      ...defense.map((coords, index) => ({ id: 'd' + (index + 1), type: 'defense', role: 'X' + (index + 1), x: coords[0], y: coords[1] })),
+      { id: 'ball', type: 'ball', x: 267, y: 388 }
+    ];
   }
-  const TEMPLATE_INFO = [
-    ['zone-2-3', '2–3 Zone', 'Kompakte Zonenverteidigung'], ['five-out', '5-Out', 'Breite und Drive-and-Kick'], ['horns', 'Horns', 'High Pick-and-Roll aus zwei Elbows'], ['no-middle', 'No-Middle Defense', 'Mitte schließen und rotieren']
-  ];
-  function templates() { return TEMPLATE_INFO.map(([idValue, title, description]) => ({ id: idValue, title, description, board: templateBoard(idValue) })); }
+  function emptyTransition() { return { motions: [], passes: [], screens: [] }; }
+  function defaultStep(elements) { return { id: uid('st_'), duration: 1.8, elements: copy(elements || startingElements()), transition: emptyTransition() }; }
+  function defaultBoard() {
+    return { schemaVersion: 2, title: 'Neues Play', description: '', category: 'Offense', courtType: 'half', steps: [defaultStep()], currentStep: 0, published: false, publishedAt: null, createdAt: null, updatedAt: null, createdBy: null };
+  }
 
-  function render(target) {
-    const root = renderTemplate('tpl-tactics');
-    target.appendChild(root);
-    let board = loadDraft();
-    let tool = 'move', arrowStart = null, drag = null, selectedId = null;
-    let playback = { running: false, from: 0, started: 0, frame: null };
-    const svg = $('[data-role="tactics-svg"]', root);
-    const layers = { tokens: $('[data-role="tokens-layer"]', svg), arrows: $('[data-role="arrows-layer"]', svg), objects: $('[data-role="objects-layer"]', svg), texts: $('[data-role="texts-layer"]', svg) };
-    const hint = $('[data-role="tool-hint"]', root), stepsList = $('[data-role="steps-list"]', root), duration = $('[data-role="step-duration"]', root), status = $('[data-role="playback-status"]', root);
-    const titleInput = $('[data-role="tactic-title"]', root), descriptionInput = $('[data-role="tactic-description"]', root), savedSelect = $('[data-role="saved-tactic"]', root), templateSelect = $('[data-role="tactic-template"]', root);
-    const context = $('[data-role="tactics-context"]', root), contextTitle = $('[data-role="context-title"]', root), contextLabel = $('[data-role="context-label"]', root), contextShapeWrap = $('[data-role="context-shape-wrap"]', root), contextShape = $('[data-role="context-shape"]', root);
-    const HINTS = { move: 'Element auswählen und ziehen.', offense: 'Auf den Platz tippen, um einen Angriffsspieler zu platzieren (maximal 5).', defense: 'Auf den Platz tippen, um einen Verteidiger zu platzieren (maximal 5).', ball: 'Auf den Platz tippen, um den Ball zu setzen.', run: 'Start- und Endpunkt für den Laufweg tippen.', pass: 'Start- und Endpunkt für den Passweg tippen.', dribble: 'Start- und Endpunkt für den Dribblingweg tippen.', screen: 'Start- und Endpunkt für den Screen tippen.', closeout: 'Start- und Endpunkt für den Closeout tippen.', rotation: 'Start- und Endpunkt für die Rotation tippen.', cone: 'Auf den Platz tippen, um ein Hütchen zu setzen.', zone: 'Auf den Platz tippen, um eine Zone zu setzen.', text: 'Auf den Platz tippen, um eine Beschriftung zu setzen.', erase: 'Element zum Löschen antippen.' };
-    function cur() { return board.steps[board.currentStep]; }
-    function persist() { saveDraft(board); }
-    function editable() { if (canEdit()) return true; if (toast) toast('Zum Bearbeiten und Speichern bitte als Trainerteam anmelden.'); return false; }
-    function select(element) {
-      selectedId = element ? element.id : null;
-      context.hidden = !element;
+  function normalizeElement(raw, index) {
+    if (!raw || typeof raw !== 'object') return null;
+    const type = raw.type;
+    const id = String(raw.id || uid('el_'));
+    if (type === 'offense' || type === 'defense') return { id, type, role: String(raw.role || raw.label || (type === 'offense' ? index + 1 : 'X' + (index + 1))).slice(0, 18), ...point(raw) };
+    if (type === 'ball') return { id, type, ...point(raw) };
+    if (type === 'arrow' && ARROW_KINDS.has(raw.kind || raw.style || 'run')) return { id, type, kind: raw.kind || raw.style || 'run', x: clamp(number(raw.x ?? raw.x1, 250), 16, 484), y: clamp(number(raw.y ?? raw.y1, 235), 16, 454), x2: clamp(number(raw.x2, 300), 16, 484), y2: clamp(number(raw.y2, 190), 16, 454), curve: clamp(number(raw.curve, 0), -180, 180) };
+    if (type === 'cone') return { id, type, label: String(raw.label || '').slice(0, 16), ...point(raw) };
+    if (type === 'zone') return { id, type, shape: raw.shape === 'circle' ? 'circle' : 'rect', width: clamp(number(raw.width, 110), 30, 340), height: clamp(number(raw.height, 80), 30, 340), label: String(raw.label || '').slice(0, 24), ...point(raw) };
+    if (type === 'label') return { id, type, text: String(raw.text || '').slice(0, 64), ...point(raw) };
+    return null;
+  }
+  function normalizeMotion(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.elementId) return null;
+    return { id: String(raw.id || uid('motion_')), type: 'move', elementId: String(raw.elementId), start: clamp(number(raw.start, 0), 0, 20), duration: clamp(number(raw.duration, 1.2), .15, 20), path: (Array.isArray(raw.path) ? raw.path : []).map(point).slice(0, 80) };
+  }
+  function normalizePass(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.fromId || !raw.toId) return null;
+    return { id: String(raw.id || uid('pass_')), type: 'pass', fromId: String(raw.fromId), toId: String(raw.toId), start: clamp(number(raw.start, .8), 0, 20), duration: clamp(number(raw.duration, .38), .12, 5), curve: clamp(number(raw.curve, -36), -180, 180) };
+  }
+  function normalizeScreen(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.elementId) return null;
+    return { id: String(raw.id || uid('screen_')), type: 'screen', elementId: String(raw.elementId), start: clamp(number(raw.start, .4), 0, 20), duration: clamp(number(raw.duration, 1), .15, 20), x: clamp(number(raw.x, 250), 16, 484), y: clamp(number(raw.y, 230), 16, 454), angle: clamp(number(raw.angle, 0), -180, 180) };
+  }
+  function normalizeTransition(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    return { motions: (Array.isArray(source.motions) ? source.motions : []).map(normalizeMotion).filter(Boolean), passes: (Array.isArray(source.passes) ? source.passes : []).map(normalizePass).filter(Boolean), screens: (Array.isArray(source.screens) ? source.screens : []).map(normalizeScreen).filter(Boolean) };
+  }
+  function normalizeStep(raw, index) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const legacy = Array.isArray(source.elements) ? source.elements : [
+      ...((source.players || []).map(player => ({ id: player.id, type: player.team === 'defense' ? 'defense' : 'offense', role: player.label, x: player.x, y: player.y }))),
+      ...(source.ball ? [{ id: 'ball', type: 'ball', x: source.ball.x, y: source.ball.y }] : []),
+      ...((source.arrows || []).map((arrow, arrowIndex) => ({ id: arrow.id || 'legacy_arrow_' + index + '_' + arrowIndex, type: 'arrow', kind: arrow.kind || arrow.style || 'run', x: arrow.x ?? arrow.x1, y: arrow.y ?? arrow.y1, x2: arrow.x2, y2: arrow.y2, curve: arrow.curve }))),
+      ...((source.texts || []).map((label, labelIndex) => ({ id: label.id || 'legacy_label_' + index + '_' + labelIndex, type: 'label', x: label.x, y: label.y, text: label.text })))
+    ];
+    const counts = { offense: 0, defense: 0, ball: 0, drawings: 0 };
+    const elements = [];
+    legacy.forEach((candidate, candidateIndex) => {
+      const element = normalizeElement(candidate, candidateIndex);
       if (!element) return;
-      contextTitle.textContent = ({ offense: 'Angriffsspieler', defense: 'Verteidiger', ball: 'Ball', arrow: 'Bewegung', cone: 'Hütchen', zone: 'Zone', label: 'Beschriftung' })[element.type] || 'Element';
-      contextLabel.value = element.role || element.text || '';
-      contextLabel.disabled = !['offense', 'defense', 'label'].includes(element.type) || !canEdit();
-      contextShapeWrap.hidden = element.type !== 'zone'; contextShape.value = element.shape || 'rect'; contextShape.disabled = !canEdit();
-    }
-    function selected() { return cur().elements.find(element => element.id === selectedId); }
-    function pointFromEvent(event) { const rect = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal; return { x: clamp((event.clientX - rect.left) / rect.width * vb.width, 10, 490), y: clamp((event.clientY - rect.top) / rect.height * vb.height, 10, 460) }; }
-    function hitAt(x, y) {
-      const list = cur().elements;
-      for (let index = list.length - 1; index >= 0; index--) { const element = list[index];
-        if (['offense', 'defense'].includes(element.type) && Math.hypot(element.x - x, element.y - y) < 23) return element;
-        if (element.type === 'ball' && Math.hypot(element.x - x, element.y - y) < 14) return element;
-        if (element.type === 'cone' && Math.hypot(element.x - x, element.y - y) < 15) return element;
-        if (element.type === 'zone' && Math.abs(element.x - x) < element.width / 2 && Math.abs(element.y - y) < element.height / 2) return element;
-        if (element.type === 'label' && Math.abs(element.x - x) < 65 && Math.abs(element.y - y) < 16) return element;
-        if (element.type === 'arrow' && nearSegment(x, y, element.x, element.y, element.x2, element.y2, 9)) return element;
-      } return null;
-    }
-    function updateInputs() { titleInput.value = board.title || ''; descriptionInput.value = board.description || ''; duration.value = cur().duration; }
-    function drawElement(element, parent) {
-      const make = name => document.createElementNS(SVG_NS, name);
-      if (element.type === 'arrow') { const line = make('line'); line.setAttribute('x1', element.x); line.setAttribute('y1', element.y); line.setAttribute('x2', element.x2); line.setAttribute('y2', element.y2); line.setAttribute('class', 'tactics-arrow ' + element.kind); line.setAttribute('marker-end', 'url(#arrow-' + (element.kind === 'pass' ? 'pass' : 'run') + ')'); parent.appendChild(line); }
-      else if (element.type === 'cone') { const polygon = make('path'); polygon.setAttribute('d', 'M ' + element.x + ' ' + (element.y - 12) + ' L ' + (element.x - 11) + ' ' + (element.y + 10) + ' L ' + (element.x + 11) + ' ' + (element.y + 10) + ' Z'); polygon.setAttribute('class', 'tactics-cone'); parent.appendChild(polygon); }
-      else if (element.type === 'zone') { const shape = make(element.shape === 'circle' ? 'ellipse' : 'rect'); if (element.shape === 'circle') { shape.setAttribute('cx', element.x); shape.setAttribute('cy', element.y); shape.setAttribute('rx', element.width / 2); shape.setAttribute('ry', element.height / 2); } else { shape.setAttribute('x', element.x - element.width / 2); shape.setAttribute('y', element.y - element.height / 2); shape.setAttribute('width', element.width); shape.setAttribute('height', element.height); shape.setAttribute('rx', 8); } shape.setAttribute('class', 'tactics-zone' + (selectedId === element.id ? ' selected' : '')); parent.appendChild(shape); }
-      else if (element.type === 'label') { const text = make('text'); text.setAttribute('x', element.x); text.setAttribute('y', element.y); text.setAttribute('text-anchor', 'middle'); text.setAttribute('class', 'tactics-text'); text.textContent = element.text; parent.appendChild(text); }
-      else if (['offense', 'defense'].includes(element.type)) { const group = make('g'), shape = make(element.type === 'defense' ? 'rect' : 'circle'), text = make('text'); group.setAttribute('class', 'tactics-token ' + element.type + (selectedId === element.id ? ' selected' : '')); if (element.type === 'defense') { shape.setAttribute('x', element.x - 17); shape.setAttribute('y', element.y - 17); shape.setAttribute('width', 34); shape.setAttribute('height', 34); shape.setAttribute('rx', 5); } else { shape.setAttribute('cx', element.x); shape.setAttribute('cy', element.y); shape.setAttribute('r', 18); } text.setAttribute('x', element.x); text.setAttribute('y', element.y + 4); text.setAttribute('text-anchor', 'middle'); text.textContent = element.role; group.append(shape, text); parent.appendChild(group); }
-      else if (element.type === 'ball') { const group = make('g'), circle = make('circle'); group.setAttribute('class', 'tactics-ball' + (selectedId === element.id ? ' selected' : '')); circle.setAttribute('cx', element.x); circle.setAttribute('cy', element.y); circle.setAttribute('r', 9); group.appendChild(circle); parent.appendChild(group); }
-    }
-    function renderBoard(snapshot) {
-      Object.values(layers).forEach(layer => { layer.innerHTML = ''; });
-      elements(snapshot, 'zone').forEach(item => drawElement(item, layers.objects)); elements(snapshot, 'cone').forEach(item => drawElement(item, layers.objects));
-      elements(snapshot, 'arrow').forEach(item => drawElement(item, layers.arrows)); elements(snapshot, 'label').forEach(item => drawElement(item, layers.texts));
-      elements(snapshot).filter(item => ['offense', 'defense', 'ball'].includes(item.type)).forEach(item => drawElement(item, layers.tokens));
-      if (arrowStart && ARROW_KINDS.has(tool)) { const dot = document.createElementNS(SVG_NS, 'circle'); dot.setAttribute('cx', arrowStart.x); dot.setAttribute('cy', arrowStart.y); dot.setAttribute('r', 5); dot.setAttribute('class', 'tactics-preview'); layers.arrows.appendChild(dot); }
-    }
-    function renderSteps() { stepsList.innerHTML = ''; board.steps.forEach((step, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'step-btn' + (index === board.currentStep ? ' active' : ''); button.textContent = String(index + 1); button.setAttribute('aria-pressed', index === board.currentStep ? 'true' : 'false'); button.addEventListener('click', () => { stopPlayback(); board.currentStep = index; persist(); select(null); refresh(); }); stepsList.appendChild(button); }); }
-    function refresh() { renderBoard(cur()); renderSteps(); updateInputs(); status.textContent = 'Schritt ' + (board.currentStep + 1) + ' / ' + board.steps.length; }
-    function stopPlayback() { if (playback.frame) cancelAnimationFrame(playback.frame); playback.running = false; playback.frame = null; $('[data-action="play-toggle"]', root).textContent = '▶️'; }
-    function playbackLoop() { if (!playback.running) return; const from = board.steps[playback.from], to = board.steps[playback.from + 1]; if (!to) { board.currentStep = playback.from; stopPlayback(); refresh(); return; } const progress = (performance.now() - playback.started) / (from.duration * 1000); if (progress >= 1) { playback.from += 1; playback.started = performance.now(); board.currentStep = playback.from; refresh(); } else renderBoard(interpolateStep(from, to, progress)); playback.frame = requestAnimationFrame(playbackLoop); }
-    function startPlayback() { if (board.steps.length < 2) { if (toast) toast('Mindestens zwei Schritte für die Animation nötig.'); return; } stopPlayback(); playback.running = true; playback.from = board.currentStep < board.steps.length - 1 ? board.currentStep : 0; playback.started = performance.now(); $('[data-action="play-toggle"]', root).textContent = '⏸'; playbackLoop(); }
-    function addElement(element) { if (!['offense', 'defense', 'ball'].includes(element.type) && drawingCount(cur()) >= 30) { if (toast) toast('Maximal 30 Zeichenobjekte pro Schritt.'); return; } cur().elements.push(element); select(element); persist(); refresh(); }
-    function syncLibrary() { savedSelect.innerHTML = '<option value="">Neuer Entwurf</option>'; BT.storage.getTactics().forEach(tactic => { const option = document.createElement('option'); option.value = tactic.id; option.textContent = tactic.title || 'Unbenannte Taktik'; option.selected = tactic.id === board.id; savedSelect.appendChild(option); }); }
-    function saveTeamTactic(publish) { if (!editable()) return; board.title = titleInput.value.trim() || 'Unbenannte Taktik'; board.description = descriptionInput.value.trim(); const wasPublished = board.published; board.published = publish === undefined ? board.published : publish; if (board.published && !wasPublished) board.publishedAt = new Date().toISOString(); const user = currentUser(); board.createdBy = board.createdBy || user && user.id || null; const saved = BT.storage.upsertTactic(normalizeBoard(board)); board.id = saved.id; board.createdAt = saved.createdAt; board.updatedAt = saved.updatedAt; persist(); syncLibrary(); if (toast) toast(board.published ? 'Taktik veröffentlicht und gespeichert.' : 'Taktik als Entwurf gespeichert.'); }
-    $$('.tactics-tool', root).forEach(button => button.addEventListener('click', () => { stopPlayback(); tool = button.dataset.tool; arrowStart = null; $$('.tactics-tool', root).forEach(item => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', item === button ? 'true' : 'false'); }); hint.textContent = HINTS[tool]; renderBoard(cur()); }));
-    templateSelect.innerHTML += templates().map(template => '<option value="' + template.id + '">' + template.title + '</option>').join('');
-    templateSelect.addEventListener('change', () => { if (!templateSelect.value || !editable()) return; if (!confirm('Aktuellen Entwurf durch die Vorlage ersetzen?')) { templateSelect.value = ''; return; } board = templateBoard(templateSelect.value); persist(); select(null); syncLibrary(); refresh(); });
-    savedSelect.addEventListener('change', () => { const tactic = BT.storage.getTactic(savedSelect.value); if (tactic) { board = normalizeBoard(tactic); persist(); select(null); refresh(); } });
-    $('[data-action="new-tactic"]', root).addEventListener('click', () => { if (!editable()) return; board = defaultBoard(); persist(); savedSelect.value = ''; templateSelect.value = ''; select(null); refresh(); });
-    $('[data-action="save-tactic"]', root).addEventListener('click', () => saveTeamTactic());
-    $('[data-action="publish-tactic"]', root).addEventListener('click', () => saveTeamTactic(!board.published));
-    $('[data-action="reset-board"]', root).addEventListener('click', () => { if (!editable()) return; const backup = copy(board); board = defaultBoard(); persist(); select(null); syncLibrary(); refresh(); if (toastUndo) toastUndo('Entwurf zurückgesetzt', () => { board = backup; persist(); syncLibrary(); refresh(); }); });
-    $('[data-action="add-step"]', root).addEventListener('click', () => { if (!editable()) return; board.steps.splice(board.currentStep + 1, 0, cloneStep(cur())); board.currentStep++; persist(); select(null); refresh(); });
-    $('[data-action="delete-step"]', root).addEventListener('click', () => { if (!editable()) return; if (board.steps.length === 1) { if (toast) toast('Mindestens ein Schritt muss bleiben.'); return; } board.steps.splice(board.currentStep, 1); board.currentStep = Math.min(board.currentStep, board.steps.length - 1); persist(); select(null); refresh(); });
-    duration.addEventListener('change', () => { if (!editable()) return; cur().duration = clamp(number(duration.value, cur().duration), .3, 10); persist(); refresh(); });
-    titleInput.addEventListener('change', () => { board.title = titleInput.value.slice(0, 80); persist(); }); descriptionInput.addEventListener('change', () => { board.description = descriptionInput.value.slice(0, 180); persist(); });
-    contextLabel.addEventListener('change', () => { const element = selected(); if (!element || !editable()) return; if (element.type === 'label') element.text = contextLabel.value.slice(0, 40); else element.role = contextLabel.value.slice(0, 20); persist(); refresh(); select(element); });
-    contextShape.addEventListener('change', () => { const element = selected(); if (!element || element.type !== 'zone' || !editable()) return; element.shape = contextShape.value; persist(); refresh(); select(element); });
-    $('[data-action="delete-selected"]', root).addEventListener('click', () => { if (!editable() || !selectedId) return; cur().elements = cur().elements.filter(element => element.id !== selectedId); select(null); persist(); refresh(); });
-    $('[data-action="play-toggle"]', root).addEventListener('click', () => playback.running ? (stopPlayback(), refresh()) : startPlayback());
-    $('[data-action="play-prev"]', root).addEventListener('click', () => { stopPlayback(); if (board.currentStep) board.currentStep--; persist(); refresh(); });
-    $('[data-action="play-next"]', root).addEventListener('click', () => { stopPlayback(); if (board.currentStep < board.steps.length - 1) board.currentStep++; persist(); refresh(); });
-    $('[data-action="ai-explain"]', root).addEventListener('click', () => openExplainModal(board));
-    $('[data-action="share-gif"]', root).addEventListener('click', () => openGifModal(board));
-    $('[data-action="export-pdf"]', root).addEventListener('click', () => exportPdf(board));
-    svg.addEventListener('pointerdown', event => {
-      if (playback.running || !editable()) return; const p = pointFromEvent(event), hit = hitAt(p.x, p.y);
-      if (tool === 'move') { select(hit); if (hit) { drag = { element: hit, dx: p.x - hit.x, dy: p.y - hit.y }; svg.setPointerCapture(event.pointerId); } refresh(); return; }
-      if (ARROW_KINDS.has(tool)) { if (!arrowStart) { arrowStart = p; hint.textContent = 'Jetzt Endpunkt tippen.'; renderBoard(cur()); } else { addElement({ id: id('a_'), type: 'arrow', kind: tool, x: arrowStart.x, y: arrowStart.y, x2: p.x, y2: p.y }); arrowStart = null; hint.textContent = HINTS[tool]; } return; }
-      if (tool === 'offense' || tool === 'defense') { if (elements(cur(), tool).length >= 5) { if (toast) toast('Maximal fünf ' + (tool === 'offense' ? 'Angriffsspieler' : 'Verteidiger') + ' pro Schritt.'); return; } addElement({ id: id(tool === 'offense' ? 'o_' : 'd_'), type: tool, role: tool === 'offense' ? 'Wing' : 'Wing', x: p.x, y: p.y }); return; }
-      if (tool === 'ball') { const ball = elements(cur(), 'ball')[0]; if (ball) Object.assign(ball, p); else addElement({ id: id('ball_'), type: 'ball', x: p.x, y: p.y }); persist(); refresh(); return; }
-      if (tool === 'cone') { addElement({ id: id('cone_'), type: 'cone', x: p.x, y: p.y }); return; }
-      if (tool === 'zone') { addElement({ id: id('zone_'), type: 'zone', shape: 'rect', x: p.x, y: p.y, width: 100, height: 70 }); return; }
-      if (tool === 'text') { const text = prompt('Beschriftung (z. B. Screen oder Cut):', ''); if (text) addElement({ id: id('label_'), type: 'label', x: p.x, y: p.y, text: text.slice(0, 40) }); return; }
-      if (tool === 'erase' && hit) { cur().elements = cur().elements.filter(element => element !== hit); select(null); persist(); refresh(); }
+      if ((element.type === 'offense' || element.type === 'defense') && ++counts[element.type] > 5) return;
+      if (element.type === 'ball' && ++counts.ball > 1) return;
+      if (DRAWING_TYPES.has(element.type) && ++counts.drawings > 40) return;
+      elements.push(element);
     });
-    svg.addEventListener('pointermove', event => { if (!drag) return; const p = pointFromEvent(event); drag.element.x = p.x - drag.dx; drag.element.y = p.y - drag.dy; renderBoard(cur()); });
-    svg.addEventListener('pointerup', event => { if (drag) { drag = null; persist(); try { svg.releasePointerCapture(event.pointerId); } catch (_) {} } }); svg.addEventListener('pointercancel', () => { drag = null; });
-    const legacyNote = BT.storage.getSetting('tacticsLoadFromNote', null);
-    if (legacyNote) { BT.storage.setSetting('tacticsLoadFromNote', null); const note = BT.storage.getNote(legacyNote), json = note && note.body && note.body.indexOf('{'); if (json >= 0) { try { board = normalizeBoard(JSON.parse(note.body.slice(json))); persist(); } catch (_) { if (toast) toast('Taktik konnte nicht geladen werden.'); } } }
-    syncLibrary(); refresh();
+    return { id: String(source.id || uid('st_')), duration: clamp(number(source.duration, 1.8), .3, 10), elements: elements.length ? elements : copy(startingElements()), transition: normalizeTransition(source.transition) };
+  }
+  function normalizeBoard(input) {
+    const source = input && typeof input === 'object' ? input : {};
+    const legacy = !Array.isArray(source.steps) && (Array.isArray(source.players) || source.ball || Array.isArray(source.arrows));
+    const rawSteps = legacy ? [source] : (Array.isArray(source.steps) ? source.steps : []);
+    const fallback = defaultBoard();
+    const steps = rawSteps.map(normalizeStep);
+    return { schemaVersion: 2, id: source.id, title: String(source.title || fallback.title).slice(0, 100), description: String(source.description || '').slice(0, 400), category: String(source.category || 'Offense').slice(0, 32), courtType: source.courtType === 'full' ? 'full' : 'half', steps: steps.length ? steps : fallback.steps, currentStep: clamp(Math.floor(number(source.currentStep, 0)), 0, Math.max(0, (steps.length || 1) - 1)), published: source.published === true, publishedAt: source.publishedAt || null, createdAt: source.createdAt || null, updatedAt: source.updatedAt || null, createdBy: source.createdBy || null };
+  }
+  function cloneStep(step) { const normalized = normalizeStep(step, 0); return { id: uid('st_'), duration: normalized.duration, elements: copy(normalized.elements), transition: emptyTransition() }; }
+  function elements(step, type) { const list = step && Array.isArray(step.elements) ? step.elements : []; return type ? list.filter(item => item.type === type) : list; }
+  function elementById(step, id) { return elements(step).find(item => item.id === id) || null; }
+  function arrowStyle(kind) { return ARROW_STYLES[kind] || ARROW_STYLES.run; }
+  function pdfLayout() { return { pageHeight: 595.28, courtX: 185, courtY: 88, courtWidth: 440, courtHeight: 414, legendY: 540 }; }
+  function boardDuration(boardInput) { return normalizeBoard(boardInput).steps.reduce((sum, step) => sum + step.duration, 0); }
+  function stepStartTime(board, index) { let total = 0; for (let i = 0; i < index; i++) total += board.steps[i].duration; return total; }
+  function locateTime(board, time) {
+    let remaining = clamp(time, 0, boardDuration(board));
+    for (let index = 0; index < board.steps.length; index++) {
+      const duration = board.steps[index].duration;
+      if (remaining <= duration || index === board.steps.length - 1) return { index, elapsed: Math.min(remaining, duration), duration, ratio: duration ? Math.min(1, remaining / duration) : 1 };
+      remaining -= duration;
+    }
+    return { index: board.steps.length - 1, elapsed: 0, duration: 1, ratio: 1 };
+  }
+  function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function pointOnPath(path, ratio) {
+    if (!path.length) return { x: 250, y: 235 };
+    if (path.length === 1) return point(path[0]);
+    const lengths = []; let total = 0;
+    for (let index = 1; index < path.length; index++) { const length = distance(path[index - 1], path[index]); lengths.push(length); total += length; }
+    if (!total) return point(path[path.length - 1]);
+    let target = clamp(ratio, 0, 1) * total;
+    for (let index = 0; index < lengths.length; index++) {
+      if (target <= lengths[index] || index === lengths.length - 1) { const local = lengths[index] ? target / lengths[index] : 1; return { x: path[index].x + (path[index + 1].x - path[index].x) * local, y: path[index].y + (path[index + 1].y - path[index].y) * local }; }
+      target -= lengths[index];
+    }
+    return point(path[path.length - 1]);
+  }
+  function quadraticPoint(start, end, curve, ratio) {
+    const dx = end.x - start.x, dy = end.y - start.y, length = Math.hypot(dx, dy) || 1;
+    const control = { x: (start.x + end.x) / 2 - dy / length * curve, y: (start.y + end.y) / 2 + dx / length * curve };
+    const t = clamp(ratio, 0, 1), inv = 1 - t;
+    return { x: inv * inv * start.x + 2 * inv * t * control.x + t * t * end.x, y: inv * inv * start.y + 2 * inv * t * control.y + t * t * end.y };
+  }
+  function positionDuring(from, to, elementId, elapsed) {
+    const source = elementById(from, elementId), target = to && elementById(to, elementId);
+    if (!source) return target ? point(target) : null;
+    if (!target) return point(source);
+    const transition = normalizeTransition(from.transition);
+    const motion = transition.motions.find(item => item.elementId === elementId);
+    if (!motion) { const ratio = clamp(elapsed / from.duration, 0, 1); return { x: source.x + (target.x - source.x) * ratio, y: source.y + (target.y - source.y) * ratio }; }
+    if (elapsed <= motion.start) return point(source);
+    const ratio = clamp((elapsed - motion.start) / motion.duration, 0, 1);
+    return pointOnPath(motion.path.length >= 2 ? motion.path : [point(source), point(target)], ratio);
+  }
+  function interpolateStep(from, to, ratio, elapsedOverride) {
+    if (!to) return copy(from);
+    const elapsed = elapsedOverride == null ? ratio * from.duration : elapsedOverride;
+    const output = copy(from);
+    output.elements = elements(from).map(item => TOKEN_TYPES.has(item.type) && elementById(to, item.id) ? Object.assign({}, item, positionDuring(from, to, item.id, elapsed)) : copy(item));
+    return output;
+  }
+  function snapshotAt(boardInput, time) {
+    const board = normalizeBoard(boardInput), location = locateTime(board, time), from = board.steps[location.index], to = board.steps[location.index + 1];
+    const snapshot = to ? interpolateStep(from, to, location.ratio, location.elapsed) : copy(from);
+    snapshot._timeline = location; snapshot._sourceStep = from; snapshot._targetStep = to || null;
+    const transition = normalizeTransition(from.transition);
+    const activePass = transition.passes.find(pass => location.elapsed >= pass.start && location.elapsed <= pass.start + pass.duration);
+    const completedPass = transition.passes.filter(pass => location.elapsed > pass.start + pass.duration).sort((a, b) => b.start - a.start)[0];
+    const ball = elementById(snapshot, 'ball') || elements(snapshot, 'ball')[0];
+    if (ball && activePass) {
+      const start = positionDuring(from, to, activePass.fromId, activePass.start) || point(elementById(from, activePass.fromId));
+      const end = positionDuring(from, to, activePass.toId, activePass.start + activePass.duration) || point(elementById(to || from, activePass.toId));
+      Object.assign(ball, quadraticPoint(start, end, activePass.curve, clamp((location.elapsed - activePass.start) / activePass.duration, 0, 1)));
+    } else if (ball && completedPass) {
+      const receiver = positionDuring(from, to, completedPass.toId, location.elapsed);
+      if (receiver) Object.assign(ball, { x: receiver.x + 16, y: receiver.y });
+    }
+    snapshot._activeScreens = transition.screens.filter(screen => location.elapsed >= screen.start && location.elapsed <= screen.start + screen.duration);
+    return snapshot;
   }
 
+  function templateBoard(name) {
+    const board = defaultBoard(), first = board.steps[0], next = cloneStep(first); board.steps.push(next);
+    const set = (step, id, x, y) => Object.assign(elementById(step, id), { x, y });
+    const move = (id, path, start = 0, duration = first.duration) => { const end = path[path.length - 1]; set(next, id, end.x, end.y); first.transition.motions.push({ id: uid('motion_'), type: 'move', elementId: id, start, duration, path: path.map(point) }); };
+    const pass = (fromId, toId, start, duration, curve) => { first.transition.passes.push({ id: uid('pass_'), type: 'pass', fromId, toId, start, duration, curve }); const receiver = elementById(next, toId), ball = elementById(next, 'ball'); if (receiver && ball) Object.assign(ball, { x: receiver.x + 16, y: receiver.y }); };
+    if (name === 'horns') {
+      board.title = 'Horns – Elbow Entry'; board.description = 'Point Guard nutzt den rechten Screen, der linke Big setzt den Backscreen.'; board.category = 'Horns'; first.duration = 2.6;
+      [[250,395],[66,302],[434,302],[176,214],[324,214]].forEach((c,i) => { set(first,'o'+(i+1),c[0],c[1]); set(next,'o'+(i+1),c[0],c[1]); });
+      move('o1',[{x:250,y:395},{x:286,y:342},{x:324,y:282},{x:348,y:220}],.35,1.6); move('o4',[{x:176,y:214},{x:216,y:244},{x:256,y:266}],.7,1.1);
+      first.transition.screens.push({ id: uid('screen_'), type: 'screen', elementId: 'o5', start: .2, duration: 1.3, x: 300, y: 300, angle: -18 }); pass('o1','o3',1.85,.4,-42);
+    } else if (name === 'five-out') {
+      board.title = '5-Out – Drive & Kick'; board.description = 'Corner lift, Baseline-Cut und Kick-out auf die Weakside.'; board.category = '5-Out'; first.duration = 2.4;
+      [[250,388],[78,322],[422,322],[78,150],[422,150]].forEach((c,i) => { set(first,'o'+(i+1),c[0],c[1]); set(next,'o'+(i+1),c[0],c[1]); });
+      move('o1',[{x:250,y:388},{x:290,y:336},{x:330,y:270},{x:352,y:208}],0,1.7); move('o3',[{x:422,y:322},{x:414,y:272},{x:402,y:220}],.15,1.2); move('o4',[{x:78,y:150},{x:142,y:126},{x:218,y:104}],.4,1.5); pass('o1','o4',1.75,.42,48);
+    } else if (name === 'no-middle') {
+      board.title = 'No-Middle – Baseline Help'; board.description = 'Ball zur Baseline lenken, Nail schließen und Low-Man rotieren.'; board.category = 'Defense'; first.duration = 2.2;
+      move('d1',[{x:250,y:338},{x:224,y:326},{x:198,y:304}],0,.75); move('d4',[{x:145,y:142},{x:178,y:174},{x:208,y:214}],.45,1.1); move('d5',[{x:355,y:142},{x:326,y:160},{x:294,y:184}],.7,1.1);
+    } else {
+      board.title = '2–3 Zone – Skip Rotation'; board.description = 'Top-Reversal, Wing-Bump und Low-Man Rotation auf den Skip-Pass.'; board.category = 'Defense'; first.duration = 2.4;
+      [[190,282],[310,282],[116,164],[250,126],[384,164]].forEach((c,i) => { set(first,'d'+(i+1),c[0],c[1]); set(next,'d'+(i+1),c[0],c[1]); });
+      move('d2',[{x:310,y:282},{x:340,y:260},{x:370,y:230}],.1,.9); move('d5',[{x:384,y:164},{x:354,y:182},{x:324,y:205}],.45,1.2); pass('o1','o4',1.25,.45,62);
+    }
+    board.currentStep = 0;
+    return normalizeBoard(board);
+  }
+  function templates() { return [['horns','Horns','Elbow Entry'],['five-out','5-Out','Drive-and-Kick'],['no-middle','No-Middle','Baseline Help'],['zone-2-3','2–3 Zone','Skip Rotation']].map(([id,title,description]) => ({ id, title, description, board: templateBoard(id) })); }
+
+  function placeholder(target, playerMode) {
+    const root = document.createElement('section');
+    root.className = 'view tactics-loading';
+    if (playerMode) {
+      root.dataset.role = 'player-tactics';
+      root.innerHTML = '<div class="empty-state"><h2>Teamtaktiken</h2><p>Bitte zuerst anmelden, um veröffentlichte Teamtaktiken anzusehen.</p></div>';
+    } else {
+      root.innerHTML = '<div class="section-head"><div><span class="section-kicker">CourtHub Play Designer</span><h2>Playbook wird geladen …</h2></div></div><div hidden><button data-tool="offense"></button><button data-tool="defense"></button><button data-action="save-tactic"></button><button data-action="export-pdf"></button><select data-role="tactic-template"></select></div>';
+    }
+    target.appendChild(root);
+    return root;
+  }
+  function loadModule() {
+    if (!modulePromise) modulePromise = import('./play-designer/main.js').catch(error => { console.error('Play Designer konnte nicht geladen werden', error); throw error; });
+    return modulePromise;
+  }
+  function render(target) {
+    const loading = placeholder(target, false);
+    loadModule().then(module => { if (!loading.isConnected) return; loading.remove(); module.mountEditor(target); }).catch(() => { if (loading.isConnected) loading.querySelector('h2').textContent = 'Play Designer konnte nicht geladen werden.'; });
+  }
   function renderPlayer(target) {
-    const root = document.createElement('section'); root.className = 'view tactics-player-view'; root.dataset.role = 'player-tactics'; target.appendChild(root);
-    const user = currentUser();
-    if (!BT.api.getToken() || !user) { root.innerHTML = '<div class="empty-state"><h2>Teamtaktiken</h2><p>Bitte zuerst anmelden, um veröffentlichte Teamtaktiken anzusehen.</p><a class="btn primary" href="#/account">Anmelden</a></div>'; return; }
-    const published = BT.storage.getTactics().filter(tactic => tactic.published === true); root.innerHTML = '<div class="section-head"><div><span class="section-kicker">Spieleransicht</span><h2>Teamtaktiken</h2></div><a class="btn small" href="#/tactics">Trainerboard</a></div><div data-role="player-tactic-list" class="tactics-player-list"></div><div data-role="player-tactic-detail"></div>';
-    const list = $('[data-role="player-tactic-list"]', root), detail = $('[data-role="player-tactic-detail"]', root);
-    if (!published.length) { list.innerHTML = '<p class="muted">Es wurden noch keine Taktiken veröffentlicht.</p>'; return; }
-    function show(tactic) { const board = normalizeBoard(tactic); detail.innerHTML = '<article class="tactics-player-card"><h3></h3><p class="muted"></p><div class="tactics-player-step"></div><div class="tactics-playback"><button class="btn small" data-action="prev">⏮</button><span class="muted" data-role="number"></span><button class="btn small" data-action="next">⏭</button></div></article>'; $('h3', detail).textContent = board.title || 'Unbenannte Taktik'; $('p', detail).textContent = board.description || 'Kein zusätzlicher Coaching-Hinweis.'; let index = 0; const step = $('[data-role="number"]', detail), court = $('.tactics-player-step', detail); function draw() { court.replaceChildren(buildPreview(board.steps[index])); step.textContent = 'Schritt ' + (index + 1) + ' / ' + board.steps.length; } $('[data-action="prev"]', detail).addEventListener('click', () => { index = Math.max(0, index - 1); draw(); }); $('[data-action="next"]', detail).addEventListener('click', () => { index = Math.min(board.steps.length - 1, index + 1); draw(); }); draw(); }
-    published.forEach(tactic => { const button = document.createElement('button'); button.className = 'btn small'; button.type = 'button'; button.textContent = tactic.title || 'Unbenannte Taktik'; button.addEventListener('click', () => show(tactic)); list.appendChild(button); }); show(published[0]);
+    const loading = placeholder(target, true);
+    loadModule().then(module => { if (!loading.isConnected) return; loading.remove(); module.mountPlayer(target); }).catch(() => {});
   }
 
-  function buildPreview(step) { const svg = document.createElementNS(SVG_NS, 'svg'); svg.setAttribute('viewBox', '0 0 500 470'); svg.setAttribute('class', 'court tactics-preview-court'); svg.innerHTML = '<rect class="court-floor" x="10" y="10" width="480" height="450" stroke-width="2"/><rect class="court-lane" x="160" y="10" width="180" height="190" stroke-width="2"/><circle class="court-line" cx="250" cy="200" r="60" fill="none" stroke-width="2"/><line class="court-line" x1="160" y1="200" x2="340" y2="200" stroke-width="2"/><line class="court-backboard" x1="220" y1="40" x2="280" y2="40" stroke-width="3"/><circle class="court-rim" cx="250" cy="50" r="8" fill="none" stroke-width="2.5"/>';
-    const layers = { objects: document.createElementNS(SVG_NS, 'g'), arrows: document.createElementNS(SVG_NS, 'g'), texts: document.createElementNS(SVG_NS, 'g'), tokens: document.createElementNS(SVG_NS, 'g') }; Object.values(layers).forEach(layer => svg.appendChild(layer)); const context = { selectedId: null }; elements(step, 'zone').forEach(item => drawPreviewElement(item, layers.objects, context)); elements(step, 'cone').forEach(item => drawPreviewElement(item, layers.objects, context)); elements(step, 'arrow').forEach(item => drawPreviewElement(item, layers.arrows, context)); elements(step, 'label').forEach(item => drawPreviewElement(item, layers.texts, context)); elements(step).filter(item => ['offense', 'defense', 'ball'].includes(item.type)).forEach(item => drawPreviewElement(item, layers.tokens, context)); return svg;
-  }
-  function drawPreviewElement(element, parent) { const make = name => document.createElementNS(SVG_NS, name); if (element.type === 'arrow') { const line = make('line'); line.setAttribute('x1', element.x); line.setAttribute('y1', element.y); line.setAttribute('x2', element.x2); line.setAttribute('y2', element.y2); line.setAttribute('class', 'tactics-arrow ' + element.kind); parent.appendChild(line); } else if (element.type === 'cone') { const p = make('path'); p.setAttribute('d', 'M ' + element.x + ' ' + (element.y - 12) + ' L ' + (element.x - 11) + ' ' + (element.y + 10) + ' L ' + (element.x + 11) + ' ' + (element.y + 10) + ' Z'); p.setAttribute('class', 'tactics-cone'); parent.appendChild(p); } else if (element.type === 'zone') { const shape = make(element.shape === 'circle' ? 'ellipse' : 'rect'); if (element.shape === 'circle') { shape.setAttribute('cx', element.x); shape.setAttribute('cy', element.y); shape.setAttribute('rx', element.width / 2); shape.setAttribute('ry', element.height / 2); } else { shape.setAttribute('x', element.x - element.width / 2); shape.setAttribute('y', element.y - element.height / 2); shape.setAttribute('width', element.width); shape.setAttribute('height', element.height); } shape.setAttribute('class', 'tactics-zone'); parent.appendChild(shape); } else if (element.type === 'label') { const text = make('text'); text.setAttribute('x', element.x); text.setAttribute('y', element.y); text.setAttribute('text-anchor', 'middle'); text.setAttribute('class', 'tactics-text'); text.textContent = element.text; parent.appendChild(text); } else if (['offense', 'defense'].includes(element.type)) { const group = make('g'), shape = make(element.type === 'defense' ? 'rect' : 'circle'), text = make('text'); group.setAttribute('class', 'tactics-token ' + element.type); if (element.type === 'defense') { shape.setAttribute('x', element.x - 17); shape.setAttribute('y', element.y - 17); shape.setAttribute('width', 34); shape.setAttribute('height', 34); } else { shape.setAttribute('cx', element.x); shape.setAttribute('cy', element.y); shape.setAttribute('r', 18); } text.setAttribute('x', element.x); text.setAttribute('y', element.y + 4); text.setAttribute('text-anchor', 'middle'); text.textContent = element.role; group.append(shape, text); parent.appendChild(group); } else if (element.type === 'ball') { const circle = make('circle'); circle.setAttribute('class', 'tactics-ball'); circle.setAttribute('cx', element.x); circle.setAttribute('cy', element.y); circle.setAttribute('r', 9); parent.appendChild(circle); } }
-
-  function nearSegment(px, py, x1, y1, x2, y2, tolerance) { const dx = x2 - x1, dy = y2 - y1, length = dx * dx + dy * dy; if (!length) return Math.hypot(px - x1, py - y1) < tolerance; const t = clamp(((px - x1) * dx + (py - y1) * dy) / length, 0, 1); return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t)) < tolerance; }
-  function interpolateStep(from, to, ratio) { if (!to) return from; const target = new Map(elements(to).filter(item => ['offense', 'defense', 'ball'].includes(item.type)).map(item => [item.id, item])); return Object.assign({}, from, { elements: elements(from).map(item => { const next = target.get(item.id); return next && ['offense', 'defense', 'ball'].includes(item.type) ? Object.assign({}, item, { x: item.x + (next.x - item.x) * ratio, y: item.y + (next.y - item.y) * ratio }) : item; }) }); }
-
-  function openExplainModal(board) { const backdrop = renderTemplate('tpl-tactics-ai-modal'); document.body.appendChild(backdrop); const status = $('[data-role="status"]', backdrop), result = $('[data-role="text"]', backdrop), save = $('[data-action="save-note"]', backdrop); let explanation = ''; const close = () => backdrop.remove(); backdrop.addEventListener('click', event => { if (event.target === backdrop || event.target.closest('[data-action="close"]')) close(); if (event.target.closest('[data-action="save-note"]') && explanation) { BT.storage.upsertNote({ title: 'Taktik-Erklärung ' + formatDate(BT.util.todayISO()), body: explanation }); close(); } }); if (!BT.api.getToken()) { status.textContent = 'Bitte zuerst unter „Konto & Sync“ anmelden, um die geschützte KI-Erklärung zu nutzen.'; return; } BT.wake.acquire('tactics-ai'); BT.aiimport.explainTactic(board, null, message => { status.textContent = message; }).then(text => { explanation = text; status.hidden = true; result.hidden = false; result.textContent = text; save.disabled = false; }).catch(error => { status.textContent = 'Fehler: ' + error.message; }).finally(() => BT.wake.release('tactics-ai')); }
-  function openGifModal(board) { const backdrop = renderTemplate('tpl-tactics-gif-modal'); document.body.appendChild(backdrop); const status = $('[data-role="status"]', backdrop), button = $('[data-action="render-gif"]', backdrop); backdrop.addEventListener('click', event => { if (event.target === backdrop || event.target.closest('[data-action="close"]')) backdrop.remove(); }); button.addEventListener('click', async () => { button.disabled = true; status.hidden = false; status.textContent = 'GIF wird erzeugt …'; try { const blob = await renderGif(board, parseFloat(backdrop.querySelector('input[name="gifspeed"]:checked').value) || null, progress => { status.textContent = 'GIF wird kodiert … ' + Math.round(progress * 100) + '%'; }); download('taktik.gif', blob); status.textContent = 'GIF gespeichert.'; } catch (error) { status.textContent = 'Fehler: ' + error.message; } finally { button.disabled = false; } }); }
-  function loadGif() { if (window.GIF) return Promise.resolve(); if (gifLoading) return gifLoading; gifLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js'; script.onload = resolve; script.onerror = () => reject(new Error('gif.js konnte nicht geladen werden.')); document.head.appendChild(script); }); return gifLoading; }
-  async function renderGif(board, override, progress) { await loadGif(); const canvas = document.createElement('canvas'), W = 400, H = 376, scale = W / 500; canvas.width = W; canvas.height = H; const context = canvas.getContext('2d'), gif = new window.GIF({ workers: 2, quality: 12, width: W, height: H, workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js', background: '#f5e6c8' }); function frame(step) { context.save(); context.clearRect(0, 0, W, H); context.scale(scale, scale); drawCanvasStep(context, step); context.restore(); } for (let index = 0; index < board.steps.length; index++) { const from = board.steps[index], to = board.steps[index + 1], seconds = override || from.duration; if (to) { const count = Math.max(2, Math.ceil(seconds * 10)); for (let f = 0; f < count; f++) { frame(interpolateStep(from, to, f / count)); gif.addFrame(context, { delay: Math.round(seconds * 1000 / count), copy: true }); } } else { frame(from); gif.addFrame(context, { delay: Math.round(seconds * 1000), copy: true }); } } return new Promise((resolve, reject) => { gif.on('progress', progress); gif.on('finished', resolve); gif.on('abort', () => reject(new Error('GIF-Erzeugung abgebrochen.'))); gif.render(); }); }
-  function drawCanvasStep(context, step) { context.fillStyle = '#f5e6c8'; context.fillRect(0, 0, 500, 470); context.strokeStyle = '#7a4a1a'; context.lineWidth = 2; context.strokeRect(10, 10, 480, 450); context.strokeRect(160, 10, 180, 190); context.beginPath(); context.arc(250, 200, 60, 0, Math.PI * 2); context.stroke(); elements(step).forEach(element => { if (element.type === 'zone') { context.fillStyle = 'rgba(46,110,170,.16)'; context.strokeStyle = '#2e6eaa'; if (element.shape === 'circle') { context.beginPath(); context.ellipse(element.x, element.y, element.width / 2, element.height / 2, 0, 0, Math.PI * 2); context.fill(); context.stroke(); } else { context.fillRect(element.x - element.width / 2, element.y - element.height / 2, element.width, element.height); context.strokeRect(element.x - element.width / 2, element.y - element.height / 2, element.width, element.height); } } else if (element.type === 'arrow') { const style = arrowStyle(element.kind); context.strokeStyle = style.color; context.lineWidth = element.kind === 'screen' ? 5 : 3; context.setLineDash(style.dash); context.beginPath(); context.moveTo(element.x, element.y); context.lineTo(element.x2, element.y2); context.stroke(); context.lineWidth = 2; context.setLineDash([]); } else if (element.type === 'cone') { context.fillStyle = '#e8a14d'; context.beginPath(); context.moveTo(element.x, element.y - 12); context.lineTo(element.x - 10, element.y + 10); context.lineTo(element.x + 10, element.y + 10); context.fill(); } else if (element.type === 'label') { context.fillStyle = '#004b2b'; context.font = 'bold 14px sans-serif'; context.textAlign = 'center'; context.fillText(element.text, element.x, element.y); } else if (['offense', 'defense'].includes(element.type)) { context.fillStyle = element.type === 'offense' ? '#e8a14d' : '#2e6eaa'; context.strokeStyle = '#123a61'; if (element.type === 'offense') { context.beginPath(); context.arc(element.x, element.y, 18, 0, Math.PI * 2); context.fill(); context.stroke(); } else { context.fillRect(element.x - 17, element.y - 17, 34, 34); context.strokeRect(element.x - 17, element.y - 17, 34, 34); } context.fillStyle = '#fff'; context.font = 'bold 11px sans-serif'; context.textAlign = 'center'; context.fillText(element.role, element.x, element.y + 4); } else if (element.type === 'ball') { context.fillStyle = '#e67e22'; context.beginPath(); context.arc(element.x, element.y, 9, 0, Math.PI * 2); context.fill(); } }); }
-  function loadPdf() { if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF); if (pdfLoading) return pdfLoading; pdfLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'; script.onload = () => window.jspdf && window.jspdf.jsPDF ? resolve(window.jspdf.jsPDF) : reject(new Error('PDF-Modul konnte nicht gestartet werden.')); script.onerror = () => reject(new Error('PDF-Modul konnte nicht geladen werden.')); document.head.appendChild(script); }); return pdfLoading; }
-  async function exportPdf(board) { try { const JsPDF = await loadPdf(), doc = new JsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' }), layout = pdfLayout(); board.steps.forEach((step, index) => { if (index) doc.addPage(); doc.setFontSize(20); doc.text(board.title || 'Taktikboard', 40, 38); doc.setFontSize(11); doc.text(board.description || 'CourtHub Teamtaktik', 40, 57); doc.text('Schritt ' + (index + 1) + ' von ' + board.steps.length + ' · ' + step.duration + ' s', 40, 74); drawPdfCourt(doc, step, layout.courtX, layout.courtY, layout.courtWidth, layout.courtHeight); doc.setFontSize(9); doc.text('Legende: O Angriff · X Verteidigung · ● Ball · Grün Laufweg · Orange Pass · Lila Dribbling · Grau Screen · Blau Closeout · Braun Rotation', 40, layout.legendY); }); const blob = doc.output('blob'); download((board.title || 'taktik').replace(/[^a-z0-9]+/gi, '_').toLowerCase() + '.pdf', blob); if (toast) toast('Taktik-PDF erstellt.'); } catch (error) { if (toast) toast('PDF-Export fehlgeschlagen: ' + error.message); } }
-  function drawPdfCourt(doc, step, x, y, width, height) { const sx = width / 500, sy = height / 470, px = value => x + value * sx, py = value => y + value * sy; doc.setDrawColor(122, 74, 26); doc.rect(x, y, width, height); doc.rect(px(160), py(10), 180 * sx, 190 * sy); doc.circle(px(250), py(200), 60 * sx); elements(step).forEach(element => { if (element.type === 'zone') { doc.setDrawColor(46, 110, 170); if (element.shape === 'circle') doc.ellipse(px(element.x), py(element.y), element.width * sx / 2, element.height * sy / 2); else doc.rect(px(element.x - element.width / 2), py(element.y - element.height / 2), element.width * sx, element.height * sy); } else if (element.type === 'arrow') { const style = arrowStyle(element.kind); doc.setDrawColor(...style.rgb); if (style.dash.length) doc.setLineDashPattern(style.dash, 0); doc.setLineWidth(element.kind === 'screen' ? 3 : 1); doc.line(px(element.x), py(element.y), px(element.x2), py(element.y2)); doc.setLineDashPattern([], 0); doc.setLineWidth(1); } else if (['offense', 'defense'].includes(element.type)) { doc.setFillColor(element.type === 'offense' ? 232 : 46, element.type === 'offense' ? 161 : 110, element.type === 'offense' ? 77 : 170); if (element.type === 'offense') doc.circle(px(element.x), py(element.y), 13 * sx, 'FD'); else doc.rect(px(element.x) - 13 * sx, py(element.y) - 13 * sy, 26 * sx, 26 * sy, 'FD'); doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.text(element.role, px(element.x), py(element.y) + 3, { align: 'center' }); doc.setTextColor(0, 0, 0); } else if (element.type === 'ball') { doc.setFillColor(230, 126, 34); doc.circle(px(element.x), py(element.y), 7 * sx, 'FD'); } else if (element.type === 'cone') { doc.setFillColor(232, 161, 77); doc.triangle(px(element.x), py(element.y - 10), px(element.x - 9), py(element.y + 9), px(element.x + 9), py(element.y + 9), 'F'); } else if (element.type === 'label') { doc.setFontSize(10); doc.text(element.text, px(element.x), py(element.y), { align: 'center' }); } }); }
-  function download(filename, blob) { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); setTimeout(() => { URL.revokeObjectURL(url); anchor.remove(); }, 500); }
-  return { render, renderPlayer, normalizeBoard, templates, cloneStep, interpolateStep, arrowStyle, pdfLayout };
+  const core = { uid, clamp, number, copy, point, currentUser, canEdit, startingElements, emptyTransition, defaultStep, defaultBoard, normalizeTransition, normalizeStep, normalizeBoard, cloneStep, elements, elementById, arrowStyle, boardDuration, stepStartTime, locateTime, distance, pointOnPath, quadraticPoint, positionDuring, interpolateStep, snapshotAt };
+  return { render, renderPlayer, normalizeBoard, templates, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
 })();
