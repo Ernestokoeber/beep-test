@@ -304,6 +304,9 @@ Teamname: TSV Lindau
 12. Einen Drill verändern.
 13. Saisonplanung erneut starten und prüfen, dass das bearbeitete Training geschützt bleibt.
 14. Drill-Bibliothek und Trainingsvorlagen auf KI-Einträge prüfen.
+15. In einem Testlauf die erste KI-Anfrage eines Blocks einmal im Browser-Netzwerk abbrechen. Prüfen, dass CourtHub denselben Block mit „erneut“ meldet und danach fortfährt.
+16. Zwei aufeinanderfolgende fehlgeschlagene Antworten für denselben Block erzeugen. Prüfen, dass keine neuen Trainings, Drills oder Vorlagen erscheinen.
+17. Nach dem Deploy die installierte PWA schließen, neu öffnen und im DevTools-Tab `Application` prüfen, dass nur der aktuelle `courthub-v105`-Cache aktiv ist.
 
 ### 9. Domain verbinden
 
