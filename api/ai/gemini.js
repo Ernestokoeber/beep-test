@@ -116,7 +116,7 @@ function buildRequest(action, payload) {
     if (serialized.length > 250_000) throw Object.assign(new Error('Die Saisonplanungsdaten sind zu umfangreich.'), { status: 413 });
     return {
       parts: [{ text: SEASON_PLAN_PROMPT + '\n\nPlanungsdaten:\n' + serialized }],
-      generationConfig: { response_mime_type: 'application/json', temperature: 0.25, maxOutputTokens: 8192 },
+      generationConfig: { response_mime_type: 'application/json', temperature: 0.25, maxOutputTokens: 16384 },
       json: true
     };
   }
