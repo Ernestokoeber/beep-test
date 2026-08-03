@@ -39,7 +39,7 @@
 - Erwartet künftig: `onProgress({ block, total, attempt })`, wobei `attempt` entweder `1` oder `2` ist.
 - Liefert für Folgeschritte: reproduzierbare Assertions für alle Rückgabe- und Fehlerpfade der Blockplanung.
 
-- [ ] **Schritt 1: Einen Helper für eine gültige Testantwort hinzufügen.**
+- [x] **Schritt 1: Einen Helper für eine gültige Testantwort hinzufügen.**
 
   Direkt vor den bestehenden Batch-Assertions ergänzen:
 
@@ -49,7 +49,7 @@
   }
   ```
 
-- [ ] **Schritt 2: Den Retry-Test schreiben.**
+- [x] **Schritt 2: Den Retry-Test schreiben.**
 
   Nach dem bisherigen erfolgreichen Batch-Test ergänzen:
 
@@ -71,7 +71,7 @@
   assert(retryProgress.some(item => item.attempt === 2), 'Retry-Fortschritt wird nicht gemeldet');
   ```
 
-- [ ] **Schritt 3: Die Tests für doppelte, fremde und endgültig ungültige Antworten schreiben.**
+- [x] **Schritt 3: Die Tests für doppelte, fremde und endgültig ungültige Antworten schreiben.**
 
   Direkt nach dem Retry-Test ergänzen:
 
@@ -96,13 +96,13 @@
   }
   ```
 
-- [ ] **Schritt 4: Den Smoke-Test ausführen und den erwarteten Fehlschlag bestätigen.**
+- [x] **Schritt 4: Den Smoke-Test ausführen und den erwarteten Fehlschlag bestätigen.**
 
   Ausführen: `npm run smoke`
 
   Erwartet: FEHLER, weil `planInBatches` die Retry-Antworten noch nicht validiert und kein Fortschrittsobjekt liefert.
 
-- [ ] **Schritt 5: Commit der Testbasis erstellen.**
+- [x] **Schritt 5: Commit der Testbasis erstellen.**
 
   ```powershell
   git add scripts/smoke.mjs
@@ -122,7 +122,7 @@
 - Erzeugt: `validateBatchResponse(response, slots): Array<object>` und `planInBatches(...) -> Promise<{trainings: Array<object>}>`.
 - Fehlervertrag: endgültige Fehler beginnen mit `KI-Block <n> von <gesamt> fehlgeschlagen:`.
 
-- [ ] **Schritt 1: Die fehlende Validierungsfunktion minimal ergänzen.**
+- [x] **Schritt 1: Die fehlende Validierungsfunktion minimal ergänzen.**
 
   Unmittelbar vor `planInBatches` ergänzen:
 
@@ -140,7 +140,7 @@
   }
   ```
 
-- [ ] **Schritt 2: `planInBatches` auf zwei Versuche und Fortschrittsobjekte umstellen.**
+- [x] **Schritt 2: `planInBatches` auf zwei Versuche und Fortschrittsobjekte umstellen.**
 
   Den bisherigen Schleifenrumpf durch diese Logik ersetzen:
 
@@ -162,7 +162,7 @@
   }
   ```
 
-- [ ] **Schritt 3: Die Validierungsfunktion mit exportieren.**
+- [x] **Schritt 3: Die Validierungsfunktion mit exportieren.**
 
   Den Rückgabewert des Moduls erweitern:
 
@@ -170,13 +170,13 @@
   closureFor, buildSlots, buildAIPayload, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan
   ```
 
-- [ ] **Schritt 4: Den Retry- und Validierungs-Smoke-Test ausführen.**
+- [x] **Schritt 4: Den Retry- und Validierungs-Smoke-Test ausführen.**
 
   Ausführen: `npm run smoke`
 
   Erwartet: ERFOLG; alle neuen Assertions sowie der bisherige Saisonplan-Smoketest sind grün.
 
-- [ ] **Schritt 5: Gesamten Testsatz ausführen und committen.**
+- [x] **Schritt 5: Gesamten Testsatz ausführen und committen.**
 
   ```powershell
   npm test
@@ -196,7 +196,7 @@
 - Verwendet: `planInBatches` ruft `onProgress({ block, total, attempt })` auf.
 - Erzeugt: Status für Versuch eins und den einzigen Wiederholungsversuch, ohne `applyAIPlan(result, slots)` zu verschieben.
 
-- [ ] **Schritt 1: Eine UI-Assertion für die Fortschrittsform ergänzen.**
+- [x] **Schritt 1: Eine UI-Assertion für die Fortschrittsform ergänzen.**
 
   Nach den Retry-Assertions ergänzen:
 
@@ -208,7 +208,7 @@
   assert(retryLabel({ block: 2, total: 5, attempt: 2 }) === 'KI versucht Block 2 von 5 erneut …', 'Retry-Blockstatus ist falsch');
   ```
 
-- [ ] **Schritt 2: Den Callback in `schedule.js` anpassen.**
+- [x] **Schritt 2: Den Callback in `schedule.js` anpassen.**
 
   Den bisherigen Callback mit drei Parametern ersetzen:
 
@@ -220,13 +220,13 @@
   }
   ```
 
-- [ ] **Schritt 3: Den Smoke-Test ausführen.**
+- [x] **Schritt 3: Den Smoke-Test ausführen.**
 
   Ausführen: `npm run smoke`
 
   Erwartet: ERFOLG mit den beiden Status-Assertions.
 
-- [ ] **Schritt 4: Tests und UI-Änderung committen.**
+- [x] **Schritt 4: Tests und UI-Änderung committen.**
 
   ```powershell
   git add js/schedule.js scripts/smoke.mjs
@@ -247,7 +247,7 @@
 - Erzeugt: `const CACHE = 'courthub-v' + RELEASE` und unverversionierte relative Pfade in `ASSETS` sowie im HTML.
 - Erfolgskriterium: Cache-Namenswechsel und geänderte `seasonplanner.js` werden immer gemeinsam aktiviert.
 
-- [ ] **Schritt 1: Den Service-Worker-Release-Test schreiben.**
+- [x] **Schritt 1: Den Service-Worker-Release-Test schreiben.**
 
   Oben in `scripts/smoke.mjs` ergänzen:
 
@@ -259,13 +259,13 @@
   assert(!/\\?v=/.test(html), 'HTML enthält eigenständige Asset-Versionen');
   ```
 
-- [ ] **Schritt 2: Den erwarteten Testfehlschlag ausführen.**
+- [x] **Schritt 2: Den erwarteten Testfehlschlag ausführen.**
 
   Ausführen: `npm run smoke`
 
   Erwartet: FEHLER mit `Service Worker besitzt keine Release-Version`.
 
-- [ ] **Schritt 3: Service Worker und HTML auf unverversionierte Asset-Pfade umstellen.**
+- [x] **Schritt 3: Service Worker und HTML auf unverversionierte Asset-Pfade umstellen.**
 
   In `sw.js` den Beginn so ersetzen und alle `?v=<Zahl>`-Suffixe in `ASSETS` entfernen:
 
@@ -276,13 +276,13 @@
 
   In `index.html` aus `style.css?v=104` und allen `<script src="js/...?...">` die Query-Parameter entfernen. Die Dateinamen und die Ladereihenfolge bleiben unverändert.
 
-- [ ] **Schritt 4: Cache- und Gesamttests ausführen.**
+- [x] **Schritt 4: Cache- und Gesamttests ausführen.**
 
   Ausführen: `npm test`
 
   Erwartet: ERFOLG; `check.mjs` findet weiterhin alle benötigten Skripte und `smoke.mjs` bestätigt eine einheitliche PWA-Release-Version.
 
-- [ ] **Schritt 5: PWA-Änderung committen.**
+- [x] **Schritt 5: PWA-Änderung committen.**
 
   ```powershell
   git add sw.js index.html scripts/smoke.mjs
@@ -300,7 +300,7 @@
 - Verwendet: produktiv eingerichtetes Vercel-Projekt mit `GEMINI_API_KEY` sowie angemeldete Trainerrolle.
 - Erzeugt: eine kurze Checkliste, welche Retry-Meldung, atomare Übernahme und PWA-Aktualisierung vor einem Produktionsrelease geprüft werden.
 
-- [ ] **Schritt 1: Die Abnahme-Checkliste ergänzen.**
+- [x] **Schritt 1: Die Abnahme-Checkliste ergänzen.**
 
   Direkt nach dem Abschnitt zur Saisonplanung ergänzen:
 
@@ -310,13 +310,13 @@
   16. Nach dem Deploy die installierte PWA schließen, neu öffnen und prüfen, dass im DevTools-Tab „Application“ nur der aktuelle `courthub-v<Release>`-Cache aktiv ist.
   ```
 
-- [ ] **Schritt 2: Den vollständigen Testsatz erneut ausführen.**
+- [x] **Schritt 2: Den vollständigen Testsatz erneut ausführen.**
 
   Ausführen: `npm test`
 
   Erwartet: ERFOLG vor manueller produktiver Abnahme.
 
-- [ ] **Schritt 3: Abschlusscommit erstellen.**
+- [x] **Schritt 3: Abschlusscommit erstellen.**
 
   ```powershell
   git add MONTAG_DEPLOYMENT.md
