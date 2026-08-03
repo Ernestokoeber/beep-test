@@ -76,7 +76,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], tableDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], tableDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], tactics: [], settings: {} };
   }
 
   function getSetting(key, fallback) {

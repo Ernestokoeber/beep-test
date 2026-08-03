@@ -285,6 +285,15 @@ route('#/schedule');
 assert(window.document.querySelector('[data-action="generate-season"]'), 'KI-Saisonplanung fehlt im Trainingsplan');
 assert(window.document.querySelector('[data-role="season-plan-summary"]'), 'Saisonübersicht fehlt');
 
+const migratedTactic = window.BT.tactics.normalizeBoard({
+  players: [{ id: 'p1', label: '1', x: 120, y: 380 }],
+  ball: { x: 250, y: 380 },
+  arrows: [{ x1: 1, y1: 2, x2: 3, y2: 4, style: 'pass' }],
+  texts: [{ x: 1, y: 2, text: 'Horns' }]
+});
+assert(migratedTactic.steps[0].elements.filter(item => item.type === 'offense').length === 1, 'Alte Spieler werden nicht zu Angriff-Tokens migriert');
+assert(migratedTactic.steps[0].elements.some(item => item.type === 'arrow' && item.kind === 'pass'), 'Alter Passpfeil wird nicht migriert');
+
 const importBackup = {
   schemaVersion: 2,
   players: [], sessions: [], trainings: [], notes: [], freethrows: [], drills: [], templates: [],

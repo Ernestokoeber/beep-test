@@ -30,6 +30,22 @@ BT.tactics = (function() {
 
   function defaultBoard() { return { steps: [defaultStep()], currentStep: 0 }; }
 
+  function normalizeBoard(input) {
+    const source = input || {};
+    const legacy = !Array.isArray(source.steps) && (Array.isArray(source.players) || source.ball);
+    const rawSteps = legacy ? [{ players: source.players || [], ball: source.ball, arrows: source.arrows || [], texts: source.texts || [] }] : (source.steps || []);
+    const steps = rawSteps.map((step, index) => {
+      const elements = Array.isArray(step.elements) ? step.elements.filter(item => item && item.type) : [
+        ...(step.players || []).map(player => ({ id: player.id || 'o_' + index + '_' + player.x, type: 'offense', role: player.label || 'Wing', x: player.x, y: player.y })),
+        ...(step.ball ? [{ id: 'ball_' + index, type: 'ball', x: step.ball.x, y: step.ball.y }] : []),
+        ...(step.arrows || []).map((arrow, arrowIndex) => ({ id: 'a_' + index + '_' + arrowIndex, type: 'arrow', kind: arrow.style === 'pass' ? 'pass' : 'run', x1: arrow.x1, y1: arrow.y1, x2: arrow.x2, y2: arrow.y2 })),
+        ...(step.texts || []).map((text, textIndex) => ({ id: 'l_' + index + '_' + textIndex, type: 'label', x: text.x, y: text.y, text: text.text || '' }))
+      ];
+      return { id: step.id || newStepId(), duration: Number(step.duration) || 1.5, elements };
+    });
+    return { id: source.id, title: String(source.title || ''), description: String(source.description || ''), published: source.published === true, publishedAt: source.publishedAt || null, steps: steps.length ? steps : [defaultStep()] };
+  }
+
   function migrate(obj) {
     if (!obj) return defaultBoard();
     if (!obj.steps && obj.players && obj.ball) {
@@ -821,5 +837,5 @@ BT.tactics = (function() {
     });
   }
 
-  return { render };
+  return { render, normalizeBoard };
 })();
