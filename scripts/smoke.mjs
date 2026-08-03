@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { JSDOM } from 'jsdom';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -27,6 +28,34 @@ await new Promise(resolveWait => window.setTimeout(resolveWait, 100));
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+const serviceWorkerEvents = new Map();
+let installedCacheName = '';
+let installedAssets = [];
+runInNewContext(readFileSync(resolve(root, 'sw.js'), 'utf8'), {
+  self: {
+    addEventListener(type, listener) { serviceWorkerEvents.set(type, listener); },
+    skipWaiting() { return Promise.resolve(); },
+    clients: { claim() { return Promise.resolve(); } }
+  },
+  caches: {
+    open(name) {
+      installedCacheName = name;
+      return Promise.resolve({ addAll(assets) { installedAssets = assets; return Promise.resolve(); } });
+    },
+    keys() { return Promise.resolve([]); },
+    match() { return Promise.resolve(undefined); }
+  },
+  Promise,
+  URL,
+  location: { origin: 'https://coach.tsv-lindau.de' }
+});
+let installWork;
+serviceWorkerEvents.get('install')({ waitUntil(work) { installWork = work; } });
+await installWork;
+assert(/^courthub-v\d+$/.test(installedCacheName), 'Service Worker legt keinen versionsbasierten Cache an');
+assert(installedAssets.every(asset => !asset.includes('?v=')), 'Service Worker cachet lokal unterschiedliche Asset-Versionen');
+assert(![...window.document.querySelectorAll('link[href], script[src]')].some(node => new URL(node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src'), 'https://coach.tsv-lindau.de').origin === 'https://coach.tsv-lindau.de' && node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src').includes('?v=')), 'HTML lädt lokal unterschiedliche Asset-Versionen');
 
 const viewportMeta = window.document.querySelector('meta[name="viewport"]')?.content || '';
 assert(viewportMeta.includes('viewport-fit=cover'), 'Safe-Area-Unterstützung im Viewport fehlt');
