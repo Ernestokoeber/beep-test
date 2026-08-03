@@ -1,6 +1,7 @@
 import { query } from './_lib/db.js';
 import { canWrite, requireMembership } from './_lib/auth.js';
 import { method, noStore, safeError } from './_lib/http.js';
+import { filterWorkspaceForRole } from './_lib/workspace-data.js';
 
 const MAX_WORKSPACE_BYTES = 4 * 1024 * 1024;
 
@@ -21,7 +22,7 @@ export default async function handler(req, res) {
       );
       const workspace = rows[0] || { data: {}, version: 0, updated_at: null };
       return res.status(200).json({
-        data: workspace.data || {},
+        data: filterWorkspaceForRole(workspace.data, auth.role),
         version: Number(workspace.version || 0),
         updatedAt: workspace.updated_at,
         role: auth.role
