@@ -363,8 +363,6 @@ BT.reports = (function() {
   }
 
   function buildPDF(doc, report) {
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 32;
     const green = [0, 75, 43];
     const orange = [232, 161, 77];
@@ -372,10 +370,15 @@ BT.reports = (function() {
     const muted = [98, 113, 105];
     let y = margin;
 
+    function pageBox() {
+      return { width: doc.internal.pageSize.getWidth(), height: doc.internal.pageSize.getHeight() };
+    }
+
     function header(title) {
+      const { width } = pageBox();
       doc.setCharSpace(0);
       doc.setFillColor(...green);
-      doc.rect(0, 0, pageWidth, 58, 'F');
+      doc.rect(0, 0, width, 58, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(18);
@@ -387,9 +390,9 @@ BT.reports = (function() {
       y = 78;
     }
 
-    function ensureSpace(height, title) {
-      if (y + height <= pageHeight - 34) return;
-      doc.addPage();
+    function ensureSpace(height, title, orientation) {
+      if (y + height <= pageBox().height - 34) return;
+      doc.addPage('a4', orientation || 'landscape');
       header(title || 'Gesamtauswertung');
     }
 
@@ -423,7 +426,7 @@ BT.reports = (function() {
       ['Training FT', quote(report.team.trainingFT)]
     ];
     const cardGap = 8;
-    const cardWidth = (pageWidth - margin * 2 - cardGap * (cards.length - 1)) / cards.length;
+    const cardWidth = (pageBox().width - margin * 2 - cardGap * (cards.length - 1)) / cards.length;
     cards.forEach((card, index) => {
       const x = margin + index * (cardWidth + cardGap);
       doc.setFillColor(247, 245, 240);
@@ -446,22 +449,32 @@ BT.reports = (function() {
     const categoryText = report.teamCategories.length
       ? report.teamCategories.map(category => category.category + ': ' + category.made + '/' + category.attempted + ' (' + category.pct + ' %)').join('   |   ')
       : 'Noch keine Trainingswurfkategorien vorhanden.';
-    const categoryLines = doc.splitTextToSize(categoryText, pageWidth - margin * 2);
+    const categoryLines = doc.splitTextToSize(categoryText, pageBox().width - margin * 2);
     doc.text(categoryLines, margin, y);
     y += categoryLines.length * 12 + 14;
 
-    sectionTitle('Spieler-Gesamtübersicht');
-    const columns = [
-      ['Spieler', 128], ['Anw.', 50], ['Tr. FG', 52], ['Tr. FT', 52], ['GP', 28], ['PPG', 40],
-      ['Sp. FG', 52], ['Sp. FT', 52], ['REB', 38], ['AST', 38], ['TO', 38], ['Beep', 62]
+    sectionTitle('Leistungsübersicht');
+    const performanceColumns = [
+      ['Spieler', 260, 'left'], ['Anw.', 85, 'right'], ['Training FG', 105, 'right'],
+      ['Training FT', 105, 'right'], ['Spiele', 70, 'right'], ['PPG', 75, 'right']
     ];
-    const rows = report.players.map(row => [
+    const performanceRows = report.players.map(row => [
       row.player.name,
       row.training.attendance.total ? row.training.attendance.pct + '%' : '-',
       quote(row.training.fg).replace(' ', ''),
       quote(row.training.ft).replace(' ', ''),
       String(row.game.games),
-      row.game.games ? oneDecimal(row.game.ppg) : '-',
+      row.game.games ? oneDecimal(row.game.ppg) : '-'
+    ]);
+    drawPDFTable(doc, performanceColumns, performanceRows, margin, () => y, value => { y = value; }, ensureSpace, green, ink, 'Leistungsübersicht');
+
+    sectionTitle('Spielwerte');
+    const gameColumns = [
+      ['Spieler', 260, 'left'], ['Spiel FG', 105, 'right'], ['Spiel FT', 105, 'right'],
+      ['REB', 70, 'right'], ['AST', 70, 'right'], ['TO', 70, 'right'], ['Beep-Test', 100, 'right']
+    ];
+    const gameRows = report.players.map(row => [
+      row.player.name,
       row.game.fieldGoalsAttempted ? row.game.fgPct + '%' : '-',
       row.game.freeThrowsAttempted ? row.game.ftPct + '%' : '-',
       average(row.game.rebounds, row.game.games),
@@ -469,10 +482,10 @@ BT.reports = (function() {
       average(row.game.turnovers, row.game.games),
       row.beep ? 'L ' + row.beep.result.level + '.' + row.beep.result.shuttle : '-'
     ]);
-    drawPDFTable(doc, columns, rows, margin, () => y, value => { y = value; }, ensureSpace, green, ink);
+    drawPDFTable(doc, gameColumns, gameRows, margin, () => y, value => { y = value; }, ensureSpace, green, ink, 'Spielwerte');
 
     if (report.players.length) {
-      doc.addPage();
+      doc.addPage('a4', 'portrait');
       header('Wurfprofile je Spieler');
       sectionTitle('Wurfprofile je Spieler');
     }
@@ -482,12 +495,12 @@ BT.reports = (function() {
         ? categories.map(category => category.category + ' ' + category.made + '/' + category.attempted + ' (' + category.pct + ' %)').join(' | ')
         : 'Keine Feldwurfwerte';
       const details = text + ' | FT ' + ratio(row.training.ft) + (row.training.ft.attempted ? ' (' + row.training.ft.pct + ' %)' : '');
-      const lines = doc.splitTextToSize(details, pageWidth - margin * 2 - 150);
+      const lines = doc.splitTextToSize(details, pageBox().width - margin * 2 - 150);
       const boxHeight = Math.max(32, lines.length * 10 + 12);
-      ensureSpace(boxHeight + 6, 'Wurfprofile je Spieler');
+      ensureSpace(boxHeight + 6, 'Wurfprofile je Spieler', 'portrait');
       doc.setFillColor(247, 245, 240);
       doc.setDrawColor(222, 226, 223);
-      doc.roundedRect(margin, y - 11, pageWidth - margin * 2, boxHeight, 4, 4, 'FD');
+      doc.roundedRect(margin, y - 11, pageBox().width - margin * 2, boxHeight, 4, 4, 'FD');
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...green);
@@ -502,34 +515,36 @@ BT.reports = (function() {
     const pages = doc.internal.getNumberOfPages();
     for (let page = 1; page <= pages; page++) {
       doc.setPage(page);
+      const { width, height } = pageBox();
       doc.setDrawColor(...orange);
-      doc.line(margin, pageHeight - 23, pageWidth - margin, pageHeight - 23);
+      doc.line(margin, height - 23, width - margin, height - 23);
       doc.setFontSize(8);
       doc.setTextColor(...muted);
-      doc.text('CourtHub - vertrauliche Trainerteam-Auswertung', margin, pageHeight - 10);
-      doc.text('Seite ' + page + ' / ' + pages, pageWidth - margin, pageHeight - 10, { align: 'right' });
+      doc.text('CourtHub - vertrauliche Trainerteam-Auswertung', margin, height - 10);
+      doc.text('Seite ' + page + ' / ' + pages, width - margin, height - 10, { align: 'right' });
     }
   }
 
-  function drawPDFTable(doc, columns, rows, x, getY, setY, ensureSpace, green, ink) {
+  function drawPDFTable(doc, columns, rows, x, getY, setY, ensureSpace, green, ink, title) {
     doc.setCharSpace(0);
-    const rowHeight = 19;
     const totalWidth = columns.reduce((sum, column) => sum + column[1], 0);
     function header() {
       let y = getY();
       doc.setFillColor(...green);
-      doc.rect(x, y, totalWidth, rowHeight, 'F');
+      doc.rect(x, y, totalWidth, 19, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       let cx = x;
-      columns.forEach(column => { doc.text(column[0], cx + 4, y + 13); cx += column[1]; });
-      setY(y + rowHeight);
+      columns.forEach(column => { doc.text(column[0], column[2] === 'right' ? cx + column[1] - 4 : cx + 4, y + 13, { align: column[2] }); cx += column[1]; });
+      setY(y + 19);
     }
-    ensureSpace(rowHeight * 2);
+    ensureSpace(38, title);
     header();
     rows.forEach((row, rowIndex) => {
-      ensureSpace(rowHeight + 2, 'Spieler-Gesamtübersicht');
+      const lines = row.map((cell, index) => doc.splitTextToSize(String(cell == null ? '' : cell), columns[index][1] - 8));
+      const rowHeight = Math.max(19, Math.max(...lines.map(value => value.length)) * 10 + 9);
+      ensureSpace(rowHeight + 2, title);
       if (getY() < 90) header();
       const y = getY();
       if (rowIndex % 2) {
@@ -540,10 +555,9 @@ BT.reports = (function() {
       doc.setFont('helvetica', rowIndex === 0 ? 'bold' : 'normal');
       doc.setFontSize(8);
       let cx = x;
-      row.forEach((cell, index) => {
-        const maxChars = index === 0 ? 25 : 10;
-        const value = String(cell == null ? '' : cell);
-        doc.text(value.length > maxChars ? value.slice(0, maxChars - 1) + '.' : value, cx + 4, y + 13);
+      lines.forEach((value, index) => {
+        const column = columns[index];
+        doc.text(value, column[2] === 'right' ? cx + column[1] - 4 : cx + 4, y + 12, { align: column[2] });
         cx += columns[index][1];
       });
       setY(y + rowHeight);

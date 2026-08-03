@@ -131,6 +131,49 @@ assert(window.document.querySelector('[data-role="report-player-rows"] tr'), 'Sp
 assert(window.document.querySelector('[data-action="report-csv"]'), 'CSV-Export der Gesamtauswertung fehlt');
 assert(window.document.querySelector('[data-action="report-pdf"]'), 'PDF-Export der Gesamtauswertung fehlt');
 
+function createPdfStub() {
+  const events = [];
+  const pages = [{ orientation: 'landscape', width: 841.89, height: 595.28 }];
+  let pageIndex = 0;
+  return {
+    events, pages,
+    doc: {
+      internal: {
+        pageSize: { getWidth: () => pages[pageIndex].width, getHeight: () => pages[pageIndex].height },
+        getNumberOfPages: () => pages.length
+      },
+      addPage: (_format, orientation) => {
+        const portrait = orientation === 'portrait';
+        pages.push({ orientation: portrait ? 'portrait' : 'landscape', width: portrait ? 595.28 : 841.89, height: portrait ? 841.89 : 595.28 });
+        pageIndex = pages.length - 1;
+      },
+      text: value => events.push(Array.isArray(value) ? value.join(' ') : String(value)),
+      setPage: page => { pageIndex = page - 1; },
+      setCharSpace() {}, setFillColor() {}, rect() {}, setDrawColor() {}, roundedRect() {}, setTextColor() {}, setFont() {}, setFontSize() {}, line() {},
+      splitTextToSize: value => [String(value)]
+    }
+  };
+}
+const reportPdf = {
+  seasonLabel: 'Saison 26/27', generatedAt: new Date('2026-08-03T10:00:00Z'), throughDate: '2026-08-02', trainings: [], games: [],
+  team: { wins: 2, losses: 1, draws: 0, attendance: { total: 4, pct: 75 }, trainingFG: { made: 12, attempted: 24, pct: 50 }, trainingFT: { made: 8, attempted: 10, pct: 80 } },
+  teamCategories: [{ category: 'Closeout-Würfe', made: 5, attempted: 10, pct: 50 }],
+  players: [{
+    player: { name: 'Sehr langer Beispielname ohne Kürzung' },
+    training: { attendance: { total: 4, pct: 75 }, fg: { made: 6, attempted: 12, pct: 50 }, ft: { made: 4, attempted: 5, pct: 80 }, categories: new Map([['Closeout-Würfe', { category: 'Closeout-Würfe', made: 5, attempted: 10, pct: 50 }]]) },
+    game: { games: 3, ppg: 8.5, fieldGoalsAttempted: 12, fgPct: 50, freeThrowsAttempted: 4, ftPct: 75, rebounds: 9, assists: 6, turnovers: 3 }, beep: null
+  }]
+};
+const reportPdfStub = createPdfStub();
+window.BT.reports.buildPDF(reportPdfStub.doc, reportPdf);
+assert(reportPdfStub.events.includes('Leistungsübersicht'), 'Leistungsübersicht fehlt im PDF');
+assert(reportPdfStub.events.includes('Spielwerte'), 'Spielwerte fehlen im PDF');
+assert(reportPdfStub.events.some(text => text.includes('Sehr langer Beispielname ohne Kürzung')), 'Spielername wurde im PDF gekürzt');
+assert(reportPdfStub.pages.some(page => page.orientation === 'portrait'), 'Wurfprofile werden nicht im Hochformat ausgegeben');
+const emptyReportPdfStub = createPdfStub();
+window.BT.reports.buildPDF(emptyReportPdfStub.doc, { ...reportPdf, players: [] });
+assert(!emptyReportPdfStub.events.includes('Wurfprofile je Spieler'), 'Leere Wurfprofil-Seite wurde erzeugt');
+
 route('#/account');
 const darkChoice = window.document.querySelector('[data-theme-choice="dark"]');
 assert(darkChoice, 'Darstellungswahl in Konto & Sync fehlt');
