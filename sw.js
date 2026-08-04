@@ -1,4 +1,4 @@
-const CACHE = 'courthub-v119';
+const CACHE = 'courthub-v120';
 const ASSETS = [
   './',
   './index.html',
@@ -39,6 +39,7 @@ const ASSETS = [
   './js/play-designer/quick-styles.js',
   './js/play-designer/quick-pointer-fix.js',
   './js/play-designer/quick-editor.js',
+  './js/play-designer/quick-workflow.js',
   './js/play-designer/gif-encoder.js',
   './js/play-designer/history.js',
   './js/play-designer/editor.js',
@@ -47,6 +48,7 @@ const ASSETS = [
   './js/video-import/core.js',
   './js/video-import/styles.js',
   './js/video-import/alignment.js',
+  './js/video-import/compatibility.js',
   './js/video-import/main.js',
   './js/history.js',
   './js/aiimport.js',
