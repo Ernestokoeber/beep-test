@@ -26,6 +26,12 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'courthub-video-assignment-fix';
   style.textContent = `
+    body > main#app:has(.video-import){max-width:none;width:100%}
+    .video-import main.vi-card{max-width:none;width:auto;margin:0;padding:0}
+    .video-import .vi-grid>*{min-width:0}
+    .video-import .vi-card,.video-import .vi-card-body,.video-import .vi-file,.video-import .vi-controls,.video-import .vi-trim{min-width:0}
+    .video-import .vi-file input{min-width:0;max-width:100%}
+    @media(min-width:981px){.video-import .vi-grid{grid-template-columns:minmax(0,2fr) minmax(20rem,.8fr)}}
     .vi-video-shell[data-video-aligned="true"]{min-height:0;margin-inline:auto;display:block}
     .vi-video-shell[data-video-aligned="true"] video{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:contain}
     .vi-video-shell[data-video-aligned="true"] .vi-overlay{inset:0;width:100%;height:100%}
