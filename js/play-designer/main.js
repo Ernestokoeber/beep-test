@@ -1,4 +1,5 @@
 import './court-enhancements.js';
+import './quick-pointer-fix.js';
 import './timing-fix.js';
 import '../video-import/alignment.js';
 import { injectStyles } from './styles.js';
