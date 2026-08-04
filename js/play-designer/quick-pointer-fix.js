@@ -6,6 +6,8 @@ import {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const installed = new WeakSet();
+const activePointers = new Map();
+let fallbackInstalled = false;
 
 function finite(value, fallback = 0) {
   const number = Number(value);
@@ -97,19 +99,71 @@ function installHitAreas(svg) {
   return observer;
 }
 
-function relay(svg, type, event) {
-  const handler = svg[`on${type}`];
-  if (typeof handler !== 'function') return;
+function coordinatesFor(svg, type, event) {
   const snapped = type === 'pointerdown' ? tokenParallelCenter(event.target) : null;
-  const coordinates = quickPointerToLegacyClient(
+  return quickPointerToLegacyClient(
     svg.getBoundingClientRect(),
     event.clientX,
     event.clientY,
     snapped
   );
+}
+
+function callHandler(svg, type, event) {
+  const handler = svg[`on${type}`];
+  if (typeof handler !== 'function') return false;
+  const coordinates = coordinatesFor(svg, type, event);
+  try {
+    handler.call(svg, eventProxy(event, coordinates));
+  } catch (error) {
+    // Safari/Chromium können setPointerCapture ablehnen, wenn das während
+    // eines gerenderten SVG-Austauschs passiert. Der Drag-Zustand wurde im
+    // Editor bereits angelegt und wird über den Fenster-Fallback fortgeführt.
+    if (error?.name !== 'NotFoundError' && error?.name !== 'InvalidStateError') throw error;
+  }
+  return true;
+}
+
+function relay(svg, type, event) {
   event.preventDefault();
   event.stopImmediatePropagation();
-  handler.call(svg, eventProxy(event, coordinates));
+  const handled = callHandler(svg, type, event);
+  if (!handled) return;
+
+  if (type === 'pointerdown') {
+    activePointers.set(event.pointerId, svg);
+  } else if (type === 'pointerup' || type === 'pointercancel') {
+    activePointers.delete(event.pointerId);
+  }
+}
+
+function installWindowFallback() {
+  if (fallbackInstalled) return;
+  fallbackInstalled = true;
+
+  window.addEventListener('pointermove', event => {
+    const svg = activePointers.get(event.pointerId);
+    if (!svg || !svg.isConnected || svg.contains(event.target)) return;
+    event.preventDefault();
+    callHandler(svg, 'pointermove', event);
+  }, true);
+
+  const finish = type => event => {
+    const svg = activePointers.get(event.pointerId);
+    if (!svg) return;
+    // Der normale SVG-Listener erhält zuerst die Chance. Falls der Pointer
+    // wegen eines DOM-Austauschs oder verlorener Capture nicht dort ankommt,
+    // schließt dieser Microtask den Drag trotzdem sauber ab und speichert ihn.
+    queueMicrotask(() => {
+      if (activePointers.get(event.pointerId) !== svg) return;
+      activePointers.delete(event.pointerId);
+      if (!svg.isConnected) return;
+      callHandler(svg, type, event);
+    });
+  };
+
+  window.addEventListener('pointerup', finish('pointerup'), true);
+  window.addEventListener('pointercancel', finish('pointercancel'), true);
 }
 
 export function installQuickPointerFix(svg) {
@@ -117,6 +171,7 @@ export function installQuickPointerFix(svg) {
   installed.add(svg);
   svg.dataset.quickPointerFix = 'true';
   installHitAreas(svg);
+  installWindowFallback();
   ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'].forEach(type => {
     svg.addEventListener(type, event => relay(svg, type, event), true);
   });
