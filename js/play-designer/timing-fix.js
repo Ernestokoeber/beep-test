@@ -107,8 +107,10 @@ if (tactics && core && !tactics.__timingFixApplied) {
   }
 
   function playerBallPoint(stepFrom, stepTo, playerId, elapsed) {
-    const player = positionDuring(stepFrom, stepTo, playerId, elapsed)
-      || core.point(core.elementById(stepFrom, playerId) || core.elementById(stepTo, playerId));
+    const fallbackElement = core.elementById(stepFrom, playerId)
+      || core.elementById(stepTo, playerId);
+    const fallback = fallbackElement ? core.point(fallbackElement) : null;
+    const player = positionDuring(stepFrom, stepTo, playerId, elapsed) || fallback;
     return player ? { x: player.x + 16, y: player.y } : null;
   }
 
