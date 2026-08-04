@@ -29,7 +29,8 @@ assert(text.startsWith('%PDF-1.4'), 'PDF-Kopf fehlt');
 assert(text.includes('/Type /Pages') && text.includes('/Count 2'), 'Mehrseitige PDF-Struktur fehlt');
 assert((text.match(/\/Type \/Page\b/g) || []).length === 2, 'PDF enthält nicht genau zwei Seiten');
 assert((text.match(/\/Filter \/DCTDecode/g) || []).length === 2, 'JPEG-Bilder werden nicht als PDF-XObjects eingebettet');
-assert(text.includes('Horns - \334berzahl'), 'Umlaute werden nicht WinAnsi-kompatibel geschrieben');
+const encodedUmlaut = 'Horns - ' + String.fromCharCode(92) + '334berzahl';
+assert(text.includes(encodedUmlaut), 'Umlaute werden nicht WinAnsi-kompatibel geschrieben');
 assert(text.includes('Pass -> Ecke'), 'Sonderzeichen werden nicht stabil normalisiert');
 assert(text.endsWith('%%EOF'), 'PDF-Abschluss fehlt');
 
