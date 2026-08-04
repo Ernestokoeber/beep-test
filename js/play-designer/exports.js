@@ -1,22 +1,12 @@
 import { createCourt, drawCourt, COURT_VIEW } from './rendering.js';
 import { enhanceCourt } from './court-enhancements.js';
 import { gifBlob, quantizeRgba332 } from './gif-encoder.js';
+import { createPdfBlob } from './pdf-writer.js';
 
 const core = window.BT.tactics.__core;
 
 function toast(message) {
   if (window.BT.util?.toast) window.BT.util.toast(message);
-}
-
-function loadScript(src, test) {
-  if (test()) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error('Zusatzmodul konnte nicht geladen werden.'));
-    document.head.appendChild(script);
-  });
 }
 
 function yieldToBrowser() {
@@ -68,43 +58,55 @@ async function drawSnapshot(context, snapshot, width, height, sourceStep) {
   }
 }
 
+function decodeBase64(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function canvasJpegBytes(canvas) {
+  if (typeof canvas.toBlob === 'function') {
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .92));
+    if (blob?.size) return new Uint8Array(await blob.arrayBuffer());
+  }
+  const dataUrl = canvas.toDataURL('image/jpeg', .92);
+  const encoded = dataUrl.split(',')[1];
+  if (!encoded) throw new Error('Das Court-Bild konnte nicht in JPEG umgewandelt werden.');
+  return decodeBase64(encoded);
+}
+
 export async function exportPdf(boardInput) {
   const board = core.normalizeBoard(boardInput);
   try {
-    await loadScript(
-      'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
-      () => !!window.jspdf?.jsPDF
-    );
-    const doc = new window.jspdf.jsPDF({
-      orientation: 'landscape',
-      unit: 'pt',
-      format: 'a4'
-    });
     const canvas = document.createElement('canvas');
     canvas.width = 1520;
     canvas.height = 1100;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas wird von diesem Browser nicht unterstützt.');
 
+    toast('PDF wird vollständig lokal erstellt …');
+    const pages = [];
     for (let index = 0; index < board.steps.length; index += 1) {
       const step = board.steps[index];
-      if (index) doc.addPage();
       await drawSnapshot(context, step, canvas.width, canvas.height, step);
-      doc.setFontSize(20);
-      doc.text(board.title || 'CourtHub Play', 36, 36);
-      doc.setFontSize(10);
-      doc.text((board.description || board.category || '').slice(0, 140), 36, 54);
-      doc.addImage(canvas.toDataURL('image/jpeg', .92), 'JPEG', 118, 68, 606, 438);
-      doc.text(
-        `Schritt ${index + 1} / ${board.steps.length} · ${step.duration.toFixed(1)} s · Hallenparkett`,
-        118,
-        522
-      );
+      pages.push({
+        title: board.title || 'CourtHub Play',
+        subtitle: (board.description || board.category || '').slice(0, 140),
+        footer: `Schritt ${index + 1} / ${board.steps.length} · ${step.duration.toFixed(1)} s · Hallenparkett`,
+        imageBytes: await canvasJpegBytes(canvas),
+        imageWidth: canvas.width,
+        imageHeight: canvas.height
+      });
+      if (index % 2 === 1) await yieldToBrowser();
     }
 
-    doc.save(safeFilename(board.title, 'pdf'));
-    toast('Play-PDF mit Hallenparkett erstellt.');
+    const blob = createPdfBlob(pages);
+    if (!blob.size) throw new Error('Der erzeugte PDF-Download ist leer.');
+    downloadBlob(blob, safeFilename(board.title, 'pdf'));
+    toast('Play-PDF offline mit Hallenparkett erstellt.');
   } catch (error) {
+    console.error('CourtHub PDF export failed', error);
     toast('PDF-Export fehlgeschlagen: ' + error.message);
   }
 }
