@@ -5,15 +5,15 @@
 // contract checked by that broad shell smoke test; the real editor is covered
 // by the dedicated play-designer smoke tests.
 
-function token(team, index) {
+function token(document, team, index) {
   const element = document.createElement('span');
   element.className = `tactics-token ${team}`;
   element.dataset.index = String(index + 1);
   return element;
 }
 
-function installLegacyTemplateOrder() {
-  const tactics = window.BT?.tactics;
+function installLegacyTemplateOrder(view) {
+  const tactics = view?.BT?.tactics;
   if (!tactics || tactics.__smokeTemplateOrderInstalled) return;
   const original = tactics.templates.bind(tactics);
   tactics.templates = () => {
@@ -25,7 +25,9 @@ function installLegacyTemplateOrder() {
 }
 
 export function mountEditor(target) {
-  installLegacyTemplateOrder();
+  const document = target.ownerDocument;
+  const view = document.defaultView;
+  installLegacyTemplateOrder(view);
   const root = document.createElement('section');
   root.dataset.role = 'tactics-smoke-bridge';
   root.innerHTML = `
@@ -36,13 +38,14 @@ export function mountEditor(target) {
     <select data-role="tactic-template"></select>
     <div data-role="tokens"></div>`;
   const tokens = root.querySelector('[data-role="tokens"]');
-  for (let index = 0; index < 5; index += 1) tokens.append(token('offense', index));
-  for (let index = 0; index < 5; index += 1) tokens.append(token('defense', index));
+  for (let index = 0; index < 5; index += 1) tokens.append(token(document, 'offense', index));
+  for (let index = 0; index < 5; index += 1) tokens.append(token(document, 'defense', index));
   target.append(root);
   return root;
 }
 
 export function mountPlayer(target) {
+  const document = target.ownerDocument;
   const root = document.createElement('section');
   root.dataset.role = 'player-tactics';
   root.innerHTML = '<h2>Teamtaktiken</h2><p>Bitte zuerst anmelden, um veröffentlichte Teamtaktiken anzusehen.</p>';
