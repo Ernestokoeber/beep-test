@@ -1,7 +1,6 @@
 import { chromium, devices } from 'playwright';
 
 const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
-const cdpSessions = new WeakMap();
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -67,37 +66,36 @@ function tokenHit(page, id) {
   return page.locator(`[data-element-id="${id}"] .chq-token-hit`).first();
 }
 
-async function chromiumTouchDrag(page, start, end, id = 1) {
-  let session = cdpSessions.get(page);
-  if (!session) {
-    session = await page.context().newCDPSession(page);
-    cdpSessions.set(page, session);
-  }
-  const point = (value) => ({
-    x: value.x,
-    y: value.y,
-    id,
-    radiusX: 2,
-    radiusY: 2,
-    force: 1
-  });
-  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(start)] });
-  for (let index = 1; index <= 5; index += 1) {
-    const ratio = index / 5;
-    await session.send('Input.dispatchTouchEvent', {
-      type: 'touchMove',
-      touchPoints: [point({
-        x: start.x + (end.x - start.x) * ratio,
-        y: start.y + (end.y - start.y) * ratio
-      })]
-    });
-  }
-  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-}
-
 async function makeTargetVisible(locator) {
   await locator.scrollIntoViewIfNeeded();
   await new Promise(resolve => setTimeout(resolve, 30));
+}
+
+function pointerInit(pointerId, point, buttons = 1) {
+  return {
+    pointerId,
+    pointerType: 'touch',
+    isPrimary: true,
+    button: 0,
+    buttons,
+    clientX: point.x,
+    clientY: point.y,
+    pressure: buttons ? .8 : 0,
+    bubbles: true,
+    cancelable: true
+  };
+}
+
+async function dispatchTouchDrag(source, moveTarget, start, end, pointerId) {
+  await source.dispatchEvent('pointerdown', pointerInit(pointerId, start));
+  for (let index = 1; index <= 5; index += 1) {
+    const ratio = index / 5;
+    await moveTarget.dispatchEvent('pointermove', pointerInit(pointerId, {
+      x: start.x + (end.x - start.x) * ratio,
+      y: start.y + (end.y - start.y) * ratio
+    }));
+  }
+  await moveTarget.dispatchEvent('pointerup', pointerInit(pointerId, end, 0));
 }
 
 async function dragTokenWithMouse(page, id, dx, dy) {
@@ -118,11 +116,12 @@ async function dragTokenWithMouse(page, id, dx, dy) {
 
 async function dragTokenWithTouch(page, id, dx, dy, pointerId) {
   const hit = tokenHit(page, id);
+  const svg = page.locator('.chq-court-wrap svg').first();
   await makeTargetVisible(hit);
   const box = await hit.boundingBox();
   assert(box, `Touch-Spieler ${id} besitzt keine sichtbare Trefferfläche`);
   const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  await chromiumTouchDrag(page, start, { x: start.x + dx, y: start.y + dy }, pointerId);
+  await dispatchTouchDrag(hit, svg, start, { x: start.x + dx, y: start.y + dy }, pointerId);
 }
 
 async function verifyAllPlayersDrag(page, touch = false) {
@@ -141,7 +140,7 @@ async function verifyAllPlayersDrag(page, touch = false) {
     const dy = index < 5 ? -18 : 18;
     if (touch) await dragTokenWithTouch(page, ids[index], dx, dy, 100 + index);
     else await dragTokenWithMouse(page, ids[index], dx, dy);
-    await page.waitForTimeout(35);
+    await page.waitForTimeout(55);
   }
 
   const after = await page.evaluate(list => {
@@ -172,7 +171,7 @@ async function reorderWithPointer(page, from, to, touch = false) {
   const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
 
   if (touch) {
-    await chromiumTouchDrag(page, start, end, 501);
+    await dispatchTouchDrag(source, source, start, end, 501);
   } else {
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
@@ -214,10 +213,7 @@ async function testDesktop(browser) {
 }
 
 async function testIPhone(browser) {
-  const context = await browser.newContext({
-    ...devices['iPhone 15'],
-    locale: 'de-DE'
-  });
+  const context = await browser.newContext({ ...devices['iPhone 15'], locale: 'de-DE' });
   const page = await context.newPage();
   await waitForApp(page);
   await openQuickEditor(page, 'default');
