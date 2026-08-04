@@ -79,7 +79,10 @@ function enhanceInspector(root, board, stepIndex) {
   const inspector = root.querySelector('[data-r="inspector"]');
   if (!inspector) return;
   const fields = [...inspector.querySelectorAll('.chpd-field')];
-  const startField = fields.find(field => field.querySelector('label')?.textContent?.startsWith('Startzeit'));
+  const startField = fields.find(field => {
+    const label = field.querySelector('label')?.textContent || '';
+    return label.startsWith('Startzeit') || label.startsWith('Start im Schritt');
+  });
   const durationField = fields.find(field => field.querySelector('label')?.textContent === 'Dauer');
   const activeButton = root.querySelector('.chpd-action-strip .chpd-action.active');
   if (!startField || !durationField || !activeButton) {
@@ -96,7 +99,8 @@ function enhanceInspector(root, board, stepIndex) {
   const startInput = startField.querySelector('input');
   const durationInput = durationField.querySelector('input');
   const minimum = action.type === 'pass' ? 0.12 : 0.15;
-  startField.querySelector('label').textContent = 'Start im Schritt';
+  const label = startField.querySelector('label');
+  if (label.textContent !== 'Start im Schritt') label.textContent = 'Start im Schritt';
   startInput.dataset.timingInput = 'start';
   durationInput.dataset.timingInput = 'duration';
   startInput.max = String(Math.max(0, step.duration - minimum));
@@ -110,7 +114,11 @@ function enhanceInspector(root, board, stepIndex) {
   }
   const absoluteStart = core.stepStartTime(board, stepIndex) + action.start;
   const absoluteEnd = absoluteStart + action.duration;
+  const signature = `${action.id}:${action.start}:${action.duration}:${step.duration}:${stepIndex}`;
+  if (summary.dataset.timingSignature === signature) return;
+  summary.dataset.timingSignature = signature;
   summary.replaceChildren();
+
   const title = document.createElement('strong');
   title.textContent = `Aktionsfenster: ${format(action.start)} – ${format(core.actionEnd(action))}`;
   const detail = document.createElement('span');
