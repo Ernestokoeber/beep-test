@@ -27,6 +27,18 @@ try {
   await page.evaluate(() => {
     const svg = document.querySelector('.chq-court-wrap svg');
     window.__dragProbe = [];
+    window.__draftWrites = [];
+
+    const storage = window.BT.storage;
+    const originalSetSetting = storage.setSetting.bind(storage);
+    storage.setSetting = (key, value) => {
+      if (key === 'tacticsBoardDraft') {
+        const player = window.BT.tactics.__core.elementById(value?.steps?.[0], 'o1');
+        window.__draftWrites.push(player ? { x: player.x, y: player.y } : null);
+      }
+      return originalSetSetting(key, value);
+    };
+
     for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
       const original = svg[`on${type}`];
       svg[`on${type}`] = function(event) {
@@ -55,11 +67,16 @@ try {
 
   const result = await page.evaluate(() => {
     const board = window.BT.storage.getSetting('tacticsBoardDraft', null);
+    const raw = JSON.parse(localStorage.getItem('beepTest_v1'));
+    const rawBoard = raw?.settings?.tacticsBoardDraft || null;
     const player = window.BT.tactics.__core.elementById(board.steps[0], 'o1');
+    const rawPlayer = rawBoard ? window.BT.tactics.__core.elementById(rawBoard.steps[0], 'o1') : null;
     const token = document.querySelector('[data-element-id="o1"]');
     return {
       events: window.__dragProbe,
+      writes: window.__draftWrites,
       stored: { x: player.x, y: player.y },
+      rawStored: rawPlayer ? { x: rawPlayer.x, y: rawPlayer.y } : null,
       transform: token?.getAttribute('transform'),
       quickFix: document.querySelector('.chq-court-wrap svg')?.dataset.quickPointerFix || null,
       status: document.querySelector('[data-role="status"]')?.textContent || null
