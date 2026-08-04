@@ -147,6 +147,7 @@ function createOverlay(title, onClose) {
 
 function actionEntries(step) {
   const transition = core.normalizeTransition(step?.transition);
+  if (step) step.transition = transition;
   return [
     ...transition.motions.map(action => ({ action, type: 'motion' })),
     ...transition.passes.map(action => ({ action, type: 'pass' })),
