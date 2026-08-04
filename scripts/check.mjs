@@ -13,8 +13,8 @@ const scripts = [
   'js/play-designer/editor-stability.js', 'js/play-designer/complete-delete.js',
   'js/play-designer/quick-core.js', 'js/play-designer/quick-styles.js',
   'js/play-designer/quick-pointer-fix.js', 'js/play-designer/quick-editor.js',
-  'js/play-designer/history.js', 'js/play-designer/editor.js',
-  'js/play-designer/viewer.js', 'js/play-designer/exports.js',
+  'js/play-designer/gif-encoder.js', 'js/play-designer/history.js',
+  'js/play-designer/editor.js', 'js/play-designer/viewer.js', 'js/play-designer/exports.js',
   'js/video-import/core.js', 'js/video-import/styles.js', 'js/video-import/alignment.js',
   'js/video-import/main.js', 'js/tablecrew.js', 'js/account.js', 'js/app.js',
   'js/checkin.js', 'js/games.js',
@@ -40,6 +40,11 @@ const frontend = ['index.html', ...scripts.filter((file) => file.startsWith('js/
   .join('\n');
 if (frontend.includes('generativelanguage.googleapis.com')) {
   throw new Error('Gemini darf nicht direkt aus dem Browser aufgerufen werden.');
+}
+
+const exportsSource = readFileSync(resolve(root, 'js/play-designer/exports.js'), 'utf8');
+if (exportsSource.includes('gif.worker.js') || exportsSource.includes('gif.js@')) {
+  throw new Error('GIF-Export darf keinen externen Worker mehr verwenden.');
 }
 
 console.log('CourtHub: statische Prüfungen erfolgreich.');
