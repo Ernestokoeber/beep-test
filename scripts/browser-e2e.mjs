@@ -97,7 +97,7 @@ async function chromiumTouchDrag(page, start, end, id = 1) {
 
 async function makeTargetVisible(locator) {
   await locator.scrollIntoViewIfNeeded();
-  await locator.page().waitForTimeout(30);
+  await new Promise(resolve => setTimeout(resolve, 30));
 }
 
 async function dragTokenWithMouse(page, id, dx, dy) {
