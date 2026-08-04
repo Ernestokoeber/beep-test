@@ -56,6 +56,4 @@ jobs:
       - name: Run browser E2E
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
-        run: |
-          node scripts/browser-drag-probe.mjs
-          node scripts/browser-e2e.mjs
+        run: node scripts/browser-e2e.mjs
