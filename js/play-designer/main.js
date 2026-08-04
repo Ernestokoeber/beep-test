@@ -7,18 +7,33 @@ import { injectPlayDesignerLayoutFix } from './layout-fix.js';
 import { installEditorStability } from './editor-stability.js';
 import { installCompleteDelete } from './complete-delete.js';
 import { mountQuickEditor } from './quick-editor.js';
+import { enhanceQuickEditor } from './quick-workflow.js';
+import { installVideoImportCompatibility } from '../video-import/compatibility.js';
 import { mountEditor as editor } from './editor.js';
 import { mountPlayer as player } from './viewer.js';
 
 const MODE_KEY = 'tacticsEditorMode';
 
-async function openVideoImport() {
-  const app = document.getElementById('app');
+export function cleanupVideoImport() {
+  window.BT.videoImport?.cleanup?.();
+}
+
+export async function mountVideoImport(target) {
+  cleanupVideoImport();
   const module = await import('../video-import/main.js');
   window.BT.videoImport = module;
-  app.replaceChildren();
-  module.mount(app);
-  history.pushState({ courtHubVideoImport: true }, '', '#/tactics/import');
+  target.replaceChildren();
+  const view = module.mount(target);
+  installVideoImportCompatibility(view);
+  return view;
+}
+
+async function openVideoImport() {
+  if (location.hash === '#/tactics/import') {
+    await mountVideoImport(document.getElementById('app'));
+    return;
+  }
+  location.hash = '#/tactics/import';
 }
 
 function switchMode(target, mode) {
@@ -61,18 +76,28 @@ function mountProEditor(target) {
 }
 
 export function mountEditor(target) {
+  cleanupVideoImport();
   const mode = window.BT.storage.getSetting(MODE_KEY, 'quick');
   if (mode === 'pro') return mountProEditor(target);
 
-  return mountQuickEditor(target, {
+  const root = mountQuickEditor(target, {
     onModeChange: nextMode => switchMode(target, nextMode),
     onVideoImport: () => openVideoImport().catch(error => {
       window.BT.util?.toast?.('Video-Import konnte nicht geöffnet werden: ' + error.message);
     })
   });
+
+  return enhanceQuickEditor(root, target, {
+    reload: () => {
+      if (!root.isConnected) return;
+      target.replaceChildren();
+      mountEditor(target);
+    }
+  });
 }
 
 export function mountPlayer(target) {
+  cleanupVideoImport();
   injectStyles();
   injectPlayDesignerLayoutFix();
   return player(target);
