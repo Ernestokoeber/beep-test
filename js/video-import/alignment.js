@@ -115,9 +115,11 @@ function scan() {
   document.querySelectorAll('[data-role="video-import"]').forEach(install);
 }
 
-injectStyles();
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan, { once: true });
-else scan();
+if (typeof document !== 'undefined') {
+  injectStyles();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan, { once: true });
+  else scan();
 
-const documentObserver = new MutationObserver(scan);
-documentObserver.observe(document.documentElement, { childList: true, subtree: true });
+  const documentObserver = new MutationObserver(scan);
+  documentObserver.observe(document.documentElement, { childList: true, subtree: true });
+}
