@@ -126,7 +126,7 @@ function lzwCompress(indexedPixels, minimumCodeSize = 8) {
     if (nextCode < 4096) {
       dictionary.set(key, nextCode);
       nextCode += 1;
-      if (nextCode === (1 << codeSize) && codeSize < 12) codeSize += 1;
+      if (nextCode > (1 << codeSize) && codeSize < 12) codeSize += 1;
     } else {
       writeCode(clearCode);
       reset();
