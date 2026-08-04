@@ -24,8 +24,11 @@ history.commit({ title: 'Vier', steps: [] });
 history.commit({ title: 'Fünf', steps: [] });
 assert(history.sizes().past === 3, 'Historienlimit wird nicht eingehalten');
 
+history.undo();
+assert(history.canRedo(), 'Testvorbereitung für Replace benötigt einen Redo-Zweig');
 history.replace({ title: 'Gespeichert', steps: [] });
 assert(history.current().title === 'Gespeichert', 'Aktueller Zustand wird nach dem Speichern nicht ersetzt');
+assert(!history.canRedo(), 'Speichern darf keinen veralteten Redo-Zweig behalten');
 
 history.reset({ title: 'Geladen', steps: [] });
 assert(history.current().title === 'Geladen', 'Reset lädt nicht den neuen Zustand');
