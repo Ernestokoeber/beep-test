@@ -54,6 +54,7 @@ const ASSETS = [
   './js/video-import/alignment.js',
   './js/video-import/compatibility.js',
   './js/video-import/tracker-v2.js',
+  './js/video-import/tracker-install.js',
   './js/video-import/screen-recognition.js',
   './js/video-import/main.js',
   './js/history.js',
