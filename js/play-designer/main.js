@@ -12,7 +12,7 @@ import { enhanceQuickDetails } from './quick-details.js';
 import { enhanceQuickReorder } from './quick-reorder.js';
 import { enhanceTacticTrash } from './tactic-trash.js';
 import { installVideoImportCompatibility } from '../video-import/compatibility.js';
-import { enhanceVideoTracking } from '../video-import/tracker-v2.js';
+import { installVideoTracking } from '../video-import/tracker-install.js';
 import { installVideoScreenRecognition } from '../video-import/screen-recognition.js';
 import { mountEditor as editor } from './editor.js';
 import { mountPlayer as player } from './viewer.js';
@@ -30,7 +30,7 @@ export async function mountVideoImport(target) {
   target.replaceChildren();
   const view = module.mount(target);
   installVideoImportCompatibility(view);
-  enhanceVideoTracking(view);
+  installVideoTracking(view);
   installVideoScreenRecognition(view);
   return view;
 }
