@@ -1,4 +1,4 @@
-const CACHE = 'courthub-v120';
+const CACHE = 'courthub-v121';
 const ASSETS = [
   './',
   './index.html',
@@ -40,6 +40,8 @@ const ASSETS = [
   './js/play-designer/quick-pointer-fix.js',
   './js/play-designer/quick-editor.js',
   './js/play-designer/quick-workflow.js',
+  './js/play-designer/quick-details.js',
+  './js/play-designer/tactic-trash.js',
   './js/play-designer/gif-encoder.js',
   './js/play-designer/history.js',
   './js/play-designer/editor.js',
