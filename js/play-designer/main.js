@@ -19,7 +19,7 @@ export function mountEditor(target) {
   if (actions && !actions.querySelector('[data-action="video-import"]')) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'chpd-btn ghost';
+    button.className = 'chpd-btn primary';
     button.dataset.action = 'video-import';
     button.textContent = 'Video → Play';
     button.title = 'Play aus einem Videoclip erstellen';
