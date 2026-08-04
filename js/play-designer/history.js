@@ -21,6 +21,7 @@ export function createHistory(initialValue, options = {}) {
 
   function replace(value) {
     present = copy(value);
+    future = [];
   }
 
   function commit(value) {
