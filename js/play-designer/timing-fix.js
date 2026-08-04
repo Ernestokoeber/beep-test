@@ -8,6 +8,7 @@ import {
 
 const tactics = window.BT?.tactics;
 const core = tactics?.__core;
+const BALL_CONTROL_RADIUS = 38;
 
 if (tactics && core && !tactics.__timingFixApplied) {
   const original = {
@@ -26,6 +27,96 @@ if (tactics && core && !tactics.__timingFixApplied) {
     return step;
   }
 
+  function ballElement(step) {
+    return core.elementById(step, 'ball') || core.elements(step, 'ball')[0] || null;
+  }
+
+  function ensureBall(step) {
+    let ball = ballElement(step);
+    if (!ball) {
+      ball = { id: 'ball', type: 'ball', x: 250, y: 388 };
+      step.elements = Array.isArray(step.elements) ? step.elements : [];
+      step.elements.push(ball);
+    }
+    return ball;
+  }
+
+  function ballCarrierForStep(step, transitionInput) {
+    const ball = ballElement(step);
+    if (!ball) return null;
+    const transition = transitionInput || fitTransitionTiming(
+      original.normalizeTransition(step?.transition),
+      core.number(step?.duration, 1.8)
+    );
+
+    let best = null;
+    transition.motions.forEach(motion => {
+      if (motion.elementId === ball.id) return;
+      const player = core.elementById(step, motion.elementId);
+      if (!player || player.type !== 'offense') return;
+      const distance = core.distance(player, ball);
+      if (distance > BALL_CONTROL_RADIUS) return;
+      if (!best || distance < best.distance) {
+        best = {
+          elementId: player.id,
+          motion,
+          distance,
+          offset: {
+            x: ball.x - player.x,
+            y: ball.y - player.y
+          }
+        };
+      }
+    });
+    return best;
+  }
+
+  function motionEndPoint(stepFrom, stepTo, motion) {
+    const target = core.elementById(stepTo, motion.elementId);
+    if (target) return core.point(target);
+    const lastPathPoint = motion.path?.at(-1);
+    if (lastPathPoint) return core.point(lastPathPoint);
+    const source = core.elementById(stepFrom, motion.elementId);
+    return source ? core.point(source) : null;
+  }
+
+  function propagateBallState(board) {
+    for (let index = 0; index < board.steps.length - 1; index += 1) {
+      const from = board.steps[index];
+      const to = board.steps[index + 1];
+      const transition = from.transition;
+      const targetBall = ensureBall(to);
+
+      const lastPass = [...transition.passes]
+        .filter(pass => actionEnd(pass) <= from.duration + 1e-9)
+        .sort((left, right) => actionEnd(right) - actionEnd(left))[0] || null;
+      if (lastPass) {
+        const receiver = core.elementById(to, lastPass.toId)
+          || core.elementById(from, lastPass.toId);
+        if (receiver) Object.assign(targetBall, { x: receiver.x + 16, y: receiver.y });
+        continue;
+      }
+
+      const explicitBallMotion = transition.motions.find(motion => motion.elementId === targetBall.id);
+      if (explicitBallMotion) {
+        const end = motionEndPoint(from, to, explicitBallMotion);
+        if (end) Object.assign(targetBall, end);
+        continue;
+      }
+
+      const carrier = ballCarrierForStep(from, transition);
+      if (!carrier) continue;
+      const playerEnd = motionEndPoint(from, to, carrier.motion);
+      if (playerEnd) {
+        Object.assign(targetBall, {
+          x: core.clamp(playerEnd.x + carrier.offset.x, 16, 484),
+          y: core.clamp(playerEnd.y + carrier.offset.y, 16, 454)
+        });
+      }
+    }
+    return board;
+  }
+
   function normalizeStep(raw, index) {
     return fitStep(original.normalizeStep(raw, index));
   }
@@ -38,7 +129,7 @@ if (tactics && core && !tactics.__timingFixApplied) {
       0,
       Math.max(0, board.steps.length - 1)
     );
-    return board;
+    return propagateBallState(board);
   }
 
   function boardDuration(boardInput) {
@@ -114,6 +205,16 @@ if (tactics && core && !tactics.__timingFixApplied) {
     return player ? { x: player.x + 16, y: player.y } : null;
   }
 
+  function carrierBallPoint(stepFrom, stepTo, carrier, elapsed) {
+    if (!carrier) return null;
+    const player = positionDuring(stepFrom, stepTo, carrier.elementId, elapsed);
+    if (!player) return null;
+    return {
+      x: core.clamp(player.x + carrier.offset.x, 16, 484),
+      y: core.clamp(player.y + carrier.offset.y, 16, 454)
+    };
+  }
+
   function snapshotAt(boardInput, timeInput) {
     const board = normalizeBoard(boardInput);
     const location = locateBoardTime(board.steps, timeInput);
@@ -134,9 +235,10 @@ if (tactics && core && !tactics.__timingFixApplied) {
     const completedPass = passes
       .filter(pass => actionState(pass, location.elapsed) === 'complete')
       .sort((left, right) => actionEnd(right) - actionEnd(left))[0] || null;
-    const ball = core.elementById(snapshot, 'ball') || core.elements(snapshot, 'ball')[0];
-    const sourceBall = core.elementById(from, 'ball') || core.elements(from, 'ball')[0];
+    const ball = ballElement(snapshot);
+    const sourceBall = ballElement(from);
     const explicitBallMotion = transition.motions.some(action => action.elementId === ball?.id);
+    const carrier = explicitBallMotion ? null : ballCarrierForStep(from, transition);
 
     if (ball && activePass) {
       const start = playerBallPoint(from, to || from, activePass.fromId, activePass.start)
@@ -161,6 +263,9 @@ if (tactics && core && !tactics.__timingFixApplied) {
     } else if (ball && completedPass) {
       const receiver = playerBallPoint(from, to || from, completedPass.toId, location.elapsed);
       if (receiver) Object.assign(ball, receiver);
+    } else if (ball && carrier) {
+      const carried = carrierBallPoint(from, to || from, carrier, location.elapsed);
+      if (carried) Object.assign(ball, carried);
     } else if (ball && !explicitBallMotion && sourceBall) {
       Object.assign(ball, core.point(sourceBall));
     }
@@ -175,7 +280,19 @@ if (tactics && core && !tactics.__timingFixApplied) {
         ...transition.screens
       ].map(action => [action.id, actionState(action, location.elapsed)])
     );
+    snapshot._ballCarrierId = carrier?.elementId || null;
     return snapshot;
+  }
+
+  function publicBallCarrierForStep(stepInput) {
+    const step = fitStep(stepInput);
+    const carrier = ballCarrierForStep(step, step.transition);
+    return carrier ? core.copy(carrier) : null;
+  }
+
+  function isBallCarrierAction(stepInput, action) {
+    if (!action || action.type !== 'move') return false;
+    return publicBallCarrierForStep(stepInput)?.elementId === action.elementId;
   }
 
   core.normalizeStep = normalizeStep;
@@ -190,6 +307,8 @@ if (tactics && core && !tactics.__timingFixApplied) {
   core.fitStepTiming = fitStep;
   core.actionEnd = actionEnd;
   core.actionState = actionState;
+  core.ballCarrierForStep = publicBallCarrierForStep;
+  core.isBallCarrierAction = isBallCarrierAction;
 
   tactics.normalizeBoard = normalizeBoard;
   tactics.boardDuration = boardDuration;
