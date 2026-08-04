@@ -1,4 +1,4 @@
-const CACHE = 'courthub-v112';
+const CACHE = 'courthub-v113';
 const ASSETS = [
   './',
   './index.html',
@@ -30,6 +30,7 @@ const ASSETS = [
   './js/play-designer/styles.js',
   './js/play-designer/rendering.js',
   './js/play-designer/court-enhancements.js',
+  './js/play-designer/layout-fix.js',
   './js/play-designer/history.js',
   './js/play-designer/editor.js',
   './js/play-designer/viewer.js',
