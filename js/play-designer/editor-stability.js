@@ -45,7 +45,8 @@ function actionsFor(step) {
 
 function actionName(action, step) {
   if (action.type === 'move') {
-    return `Lauf ${core.elementById(step, action.elementId)?.role || 'Spieler'}`;
+    const role = core.elementById(step, action.elementId)?.role || 'Spieler';
+    return core.isBallCarrierAction?.(step, action) ? `Dribbling ${role}` : `Lauf ${role}`;
   }
   if (action.type === 'pass') {
     return `Pass ${core.elementById(step, action.fromId)?.role || '?'} → ${core.elementById(step, action.toId)?.role || '?'}`;
@@ -60,7 +61,8 @@ function enhanceActionList(root, board, stepIndex) {
   buttons.forEach((button, index) => {
     const action = actions[index];
     if (!action) return;
-    const signature = `${action.id}:${action.start}:${action.duration}`;
+    const carrierState = core.isBallCarrierAction?.(step, action) ? 'dribble' : 'normal';
+    const signature = `${action.id}:${action.start}:${action.duration}:${carrierState}`;
     if (button.dataset.timingSignature === signature) return;
     button.dataset.timingSignature = signature;
     button.dataset.actionId = action.id;
@@ -120,7 +122,7 @@ function enhanceInspector(root, board, stepIndex) {
   summary.replaceChildren();
 
   const title = document.createElement('strong');
-  title.textContent = `Aktionsfenster: ${format(action.start)} – ${format(core.actionEnd(action))}`;
+  title.textContent = `${actionName(action, step)}: ${format(action.start)} – ${format(core.actionEnd(action))}`;
   const detail = document.createElement('span');
   detail.textContent = `Im gesamten Play: ${format(absoluteStart)} – ${format(absoluteEnd)} · Schritt endet bei ${format(step.duration)}`;
   const preview = document.createElement('button');
