@@ -9,8 +9,11 @@ import { installCompleteDelete } from './complete-delete.js';
 import { mountQuickEditor } from './quick-editor.js';
 import { enhanceQuickEditor } from './quick-workflow.js';
 import { enhanceQuickDetails } from './quick-details.js';
+import { enhanceQuickReorder } from './quick-reorder.js';
 import { enhanceTacticTrash } from './tactic-trash.js';
 import { installVideoImportCompatibility } from '../video-import/compatibility.js';
+import { installVideoTracking } from '../video-import/tracker-install.js';
+import { installVideoScreenRecognition } from '../video-import/screen-recognition.js';
 import { mountEditor as editor } from './editor.js';
 import { mountPlayer as player } from './viewer.js';
 
@@ -27,6 +30,8 @@ export async function mountVideoImport(target) {
   target.replaceChildren();
   const view = module.mount(target);
   installVideoImportCompatibility(view);
+  installVideoTracking(view);
+  installVideoScreenRecognition(view);
   return view;
 }
 
@@ -99,7 +104,9 @@ export function mountEditor(target) {
 
   root = enhanceQuickEditor(root, target, { reload });
   root = enhanceQuickDetails(root, { reload });
+  root = enhanceQuickReorder(root, { reload });
   root = enhanceTacticTrash(root, { reload });
+  root.addEventListener('courthub:quick-reload', reload);
   return root;
 }
 

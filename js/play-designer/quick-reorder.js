@@ -1,0 +1,258 @@
+const DRAFT_KEY = 'tacticsBoardDraft';
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function translatedPoint(point, dx, dy, core) {
+  return core.point({ x: Number(point?.x || 0) + dx, y: Number(point?.y || 0) + dy });
+}
+
+function copyTokenState(step, core) {
+  const output = core.cloneStep(step);
+  output.duration = step.duration;
+  output.elements = clone(step.elements || []);
+  output.transition = core.emptyTransition();
+  return output;
+}
+
+function rebuildSegment(source, current, core) {
+  const next = copyTokenState(current, core);
+  const transition = core.normalizeTransition(source.transition);
+  const rebuilt = core.emptyTransition();
+  const movedBallCarriers = [];
+
+  transition.motions.forEach(action => {
+    const originalActor = core.elementById(source, action.elementId);
+    const currentActor = core.elementById(current, action.elementId);
+    const targetActor = core.elementById(next, action.elementId);
+    if (!originalActor || !currentActor || !targetActor) return;
+
+    const dx = currentActor.x - originalActor.x;
+    const dy = currentActor.y - originalActor.y;
+    const sourcePath = Array.isArray(action.path) && action.path.length
+      ? action.path
+      : [originalActor, core.elementById(source, action.elementId) || originalActor];
+    const path = sourcePath.map(point => translatedPoint(point, dx, dy, core));
+    if (!path.length) path.push(core.point(currentActor));
+    path[0] = core.point(currentActor);
+    Object.assign(targetActor, path.at(-1));
+
+    rebuilt.motions.push({
+      ...clone(action),
+      path
+    });
+
+    const originalBall = core.elementById(source, 'ball');
+    if (originalBall && core.distance(originalBall, originalActor) <= 36) {
+      movedBallCarriers.push({
+        actorId: action.elementId,
+        offsetX: originalBall.x - originalActor.x,
+        offsetY: originalBall.y - originalActor.y
+      });
+    }
+  });
+
+  transition.screens.forEach(action => {
+    const originalActor = core.elementById(source, action.elementId);
+    const currentActor = core.elementById(current, action.elementId);
+    if (!originalActor || !currentActor) return;
+    rebuilt.screens.push({
+      ...clone(action),
+      x: core.clamp(Number(action.x || originalActor.x) + currentActor.x - originalActor.x, 16, 484),
+      y: core.clamp(Number(action.y || originalActor.y) + currentActor.y - originalActor.y, 16, 454)
+    });
+  });
+
+  rebuilt.passes = transition.passes.map(action => clone(action));
+  current.transition = rebuilt;
+  current.duration = core.clamp(Number(source.duration) || 1.8, .3, 10);
+
+  const nextBall = core.elementById(next, 'ball');
+  if (nextBall && movedBallCarriers.length && !rebuilt.passes.length) {
+    const carrier = movedBallCarriers.at(-1);
+    const actor = core.elementById(next, carrier.actorId);
+    if (actor) {
+      nextBall.x = core.clamp(actor.x + carrier.offsetX, 16, 484);
+      nextBall.y = core.clamp(actor.y + carrier.offsetY, 16, 454);
+    }
+  }
+
+  if (nextBall && rebuilt.passes.length) {
+    const lastPass = [...rebuilt.passes].sort((left, right) =>
+      (left.start + left.duration) - (right.start + right.duration)
+    ).at(-1);
+    const receiver = lastPass ? core.elementById(next, lastPass.toId) : null;
+    if (receiver) {
+      nextBall.x = core.clamp(receiver.x + 16, 16, 484);
+      nextBall.y = core.clamp(receiver.y, 16, 454);
+    }
+  }
+
+  return next;
+}
+
+export function reorderQuickFlows(boardInput, fromIndex, toIndex, suppliedCore) {
+  const core = suppliedCore || window.BT.tactics.__core;
+  const board = core.normalizeBoard(boardInput);
+  const count = Math.max(0, board.steps.length - 1);
+  if (count < 2) return board;
+
+  const from = core.clamp(Math.floor(Number(fromIndex) || 0), 0, count - 1);
+  const to = core.clamp(Math.floor(Number(toIndex) || 0), 0, count - 1);
+  if (from === to) return board;
+
+  const segments = board.steps.slice(0, count).map((step, index) => ({
+    originalIndex: index,
+    step: clone(step)
+  }));
+  const [moved] = segments.splice(from, 1);
+  segments.splice(to, 0, moved);
+
+  const originalCurrent = core.clamp(board.currentStep || 0, 0, count - 1);
+  const rebuilt = [];
+  let current = copyTokenState(board.steps[0], core);
+
+  segments.forEach(segment => {
+    rebuilt.push(current);
+    current = rebuildSegment(segment.step, current, core);
+  });
+
+  const finalDuration = board.steps.at(-1)?.duration || 1.2;
+  current.duration = core.clamp(Number(finalDuration) || 1.2, .3, 10);
+  current.transition = core.emptyTransition();
+  rebuilt.push(current);
+
+  board.steps = rebuilt;
+  board.currentStep = segments.findIndex(segment => segment.originalIndex === originalCurrent);
+  if (board.currentStep < 0) board.currentStep = Math.min(to, count - 1);
+  return core.normalizeBoard(board);
+}
+
+function injectStyles() {
+  if (document.getElementById('courthub-quick-reorder')) return;
+  const style = document.createElement('style');
+  style.id = 'courthub-quick-reorder';
+  style.textContent = `
+    .chqr-handle{display:grid;place-items:center;flex:0 0 auto;width:2rem;height:2rem;border:0;border-radius:.55rem;background:rgba(20,60,42,.07);color:var(--muted,#64756d);font:900 1rem/1 system-ui;cursor:grab;touch-action:none;user-select:none}
+    .chqr-handle:active{cursor:grabbing}.chqr-handle:focus-visible{outline:2px solid #ec7d1d;outline-offset:2px}
+    .chq-flow-item.chqr-source{opacity:.5;transform:scale(.985)}
+    .chq-flow-item.chqr-target{box-shadow:0 0 0 3px rgba(236,125,29,.22);border-color:#ec7d1d}
+    .chq-flow-item.chqr-before::before,.chq-flow-item.chqr-after::after{content:'';position:absolute;left:.55rem;right:.55rem;height:3px;border-radius:3px;background:#ec7d1d}
+    .chq-flow-item.chqr-before::before{top:-.28rem}.chq-flow-item.chqr-after::after{bottom:-.28rem}
+    .chq-flow-item{position:relative}
+  `;
+  document.head.append(style);
+}
+
+function activeRows(root) {
+  return [...root.querySelectorAll('.chq-flow-item')];
+}
+
+function saveReorder(root, from, to, reload) {
+  if (from === to) return;
+  const board = window.BT.storage.getSetting(DRAFT_KEY, window.BT.tactics.__core.defaultBoard());
+  const reordered = reorderQuickFlows(board, from, to, window.BT.tactics.__core);
+  window.BT.storage.setSetting(DRAFT_KEY, reordered);
+  window.BT.util?.toast?.(`Ablauf ${from + 1} wurde an Position ${to + 1} verschoben.`);
+  reload();
+}
+
+function clearMarkers(root) {
+  activeRows(root).forEach(row => row.classList.remove('chqr-source', 'chqr-target', 'chqr-before', 'chqr-after'));
+}
+
+function targetForY(root, clientY) {
+  const rows = activeRows(root);
+  if (!rows.length) return 0;
+  let target = rows.length - 1;
+  rows.forEach((row, index) => {
+    const rect = row.getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2 && target === rows.length - 1) target = index;
+  });
+  return target;
+}
+
+function decorate(root, reload) {
+  activeRows(root).forEach((row, index) => {
+    row.dataset.reorderIndex = String(index);
+    if (row.querySelector('.chqr-handle')) return;
+
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'chqr-handle';
+    handle.textContent = '↕';
+    handle.title = 'Ablauf per Ziehen verschieben';
+    handle.setAttribute('aria-label', `Ablauf ${index + 1} verschieben`);
+    row.prepend(handle);
+
+    let drag = null;
+    handle.addEventListener('pointerdown', event => {
+      if (event.button !== undefined && event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      drag = { pointerId: event.pointerId, from: index, to: index };
+      handle.setPointerCapture?.(event.pointerId);
+      clearMarkers(root);
+      activeRows(root)[index]?.classList.add('chqr-source');
+    });
+    handle.addEventListener('pointermove', event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      event.preventDefault();
+      drag.to = targetForY(root, event.clientY);
+      clearMarkers(root);
+      const rows = activeRows(root);
+      rows[drag.from]?.classList.add('chqr-source');
+      rows[drag.to]?.classList.add('chqr-target', drag.to < drag.from ? 'chqr-before' : 'chqr-after');
+    });
+    const finish = event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const value = drag;
+      drag = null;
+      try { handle.releasePointerCapture?.(event.pointerId); } catch (_) {}
+      clearMarkers(root);
+      saveReorder(root, value.from, value.to, reload);
+    };
+    handle.addEventListener('pointerup', finish);
+    handle.addEventListener('pointercancel', event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      drag = null;
+      clearMarkers(root);
+    });
+    handle.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    handle.addEventListener('keydown', event => {
+      const rows = activeRows(root);
+      if (event.key === 'ArrowUp' && index > 0) {
+        event.preventDefault();
+        saveReorder(root, index, index - 1, reload);
+      } else if (event.key === 'ArrowDown' && index < rows.length - 1) {
+        event.preventDefault();
+        saveReorder(root, index, index + 1, reload);
+      }
+    });
+  });
+}
+
+export function enhanceQuickReorder(root, options = {}) {
+  const flow = root?.querySelector?.('[data-role="flow"]');
+  if (!flow || root.dataset.quickReorderInstalled === 'true') return root;
+  root.dataset.quickReorderInstalled = 'true';
+  injectStyles();
+  const reload = () => options.reload?.();
+  const observer = new MutationObserver(() => decorate(root, reload));
+  observer.observe(flow, { childList: true, subtree: true });
+  decorate(root, reload);
+
+  const cleanup = () => {
+    if (root.isConnected) return;
+    observer.disconnect();
+    window.removeEventListener('hashchange', cleanup);
+  };
+  window.addEventListener('hashchange', cleanup);
+  return root;
+}
