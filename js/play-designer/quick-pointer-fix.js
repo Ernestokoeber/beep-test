@@ -1,12 +1,15 @@
 import {
   COURT_ENHANCEMENT_VIEW,
   legacyProject,
+  parallelProject,
   parallelUnproject
 } from './court-enhancements.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const DRAFT_KEY = 'tacticsBoardDraft';
 const installed = new WeakSet();
 const activePointers = new Map();
+const setupDrags = new Map();
 let fallbackInstalled = false;
 
 function finite(value, fallback = 0) {
@@ -116,15 +119,127 @@ function callHandler(svg, type, event) {
   try {
     handler.call(svg, eventProxy(event, coordinates));
   } catch (error) {
-    // Safari/Chromium können setPointerCapture ablehnen, wenn das während
-    // eines gerenderten SVG-Austauschs passiert. Der Drag-Zustand wurde im
-    // Editor bereits angelegt und wird über den Fenster-Fallback fortgeführt.
     if (error?.name !== 'NotFoundError' && error?.name !== 'InvalidStateError') throw error;
   }
   return true;
 }
 
+function currentTool(svg) {
+  return svg.closest('.chq')?.querySelector('[data-tool].active')?.dataset.tool || null;
+}
+
+function stepHasActions(step, core) {
+  const transition = core.normalizeTransition(step?.transition);
+  return transition.motions.length + transition.passes.length + transition.screens.length > 0;
+}
+
+function setupCourtPoint(svg, event) {
+  return parallelUnproject(clientToParallelSvg(
+    svg.getBoundingClientRect(),
+    event.clientX,
+    event.clientY
+  ));
+}
+
+function setupCandidate(svg, event) {
+  if (currentTool(svg) !== 'select') return null;
+  const group = event.target?.closest?.('g.token[data-element-id]');
+  if (!group || !svg.contains(group)) return null;
+
+  const storage = window.BT?.storage;
+  const core = window.BT?.tactics?.__core;
+  if (!storage || !core) return null;
+  const board = core.normalizeBoard(storage.getSetting(DRAFT_KEY, core.defaultBoard()));
+  if (board.currentStep !== 0 || stepHasActions(board.steps[0], core)) return null;
+
+  const id = group.dataset.elementId;
+  const element = core.elementById(board.steps[0], id);
+  if (!element || !['offense', 'defense', 'ball'].includes(element.type)) return null;
+  return { storage, core, board, id, group, element };
+}
+
+function updateVisualToken(state, point) {
+  const projected = parallelProject(point);
+  const transform = state.group.getAttribute('transform') || '';
+  const scale = transform.match(/\s(scale\([^)]*\).*)$/)?.[1] || '';
+  state.group.setAttribute(
+    'transform',
+    `translate(${projected.x} ${projected.y})${scale ? ' ' + scale : ''}`
+  );
+}
+
+function updateSetupBoard(state, point) {
+  const x = state.core.clamp(point.x - state.dx, 16, 484);
+  const y = state.core.clamp(point.y - state.dy, 16, 454);
+  const origin = state.core.elementById(state.board.steps[0], state.id);
+  if (!origin) return;
+  if (Math.abs(origin.x - x) > .01 || Math.abs(origin.y - y) > .01) state.changed = true;
+  state.board.steps.forEach(step => {
+    const element = state.core.elementById(step, state.id);
+    if (element) Object.assign(element, { x, y });
+  });
+  updateVisualToken(state, { x, y });
+}
+
+function requestQuickReload(svg) {
+  const root = svg.closest('.chq');
+  if (!root) return;
+  root.dispatchEvent(new CustomEvent('courthub:quick-reload', { bubbles: false }));
+}
+
+function finishSetupDrag(event, cancelled = false) {
+  const state = setupDrags.get(event.pointerId);
+  if (!state) return false;
+  setupDrags.delete(event.pointerId);
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  try { state.svg.releasePointerCapture?.(event.pointerId); } catch (_) {}
+
+  if (!cancelled && state.changed) {
+    state.board = state.core.normalizeBoard(state.board);
+    state.storage.setSetting(DRAFT_KEY, state.board);
+    const status = state.svg.closest('.chq')?.querySelector('[data-role="status"]');
+    if (status) status.textContent = 'Aufstellung geändert.';
+  }
+  requestAnimationFrame(() => requestQuickReload(state.svg));
+  return true;
+}
+
+function handleSetupDrag(svg, type, event) {
+  if (type === 'pointerdown') {
+    const candidate = setupCandidate(svg, event);
+    if (!candidate) return false;
+    const point = setupCourtPoint(svg, event);
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const state = {
+      ...candidate,
+      svg,
+      pointerId: event.pointerId,
+      dx: point.x - candidate.element.x,
+      dy: point.y - candidate.element.y,
+      changed: false
+    };
+    setupDrags.set(event.pointerId, state);
+    try { svg.setPointerCapture?.(event.pointerId); } catch (_) {}
+    return true;
+  }
+
+  const state = setupDrags.get(event.pointerId);
+  if (!state || state.svg !== svg) return false;
+  if (type === 'pointermove') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    updateSetupBoard(state, setupCourtPoint(svg, event));
+    return true;
+  }
+  if (type === 'pointerup') return finishSetupDrag(event, false);
+  if (type === 'pointercancel') return finishSetupDrag(event, true);
+  return false;
+}
+
 function relay(svg, type, event) {
+  if (handleSetupDrag(svg, type, event)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   const handled = callHandler(svg, type, event);
@@ -142,6 +257,13 @@ function installWindowFallback() {
   fallbackInstalled = true;
 
   window.addEventListener('pointermove', event => {
+    const setup = setupDrags.get(event.pointerId);
+    if (setup && (!setup.svg.contains(event.target) || !setup.svg.hasPointerCapture?.(event.pointerId))) {
+      event.preventDefault();
+      updateSetupBoard(setup, setupCourtPoint(setup.svg, event));
+      return;
+    }
+
     const svg = activePointers.get(event.pointerId);
     if (!svg || !svg.isConnected || svg.contains(event.target)) return;
     event.preventDefault();
@@ -149,11 +271,17 @@ function installWindowFallback() {
   }, true);
 
   const finish = type => event => {
+    const setup = setupDrags.get(event.pointerId);
+    if (setup) {
+      queueMicrotask(() => {
+        if (!setupDrags.has(event.pointerId)) return;
+        finishSetupDrag(event, type === 'pointercancel');
+      });
+      return;
+    }
+
     const svg = activePointers.get(event.pointerId);
     if (!svg) return;
-    // Der normale SVG-Listener erhält zuerst die Chance. Falls der Pointer
-    // wegen eines DOM-Austauschs oder verlorener Capture nicht dort ankommt,
-    // schließt dieser Microtask den Drag trotzdem sauber ab und speichert ihn.
     queueMicrotask(() => {
       if (activePointers.get(event.pointerId) !== svg) return;
       activePointers.delete(event.pointerId);
