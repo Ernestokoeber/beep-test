@@ -28,6 +28,11 @@ export function installCompleteDelete(root) {
     event.preventDefault();
     event.stopImmediatePropagation();
 
+    if (!window.BT?.tactics?.__core?.canEdit?.()) {
+      window.BT.util?.toast?.('Zum Löschen bitte als Trainerteam anmelden.');
+      return;
+    }
+
     const storage = window.BT?.storage;
     const board = storage?.getSetting?.(DRAFT_KEY, null);
     const titleInput = root.querySelector('[data-r="title"]');
