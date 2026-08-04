@@ -106,6 +106,7 @@ export function mountEditor(target) {
   root = enhanceQuickDetails(root, { reload });
   root = enhanceQuickReorder(root, { reload });
   root = enhanceTacticTrash(root, { reload });
+  root.addEventListener('courthub:quick-reload', reload);
   return root;
 }
 
