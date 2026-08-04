@@ -1,5 +1,47 @@
 window.BT = window.BT || {};
 
+(function installTacticsImportRoute() {
+  const importHash = '#/tactics/import';
+  const initialImport = location.hash === importHash;
+
+  if (initialImport) {
+    history.replaceState({ courtHubImportRequested: true }, '', '#/tactics');
+  }
+
+  function setTacticsNavigationActive() {
+    document.querySelectorAll('.topbar nav a, [data-mobile-nav]').forEach(link => link.classList.remove('active'));
+    document.querySelector('[data-nav="tactics"]')?.classList.add('active');
+    document.querySelector('[data-mobile-nav="tactics"]')?.classList.add('active');
+  }
+
+  async function mountImport() {
+    const app = document.getElementById('app');
+    if (!app) return;
+    const module = await import('./play-designer/main.js');
+    await module.mountVideoImport(app);
+    setTacticsNavigationActive();
+  }
+
+  window.addEventListener('hashchange', event => {
+    if (location.hash === importHash) {
+      event.stopImmediatePropagation();
+      mountImport().catch(error => {
+        console.error('Video-Import konnte nicht geöffnet werden', error);
+        window.BT.util?.toast?.('Video-Import konnte nicht geöffnet werden.');
+        location.hash = '#/tactics';
+      });
+      return;
+    }
+    window.BT.videoImport?.cleanup?.();
+  });
+
+  if (initialImport) {
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => { location.hash = importHash; }, 0);
+    }, { once: true });
+  }
+})();
+
 BT.install = (function() {
   let deferredPrompt = null;
 
