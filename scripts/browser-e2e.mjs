@@ -95,11 +95,21 @@ async function chromiumTouchDrag(page, start, end, id = 1) {
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
+async function makeTargetVisible(locator) {
+  await locator.scrollIntoViewIfNeeded();
+  await locator.page().waitForTimeout(30);
+}
+
 async function dragTokenWithMouse(page, id, dx, dy) {
   const hit = tokenHit(page, id);
+  await makeTargetVisible(hit);
   const box = await hit.boundingBox();
   assert(box, `Spieler ${id} besitzt keine sichtbare Trefferfläche`);
   const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const targetId = await page.evaluate(({ x, y }) =>
+    document.elementFromPoint(x, y)?.closest?.('[data-element-id]')?.getAttribute('data-element-id') || null,
+  start);
+  assert(targetId === id, `Spieler ${id} ist an seiner sichtbaren Position nicht anklickbar`);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(start.x + dx, start.y + dy, { steps: 6 });
@@ -108,6 +118,7 @@ async function dragTokenWithMouse(page, id, dx, dy) {
 
 async function dragTokenWithTouch(page, id, dx, dy, pointerId) {
   const hit = tokenHit(page, id);
+  await makeTargetVisible(hit);
   const box = await hit.boundingBox();
   assert(box, `Touch-Spieler ${id} besitzt keine sichtbare Trefferfläche`);
   const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -152,6 +163,8 @@ async function reorderWithPointer(page, from, to, touch = false) {
   const handles = page.locator('.chqr-handle');
   const source = handles.nth(from);
   const target = handles.nth(to);
+  await makeTargetVisible(source);
+  await makeTargetVisible(target);
   const sourceBox = await source.boundingBox();
   const targetBox = await target.boundingBox();
   assert(sourceBox && targetBox, 'Drag-and-drop-Griffe sind nicht sichtbar');
