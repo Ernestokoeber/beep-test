@@ -1,6 +1,7 @@
 import './court-enhancements.js';
 import '../video-import/alignment.js';
 import { injectStyles } from './styles.js';
+import { injectPlayDesignerLayoutFix } from './layout-fix.js';
 import { mountEditor as editor } from './editor.js';
 import { mountPlayer as player } from './viewer.js';
 
@@ -15,6 +16,7 @@ async function openVideoImport() {
 
 export function mountEditor(target) {
   injectStyles();
+  injectPlayDesignerLayoutFix();
   const root = editor(target);
   const actions = root?.querySelector('.chpd-actions');
   if (actions && !actions.querySelector('[data-action="video-import"]')) {
@@ -34,5 +36,6 @@ export function mountEditor(target) {
 
 export function mountPlayer(target) {
   injectStyles();
+  injectPlayDesignerLayoutFix();
   return player(target);
 }
