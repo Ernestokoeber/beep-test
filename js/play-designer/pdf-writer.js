@@ -114,9 +114,14 @@ export function buildPdfBytes(pagesInput) {
 
   objects[fontId] = [latin1Bytes('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>')];
 
-  const chunks = [latin1Bytes('%PDF-1.4\n%\342\343\317\323\n')];
+  const header = concatBytes([
+    latin1Bytes('%PDF-1.4\n%'),
+    new Uint8Array([0xe2, 0xe3, 0xcf, 0xd3]),
+    latin1Bytes('\n')
+  ]);
+  const chunks = [header];
   const offsets = new Array(objects.length).fill(0);
-  let offset = chunks[0].length;
+  let offset = header.length;
 
   for (let id = 1; id < objects.length; id += 1) {
     const prefix = latin1Bytes(`${id} 0 obj\n`);
