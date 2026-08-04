@@ -1,7 +1,7 @@
 {
   "name": "courthub",
   "private": true,
-  "version": "3.0.1",
+  "version": "3.0.2",
   "type": "module",
   "engines": {
     "node": "24.x"
@@ -9,7 +9,7 @@
   "scripts": {
     "check": "node scripts/check.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run check && npm run smoke && node scripts/workspace-smoke.mjs && node scripts/play-designer-smoke.mjs && node scripts/perspective-renderer-smoke.mjs && node scripts/court-enhancements-smoke.mjs && node scripts/play-designer-history-smoke.mjs && node scripts/play-designer-timing-smoke.mjs && node scripts/video-import-smoke.mjs && node scripts/video-import-alignment-smoke.mjs",
+    "test": "npm run check && npm run smoke && node scripts/workspace-smoke.mjs && node scripts/play-designer-smoke.mjs && node scripts/perspective-renderer-smoke.mjs && node scripts/court-enhancements-smoke.mjs && node scripts/play-designer-history-smoke.mjs && node scripts/play-designer-timing-smoke.mjs && node scripts/play-designer-delete-smoke.mjs && node scripts/video-import-smoke.mjs && node scripts/video-import-alignment-smoke.mjs",
     "dev": "vercel dev"
   },
   "dependencies": {

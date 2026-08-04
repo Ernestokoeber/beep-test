@@ -4,6 +4,7 @@ import '../video-import/alignment.js';
 import { injectStyles } from './styles.js';
 import { injectPlayDesignerLayoutFix } from './layout-fix.js';
 import { installEditorStability } from './editor-stability.js';
+import { installCompleteDelete } from './complete-delete.js';
 import { mountEditor as editor } from './editor.js';
 import { mountPlayer as player } from './viewer.js';
 
@@ -19,7 +20,7 @@ async function openVideoImport() {
 export function mountEditor(target) {
   injectStyles();
   injectPlayDesignerLayoutFix();
-  const root = installEditorStability(editor(target));
+  const root = installCompleteDelete(installEditorStability(editor(target)));
   const actions = root?.querySelector('.chpd-actions');
   if (actions && !actions.querySelector('[data-action="video-import"]')) {
     const button = document.createElement('button');
