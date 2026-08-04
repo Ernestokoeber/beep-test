@@ -1,4 +1,5 @@
 import './court-enhancements.js';
+import '../video-import/alignment.js';
 import { injectStyles } from './styles.js';
 import { mountEditor as editor } from './editor.js';
 import { mountPlayer as player } from './viewer.js';
