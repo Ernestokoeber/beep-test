@@ -8,11 +8,11 @@ function label(step, id, core) {
 }
 
 export function recordedActions(step, core) {
-  const transition = core.normalizeTransition(step?.transition);
+  const transition = step?.transition || {};
   return [
-    ...transition.motions,
-    ...transition.passes,
-    ...transition.screens
+    ...(Array.isArray(transition.motions) ? transition.motions : []),
+    ...(Array.isArray(transition.passes) ? transition.passes : []),
+    ...(Array.isArray(transition.screens) ? transition.screens : [])
   ].sort((left, right) =>
     number(left.start) - number(right.start)
       || number(left.duration) - number(right.duration)

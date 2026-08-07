@@ -1,3 +1,9 @@
+import {
+  applyPhaseTiming,
+  normalizeRecordedBoard,
+  recordedActions
+} from './phase-recorder-core.js';
+
 function numeric(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -27,9 +33,7 @@ export function autoPassDuration(from, to) {
 }
 
 export function stepActions(step, core) {
-  const transition = core.normalizeTransition(step?.transition);
-  return [...transition.motions, ...transition.passes, ...transition.screens]
-    .sort((left, right) => left.start - right.start || left.duration - right.duration);
+  return recordedActions(step, core);
 }
 
 export function hasStepActions(step, core) {
@@ -42,7 +46,7 @@ function ensureNextStep(board, index, core) {
 }
 
 export function prepareQuickAction(boardInput, indexInput, relation, core) {
-  const board = core.normalizeBoard(boardInput);
+  const board = normalizeRecordedBoard(boardInput, core);
   let index = core.clamp(
     Math.floor(core.number(indexInput, board.currentStep || 0)),
     0,
@@ -65,8 +69,7 @@ export function prepareQuickAction(boardInput, indexInput, relation, core) {
 }
 
 function fitStepDuration(step, actionEnd, hadActions, core) {
-  const minimum = core.clamp(actionEnd + 0.15, 0.3, 10);
-  step.duration = hadActions ? Math.max(step.duration, minimum) : minimum;
+  applyPhaseTiming(step, core);
   return step.duration;
 }
 
@@ -77,6 +80,15 @@ function cleanPath(source, points, core) {
     if (core.distance(output.at(-1), normalized) >= 7) output.push(normalized);
   });
   return output.slice(0, 80);
+}
+
+function transitionFor(step) {
+  const source = step?.transition || {};
+  return {
+    motions: Array.isArray(source.motions) ? source.motions : [],
+    passes: Array.isArray(source.passes) ? source.passes : [],
+    screens: Array.isArray(source.screens) ? source.screens : []
+  };
 }
 
 export function addQuickMove(boardInput, options, core) {
@@ -97,9 +109,13 @@ export function addQuickMove(boardInput, options, core) {
   const path = cleanPath(actor, options?.path, core);
   if (path.length < 2) throw new Error('Der Laufweg ist zu kurz.');
   const duration = autoMoveDuration(path);
+  const ball = core.elementById(step, 'ball');
+  const kind = actor.type === 'offense' && ball && core.distance(actor, ball) <= 34
+    ? 'dribble'
+    : 'run';
   Object.assign(target, path.at(-1));
 
-  step.transition = core.normalizeTransition(step.transition);
+  step.transition = transitionFor(step);
   step.transition.motions = step.transition.motions.filter(
     action => action.elementId !== actor.id
   );
@@ -107,13 +123,15 @@ export function addQuickMove(boardInput, options, core) {
     id: core.uid('motion_'),
     type: 'move',
     elementId: actor.id,
+    relation: options?.relation === 'same' ? 'simultaneous' : 'after',
+    kind,
     start: 0,
     duration,
     path
   });
   fitStepDuration(step, duration, hadActions, core);
   board.currentStep = index;
-  return core.normalizeBoard(board);
+  return normalizeRecordedBoard(board, core);
 }
 
 export function addQuickPass(boardInput, options, core) {
@@ -135,12 +153,13 @@ export function addQuickPass(boardInput, options, core) {
   const hadActions = hasStepActions(step, core);
   const duration = autoPassDuration(from, to);
   const start = options?.relation === 'same' ? 0 : 0.08;
-  step.transition = core.normalizeTransition(step.transition);
+  step.transition = transitionFor(step);
   step.transition.passes.push({
     id: core.uid('pass_'),
     type: 'pass',
     fromId: from.id,
     toId: to.id,
+    relation: options?.relation === 'same' ? 'simultaneous' : 'after',
     start,
     duration,
     curve: numeric(options?.curve, -36)
@@ -150,7 +169,7 @@ export function addQuickPass(boardInput, options, core) {
   }
   fitStepDuration(step, start + duration, hadActions, core);
   board.currentStep = index;
-  return core.normalizeBoard(board);
+  return normalizeRecordedBoard(board, core);
 }
 
 export function addQuickScreen(boardInput, options, core) {
@@ -171,7 +190,7 @@ export function addQuickScreen(boardInput, options, core) {
   const hadActions = hasStepActions(step, core);
   const distance = core.distance(actor, point);
   let screenStart = 0;
-  step.transition = core.normalizeTransition(step.transition);
+  step.transition = transitionFor(step);
 
   if (distance > 18 && !step.transition.motions.some(action => action.elementId === actor.id)) {
     const path = [core.point(actor), point];
@@ -181,6 +200,8 @@ export function addQuickScreen(boardInput, options, core) {
       id: core.uid('motion_'),
       type: 'move',
       elementId: actor.id,
+      relation: options?.relation === 'same' ? 'simultaneous' : 'after',
+      kind: 'run',
       start: 0,
       duration: moveDuration,
       path
@@ -193,6 +214,9 @@ export function addQuickScreen(boardInput, options, core) {
     id: core.uid('screen_'),
     type: 'screen',
     elementId: actor.id,
+    relation: options?.relation === 'same' ? 'simultaneous' : 'after',
+    ...(options?.beneficiaryId ? { beneficiaryId: String(options.beneficiaryId) } : {}),
+    ...(options?.targetDefenderId ? { targetDefenderId: String(options.targetDefenderId) } : {}),
     start: screenStart,
     duration,
     x: point.x,
@@ -201,11 +225,75 @@ export function addQuickScreen(boardInput, options, core) {
   });
   fitStepDuration(step, screenStart + duration, hadActions, core);
   board.currentStep = index;
-  return core.normalizeBoard(board);
+  return normalizeRecordedBoard(board, core);
+}
+
+export function addQuickPickAndRoll(boardInput, options, core) {
+  const prepared = prepareQuickAction(
+    boardInput,
+    options?.stepIndex,
+    options?.relation || 'after',
+    core
+  );
+  const { board, step, next, index } = prepared;
+  const handler = core.elementById(step, options?.handlerId);
+  const screener = core.elementById(step, options?.screenerId);
+  const nextHandler = core.elementById(next, options?.handlerId);
+  const nextScreener = core.elementById(next, options?.screenerId);
+  if (!handler || !screener || handler.id === screener.id
+    || handler.type !== 'offense' || screener.type !== 'offense') {
+    throw new Error('Bitte Ballführer und einen anderen Angreifer als Screensteller wählen.');
+  }
+
+  const handlerPath = cleanPath(handler, options?.handlerPath, core);
+  const screenPoint = core.point(options?.screenPoint);
+  const rollPath = cleanPath(screenPoint, options?.rollPath, core);
+  if (handlerPath.length < 2) throw new Error('Der Weg des Ballführers ist zu kurz.');
+  if (rollPath.length < 2) throw new Error('Der Rollweg des Screenstellers ist zu kurz.');
+
+  const groupId = core.uid('pnr_');
+  const relation = options?.relation === 'same' ? 'simultaneous' : 'after';
+  const handlerDuration = autoMoveDuration(handlerPath);
+  const screenerPath = cleanPath(screener, [screenPoint, ...rollPath.slice(1)], core);
+  const rollDuration = autoMoveDuration(screenerPath);
+  const screenStart = Math.min(0.65, Math.max(0.18, rollDuration * 0.28));
+  const screenDuration = Math.min(0.8, Math.max(0.45, rollDuration * 0.38));
+  const targetDefenderId = options?.targetDefenderId
+    ? String(options.targetDefenderId)
+    : undefined;
+
+  step.transition = transitionFor(step);
+  step.transition.motions = step.transition.motions.filter(action =>
+    action.elementId !== handler.id && action.elementId !== screener.id
+  );
+  step.transition.motions.push({
+    id: core.uid('motion_'), type: 'move', elementId: handler.id,
+    relation, kind: 'dribble', groupId, groupType: 'pick-and-roll', groupRole: 'handler',
+    start: 0, duration: handlerDuration, path: handlerPath
+  });
+  step.transition.motions.push({
+    id: core.uid('motion_'), type: 'move', elementId: screener.id,
+    relation, kind: 'run', groupId, groupType: 'pick-and-roll', groupRole: 'roll',
+    start: 0, duration: rollDuration, path: screenerPath
+  });
+  step.transition.screens.push({
+    id: core.uid('screen_'), type: 'screen', elementId: screener.id,
+    beneficiaryId: handler.id,
+    ...(targetDefenderId ? { targetDefenderId } : {}),
+    relation, groupId, groupType: 'pick-and-roll',
+    start: screenStart, duration: screenDuration,
+    x: screenPoint.x, y: screenPoint.y,
+    angle: numeric(options?.angle, 0)
+  });
+  Object.assign(nextHandler, handlerPath.at(-1));
+  Object.assign(nextScreener, screenerPath.at(-1));
+  applyPhaseTiming(step, core);
+  board.currentStep = index;
+  return normalizeRecordedBoard(board, core);
 }
 
 export function addQuickPause(boardInput, options, core) {
-  const board = core.normalizeBoard(boardInput);
+  const board = normalizeRecordedBoard(boardInput, core);
   let index = core.clamp(
     Math.floor(core.number(options?.stepIndex, board.currentStep || 0)),
     0,
@@ -220,7 +308,7 @@ export function addQuickPause(boardInput, options, core) {
   step.transition = core.emptyTransition();
   step.duration = core.clamp(core.number(options?.duration, 0.8), 0.3, 5);
   board.currentStep = index;
-  return core.normalizeBoard(board);
+  return normalizeRecordedBoard(board, core);
 }
 
 export function quickStepLabel(step, core) {

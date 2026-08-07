@@ -33,15 +33,20 @@ board = quick.addQuickMove(board, {
 assert(board.steps.length === 2, 'Schnellmodus hat keinen Zielschritt für den Laufweg erzeugt');
 assert(board.steps[0].transition.motions.length === 1, 'Laufweg wurde nicht angelegt');
 assert(quick.quickStepLabel(board.steps[0], core).startsWith('Dribbling'), 'Ballführender Laufweg wird nicht als Dribbling bezeichnet');
+assert(board.steps[0].transition.motions[0].kind === 'dribble', 'Ballführender Laufweg speichert keinen Dribbling-Typ');
 
 board = quick.addQuickScreen(board, {
   stepIndex: 0,
   relation: 'same',
   actorId: 'o5',
+  beneficiaryId: 'o1',
+  targetDefenderId: 'd1',
   point: { x: 300, y: 290 }
 }, core);
 assert(board.steps[0].transition.screens.length === 1, 'Gleichzeitiger Screen wurde nicht angelegt');
 assert(board.steps[0].transition.motions.some(action => action.elementId === 'o5'), 'Screensteller bewegt sich nicht automatisch zur Screenposition');
+assert(board.steps[0].transition.screens[0].beneficiaryId === 'o1', 'Screen ist nicht an den begünstigten Spieler gebunden');
+assert(board.steps[0].transition.screens[0].targetDefenderId === 'd1', 'Screen verliert den Zielverteidiger');
 
 board = quick.addQuickPass(board, {
   stepIndex: 0,
@@ -52,12 +57,29 @@ board = quick.addQuickPass(board, {
 assert(board.steps.length >= 3, 'Sequenzieller Pass wurde nicht in einen neuen Ablauf verschoben');
 assert(board.steps[1].transition.passes.length === 1, 'Pass wurde nicht im folgenden Ablauf angelegt');
 
-board = quick.addQuickPause(board, {
+board = quick.addQuickPickAndRoll(board, {
   stepIndex: 1,
+  relation: 'after',
+  handlerId: 'o1',
+  screenerId: 'o5',
+  screenPoint: { x: 286, y: 286 },
+  handlerPath: [{ x: 342, y: 238 }, { x: 330, y: 205 }],
+  rollPath: [{ x: 286, y: 286 }, { x: 250, y: 108 }]
+}, core);
+const pickAndRollStep = board.steps[2];
+const grouped = quick.stepActions(pickAndRollStep, core)
+  .filter(action => action.groupType === 'pick-and-roll');
+assert(grouped.length === 3, 'Pick-and-Roll erzeugt nicht genau drei verbundene Aktionen');
+assert(new Set(grouped.map(action => action.groupId)).size === 1, 'Pick-and-Roll-Aktionen teilen keine Gruppen-ID');
+assert(grouped.some(action => action.groupRole === 'handler'), 'Pick-and-Roll enthält keinen Ballhandlerweg');
+assert(grouped.some(action => action.groupRole === 'roll'), 'Pick-and-Roll enthält keinen Rollweg');
+
+board = quick.addQuickPause(board, {
+  stepIndex: 2,
   duration: 0.8
 }, core);
-assert(board.steps[2].transition.motions.length === 0, 'Pause enthält unerwartete Laufwege');
-assert(Math.abs(board.steps[2].duration - 0.8) < 0.001, 'Pause besitzt nicht die gewünschte Dauer');
+assert(board.steps[3].transition.motions.length === 0, 'Pause enthält unerwartete Laufwege');
+assert(Math.abs(board.steps[3].duration - 0.8) < 0.001, 'Pause besitzt nicht die gewünschte Dauer');
 
 const total = globalThis.BT.tactics.boardDuration(board);
 assert(total > 0, 'Schnellmodus erzeugt keine gültige Gesamtdauer');
