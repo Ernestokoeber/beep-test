@@ -1,825 +1,233 @@
 window.BT = window.BT || {};
 
 BT.tactics = (function() {
-  const { $, $$, renderTemplate, escapeHTML, formatDate, toast, toastUndo, uuid } = BT.util;
-  const SVG_NS = 'http://www.w3.org/2000/svg';
-  const STORAGE_KEY = 'tacticsBoardDraft';
-  const GIF_LIB_URL = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js';
-  const GIF_WORKER_URL = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js';
+  'use strict';
 
-  function newStepId() {
-    return 'st_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const U = BT.util || {};
+  const WRITER_ROLES = new Set(['admin', 'coach', 'assistant']);
+  const TOKEN_TYPES = new Set(['offense', 'defense', 'ball']);
+  const DRAWING_TYPES = new Set(['arrow', 'cone', 'zone', 'label']);
+  const ARROW_KINDS = new Set(['run', 'pass', 'dribble', 'screen', 'closeout', 'rotation']);
+  const ARROW_STYLES = {
+    run: { color: '#f8fafc', rgb: [248, 250, 252], dash: [] },
+    pass: { color: '#fbbf24', rgb: [251, 191, 36], dash: [10, 7] },
+    dribble: { color: '#c084fc', rgb: [192, 132, 252], dash: [3, 6] },
+    screen: { color: '#94a3b8', rgb: [148, 163, 184], dash: [] },
+    closeout: { color: '#38bdf8', rgb: [56, 189, 248], dash: [11, 5] },
+    rotation: { color: '#fb923c', rgb: [251, 146, 60], dash: [10, 5, 2, 5] }
+  };
+  let modulePromise = null;
+  let sequence = 0;
+
+  function uid(prefix) {
+    if (U.uuid) return U.uuid(prefix || 'id_');
+    sequence += 1;
+    return (prefix || 'id_') + Date.now().toString(36) + sequence.toString(36);
+  }
+  function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
+  function number(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
+  function copy(value) { return JSON.parse(JSON.stringify(value)); }
+  function point(value) { const source = value || {}; return { x: clamp(number(source.x, 250), 16, 484), y: clamp(number(source.y, 235), 16, 454) }; }
+  function currentUser() { return BT.sync && BT.sync.getState ? BT.sync.getState().user : null; }
+  function canEdit() { const user = currentUser(); return !!(user && WRITER_ROLES.has(user.role)); }
+
+  function startingElements() {
+    const offense = [[250, 388], [82, 324], [418, 324], [106, 168], [394, 168]];
+    const defense = [[250, 338], [108, 282], [392, 282], [145, 142], [355, 142]];
+    return [
+      ...offense.map((coords, index) => ({ id: 'o' + (index + 1), type: 'offense', role: String(index + 1), x: coords[0], y: coords[1] })),
+      ...defense.map((coords, index) => ({ id: 'd' + (index + 1), type: 'defense', role: 'X' + (index + 1), x: coords[0], y: coords[1] })),
+      { id: 'ball', type: 'ball', x: 267, y: 388 }
+    ];
+  }
+  function emptyTransition() { return { motions: [], passes: [], screens: [] }; }
+  function defaultStep(elements) { return { id: uid('st_'), duration: 1.8, elements: copy(elements || startingElements()), transition: emptyTransition() }; }
+  function defaultBoard() {
+    return { schemaVersion: 2, title: 'Neues Play', description: '', category: 'Offense', courtType: 'half', steps: [defaultStep()], currentStep: 0, published: false, publishedAt: null, createdAt: null, updatedAt: null, createdBy: null };
   }
 
-  function defaultStep() {
-    return {
-      id: newStepId(),
-      players: [
-        { id: 'p1', label: '1', x: 120, y: 380 },
-        { id: 'p2', label: '2', x: 380, y: 380 },
-        { id: 'p3', label: '3', x: 80, y: 260 },
-        { id: 'p4', label: '4', x: 420, y: 260 },
-        { id: 'p5', label: '5', x: 250, y: 230 }
-      ],
-      ball: { x: 250, y: 380 },
-      arrows: [],
-      texts: [],
-      duration: 1.5
-    };
+  function normalizeElement(raw, index) {
+    if (!raw || typeof raw !== 'object') return null;
+    const type = raw.type;
+    const id = String(raw.id || uid('el_'));
+    if (type === 'offense' || type === 'defense') return { id, type, role: String(raw.role || raw.label || (type === 'offense' ? index + 1 : 'X' + (index + 1))).slice(0, 18), ...point(raw) };
+    if (type === 'ball') return { id, type, ...point(raw) };
+    if (type === 'arrow' && ARROW_KINDS.has(raw.kind || raw.style || 'run')) return { id, type, kind: raw.kind || raw.style || 'run', x: clamp(number(raw.x ?? raw.x1, 250), 16, 484), y: clamp(number(raw.y ?? raw.y1, 235), 16, 454), x2: clamp(number(raw.x2, 300), 16, 484), y2: clamp(number(raw.y2, 190), 16, 454), curve: clamp(number(raw.curve, 0), -180, 180) };
+    if (type === 'cone') return { id, type, label: String(raw.label || '').slice(0, 16), ...point(raw) };
+    if (type === 'zone') return { id, type, shape: raw.shape === 'circle' ? 'circle' : 'rect', width: clamp(number(raw.width, 110), 30, 340), height: clamp(number(raw.height, 80), 30, 340), label: String(raw.label || '').slice(0, 24), ...point(raw) };
+    if (type === 'label') return { id, type, text: String(raw.text || '').slice(0, 64), ...point(raw) };
+    return null;
   }
-
-  function defaultBoard() { return { steps: [defaultStep()], currentStep: 0 }; }
-
-  function migrate(obj) {
-    if (!obj) return defaultBoard();
-    if (!obj.steps && obj.players && obj.ball) {
-      return {
-        steps: [{
-          id: 'st_legacy',
-          players: obj.players,
-          ball: obj.ball,
-          arrows: obj.arrows || [],
-          texts: obj.texts || [],
-          duration: 1.5
-        }],
-        currentStep: 0
-      };
-    }
-    if (!obj.steps || !Array.isArray(obj.steps) || obj.steps.length === 0) return defaultBoard();
-    obj.steps.forEach(s => {
-      if (!s.id) s.id = newStepId();
-      if (!Array.isArray(s.players)) s.players = [];
-      if (!s.ball) s.ball = { x: 250, y: 380 };
-      if (!Array.isArray(s.arrows)) s.arrows = [];
-      if (!Array.isArray(s.texts)) s.texts = [];
-      if (typeof s.duration !== 'number') s.duration = 1.5;
+  function normalizeMotion(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.elementId) return null;
+    return { id: String(raw.id || uid('motion_')), type: 'move', elementId: String(raw.elementId), start: clamp(number(raw.start, 0), 0, 20), duration: clamp(number(raw.duration, 1.2), .15, 20), path: (Array.isArray(raw.path) ? raw.path : []).map(point).slice(0, 80) };
+  }
+  function normalizePass(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.fromId || !raw.toId) return null;
+    return { id: String(raw.id || uid('pass_')), type: 'pass', fromId: String(raw.fromId), toId: String(raw.toId), start: clamp(number(raw.start, .8), 0, 20), duration: clamp(number(raw.duration, .38), .12, 5), curve: clamp(number(raw.curve, -36), -180, 180) };
+  }
+  function normalizeScreen(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.elementId) return null;
+    return { id: String(raw.id || uid('screen_')), type: 'screen', elementId: String(raw.elementId), start: clamp(number(raw.start, .4), 0, 20), duration: clamp(number(raw.duration, 1), .15, 20), x: clamp(number(raw.x, 250), 16, 484), y: clamp(number(raw.y, 230), 16, 454), angle: clamp(number(raw.angle, 0), -180, 180) };
+  }
+  function normalizeTransition(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    return { motions: (Array.isArray(source.motions) ? source.motions : []).map(normalizeMotion).filter(Boolean), passes: (Array.isArray(source.passes) ? source.passes : []).map(normalizePass).filter(Boolean), screens: (Array.isArray(source.screens) ? source.screens : []).map(normalizeScreen).filter(Boolean) };
+  }
+  function normalizeStep(raw, index) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const legacy = Array.isArray(source.elements) ? source.elements : [
+      ...((source.players || []).map(player => ({ id: player.id, type: player.team === 'defense' ? 'defense' : 'offense', role: player.label, x: player.x, y: player.y }))),
+      ...(source.ball ? [{ id: 'ball', type: 'ball', x: source.ball.x, y: source.ball.y }] : []),
+      ...((source.arrows || []).map((arrow, arrowIndex) => ({ id: arrow.id || 'legacy_arrow_' + index + '_' + arrowIndex, type: 'arrow', kind: arrow.kind || arrow.style || 'run', x: arrow.x ?? arrow.x1, y: arrow.y ?? arrow.y1, x2: arrow.x2, y2: arrow.y2, curve: arrow.curve }))),
+      ...((source.texts || []).map((label, labelIndex) => ({ id: label.id || 'legacy_label_' + index + '_' + labelIndex, type: 'label', x: label.x, y: label.y, text: label.text })))
+    ];
+    const counts = { offense: 0, defense: 0, ball: 0, drawings: 0 };
+    const elements = [];
+    legacy.forEach((candidate, candidateIndex) => {
+      const element = normalizeElement(candidate, candidateIndex);
+      if (!element) return;
+      if ((element.type === 'offense' || element.type === 'defense') && ++counts[element.type] > 5) return;
+      if (element.type === 'ball' && ++counts.ball > 1) return;
+      if (DRAWING_TYPES.has(element.type) && ++counts.drawings > 40) return;
+      elements.push(element);
     });
-    if (typeof obj.currentStep !== 'number' || obj.currentStep < 0 || obj.currentStep >= obj.steps.length) obj.currentStep = 0;
-    return obj;
+    return { id: String(source.id || uid('st_')), duration: clamp(number(source.duration, 1.8), .3, 10), elements: elements.length ? elements : copy(startingElements()), transition: normalizeTransition(source.transition) };
   }
-
-  function loadDraft() {
-    try {
-      const raw = BT.storage.getSetting(STORAGE_KEY, null);
-      if (!raw) return defaultBoard();
-      return migrate(typeof raw === 'string' ? JSON.parse(raw) : raw);
-    } catch (e) {
-      return defaultBoard();
+  function normalizeBoard(input) {
+    const source = input && typeof input === 'object' ? input : {};
+    const legacy = !Array.isArray(source.steps) && (Array.isArray(source.players) || source.ball || Array.isArray(source.arrows));
+    const rawSteps = legacy ? [source] : (Array.isArray(source.steps) ? source.steps : []);
+    const fallback = defaultBoard();
+    const steps = rawSteps.map(normalizeStep);
+    return { schemaVersion: 2, id: source.id, title: String(source.title || fallback.title).slice(0, 100), description: String(source.description || '').slice(0, 400), category: String(source.category || 'Offense').slice(0, 32), courtType: source.courtType === 'full' ? 'full' : 'half', steps: steps.length ? steps : fallback.steps, currentStep: clamp(Math.floor(number(source.currentStep, 0)), 0, Math.max(0, (steps.length || 1) - 1)), published: source.published === true, publishedAt: source.publishedAt || null, createdAt: source.createdAt || null, updatedAt: source.updatedAt || null, createdBy: source.createdBy || null };
+  }
+  function cloneStep(step) { const normalized = normalizeStep(step, 0); return { id: uid('st_'), duration: normalized.duration, elements: copy(normalized.elements), transition: emptyTransition() }; }
+  function elements(step, type) { const list = step && Array.isArray(step.elements) ? step.elements : []; return type ? list.filter(item => item.type === type) : list; }
+  function elementById(step, id) { return elements(step).find(item => item.id === id) || null; }
+  function arrowStyle(kind) { return ARROW_STYLES[kind] || ARROW_STYLES.run; }
+  function pdfLayout() { return { pageHeight: 595.28, courtX: 185, courtY: 88, courtWidth: 440, courtHeight: 414, legendY: 540 }; }
+  function boardDuration(boardInput) { return normalizeBoard(boardInput).steps.reduce((sum, step) => sum + step.duration, 0); }
+  function stepStartTime(board, index) { let total = 0; for (let i = 0; i < index; i++) total += board.steps[i].duration; return total; }
+  function locateTime(board, time) {
+    let remaining = clamp(time, 0, boardDuration(board));
+    for (let index = 0; index < board.steps.length; index++) {
+      const duration = board.steps[index].duration;
+      if (remaining <= duration || index === board.steps.length - 1) return { index, elapsed: Math.min(remaining, duration), duration, ratio: duration ? Math.min(1, remaining / duration) : 1 };
+      remaining -= duration;
     }
+    return { index: board.steps.length - 1, elapsed: 0, duration: 1, ratio: 1 };
+  }
+  function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function pointOnPath(path, ratio) {
+    if (!path.length) return { x: 250, y: 235 };
+    if (path.length === 1) return point(path[0]);
+    const lengths = []; let total = 0;
+    for (let index = 1; index < path.length; index++) { const length = distance(path[index - 1], path[index]); lengths.push(length); total += length; }
+    if (!total) return point(path[path.length - 1]);
+    let target = clamp(ratio, 0, 1) * total;
+    for (let index = 0; index < lengths.length; index++) {
+      if (target <= lengths[index] || index === lengths.length - 1) { const local = lengths[index] ? target / lengths[index] : 1; return { x: path[index].x + (path[index + 1].x - path[index].x) * local, y: path[index].y + (path[index + 1].y - path[index].y) * local }; }
+      target -= lengths[index];
+    }
+    return point(path[path.length - 1]);
+  }
+  function quadraticPoint(start, end, curve, ratio) {
+    const dx = end.x - start.x, dy = end.y - start.y, length = Math.hypot(dx, dy) || 1;
+    const control = { x: (start.x + end.x) / 2 - dy / length * curve, y: (start.y + end.y) / 2 + dx / length * curve };
+    const t = clamp(ratio, 0, 1), inv = 1 - t;
+    return { x: inv * inv * start.x + 2 * inv * t * control.x + t * t * end.x, y: inv * inv * start.y + 2 * inv * t * control.y + t * t * end.y };
+  }
+  function positionDuring(from, to, elementId, elapsed) {
+    const source = elementById(from, elementId), target = to && elementById(to, elementId);
+    if (!source) return target ? point(target) : null;
+    if (!target) return point(source);
+    const transition = normalizeTransition(from.transition);
+    const motion = transition.motions.find(item => item.elementId === elementId);
+    if (!motion) { const ratio = clamp(elapsed / from.duration, 0, 1); return { x: source.x + (target.x - source.x) * ratio, y: source.y + (target.y - source.y) * ratio }; }
+    if (elapsed <= motion.start) return point(source);
+    const ratio = clamp((elapsed - motion.start) / motion.duration, 0, 1);
+    return pointOnPath(motion.path.length >= 2 ? motion.path : [point(source), point(target)], ratio);
+  }
+  function interpolateStep(from, to, ratio, elapsedOverride) {
+    if (!to) return copy(from);
+    const elapsed = elapsedOverride == null ? ratio * from.duration : elapsedOverride;
+    const output = copy(from);
+    output.elements = elements(from).map(item => TOKEN_TYPES.has(item.type) && elementById(to, item.id) ? Object.assign({}, item, positionDuring(from, to, item.id, elapsed)) : copy(item));
+    return output;
+  }
+  function snapshotAt(boardInput, time) {
+    const board = normalizeBoard(boardInput), location = locateTime(board, time), from = board.steps[location.index], to = board.steps[location.index + 1];
+    const snapshot = to ? interpolateStep(from, to, location.ratio, location.elapsed) : copy(from);
+    snapshot._timeline = location; snapshot._sourceStep = from; snapshot._targetStep = to || null;
+    const transition = normalizeTransition(from.transition);
+    const activePass = transition.passes.find(pass => location.elapsed >= pass.start && location.elapsed <= pass.start + pass.duration);
+    const completedPass = transition.passes.filter(pass => location.elapsed > pass.start + pass.duration).sort((a, b) => b.start - a.start)[0];
+    const ball = elementById(snapshot, 'ball') || elements(snapshot, 'ball')[0];
+    if (ball && activePass) {
+      const start = positionDuring(from, to, activePass.fromId, activePass.start) || point(elementById(from, activePass.fromId));
+      const end = positionDuring(from, to, activePass.toId, activePass.start + activePass.duration) || point(elementById(to || from, activePass.toId));
+      Object.assign(ball, quadraticPoint(start, end, activePass.curve, clamp((location.elapsed - activePass.start) / activePass.duration, 0, 1)));
+    } else if (ball && completedPass) {
+      const receiver = positionDuring(from, to, completedPass.toId, location.elapsed);
+      if (receiver) Object.assign(ball, { x: receiver.x + 16, y: receiver.y });
+    }
+    snapshot._activeScreens = transition.screens.filter(screen => location.elapsed >= screen.start && location.elapsed <= screen.start + screen.duration);
+    return snapshot;
   }
 
-  function saveDraft(board) { BT.storage.setSetting(STORAGE_KEY, board); }
-
-  function cloneStep(s) {
-    return {
-      id: newStepId(),
-      players: s.players.map(p => ({ id: p.id, label: p.label, x: p.x, y: p.y })),
-      ball: { x: s.ball.x, y: s.ball.y },
-      arrows: [],
-      texts: [],
-      duration: s.duration || 1.5
-    };
+  function templateBoard(name) {
+    const board = defaultBoard(), first = board.steps[0], next = cloneStep(first); board.steps.push(next);
+    const set = (step, id, x, y) => Object.assign(elementById(step, id), { x, y });
+    const move = (id, path, start = 0, duration = first.duration) => { const end = path[path.length - 1]; set(next, id, end.x, end.y); first.transition.motions.push({ id: uid('motion_'), type: 'move', elementId: id, start, duration, path: path.map(point) }); };
+    const pass = (fromId, toId, start, duration, curve) => { first.transition.passes.push({ id: uid('pass_'), type: 'pass', fromId, toId, start, duration, curve }); const receiver = elementById(next, toId), ball = elementById(next, 'ball'); if (receiver && ball) Object.assign(ball, { x: receiver.x + 16, y: receiver.y }); };
+    if (name === 'horns') {
+      board.title = 'Horns – Elbow Entry'; board.description = 'Point Guard nutzt den rechten Screen, der linke Big setzt den Backscreen.'; board.category = 'Horns'; first.duration = 2.6;
+      [[250,395],[66,302],[434,302],[176,214],[324,214]].forEach((c,i) => { set(first,'o'+(i+1),c[0],c[1]); set(next,'o'+(i+1),c[0],c[1]); });
+      move('o1',[{x:250,y:395},{x:286,y:342},{x:324,y:282},{x:348,y:220}],.35,1.6); move('o4',[{x:176,y:214},{x:216,y:244},{x:256,y:266}],.7,1.1);
+      first.transition.screens.push({ id: uid('screen_'), type: 'screen', elementId: 'o5', start: .2, duration: 1.3, x: 300, y: 300, angle: -18 }); pass('o1','o3',1.85,.4,-42);
+    } else if (name === 'five-out') {
+      board.title = '5-Out – Drive & Kick'; board.description = 'Corner lift, Baseline-Cut und Kick-out auf die Weakside.'; board.category = '5-Out'; first.duration = 2.4;
+      [[250,388],[78,322],[422,322],[78,150],[422,150]].forEach((c,i) => { set(first,'o'+(i+1),c[0],c[1]); set(next,'o'+(i+1),c[0],c[1]); });
+      move('o1',[{x:250,y:388},{x:290,y:336},{x:330,y:270},{x:352,y:208}],0,1.7); move('o3',[{x:422,y:322},{x:414,y:272},{x:402,y:220}],.15,1.2); move('o4',[{x:78,y:150},{x:142,y:126},{x:218,y:104}],.4,1.5); pass('o1','o4',1.75,.42,48);
+    } else if (name === 'no-middle') {
+      board.title = 'No-Middle – Baseline Help'; board.description = 'Ball zur Baseline lenken, Nail schließen und Low-Man rotieren.'; board.category = 'Defense'; first.duration = 2.2;
+      move('d1',[{x:250,y:338},{x:224,y:326},{x:198,y:304}],0,.75); move('d4',[{x:145,y:142},{x:178,y:174},{x:208,y:214}],.45,1.1); move('d5',[{x:355,y:142},{x:326,y:160},{x:294,y:184}],.7,1.1);
+    } else {
+      board.title = '2–3 Zone – Skip Rotation'; board.description = 'Top-Reversal, Wing-Bump und Low-Man Rotation auf den Skip-Pass.'; board.category = 'Defense'; first.duration = 2.4;
+      [[190,282],[310,282],[116,164],[250,126],[384,164]].forEach((c,i) => { set(first,'d'+(i+1),c[0],c[1]); set(next,'d'+(i+1),c[0],c[1]); });
+      move('d2',[{x:310,y:282},{x:340,y:260},{x:370,y:230}],.1,.9); move('d5',[{x:384,y:164},{x:354,y:182},{x:324,y:205}],.45,1.2); pass('o1','o4',1.25,.45,62);
+    }
+    board.currentStep = 0;
+    return normalizeBoard(board);
   }
+  function templates() { return [['horns','Horns','Elbow Entry'],['five-out','5-Out','Drive-and-Kick'],['no-middle','No-Middle','Baseline Help'],['zone-2-3','2–3 Zone','Skip Rotation']].map(([id,title,description]) => ({ id, title, description, board: templateBoard(id) })); }
 
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
-  function pointNearSegment(px, py, x1, y1, x2, y2, tol) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const len2 = dx * dx + dy * dy;
-    if (len2 === 0) return Math.hypot(px - x1, py - y1) < tol;
-    const t = clamp(((px - x1) * dx + (py - y1) * dy) / len2, 0, 1);
-    const qx = x1 + t * dx, qy = y1 + t * dy;
-    return Math.hypot(px - qx, py - qy) < tol;
-  }
-
-  function render(target) {
-    const root = renderTemplate('tpl-tactics');
+  function placeholder(target, playerMode) {
+    const root = document.createElement('section');
+    root.className = 'view tactics-loading';
+    if (playerMode) {
+      root.dataset.role = 'player-tactics';
+      root.innerHTML = '<div class="empty-state"><h2>Teamtaktiken</h2><p>Bitte zuerst anmelden, um veröffentlichte Teamtaktiken anzusehen.</p></div>';
+    } else {
+      root.innerHTML = '<div class="section-head"><div><span class="section-kicker">CourtHub Play Designer</span><h2>Playbook wird geladen …</h2></div></div><div hidden><button data-tool="offense"></button><button data-tool="defense"></button><button data-action="save-tactic"></button><button data-action="export-pdf"></button><select data-role="tactic-template"></select></div>';
+    }
     target.appendChild(root);
-
-    let board = loadDraft();
-    let tool = 'move';
-    let arrowStart = null;
-    let playback = { running: false, fromStep: 0, startTs: 0, rafId: null };
-    let drag = null;
-
-    const svg = $('[data-role="tactics-svg"]', root);
-    const tokensLayer = $('[data-role="tokens-layer"]', svg);
-    const arrowsLayer = $('[data-role="arrows-layer"]', svg);
-    const textsLayer = $('[data-role="texts-layer"]', svg);
-    const hint = $('[data-role="tool-hint"]', root);
-    const stepsList = $('[data-role="steps-list"]', root);
-    const stepDurationInput = $('[data-role="step-duration"]', root);
-    const playbackStatus = $('[data-role="playback-status"]', root);
-    const playToggleBtn = $('[data-action="play-toggle"]', root);
-
-    const HINTS = {
-      move: 'Tippe einen Spieler oder den Ball und ziehe ihn an die gewünschte Stelle.',
-      run: 'Laufweg: Erst Startpunkt tippen, dann Endpunkt. Durchgezogene grüne Linie.',
-      pass: 'Passweg: Erst Startpunkt tippen, dann Endpunkt. Gestrichelte orange Linie.',
-      text: 'Tippe auf die Karte, um eine Textnotiz (Play-Name, Coaching-Point) zu setzen.',
-      erase: 'Tippe Spieler, Ball, Pfeil oder Text zum Löschen.'
-    };
-
-    function cur() { return board.steps[board.currentStep]; }
-
-    // ---------- Tool buttons ----------
-    $$('.tactics-tool', root).forEach(btn => {
-      btn.addEventListener('click', () => {
-        stopPlayback();
-        $$('.tactics-tool', root).forEach(b => {
-          b.classList.remove('active');
-          b.setAttribute('aria-pressed', 'false');
-        });
-        btn.classList.add('active');
-        btn.setAttribute('aria-pressed', 'true');
-        tool = btn.dataset.tool;
-        arrowStart = null;
-        hint.textContent = HINTS[tool] || '';
-        renderAll();
-      });
-    });
-
-    // ---------- Section-head actions ----------
-    $('[data-action="reset-board"]', root).addEventListener('click', () => {
-      stopPlayback();
-      const backup = JSON.parse(JSON.stringify(board));
-      board = defaultBoard();
-      saveDraft(board);
-      renderAll();
-      renderSteps();
-      if (toastUndo) toastUndo('Taktikboard zurückgesetzt', () => {
-        board = backup;
-        saveDraft(board);
-        renderAll();
-        renderSteps();
-      });
-    });
-
-    $('[data-action="save-as-note"]', root).addEventListener('click', () => {
-      const title = prompt('Titel der Taktik (wird als Notiz gespeichert):', 'Taktik ' + formatDate(BT.util.todayISO()));
-      if (!title) return;
-      const serialized = JSON.stringify(board, null, 2);
-      const body = '[TACTIC] ' + title + '\n\n' + serialized;
-      const note = BT.storage.upsertNote({ title: 'Taktik: ' + title, body });
-      if (toast) toast('„' + title + '" als Notiz gespeichert', {
-        actionLabel: 'Öffnen',
-        action: () => { location.hash = '#/notes/' + note.id; }
-      });
-    });
-
-    $('[data-action="ai-explain"]', root).addEventListener('click', () => {
-      stopPlayback();
-      openExplainModal();
-    });
-
-    $('[data-action="share-gif"]', root).addEventListener('click', () => {
-      stopPlayback();
-      openGifModal();
-    });
-
-    // ---------- Steps bar ----------
-    $('[data-action="add-step"]', root).addEventListener('click', () => {
-      stopPlayback();
-      const clone = cloneStep(cur());
-      board.steps.splice(board.currentStep + 1, 0, clone);
-      board.currentStep += 1;
-      saveDraft(board);
-      renderSteps();
-      renderAll();
-    });
-
-    $('[data-action="delete-step"]', root).addEventListener('click', () => {
-      if (board.steps.length <= 1) {
-        if (toast) toast('Mindestens ein Schritt muss bleiben.');
-        return;
-      }
-      stopPlayback();
-      board.steps.splice(board.currentStep, 1);
-      if (board.currentStep >= board.steps.length) board.currentStep = board.steps.length - 1;
-      saveDraft(board);
-      renderSteps();
-      renderAll();
-    });
-
-    stepDurationInput.addEventListener('change', () => {
-      const v = parseFloat(stepDurationInput.value);
-      if (isNaN(v) || v <= 0) { stepDurationInput.value = cur().duration; return; }
-      cur().duration = Math.min(10, Math.max(0.3, v));
-      saveDraft(board);
-      updatePlaybackStatus();
-    });
-
-    // ---------- Playback ----------
-    playToggleBtn.addEventListener('click', () => {
-      if (playback.running) stopPlayback(); else startPlayback();
-    });
-    $('[data-action="play-prev"]', root).addEventListener('click', () => {
-      stopPlayback();
-      if (board.currentStep > 0) { board.currentStep -= 1; saveDraft(board); renderSteps(); renderAll(); }
-    });
-    $('[data-action="play-next"]', root).addEventListener('click', () => {
-      stopPlayback();
-      if (board.currentStep < board.steps.length - 1) { board.currentStep += 1; saveDraft(board); renderSteps(); renderAll(); }
-    });
-
-    function startPlayback() {
-      if (board.steps.length < 2) {
-        if (toast) toast('Mindestens 2 Schritte für Playback nötig.');
-        return;
-      }
-      playback.running = true;
-      playback.fromStep = board.currentStep < board.steps.length - 1 ? board.currentStep : 0;
-      playback.startTs = performance.now();
-      playToggleBtn.textContent = '⏸';
-      loopPlayback();
-    }
-
-    function stopPlayback() {
-      if (playback.rafId) cancelAnimationFrame(playback.rafId);
-      playback.running = false;
-      playback.rafId = null;
-      playToggleBtn.textContent = '▶️';
-      renderAll();
-    }
-
-    function loopPlayback() {
-      if (!playback.running) return;
-      const fromIdx = playback.fromStep;
-      const toIdx = fromIdx + 1;
-      if (toIdx >= board.steps.length) {
-        board.currentStep = fromIdx;
-        stopPlayback();
-        renderSteps();
-        return;
-      }
-      const elapsed = (performance.now() - playback.startTs) / 1000;
-      const dur = Math.max(0.2, board.steps[fromIdx].duration || 1.5);
-      let t = elapsed / dur;
-      if (t >= 1) {
-        playback.fromStep = toIdx;
-        playback.startTs = performance.now();
-        board.currentStep = toIdx;
-        renderSteps();
-        renderInterpolated(board.steps[toIdx], null, 0);
-        playback.rafId = requestAnimationFrame(loopPlayback);
-        return;
-      }
-      renderInterpolated(board.steps[fromIdx], board.steps[toIdx], t);
-      playback.rafId = requestAnimationFrame(loopPlayback);
-    }
-
-    function updatePlaybackStatus() {
-      playbackStatus.textContent = 'Schritt ' + (board.currentStep + 1) + ' / ' + board.steps.length;
-      stepDurationInput.value = cur().duration;
-    }
-
-    // ---------- SVG point helper ----------
-    function svgPoint(clientX, clientY) {
-      const rect = svg.getBoundingClientRect();
-      const vb = svg.viewBox.baseVal;
-      const x = (clientX - rect.left) / rect.width * vb.width;
-      const y = (clientY - rect.top) / rect.height * vb.height;
-      return { x: clamp(x, 10, 490), y: clamp(y, 10, 460) };
-    }
-
-    function tokenUnderPoint(x, y, radius) {
-      const r = radius || 22;
-      const s = cur();
-      for (const p of s.players) {
-        if (Math.hypot(p.x - x, p.y - y) < r) return { type: 'player', obj: p };
-      }
-      if (Math.hypot(s.ball.x - x, s.ball.y - y) < 14) return { type: 'ball', obj: s.ball };
-      return null;
-    }
-
-    function arrowUnderPoint(x, y) {
-      for (const a of cur().arrows) {
-        if (pointNearSegment(x, y, a.x1, a.y1, a.x2, a.y2, 8)) return a;
-      }
-      return null;
-    }
-
-    function textUnderPoint(x, y) {
-      for (const t of cur().texts) {
-        if (Math.abs(t.x - x) < 60 && Math.abs(t.y - y) < 14) return t;
-      }
-      return null;
-    }
-
-    // ---------- Pointer handling (editing current step) ----------
-    svg.addEventListener('pointerdown', e => {
-      if (playback.running) return;
-      const pt = svgPoint(e.clientX, e.clientY);
-
-      if (tool === 'move') {
-        const hit = tokenUnderPoint(pt.x, pt.y);
-        if (hit) {
-          drag = { kind: hit.type, target: hit.obj, offsetX: pt.x - hit.obj.x, offsetY: pt.y - hit.obj.y };
-          svg.setPointerCapture(e.pointerId);
-        }
-        return;
-      }
-      if (tool === 'run' || tool === 'pass') {
-        if (!arrowStart) {
-          arrowStart = pt;
-          hint.textContent = 'Jetzt Endpunkt tippen.';
-          renderArrowPreview();
-        } else {
-          cur().arrows.push({
-            id: uuid ? uuid('a_') : 'a_' + Date.now(),
-            style: tool,
-            x1: arrowStart.x, y1: arrowStart.y,
-            x2: pt.x, y2: pt.y
-          });
-          arrowStart = null;
-          hint.textContent = HINTS[tool];
-          saveDraft(board);
-          renderAll();
-        }
-        return;
-      }
-      if (tool === 'text') {
-        const value = prompt('Text (z.B. „Screen", „Cut"):', '');
-        if (!value) return;
-        cur().texts.push({
-          id: uuid ? uuid('t_') : 't_' + Date.now(),
-          x: pt.x, y: pt.y,
-          text: value.slice(0, 40)
-        });
-        saveDraft(board);
-        renderAll();
-        return;
-      }
-      if (tool === 'erase') {
-        const hitTok = tokenUnderPoint(pt.x, pt.y);
-        if (hitTok && hitTok.type === 'player') {
-          cur().players = cur().players.filter(p => p !== hitTok.obj);
-          saveDraft(board); renderAll(); return;
-        }
-        if (hitTok && hitTok.type === 'ball') return;
-        const hitArr = arrowUnderPoint(pt.x, pt.y);
-        if (hitArr) { cur().arrows = cur().arrows.filter(a => a !== hitArr); saveDraft(board); renderAll(); return; }
-        const hitTxt = textUnderPoint(pt.x, pt.y);
-        if (hitTxt) { cur().texts = cur().texts.filter(t => t !== hitTxt); saveDraft(board); renderAll(); return; }
-      }
-    });
-
-    svg.addEventListener('pointermove', e => {
-      if (!drag) return;
-      const pt = svgPoint(e.clientX, e.clientY);
-      drag.target.x = pt.x - drag.offsetX;
-      drag.target.y = pt.y - drag.offsetY;
-      renderTokens(cur());
-    });
-
-    svg.addEventListener('pointerup', e => {
-      if (drag) { drag = null; saveDraft(board); try { svg.releasePointerCapture(e.pointerId); } catch (_) {} }
-    });
-    svg.addEventListener('pointercancel', () => { drag = null; });
-
-    // ---------- Renderers ----------
-    function renderTokens(snapshot) {
-      tokensLayer.innerHTML = '';
-      for (const p of snapshot.players) {
-        const g = document.createElementNS(SVG_NS, 'g');
-        g.setAttribute('class', 'tactics-player');
-        const c = document.createElementNS(SVG_NS, 'circle');
-        c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 18);
-        g.appendChild(c);
-        const t = document.createElementNS(SVG_NS, 'text');
-        t.setAttribute('x', p.x); t.setAttribute('y', p.y + 5); t.setAttribute('text-anchor', 'middle');
-        t.textContent = p.label;
-        g.appendChild(t);
-        tokensLayer.appendChild(g);
-      }
-      const bg = document.createElementNS(SVG_NS, 'g');
-      bg.setAttribute('class', 'tactics-ball');
-      const bc = document.createElementNS(SVG_NS, 'circle');
-      bc.setAttribute('cx', snapshot.ball.x); bc.setAttribute('cy', snapshot.ball.y); bc.setAttribute('r', 9);
-      bg.appendChild(bc);
-      tokensLayer.appendChild(bg);
-    }
-
-    function renderArrows(snapshot) {
-      arrowsLayer.innerHTML = '';
-      for (const a of snapshot.arrows) {
-        const l = document.createElementNS(SVG_NS, 'line');
-        l.setAttribute('x1', a.x1); l.setAttribute('y1', a.y1);
-        l.setAttribute('x2', a.x2); l.setAttribute('y2', a.y2);
-        l.setAttribute('class', 'tactics-arrow ' + (a.style === 'pass' ? 'pass' : 'run'));
-        l.setAttribute('marker-end', 'url(#arrow-' + (a.style === 'pass' ? 'pass' : 'run') + ')');
-        arrowsLayer.appendChild(l);
-      }
-      renderArrowPreview();
-    }
-
-    function renderArrowPreview() {
-      const existing = arrowsLayer.querySelector('[data-role="preview"]');
-      if (existing) existing.remove();
-      if (!playback.running && (tool === 'run' || tool === 'pass') && arrowStart) {
-        const dot = document.createElementNS(SVG_NS, 'circle');
-        dot.setAttribute('data-role', 'preview');
-        dot.setAttribute('cx', arrowStart.x); dot.setAttribute('cy', arrowStart.y);
-        dot.setAttribute('r', 5);
-        dot.setAttribute('fill', tool === 'pass' ? 'var(--primary)' : 'var(--cta)');
-        arrowsLayer.appendChild(dot);
-      }
-    }
-
-    function renderTexts(snapshot) {
-      textsLayer.innerHTML = '';
-      for (const t of snapshot.texts) {
-        const el = document.createElementNS(SVG_NS, 'text');
-        el.setAttribute('x', t.x); el.setAttribute('y', t.y); el.setAttribute('text-anchor', 'middle');
-        el.setAttribute('class', 'tactics-text');
-        el.textContent = t.text;
-        textsLayer.appendChild(el);
-      }
-    }
-
-    function renderInterpolated(fromStep, toStep, t) {
-      const interp = interpolateSnapshot(fromStep, toStep, t);
-      renderArrows(fromStep);
-      renderTexts(fromStep);
-      renderTokens(interp);
-    }
-
-    function renderAll() {
-      const s = cur();
-      renderArrows(s);
-      renderTexts(s);
-      renderTokens(s);
-      updatePlaybackStatus();
-    }
-
-    function renderSteps() {
-      stepsList.innerHTML = '';
-      board.steps.forEach((s, i) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'step-btn' + (i === board.currentStep ? ' active' : '');
-        btn.textContent = String(i + 1);
-        btn.setAttribute('aria-pressed', i === board.currentStep ? 'true' : 'false');
-        btn.addEventListener('click', () => {
-          stopPlayback();
-          board.currentStep = i;
-          saveDraft(board);
-          renderSteps();
-          renderAll();
-        });
-        stepsList.appendChild(btn);
-      });
-    }
-
-    // ---------- KI-Erklärung ----------
-    function openExplainModal() {
-      const backdrop = renderTemplate('tpl-tactics-ai-modal');
-      document.body.appendChild(backdrop);
-      const statusEl = $('[data-role="status"]', backdrop);
-      const textEl = $('[data-role="text"]', backdrop);
-      const saveBtn = $('[data-action="save-note"]', backdrop);
-      let resultText = null;
-
-      function close() { backdrop.remove(); }
-      backdrop.addEventListener('click', e => {
-        if (e.target === backdrop) close();
-        if (e.target.closest('[data-action="close"]')) close();
-        if (e.target.closest('[data-action="save-note"]') && resultText) {
-          BT.storage.upsertNote({ title: 'Taktik-Erklärung (' + formatDate(BT.util.todayISO()) + ')', body: resultText });
-          if (toast) toast('Als Notiz gespeichert.');
-          close();
-        }
-      });
-
-      if (!BT.api.getToken()) {
-        statusEl.textContent = 'Bitte zuerst unter „Konto & Sync“ anmelden, um die geschützte KI-Erklärung zu nutzen.';
-        return;
-      }
-
-      BT.wake.acquire('tactics-ai');
-      BT.aiimport.explainTactic(board, null, (msg) => {
-        statusEl.textContent = msg;
-      }).then(text => {
-        resultText = text;
-        statusEl.hidden = true;
-        textEl.hidden = false;
-        textEl.textContent = text;
-        saveBtn.disabled = false;
-      }).catch(err => {
-        statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
-      }).finally(() => {
-        BT.wake.release('tactics-ai');
-      });
-    }
-
-    // ---------- GIF-Export ----------
-    function openGifModal() {
-      const backdrop = renderTemplate('tpl-tactics-gif-modal');
-      document.body.appendChild(backdrop);
-      const statusEl = $('[data-role="status"]', backdrop);
-      const renderBtn = $('[data-action="render-gif"]', backdrop);
-
-      let currentGif = null;
-      let closed = false;
-
-      function close() {
-        if (closed) return;
-        closed = true;
-        if (currentGif) {
-          try { currentGif.abort(); } catch (_) {}
-          currentGif = null;
-        }
-        backdrop.remove();
-        window.removeEventListener('hashchange', close);
-      }
-      window.addEventListener('hashchange', close);
-      backdrop.addEventListener('click', e => {
-        if (e.target === backdrop) close();
-        if (e.target.closest('[data-action="close"]')) close();
-      });
-
-      renderBtn.addEventListener('click', async () => {
-        if (currentGif) return;
-        const speed = backdrop.querySelector('input[name="gifspeed"]:checked').value;
-        const override = speed === 'kept' ? null : parseFloat(speed);
-
-        renderBtn.disabled = true;
-        statusEl.hidden = false;
-        statusEl.textContent = 'gif.js wird geladen …';
-
-        BT.wake.acquire('tactics-gif');
-        try {
-          await loadGifLib();
-          if (closed) return;
-          statusEl.textContent = 'Frames werden erzeugt …';
-          const blob = await renderGif(board, override, (pct) => {
-            if (!closed) statusEl.textContent = 'GIF wird kodiert … ' + Math.round(pct * 100) + '%';
-          }, g => { currentGif = g; });
-          currentGif = null;
-          if (closed) return;
-          statusEl.textContent = 'Fertig! Teilen wird geöffnet …';
-          const file = new File([blob], 'taktik.gif', { type: 'image/gif' });
-          const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
-          if (canShareFile && navigator.share) {
-            try {
-              await navigator.share({ files: [file], title: 'Taktik' });
-              close();
-              return;
-            } catch (_) { /* fall through to download */ }
-          }
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = 'taktik.gif';
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
-          statusEl.textContent = 'GIF gespeichert (Teilen nicht verfügbar).';
-          renderBtn.disabled = false;
-        } catch (err) {
-          currentGif = null;
-          if (!closed) {
-            statusEl.textContent = 'Fehler: ' + (err && err.message ? err.message : err);
-            renderBtn.disabled = false;
-          }
-        } finally {
-          BT.wake.release('tactics-gif');
-        }
-      });
-    }
-
-    // ---------- Load from saved tactic note ----------
-    const loadFromNoteId = BT.storage.getSetting('tacticsLoadFromNote', null);
-    if (loadFromNoteId) {
-      BT.storage.setSetting('tacticsLoadFromNote', null);
-      const note = BT.storage.getNote(loadFromNoteId);
-      if (note && typeof note.body === 'string' && note.body.startsWith('[TACTIC]')) {
-        const jsonStart = note.body.indexOf('{');
-        if (jsonStart !== -1) {
-          try {
-            const parsed = JSON.parse(note.body.slice(jsonStart));
-            const migrated = migrate(parsed);
-            if (migrated && Array.isArray(migrated.steps) && migrated.steps.length > 0) {
-              board = migrated;
-              saveDraft(board);
-              const label = (note.title || '').replace(/^Taktik:\s*/, '') || 'Taktik';
-              if (toast) toast('Taktik „' + label + '" geladen');
-            }
-          } catch (e) {
-            if (toast) toast('Taktik konnte nicht geladen werden');
-          }
-        }
-      }
-    }
-
-    renderSteps();
-    renderAll();
+    return root;
+  }
+  function loadModule() {
+    if (!modulePromise) modulePromise = import('./play-designer/main.js').catch(error => { console.error('Play Designer konnte nicht geladen werden', error); throw error; });
+    return modulePromise;
+  }
+  function render(target) {
+    const loading = placeholder(target, false);
+    loadModule().then(module => { if (!loading.isConnected) return; loading.remove(); module.mountEditor(target); }).catch(() => { if (loading.isConnected) loading.querySelector('h2').textContent = 'Play Designer konnte nicht geladen werden.'; });
+  }
+  function renderPlayer(target) {
+    const loading = placeholder(target, true);
+    loadModule().then(module => { if (!loading.isConnected) return; loading.remove(); module.mountPlayer(target); }).catch(() => {});
   }
 
-  // ---------- Interpolation ----------
-  function interpolateSnapshot(fromStep, toStep, t) {
-    if (!toStep) return fromStep;
-    const ease = t;
-    const toById = new Map();
-    for (const p of toStep.players) toById.set(p.id, p);
-    const players = fromStep.players.map(fp => {
-      const tp = toById.get(fp.id);
-      if (!tp) return { id: fp.id, label: fp.label, x: fp.x, y: fp.y };
-      return {
-        id: fp.id, label: fp.label,
-        x: fp.x + (tp.x - fp.x) * ease,
-        y: fp.y + (tp.y - fp.y) * ease
-      };
-    });
-    const fb = fromStep.ball, tb = toStep.ball;
-    const ball = { x: fb.x + (tb.x - fb.x) * ease, y: fb.y + (tb.y - fb.y) * ease };
-    return { players, ball, arrows: fromStep.arrows, texts: fromStep.texts };
-  }
-
-  // ---------- Gif library loader ----------
-  let gifLibLoading = null;
-  function loadGifLib() {
-    if (window.GIF) return Promise.resolve();
-    if (gifLibLoading) return gifLibLoading;
-    gifLibLoading = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = GIF_LIB_URL;
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error('gif.js konnte nicht geladen werden.'));
-      document.head.appendChild(s);
-    });
-    return gifLibLoading;
-  }
-
-  // ---------- Canvas drawing for GIF frames ----------
-  function drawCourt(ctx) {
-    ctx.fillStyle = '#f5e6c8';
-    ctx.fillRect(0, 0, 500, 470);
-    ctx.strokeStyle = '#7a4a1a';
-    ctx.lineWidth = 2;
-    // Floor outline
-    ctx.strokeRect(10, 10, 480, 450);
-    // Lane
-    ctx.fillStyle = 'rgba(232, 161, 77, 0.3)';
-    ctx.fillRect(160, 10, 180, 190);
-    ctx.strokeRect(160, 10, 180, 190);
-    // Free-throw circle (top of key)
-    ctx.beginPath();
-    ctx.arc(250, 200, 60, 0, Math.PI * 2);
-    ctx.stroke();
-    // Free-throw line
-    ctx.beginPath();
-    ctx.moveTo(160, 200); ctx.lineTo(340, 200); ctx.stroke();
-    // Restricted area arc under basket
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(250, 50, 40, Math.PI, 0, true);
-    ctx.stroke();
-    // Backboard
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(220, 40); ctx.lineTo(280, 40); ctx.stroke();
-    // Rim
-    ctx.strokeStyle = '#cc3300';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(250, 50, 8, 0, Math.PI * 2);
-    ctx.stroke();
-    // 3-point corners + arc
-    ctx.strokeStyle = '#7a4a1a';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(50, 10); ctx.lineTo(50, 135); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(450, 10); ctx.lineTo(450, 135); ctx.stroke();
-    // 3pt arc: matches SVG path `M 50 135 A 200 200 0 0 0 450 135` — semicircle bulging up toward rim
-    ctx.beginPath();
-    ctx.arc(250, 135, 200, Math.PI, 0, true);
-    ctx.stroke();
-  }
-
-  function drawArrow(ctx, a) {
-    const isPass = a.style === 'pass';
-    ctx.strokeStyle = isPass ? 'rgb(232, 161, 77)' : '#004b2b';
-    ctx.fillStyle = ctx.strokeStyle;
-    ctx.lineWidth = 3;
-    if (isPass) ctx.setLineDash([8, 6]); else ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(a.x1, a.y1);
-    ctx.lineTo(a.x2, a.y2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // Arrowhead
-    const ang = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
-    const size = 10;
-    ctx.beginPath();
-    ctx.moveTo(a.x2, a.y2);
-    ctx.lineTo(a.x2 - size * Math.cos(ang - 0.5), a.y2 - size * Math.sin(ang - 0.5));
-    ctx.lineTo(a.x2 - size * Math.cos(ang + 0.5), a.y2 - size * Math.sin(ang + 0.5));
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  function drawText(ctx, t) {
-    ctx.fillStyle = '#004b2b';
-    ctx.font = 'bold 16px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    // Halo for readability
-    ctx.strokeStyle = 'rgba(245, 230, 200, 0.9)';
-    ctx.lineWidth = 3;
-    ctx.strokeText(t.text, t.x, t.y);
-    ctx.fillText(t.text, t.x, t.y);
-  }
-
-  function drawPlayer(ctx, p) {
-    ctx.fillStyle = 'rgb(232, 161, 77)';
-    ctx.strokeStyle = '#004b2b';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#004b2b';
-    ctx.font = 'bold 16px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(p.label, p.x, p.y);
-  }
-
-  function drawBall(ctx, b) {
-    ctx.fillStyle = '#cc3300';
-    ctx.strokeStyle = '#7a2200';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  function drawSnapshot(ctx, snapshot) {
-    drawCourt(ctx);
-    for (const a of snapshot.arrows) drawArrow(ctx, a);
-    for (const t of snapshot.texts) drawText(ctx, t);
-    for (const p of snapshot.players) drawPlayer(ctx, p);
-    drawBall(ctx, snapshot.ball);
-  }
-
-  // ---------- GIF rendering ----------
-  async function renderGif(board, overrideDurationSec, onProgress, onInstance) {
-    const W = 400, H = 376;
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    const scale = W / 500;
-    const fps = 10;
-
-    const gif = new window.GIF({
-      workers: 2,
-      quality: 12,
-      width: W,
-      height: H,
-      workerScript: GIF_WORKER_URL,
-      background: '#f5e6c8'
-    });
-    if (onInstance) onInstance(gif);
-
-    function renderFrameToCanvas(snapshot) {
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      ctx.scale(scale, scale);
-      drawSnapshot(ctx, snapshot);
-      ctx.restore();
-    }
-
-    for (let i = 0; i < board.steps.length; i++) {
-      const from = board.steps[i];
-      const to = board.steps[i + 1] || null;
-      const dur = (overrideDurationSec != null ? overrideDurationSec : (from.duration || 1.5));
-      if (to) {
-        const frames = Math.max(2, Math.ceil(dur * fps));
-        const delay = Math.max(20, Math.round((dur * 1000) / frames));
-        for (let f = 0; f < frames; f++) {
-          const t = f / frames;
-          const snap = interpolateSnapshot(from, to, t);
-          renderFrameToCanvas(snap);
-          gif.addFrame(ctx, { delay, copy: true });
-        }
-      } else {
-        // Last step: hold final frame longer
-        renderFrameToCanvas(from);
-        gif.addFrame(ctx, { delay: Math.round(dur * 1000), copy: true });
-      }
-    }
-
-    return new Promise((resolve, reject) => {
-      gif.on('progress', (p) => { if (onProgress) onProgress(p); });
-      gif.on('finished', (blob) => resolve(blob));
-      gif.on('abort', () => reject(new Error('GIF-Erzeugung abgebrochen.')));
-      try { gif.render(); } catch (e) { reject(e); }
-    });
-  }
-
-  return { render };
+  const core = { uid, clamp, number, copy, point, currentUser, canEdit, startingElements, emptyTransition, defaultStep, defaultBoard, normalizeTransition, normalizeStep, normalizeBoard, cloneStep, elements, elementById, arrowStyle, boardDuration, stepStartTime, locateTime, distance, pointOnPath, quadraticPoint, positionDuring, interpolateStep, snapshotAt };
+  return { render, renderPlayer, normalizeBoard, templates, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
 })();

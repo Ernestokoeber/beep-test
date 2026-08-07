@@ -1143,13 +1143,24 @@
   <template id="tpl-tactics">
     <section class="view">
       <div class="section-head">
-        <h2>Taktikboard</h2>
+        <div><span class="section-kicker">Teamtaktik</span><h2>Taktikboard</h2></div>
         <div class="head-actions">
           <button class="btn small" data-action="ai-explain">🤖 Erklären</button>
           <button class="btn small" data-action="share-gif">📤 GIF teilen</button>
-          <button class="btn small" data-action="save-as-note">💾 Als Notiz speichern</button>
+          <button class="btn small" data-action="export-pdf">PDF</button>
+          <a class="btn small" href="#/tactics/player">Spieleransicht</a>
+          <button class="btn small primary" data-action="save-tactic">💾 Speichern</button>
+          <button class="btn small" data-action="publish-tactic">Veröffentlichen</button>
           <button class="btn small danger" data-action="reset-board">Zurücksetzen</button>
         </div>
+      </div>
+
+      <div class="tactics-library" aria-label="Taktikbibliothek">
+        <label>Taktik <select data-role="saved-tactic"><option value="">Neuer Entwurf</option></select></label>
+        <label>Vorlage <select data-role="tactic-template"><option value="">Leere Halbplatz-Taktik</option></select></label>
+        <label>Titel <input type="text" maxlength="80" data-role="tactic-title" placeholder="z. B. Horns gegen Mann"></label>
+        <label>Beschreibung <input type="text" maxlength="180" data-role="tactic-description" placeholder="Kurzer Coaching-Fokus"></label>
+        <button type="button" class="btn small" data-action="new-tactic">Neu</button>
       </div>
 
       <div class="tactics-steps" role="tablist" aria-label="Schritte">
@@ -1172,8 +1183,17 @@
 
       <div class="tactics-toolbar" role="toolbar" aria-label="Werkzeuge">
         <button type="button" class="tactics-tool active" data-tool="move" aria-pressed="true" aria-label="Verschieben" title="Verschieben"><span class="tool-icon" aria-hidden="true">✥</span><span class="tool-label">Verschieben</span></button>
+        <button type="button" class="tactics-tool" data-tool="offense" aria-label="Angriffsspieler" title="Angriffsspieler"><span class="tool-icon" aria-hidden="true">O</span><span class="tool-label">Angriff</span></button>
+        <button type="button" class="tactics-tool" data-tool="defense" aria-label="Verteidiger" title="Verteidiger"><span class="tool-icon" aria-hidden="true">X</span><span class="tool-label">Verteidigung</span></button>
+        <button type="button" class="tactics-tool" data-tool="ball" aria-label="Ball" title="Ball"><span class="tool-icon" aria-hidden="true">●</span><span class="tool-label">Ball</span></button>
         <button type="button" class="tactics-tool" data-tool="run" aria-label="Laufweg" title="Laufweg"><span class="tool-icon" aria-hidden="true">→</span><span class="tool-label">Laufweg</span></button>
         <button type="button" class="tactics-tool" data-tool="pass" aria-label="Passweg" title="Passweg"><span class="tool-icon" aria-hidden="true">⇢</span><span class="tool-label">Passweg</span></button>
+        <button type="button" class="tactics-tool" data-tool="dribble" aria-label="Dribbling" title="Dribbling"><span class="tool-icon" aria-hidden="true">⌁</span><span class="tool-label">Dribbling</span></button>
+        <button type="button" class="tactics-tool" data-tool="screen" aria-label="Screen" title="Screen"><span class="tool-icon" aria-hidden="true">▮</span><span class="tool-label">Screen</span></button>
+        <button type="button" class="tactics-tool" data-tool="closeout" aria-label="Closeout" title="Closeout"><span class="tool-icon" aria-hidden="true">↗</span><span class="tool-label">Closeout</span></button>
+        <button type="button" class="tactics-tool" data-tool="rotation" aria-label="Rotation" title="Rotation"><span class="tool-icon" aria-hidden="true">⟳</span><span class="tool-label">Rotation</span></button>
+        <button type="button" class="tactics-tool" data-tool="cone" aria-label="Hütchen" title="Hütchen"><span class="tool-icon" aria-hidden="true">▲</span><span class="tool-label">Hütchen</span></button>
+        <button type="button" class="tactics-tool" data-tool="zone" aria-label="Zone" title="Zone"><span class="tool-icon" aria-hidden="true">▧</span><span class="tool-label">Zone</span></button>
         <button type="button" class="tactics-tool" data-tool="text" aria-label="Text" title="Text"><span class="tool-icon" aria-hidden="true">T</span><span class="tool-label">Text</span></button>
         <button type="button" class="tactics-tool" data-tool="erase" aria-label="Löschen" title="Löschen"><span class="tool-icon" aria-hidden="true">⌫</span><span class="tool-label">Löschen</span></button>
       </div>
@@ -1200,12 +1220,20 @@
           <line class="court-line" x1="450" y1="10" x2="450" y2="135" stroke-width="2"/>
           <path class="court-line" d="M 50 135 A 200 200 0 0 0 450 135" fill="none" stroke-width="2"/>
           <g data-role="arrows-layer"></g>
+          <g data-role="objects-layer"></g>
           <g data-role="texts-layer"></g>
           <g data-role="tokens-layer"></g>
         </svg>
       </div>
 
-      <div class="tactics-legend muted">O · Angriff (1–5) · ⬤ Ball · Laufweg (grün durchgezogen) · Passweg (orange gestrichelt)</div>
+      <aside class="tactics-context" data-role="tactics-context" hidden>
+        <strong data-role="context-title">Element</strong>
+        <label>Rolle / Text <input data-role="context-label" maxlength="40"></label>
+        <label data-role="context-shape-wrap" hidden>Zone <select data-role="context-shape"><option value="rect">Rechteck</option><option value="circle">Kreis</option></select></label>
+        <button type="button" class="btn small danger" data-action="delete-selected">Auswahl löschen</button>
+      </aside>
+
+      <div class="tactics-legend muted">O Angriff · X Verteidigung · ● Ball · Grün Laufweg · Orange Pass · Gestrichelt Dribbling</div>
     </section>
   </template>
 

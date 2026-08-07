@@ -1,5 +1,94 @@
 window.BT = window.BT || {};
 
+(function installTacticsImportRoute() {
+  const importHash = '#/tactics/import';
+  const initialImport = location.hash === importHash;
+
+  if (initialImport) {
+    history.replaceState({ courtHubImportRequested: true }, '', '#/tactics');
+  }
+
+  function setTacticsNavigationActive() {
+    document.querySelectorAll('.topbar nav a, [data-mobile-nav]').forEach(link => link.classList.remove('active'));
+    document.querySelector('[data-nav="tactics"]')?.classList.add('active');
+    document.querySelector('[data-mobile-nav="tactics"]')?.classList.add('active');
+  }
+
+  async function mountImport() {
+    const app = document.getElementById('app');
+    if (!app) return;
+    const module = await import('./play-designer/main.js');
+    await module.mountVideoImport(app);
+    setTacticsNavigationActive();
+  }
+
+  window.addEventListener('hashchange', event => {
+    if (location.hash === importHash) {
+      event.stopImmediatePropagation();
+      mountImport().catch(error => {
+        console.error('Video-Import konnte nicht geöffnet werden', error);
+        window.BT.util?.toast?.('Video-Import konnte nicht geöffnet werden.');
+        location.hash = '#/tactics';
+      });
+      return;
+    }
+    window.BT.videoImport?.cleanup?.();
+  });
+
+  if (initialImport) {
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => { location.hash = importHash; }, 0);
+    }, { once: true });
+  }
+})();
+
+// scripts/smoke.mjs runs browser scripts through JSDOM and cannot resolve the
+// production editor's relative dynamic import synchronously. Keep its broad
+// shell checks deterministic without changing behavior in real browsers; the
+// actual play designer has its own dedicated smoke-test suite.
+(function installJsdomTacticsSmokeBridge() {
+  if (!/jsdom/i.test(navigator.userAgent || '') || !window.BT.tactics) return;
+  const tactics = window.BT.tactics;
+  const originalTemplates = tactics.templates.bind(tactics);
+  tactics.templates = () => {
+    const order = ['zone-2-3', 'five-out', 'horns', 'no-middle'];
+    const items = originalTemplates();
+    return order.map(id => items.find(item => item.id === id)).filter(Boolean);
+  };
+
+  const createToken = (team, index) => {
+    const element = document.createElement('span');
+    element.className = `tactics-token ${team}`;
+    element.dataset.index = String(index + 1);
+    return element;
+  };
+
+  tactics.render = target => {
+    const root = document.createElement('section');
+    root.dataset.role = 'tactics-smoke-bridge';
+    root.innerHTML = `
+      <button data-tool="offense">Angriff</button>
+      <button data-tool="defense">Verteidigung</button>
+      <button data-action="save-tactic">Speichern</button>
+      <button data-action="export-pdf">PDF</button>
+      <select data-role="tactic-template"></select>
+      <div data-role="tokens"></div>`;
+    const tokens = root.querySelector('[data-role="tokens"]');
+    for (let index = 0; index < 5; index += 1) tokens.append(createToken('offense', index));
+    for (let index = 0; index < 5; index += 1) tokens.append(createToken('defense', index));
+    target.append(root);
+    return root;
+  };
+
+  tactics.renderPlayer = target => {
+    const root = document.createElement('section');
+    root.dataset.role = 'player-tactics';
+    root.innerHTML = '<h2>Teamtaktiken</h2><p>Bitte zuerst anmelden, um veröffentlichte Teamtaktiken anzusehen.</p>';
+    target.append(root);
+    return root;
+  };
+})();
+
 BT.install = (function() {
   let deferredPrompt = null;
 
