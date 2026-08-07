@@ -9,11 +9,21 @@ import {
   addQuickMove,
   addQuickPass,
   addQuickScreen,
+  addQuickPickAndRoll,
   addQuickPause,
   hasStepActions,
   quickStepLabel,
   stepActions
 } from './quick-core.js';
+import {
+  describeRecordedAction,
+  normalizeRecordedBoard
+} from './phase-recorder-core.js';
+import {
+  findOverlaps,
+  snapPhaseReadable,
+  suggestScreenPlacement
+} from './phase-spacing.js';
 import { deletePlayCompletely } from './complete-delete.js';
 import { injectQuickEditorStyles } from './quick-styles.js';
 
@@ -25,7 +35,8 @@ const TOOL_HELP = {
   ball: 'Den Angreifer antippen, der den Ball erhalten soll.',
   move: 'Auf einem Spieler beginnen und den gewünschten Weg zeichnen.',
   pass: 'Zuerst Passgeber, danach Empfänger antippen.',
-  screen: 'Zuerst Screensteller, danach die Screenposition antippen.'
+  screen: 'Screensteller, Mitspieler und anschließend die Screenposition wählen.',
+  'pick-and-roll': 'Ballführer und Screensteller wählen, dann beide Laufwege zeichnen.'
 };
 
 function toast(message) {
@@ -110,18 +121,21 @@ function template() {
             <div class="chq-tools">
               <button class="chq-tool" type="button" data-tool="move">Lauf / Dribbling<small>Weg zeichnen</small></button>
               <button class="chq-tool" type="button" data-tool="pass">Pass<small>Geber → Empfänger</small></button>
-              <button class="chq-tool" type="button" data-tool="screen">Screen<small>Spieler → Position</small></button>
+              <button class="chq-tool" type="button" data-tool="screen">Screen<small>Steller → Spieler → Position</small></button>
+              <button class="chq-tool" type="button" data-tool="pick-and-roll">Pick &amp; Roll<small>Screen und beide Wege</small></button>
               <button class="chq-tool" type="button" data-action="pause">Pause<small>0,8 Sekunden</small></button>
             </div>
             <div class="chq-pending" data-role="pending" hidden></div>
+            <button class="chq-btn chq-cancel-recording" type="button" data-action="cancel-recording" hidden>Aktion abbrechen</button>
             <div class="chq-status" data-role="status">${TOOL_HELP.select}</div>
           </div>
         </section>
 
         <section class="chq-card">
           <div class="chq-card-body">
-            <div class="chq-section-title"><span>3</span><strong>Ablauf</strong></div>
-            <p class="chq-help">Eine Zeile auswählen, um dort weitere gleichzeitige Aktionen hinzuzufügen.</p>
+            <div class="chq-section-title"><span>3</span><strong>Phasen</strong></div>
+            <p class="chq-help">Eine Phase enthält alle Aktionen, die gleichzeitig passieren.</p>
+            <div class="chq-spacing-warning" data-role="spacing-warning" hidden><span></span><button class="chq-btn" type="button" data-action="snap-readable">Lesbar einrasten</button></div>
             <div class="chq-flow" data-role="flow"></div>
           </div>
         </section>
@@ -156,7 +170,7 @@ export function mountQuickEditor(target, options = {}) {
   const svg = createCourt();
   q('[data-role="court"]').append(svg);
 
-  let board = core.normalizeBoard(window.BT.storage.getSetting(DRAFT_KEY, null));
+  let board = normalizeRecordedBoard(window.BT.storage.getSetting(DRAFT_KEY, null), core);
   let tool = 'select';
   let relation = 'after';
   let pending = null;
@@ -171,7 +185,7 @@ export function mountQuickEditor(target, options = {}) {
   const step = () => board.steps[board.currentStep];
 
   function persist(message) {
-    board = core.normalizeBoard(board);
+    board = normalizeRecordedBoard(board, core);
     window.BT.storage.setSetting(DRAFT_KEY, board);
     if (message) q('[data-role="status"]').textContent = message;
   }
@@ -196,6 +210,10 @@ export function mountQuickEditor(target, options = {}) {
       showGuides: !playing
     });
     appendDraftPath(svg, draft);
+    const overlapIds = new Set(findOverlaps(step(), core).flatMap(pair => pair.ids));
+    svg.querySelectorAll('[data-element-id]').forEach(element => {
+      element.classList.toggle('chq-overlap', overlapIds.has(element.dataset.elementId));
+    });
     q('[data-role="stage-title"]').textContent = board.title;
     q('[data-role="stage-step"]').textContent = `Ablauf ${board.currentStep + 1}`;
     q('[data-role="stage-action"]').textContent = board.currentStep < board.steps.length - 1
@@ -211,13 +229,20 @@ export function mountQuickEditor(target, options = {}) {
     visible.forEach((item, index) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = `chq-flow-item${index === board.currentStep ? ' active' : ''}`;
+      button.className = `chq-flow-item chq-phase-card${index === board.currentStep ? ' active' : ''}`;
       const label = index < board.steps.length - 1 ? quickStepLabel(item, core) : 'Grundaufstellung';
-      const actions = stepActions(item, core).length;
-      button.innerHTML = `<span class="chq-flow-index">${index + 1}</span><span class="chq-flow-copy"><strong></strong><span></span></span><span class="chq-flow-time"></span>`;
-      button.querySelector('strong').textContent = label;
-      button.querySelector('.chq-flow-copy span').textContent = actions ? `${actions} Aktion${actions === 1 ? '' : 'en'}` : 'Wartephase';
-      button.querySelector('.chq-flow-time').textContent = `${item.duration.toFixed(1)} s`;
+      const actions = stepActions(item, core);
+      button.innerHTML = `<span class="chq-flow-index">${index + 1}</span><span class="chq-flow-copy"><strong></strong><ul class="chq-phase-actions"></ul></span><span class="chq-flow-time"></span>`;
+      button.querySelector('strong').textContent = `Phase ${index + 1} · ${label}`;
+      const list = button.querySelector('.chq-phase-actions');
+      if (!actions.length) list.innerHTML = '<li>Wartephase</li>';
+      actions.forEach(action => {
+        const itemLine = document.createElement('li');
+        itemLine.textContent = describeRecordedAction(item, action, core);
+        if (action.groupType === 'pick-and-roll') itemLine.dataset.group = 'pick-and-roll';
+        list.append(itemLine);
+      });
+      button.querySelector('.chq-flow-time').textContent = `${actions.length}×`;
       button.onclick = () => {
         stop();
         board.currentStep = index;
@@ -236,13 +261,31 @@ export function mountQuickEditor(target, options = {}) {
     if (!pending) {
       box.hidden = true;
       box.textContent = '';
+      q('[data-action="cancel-recording"]').hidden = true;
       return;
     }
-    const player = core.elementById(step(), pending.id);
+    const player = core.elementById(step(), pending.id || pending.screenerId || pending.handlerId);
     box.hidden = false;
-    box.textContent = tool === 'pass'
-      ? `Passgeber ${player?.role || ''} gewählt – jetzt Empfänger antippen.`
-      : `Screensteller ${player?.role || ''} gewählt – jetzt Screenposition antippen.`;
+    const messages = {
+      'pass:receiver': `Passgeber ${player?.role || ''} gewählt – jetzt Empfänger antippen.`,
+      'screen:beneficiary': `Screensteller ${player?.role || ''} gewählt – jetzt den Mitspieler antippen, der den Screen nutzt.`,
+      'screen:position': 'Mitspieler gewählt – jetzt die Screenposition auf dem Feld antippen.',
+      'pick-and-roll:screener': `Ballführer ${player?.role || ''} gewählt – jetzt Screensteller antippen.`,
+      'pick-and-roll:position': 'Screensteller gewählt – jetzt Screenposition antippen.',
+      'pick-and-roll:handler-path': 'Weg des Ballführers am Screen vorbei zeichnen.',
+      'pick-and-roll:roll-path': 'Jetzt den Rollweg des Screenstellers zeichnen.'
+    };
+    box.textContent = messages[`${tool}:${pending.stage}`] || 'Aktion vervollständigen.';
+    q('[data-action="cancel-recording"]').hidden = false;
+  }
+
+  function renderSpacing() {
+    const warning = q('[data-role="spacing-warning"]');
+    const overlaps = findOverlaps(step(), core);
+    warning.hidden = overlaps.length === 0;
+    warning.querySelector('span').textContent = overlaps.length
+      ? `${overlaps.length} Überlappung${overlaps.length === 1 ? '' : 'en'} in dieser Phase.`
+      : '';
   }
 
   function renderFields() {
@@ -260,6 +303,7 @@ export function mountQuickEditor(target, options = {}) {
     draw();
     renderFlow();
     renderPending();
+    renderSpacing();
     renderFields();
     qa('[data-tool]').forEach(button => button.classList.toggle('active', button.dataset.tool === tool));
     qa('[data-relation]').forEach(button => button.classList.toggle('active', button.dataset.relation === relation));
@@ -323,6 +367,7 @@ export function mountQuickEditor(target, options = {}) {
         path: points
       }, core);
       time = core.stepStartTime(board, board.currentStep);
+      relation = 'after';
       persist(actor.type === 'offense' && core.distance(actor, core.elementById(step(), 'ball')) <= 34
         ? 'Dribbling automatisch erstellt.'
         : 'Laufweg automatisch erstellt.');
@@ -341,6 +386,7 @@ export function mountQuickEditor(target, options = {}) {
         toId
       }, core);
       time = core.stepStartTime(board, board.currentStep);
+      relation = 'after';
       persist('Pass automatisch erstellt.');
     } catch (error) {
       toast(error.message);
@@ -349,16 +395,23 @@ export function mountQuickEditor(target, options = {}) {
     refresh();
   }
 
-  function applyScreen(actorId, point) {
+  function applyScreen(actorId, beneficiaryId, point) {
     try {
+      const placement = suggestScreenPlacement(step(), beneficiaryId, point, core);
       board = addQuickScreen(board, {
         stepIndex: board.currentStep,
         relation,
         actorId,
-        point
+        beneficiaryId,
+        targetDefenderId: placement.targetDefenderId,
+        point: placement.point,
+        angle: placement.angle
       }, core);
       time = core.stepStartTime(board, board.currentStep);
-      persist('Screen und benötigter Laufweg automatisch erstellt.');
+      relation = 'after';
+      persist(placement.adjusted
+        ? 'Screen gebunden und mit lesbarem Abstand platziert.'
+        : 'Screen an beide Spieler gebunden.');
     } catch (error) {
       toast(error.message);
     }
@@ -366,10 +419,46 @@ export function mountQuickEditor(target, options = {}) {
     refresh();
   }
 
+  function applyPickAndRoll(recording) {
+    try {
+      board = addQuickPickAndRoll(board, {
+        stepIndex: board.currentStep,
+        relation,
+        handlerId: recording.handlerId,
+        screenerId: recording.screenerId,
+        targetDefenderId: recording.targetDefenderId,
+        screenPoint: recording.screenPoint,
+        angle: recording.angle,
+        handlerPath: recording.handlerPath,
+        rollPath: recording.rollPath
+      }, core);
+      time = core.stepStartTime(board, board.currentStep);
+      persist('Pick & Roll als verbundene Aktion gespeichert.');
+    } catch (error) {
+      toast(error.message);
+    }
+    pending = null;
+    relation = 'after';
+    refresh();
+  }
+
+  function cancelRecording(message = 'Angefangene Aktion verworfen.') {
+    pending = null;
+    drag = null;
+    draft = null;
+    relation = 'after';
+    q('[data-role="status"]').textContent = message;
+    refresh();
+  }
+
   svg.onpointerdown = event => {
     stop();
     const point = pointFromEvent(svg, event);
     if (tool === 'select') {
+      if (hasStepActions(step(), core)) {
+        toast('In einer aufgenommenen Phase werden Spieler über ihre Aktionen korrigiert.');
+        return;
+      }
       const selected = hit(point);
       if (!selected) return;
       drag = {
@@ -404,7 +493,7 @@ export function mountQuickEditor(target, options = {}) {
       const result = nearestPlayer(point, true);
       if (!result || result.distance > 42) return toast('Angreifer direkt antippen.');
       if (!pending) {
-        pending = { id: result.element.id };
+        pending = { id: result.element.id, stage: 'receiver' };
         refresh();
       } else if (pending.id !== result.element.id) {
         applyPass(pending.id, result.element.id);
@@ -418,10 +507,56 @@ export function mountQuickEditor(target, options = {}) {
       if (!pending) {
         const result = nearestPlayer(point, true);
         if (!result || result.distance > 42) return toast('Screensteller direkt antippen.');
-        pending = { id: result.element.id };
+        pending = { screenerId: result.element.id, stage: 'beneficiary' };
         refresh();
-      } else {
-        applyScreen(pending.id, point);
+      } else if (pending.stage === 'beneficiary') {
+        const result = nearestPlayer(point, true);
+        if (!result || result.distance > 42 || result.element.id === pending.screenerId) {
+          return toast('Einen anderen Angreifer wählen, der den Screen nutzt.');
+        }
+        pending.beneficiaryId = result.element.id;
+        pending.stage = 'position';
+        refresh();
+      } else if (pending.stage === 'position') {
+        applyScreen(pending.screenerId, pending.beneficiaryId, point);
+      }
+      return;
+    }
+
+    if (tool === 'pick-and-roll') {
+      if (!pending) {
+        const result = nearestPlayer(point, true);
+        if (!result || result.distance > 42) return toast('Ballführer direkt antippen.');
+        pending = { handlerId: result.element.id, stage: 'screener' };
+        refresh();
+      } else if (pending.stage === 'screener') {
+        const result = nearestPlayer(point, true);
+        if (!result || result.distance > 42 || result.element.id === pending.handlerId) {
+          return toast('Einen anderen Angreifer als Screensteller wählen.');
+        }
+        pending.screenerId = result.element.id;
+        pending.stage = 'position';
+        refresh();
+      } else if (pending.stage === 'position') {
+        const placement = suggestScreenPlacement(step(), pending.handlerId, point, core);
+        Object.assign(pending, {
+          screenPoint: placement.point,
+          angle: placement.angle,
+          targetDefenderId: placement.targetDefenderId,
+          stage: 'handler-path'
+        });
+        refresh();
+      } else if (pending.stage === 'handler-path') {
+        const handler = core.elementById(step(), pending.handlerId);
+        draft = [core.point(handler)];
+        drag = { id: event.pointerId, mode: 'pnr-handler-path' };
+        svg.setPointerCapture(event.pointerId);
+        draw();
+      } else if (pending.stage === 'roll-path') {
+        draft = [core.point(pending.screenPoint)];
+        drag = { id: event.pointerId, mode: 'pnr-roll-path' };
+        svg.setPointerCapture(event.pointerId);
+        draw();
       }
     }
   };
@@ -429,7 +564,7 @@ export function mountQuickEditor(target, options = {}) {
   svg.onpointermove = event => {
     if (!drag) return;
     const point = pointFromEvent(svg, event);
-    if (drag.mode === 'path') {
+    if (['path', 'pnr-handler-path', 'pnr-roll-path'].includes(drag.mode)) {
       if (core.distance(draft.at(-1), point) >= 5) draft.push(point);
       draw();
       return;
@@ -455,6 +590,23 @@ export function mountQuickEditor(target, options = {}) {
       else refresh();
       return;
     }
+    if (active.mode === 'pnr-handler-path') {
+      const path = cleanDraft(draft);
+      draft = null;
+      if (!path || path.length < 2) return cancelRecording('Der Weg des Ballführers war zu kurz.');
+      pending.handlerPath = path;
+      pending.stage = 'roll-path';
+      refresh();
+      return;
+    }
+    if (active.mode === 'pnr-roll-path') {
+      const path = cleanDraft(draft);
+      draft = null;
+      if (!path || path.length < 2) return cancelRecording('Der Rollweg war zu kurz.');
+      pending.rollPath = path;
+      applyPickAndRoll(pending);
+      return;
+    }
     if (active.changed) persist('Aufstellung geändert.');
     refresh();
   }
@@ -470,6 +622,19 @@ export function mountQuickEditor(target, options = {}) {
       q('[data-role="status"]').textContent = TOOL_HELP[tool];
       refresh();
     };
+  });
+
+  q('[data-action="cancel-recording"]').onclick = () => cancelRecording();
+  q('[data-action="snap-readable"]').onclick = () => {
+    board = normalizeRecordedBoard(
+      snapPhaseReadable(board, board.currentStep, core),
+      core
+    );
+    persist('Überlappende Spieler wurden lesbar eingerastet.');
+    refresh();
+  };
+  root.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && pending) cancelRecording();
   });
 
   qa('[data-relation]').forEach(button => {
@@ -538,7 +703,7 @@ export function mountQuickEditor(target, options = {}) {
   };
 
   q('[data-action="save"]').onclick = () => {
-    board = core.normalizeBoard(window.BT.storage.upsertTactic(board));
+    board = normalizeRecordedBoard(window.BT.storage.upsertTactic(board), core);
     persist('Play gespeichert und synchronisiert.');
     toast('Play gespeichert.');
     refresh();
@@ -547,7 +712,7 @@ export function mountQuickEditor(target, options = {}) {
   q('[data-action="new"]').onclick = () => {
     if (!window.confirm('Aktuellen Entwurf verwerfen und ein neues Play beginnen?')) return;
     stop();
-    board = core.defaultBoard();
+    board = normalizeRecordedBoard(core.defaultBoard(), core);
     time = 0;
     tool = 'select';
     relation = 'after';
@@ -563,7 +728,7 @@ export function mountQuickEditor(target, options = {}) {
       : `Den aktuellen Entwurf „${board.title}“ vollständig verwerfen?`;
     if (!window.confirm(message)) return;
     deletePlayCompletely(window.BT.storage, board);
-    board = core.defaultBoard();
+    board = normalizeRecordedBoard(core.defaultBoard(), core);
     time = 0;
     pending = null;
     tool = 'select';
