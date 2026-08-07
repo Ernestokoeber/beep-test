@@ -55,6 +55,8 @@ serviceWorkerEvents.get('install')({ waitUntil(work) { installWork = work; } });
 await installWork;
 assert(/^courthub-v\d+$/.test(installedCacheName), 'Service Worker legt keinen versionsbasierten Cache an');
 assert(installedAssets.every(asset => !asset.includes('?v=')), 'Service Worker cachet lokal unterschiedliche Asset-Versionen');
+assert(installedAssets.includes('./js/play-designer/phase-recorder-core.js'), 'Phasenrekorder fehlt im Offline-Cache');
+assert(installedAssets.includes('./js/play-designer/phase-spacing.js'), 'Abstandsprüfung fehlt im Offline-Cache');
 assert(![...window.document.querySelectorAll('link[href], script[src]')].some(node => new URL(node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src'), 'https://coach.tsv-lindau.de').origin === 'https://coach.tsv-lindau.de' && node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src').includes('?v=')), 'HTML lädt lokal unterschiedliche Asset-Versionen');
 
 const viewportMeta = window.document.querySelector('meta[name="viewport"]')?.content || '';

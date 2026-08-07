@@ -98,6 +98,90 @@ async function dispatchTouchDrag(source, moveTarget, start, end, pointerId) {
   await moveTarget.dispatchEvent('pointerup', pointerInit(pointerId, end, 0));
 }
 
+async function tokenCenter(page, id) {
+  const hit = tokenHit(page, id);
+  await makeTargetVisible(hit);
+  const box = await hit.boundingBox();
+  assert(box, `Spieler ${id} besitzt keine sichtbare Trefferfläche`);
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+async function tapCourt(page, point, pointerId) {
+  const svg = page.locator('.chq-court-wrap svg').first();
+  await svg.dispatchEvent('pointerdown', pointerInit(pointerId, point));
+  await svg.dispatchEvent('pointerup', pointerInit(pointerId, point, 0));
+  await page.waitForTimeout(45);
+}
+
+async function clientPointForBoard(page, point) {
+  return page.locator('.chq-court-wrap svg').first().evaluate((svg, value) => {
+    const source = svg.createSVGPoint();
+    source.x = value.x;
+    source.y = value.y;
+    const target = source.matrixTransform(svg.getScreenCTM());
+    return { x: target.x, y: target.y };
+  }, point);
+}
+
+async function testPhaseRecorder(page) {
+  await page.getByRole('button', { name: /^Pass/ }).click();
+  await tapCourt(page, await tokenCenter(page, 'o1'), 601);
+  await tapCourt(page, await tokenCenter(page, 'o2'), 602);
+  assert(
+    (await page.locator('.chq-phase-card').first().innerText()).includes('1 passt zu 2'),
+    'Pass erscheint nicht als verständlicher Satz in Phase 1'
+  );
+
+  await page.getByRole('button', { name: 'Gleichzeitig' }).click();
+  await page.getByRole('button', { name: /^Screen/ }).click();
+  await tapCourt(page, await tokenCenter(page, 'o5'), 603);
+  await tapCourt(page, await tokenCenter(page, 'o2'), 604);
+  const screenPoint = await clientPointForBoard(page, { x: 335, y: 305 });
+  await tapCourt(page, screenPoint, 605);
+  const firstPhaseText = await page.locator('.chq-phase-card').first().innerText();
+  assert(firstPhaseText.includes('5 stellt einen Screen für 2'), 'Gleichzeitiger Screen fehlt in Phase 1');
+
+  await page.getByRole('button', { name: /^Pick & Roll/ }).click();
+  await tapCourt(page, await tokenCenter(page, 'o1'), 606);
+  await tapCourt(page, await tokenCenter(page, 'o5'), 607);
+  const pickPoint = await clientPointForBoard(page, { x: 285, y: 285 });
+  await tapCourt(page, pickPoint, 608);
+  const handlerStart = await tokenCenter(page, 'o1');
+  const svg = page.locator('.chq-court-wrap svg').first();
+  await dispatchTouchDrag(svg, svg, handlerStart, { x: handlerStart.x + 72, y: handlerStart.y - 88 }, 609);
+  await page.waitForTimeout(70);
+  await dispatchTouchDrag(svg, svg, pickPoint, { x: pickPoint.x - 12, y: pickPoint.y - 105 }, 610);
+  await page.waitForTimeout(150);
+
+  const grouped = await page.evaluate(() => {
+    const board = window.BT.storage.getSetting('tacticsBoardDraft', null);
+    const actions = board.steps[1]
+      ? [...board.steps[1].transition.motions, ...board.steps[1].transition.screens]
+      : [];
+    return {
+      count: actions.filter(action => action.groupType === 'pick-and-roll').length,
+      groupIds: [...new Set(actions.filter(action => action.groupType === 'pick-and-roll').map(action => action.groupId))]
+    };
+  });
+  assert(grouped.count === 3 && grouped.groupIds.length === 1, 'Pick & Roll wurde nicht als eine verbundene Aktion gespeichert');
+  assert(await page.locator('.chq-phase-card').count() >= 2, 'Für das Pick & Roll wurde keine neue Phase angelegt');
+
+  await page.locator('[data-quick-edit-step="1"]').click();
+  await page.waitForSelector('.chqw-modal');
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('.chqw-action-item [data-delete]').first().click();
+  const remainingGroupActions = await page.evaluate(() => {
+    const board = window.BT.storage.getSetting('tacticsBoardDraft', null);
+    const step = board.steps[1];
+    return step
+      ? [...step.transition.motions, ...step.transition.passes, ...step.transition.screens]
+        .filter(action => action.groupType === 'pick-and-roll').length
+      : 0;
+  });
+  assert(remainingGroupActions === 0, 'Pick & Roll wurde im Bearbeitungsdialog nicht als Gruppe gelöscht');
+  await page.locator('.chqw-modal [data-close]').click();
+}
+
 async function dragTokenWithMouse(page, id, dx, dy) {
   const hit = tokenHit(page, id);
   await makeTargetVisible(hit);
@@ -190,6 +274,8 @@ async function testDesktop(browser) {
   assert(await page.locator('.offense-token').count() === 5, 'Desktop zeigt nicht alle fünf Angreifer');
   assert(await page.locator('.defense-token').count() === 5, 'Desktop zeigt nicht alle fünf Verteidiger');
   await verifyAllPlayersDrag(page, false);
+  await openQuickEditor(page, 'default');
+  await testPhaseRecorder(page);
 
   await openQuickEditor(page, 'flows');
   assert(await page.locator('.chqr-handle').count() === 3, 'Desktop zeigt nicht für jeden Ablauf einen Sortiergriff');

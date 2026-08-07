@@ -111,3 +111,24 @@ export function normalizeRecordedBoard(boardInput, core) {
   });
   return board;
 }
+
+export function removeRecordedAction(boardInput, stepIndex, actionId, scope = 'single', core) {
+  const board = normalizeRecordedBoard(boardInput, core);
+  const step = board.steps[Math.max(0, Math.floor(number(stepIndex)))];
+  if (!step) return board;
+
+  const target = recordedActions(step, core).find(action => action.id === actionId);
+  if (!target) return board;
+  const removeGroup = scope === 'group' && target.groupId;
+  const shouldRemove = action => removeGroup
+    ? action.groupId === target.groupId
+    : action.id === target.id;
+
+  const transition = step.transition || core.emptyTransition();
+  transition.motions = (transition.motions || []).filter(action => !shouldRemove(action));
+  transition.passes = (transition.passes || []).filter(action => !shouldRemove(action));
+  transition.screens = (transition.screens || []).filter(action => !shouldRemove(action));
+  step.transition = transition;
+  applyPhaseTiming(step, core);
+  return normalizeRecordedBoard(board, core);
+}

@@ -1,4 +1,10 @@
 import { exportGif, exportPdf } from './exports.js';
+import {
+  describeRecordedAction,
+  normalizeRecordedBoard,
+  recordedActions,
+  removeRecordedAction
+} from './phase-recorder-core.js';
 
 const core = window.BT.tactics.__core;
 const DRAFT_KEY = 'tacticsBoardDraft';
@@ -18,7 +24,7 @@ function clone(value) {
 }
 
 function normalized(value) {
-  return core.normalizeBoard(value);
+  return normalizeRecordedBoard(value, core);
 }
 
 function signature(value) {
@@ -146,24 +152,14 @@ function createOverlay(title, onClose) {
 }
 
 function actionEntries(step) {
-  const transition = core.normalizeTransition(step?.transition);
-  if (step) step.transition = transition;
-  return [
-    ...transition.motions.map(action => ({ action, type: 'motion' })),
-    ...transition.passes.map(action => ({ action, type: 'pass' })),
-    ...transition.screens.map(action => ({ action, type: 'screen' }))
-  ].sort((left, right) => left.action.start - right.action.start || left.action.duration - right.action.duration);
-}
-
-function elementLabel(step, id) {
-  return core.elementById(step, id)?.role || id || '?';
+  return recordedActions(step, core).map(action => ({
+    action,
+    type: action.type === 'move' ? 'motion' : action.type
+  }));
 }
 
 function actionLabel(step, entry) {
-  const action = entry.action;
-  if (entry.type === 'motion') return `Lauf / Dribbling ${elementLabel(step, action.elementId)}`;
-  if (entry.type === 'pass') return `Pass ${elementLabel(step, action.fromId)} → ${elementLabel(step, action.toId)}`;
-  return `Screen ${elementLabel(step, action.elementId)}`;
+  return describeRecordedAction(step, entry.action, core);
 }
 
 function copyElementPosition(fromStep, toStep, id) {
@@ -172,21 +168,18 @@ function copyElementPosition(fromStep, toStep, id) {
   if (source && target) Object.assign(target, { x: source.x, y: source.y });
 }
 
-function removeAction(board, stepIndex, entry) {
+function removeAction(board, stepIndex, entry, scope = 'single') {
   const step = board.steps[stepIndex];
   const next = board.steps[stepIndex + 1];
-  const transition = core.normalizeTransition(step.transition);
-  if (entry.type === 'motion') {
-    transition.motions = transition.motions.filter(item => item.id !== entry.action.id);
-    if (next) copyElementPosition(step, next, entry.action.elementId);
-  } else if (entry.type === 'pass') {
-    transition.passes = transition.passes.filter(item => item.id !== entry.action.id);
-    if (next) copyElementPosition(step, next, 'ball');
-  } else {
-    transition.screens = transition.screens.filter(item => item.id !== entry.action.id);
-  }
-  step.transition = transition;
-  return normalized(board);
+  const removeGroup = scope === 'group' && entry.action.groupId;
+  const removed = actionEntries(step).filter(candidate => removeGroup
+    ? candidate.action.groupId === entry.action.groupId
+    : candidate.action.id === entry.action.id);
+  if (next) removed.forEach(candidate => {
+    if (candidate.type === 'motion') copyElementPosition(step, next, candidate.action.elementId);
+    if (candidate.type === 'pass') copyElementPosition(step, next, 'ball');
+  });
+  return removeRecordedAction(board, stepIndex, entry.action.id, scope, core);
 }
 
 function clearStep(board, stepIndex) {
@@ -245,7 +238,10 @@ function openActionEditor(stepIndex, reload) {
         };
       });
       item.querySelector('[data-delete]').onclick = () => {
-        board = removeAction(board, stepIndex, entry);
+        const scope = entry.action.groupId
+          ? (window.confirm('Gesamtes Pick & Roll löschen?\n\nOK: komplette Aktion löschen\nAbbrechen: nur diese Teilaktion löschen') ? 'group' : 'single')
+          : 'single';
+        board = removeAction(board, stepIndex, entry, scope);
         saveDraft(board);
         dirty = true;
         render();

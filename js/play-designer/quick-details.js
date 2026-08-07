@@ -1,3 +1,5 @@
+import { normalizeRecordedBoard, recordedActions } from './phase-recorder-core.js';
+
 const core = window.BT.tactics.__core;
 const DRAFT_KEY = 'tacticsBoardDraft';
 
@@ -6,16 +8,15 @@ function toast(message) {
 }
 
 function currentBoard() {
-  return core.normalizeBoard(window.BT.storage.getSetting(DRAFT_KEY, core.defaultBoard()));
+  return normalizeRecordedBoard(window.BT.storage.getSetting(DRAFT_KEY, core.defaultBoard()), core);
 }
 
 function saveBoard(board) {
-  window.BT.storage.setSetting(DRAFT_KEY, core.normalizeBoard(board));
+  window.BT.storage.setSetting(DRAFT_KEY, normalizeRecordedBoard(board, core));
 }
 
 function actionsFor(step) {
-  const transition = core.normalizeTransition(step?.transition);
-  return [...transition.motions, ...transition.passes, ...transition.screens];
+  return recordedActions(step, core);
 }
 
 function activeStepIndex(root, board) {

@@ -1,3 +1,5 @@
+import { normalizeRecordedBoard } from './phase-recorder-core.js';
+
 const DRAFT_KEY = 'tacticsBoardDraft';
 
 function clone(value) {
@@ -10,6 +12,7 @@ function translatedPoint(point, dx, dy, core) {
 
 function copyTokenState(step, core) {
   const output = core.cloneStep(step);
+  output.phaseId = step.phaseId;
   output.duration = step.duration;
   output.elements = clone(step.elements || []);
   output.transition = core.emptyTransition();
@@ -18,7 +21,7 @@ function copyTokenState(step, core) {
 
 function rebuildSegment(source, current, core) {
   const next = copyTokenState(current, core);
-  const transition = core.normalizeTransition(source.transition);
+  const transition = source.transition || core.emptyTransition();
   const rebuilt = core.emptyTransition();
   const movedBallCarriers = [];
 
@@ -94,7 +97,7 @@ function rebuildSegment(source, current, core) {
 
 export function reorderQuickFlows(boardInput, fromIndex, toIndex, suppliedCore) {
   const core = suppliedCore || window.BT.tactics.__core;
-  const board = core.normalizeBoard(boardInput);
+  const board = normalizeRecordedBoard(boardInput, core);
   const count = Math.max(0, board.steps.length - 1);
   if (count < 2) return board;
 
@@ -114,19 +117,22 @@ export function reorderQuickFlows(boardInput, fromIndex, toIndex, suppliedCore) 
   let current = copyTokenState(board.steps[0], core);
 
   segments.forEach(segment => {
+    current.phaseId = segment.step.phaseId;
     rebuilt.push(current);
     current = rebuildSegment(segment.step, current, core);
   });
 
   const finalDuration = board.steps.at(-1)?.duration || 1.2;
+  const finalPhaseId = board.steps.at(-1)?.phaseId;
   current.duration = core.clamp(Number(finalDuration) || 1.2, .3, 10);
+  current.phaseId = finalPhaseId;
   current.transition = core.emptyTransition();
   rebuilt.push(current);
 
   board.steps = rebuilt;
   board.currentStep = segments.findIndex(segment => segment.originalIndex === originalCurrent);
   if (board.currentStep < 0) board.currentStep = Math.min(to, count - 1);
-  return core.normalizeBoard(board);
+  return normalizeRecordedBoard(board, core);
 }
 
 function injectStyles() {

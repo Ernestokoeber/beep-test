@@ -57,4 +57,28 @@ recorder.applyPhaseTiming(step, core);
 assert(Math.abs(step.duration - 1.65) < .001, 'Phasendauer folgt nicht der längsten parallelen Aktion');
 assert(recorder.recordedActions(step, core).length === 3, 'Phasenaktionen werden nicht vollständig gesammelt');
 
+const grouped = recorder.normalizeRecordedBoard(core.defaultBoard(), core);
+grouped.steps[0].transition.motions.push(
+  {
+    id: 'pnr-handler', type: 'move', elementId: 'o1', start: 0, duration: .8,
+    path: [{ x: 250, y: 388 }, { x: 280, y: 300 }],
+    groupId: 'pnr-1', groupType: 'pick-and-roll', groupRole: 'handler'
+  },
+  {
+    id: 'pnr-roll', type: 'move', elementId: 'o5', start: 0, duration: .8,
+    path: [{ x: 250, y: 250 }, { x: 250, y: 170 }],
+    groupId: 'pnr-1', groupType: 'pick-and-roll', groupRole: 'roll'
+  }
+);
+grouped.steps[0].transition.screens.push({
+  id: 'pnr-screen', type: 'screen', elementId: 'o5', beneficiaryId: 'o1',
+  start: 0, duration: .6, x: 260, y: 310, angle: 20,
+  groupId: 'pnr-1', groupType: 'pick-and-roll'
+});
+const withoutGroup = recorder.removeRecordedAction(grouped, 0, 'pnr-screen', 'group', core);
+assert(
+  recorder.recordedActions(withoutGroup.steps[0], core).every(action => action.groupId !== 'pnr-1'),
+  'Pick & Roll wird beim gruppierten Löschen nicht vollständig entfernt'
+);
+
 console.log('CourtHub Phasenrekorder: Metadaten und Timing erfolgreich geprüft.');

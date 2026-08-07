@@ -40,18 +40,26 @@ const step1 = core.cloneStep(step0);
 const step2 = core.cloneStep(step1);
 const final = core.cloneStep(step2);
 board.steps = [step0, step1, step2, final];
+step0.phaseId = 'phase-one';
+step1.phaseId = 'phase-two';
+step2.phaseId = 'phase-three';
+final.phaseId = 'phase-final';
 
 move(step0, step1, 'o1', 52, -30, 'move-o1');
 Object.assign(core.elementById(step2, 'o1'), core.point(core.elementById(step1, 'o1')));
 Object.assign(core.elementById(final, 'o1'), core.point(core.elementById(step2, 'o1')));
 
 move(step1, step2, 'o2', 38, -46, 'move-o2');
+step1.transition.motions[0].groupId = 'pnr-two';
+step1.transition.motions[0].groupType = 'pick-and-roll';
+step1.transition.motions[0].groupRole = 'handler';
 Object.assign(core.elementById(final, 'o2'), core.point(core.elementById(step2, 'o2')));
 
 const screener = core.elementById(step2, 'o5');
 step2.transition.screens.push({
   id: 'screen-o5', type: 'screen', elementId: 'o5', start: .2, duration: .7,
-  x: screener.x + 14, y: screener.y - 8, angle: 35
+  x: screener.x + 14, y: screener.y - 8, angle: 35,
+  beneficiaryId: 'o2', groupId: 'pnr-three', groupType: 'pick-and-roll'
 });
 step2.duration = 1.1;
 board.currentStep = 1;
@@ -62,6 +70,11 @@ assert(reordered.steps[0].transition.motions[0]?.id === 'move-o2', 'Gezogener Ab
 assert(reordered.steps[1].transition.motions[0]?.id === 'move-o1', 'Verdrängter Ablauf wurde nicht nach hinten gesetzt');
 assert(reordered.steps[2].transition.screens[0]?.id === 'screen-o5', 'Späterer Screen ging beim Sortieren verloren');
 assert(reordered.currentStep === 0, 'Aktiver Ablauf folgt seiner neuen Position nicht');
+assert(reordered.steps[0].phaseId === 'phase-two', 'Phase-ID folgt dem verschobenen Ablauf nicht');
+assert(reordered.steps[1].phaseId === 'phase-one', 'Phase-ID des verdrängten Ablaufs geht verloren');
+assert(reordered.steps[3].phaseId === 'phase-final', 'Abschlusszustand verliert seine Phase-ID');
+assert(reordered.steps[0].transition.motions[0].groupId === 'pnr-two', 'Pick-&-Roll-Gruppe geht beim Sortieren verloren');
+assert(reordered.steps[2].transition.screens[0].beneficiaryId === 'o2', 'Screen-Zuordnung geht beim Sortieren verloren');
 
 const startO2 = core.elementById(reordered.steps[0], 'o2');
 const pathO2 = reordered.steps[0].transition.motions[0].path;
