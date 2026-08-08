@@ -32,11 +32,21 @@ function assert(condition, message) {
 const serviceWorkerEvents = new Map();
 let installedCacheName = '';
 let installedAssets = [];
+let claimedByServiceWorker = false;
+const navigatedClients = [];
 runInNewContext(readFileSync(resolve(root, 'sw.js'), 'utf8'), {
   self: {
     addEventListener(type, listener) { serviceWorkerEvents.set(type, listener); },
     skipWaiting() { return Promise.resolve(); },
-    clients: { claim() { return Promise.resolve(); } }
+    clients: {
+      claim() { claimedByServiceWorker = true; return Promise.resolve(); },
+      matchAll() {
+        return Promise.resolve([{
+          url: 'https://coach.tsv-lindau.de/#/tactics',
+          navigate(url) { navigatedClients.push(url); return Promise.resolve(); }
+        }]);
+      }
+    }
   },
   caches: {
     open(name) {
@@ -58,6 +68,11 @@ assert(installedAssets.every(asset => !asset.includes('?v=')), 'Service Worker c
 assert(installedAssets.includes('./js/play-designer/phase-recorder-core.js'), 'Phasenrekorder fehlt im Offline-Cache');
 assert(installedAssets.includes('./js/play-designer/phase-spacing.js'), 'Abstandsprüfung fehlt im Offline-Cache');
 assert(![...window.document.querySelectorAll('link[href], script[src]')].some(node => new URL(node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src'), 'https://coach.tsv-lindau.de').origin === 'https://coach.tsv-lindau.de' && node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src').includes('?v=')), 'HTML lädt lokal unterschiedliche Asset-Versionen');
+let activateWork;
+serviceWorkerEvents.get('activate')({ waitUntil(work) { activateWork = work; } });
+await activateWork;
+assert(claimedByServiceWorker, 'Neuer Service Worker übernimmt offene CourtHub-Fenster nicht');
+assert(navigatedClients.length === 1, 'Offene CourtHub-PWA wird nach einem Update nicht neu geladen');
 
 const viewportMeta = window.document.querySelector('meta[name="viewport"]')?.content || '';
 assert(viewportMeta.includes('viewport-fit=cover'), 'Safe-Area-Unterstützung im Viewport fehlt');

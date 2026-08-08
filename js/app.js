@@ -253,10 +253,18 @@
   }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    let reloadingForUpdate = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadingForUpdate) return;
+      reloadingForUpdate = true;
+      location.reload();
+    });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch((err) => {
-        console.warn('Service Worker Registrierung fehlgeschlagen:', err.message);
-      });
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+        .then((registration) => registration.update())
+        .catch((err) => {
+          console.warn('Service Worker Registrierung fehlgeschlagen:', err.message);
+        });
     });
   }
 
