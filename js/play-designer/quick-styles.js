@@ -3,6 +3,7 @@ export function injectQuickEditorStyles() {
   const style = document.createElement('style');
   style.id = 'courthub-quick-editor-v1';
   style.textContent = `
+    :root{--courthub-safe-top:env(safe-area-inset-top,0px);--courthub-safe-right:env(safe-area-inset-right,0px);--courthub-safe-bottom:env(safe-area-inset-bottom,0px);--courthub-safe-left:env(safe-area-inset-left,0px)}
     body:has(main#app>.chq-focus-shell){padding-bottom:0;background:#fff;overflow:hidden}
     body:has(main#app>.chq-focus-shell)>.topbar,
     body:has(main#app>.chq-focus-shell)>.mobile-dock{display:none}
@@ -15,8 +16,8 @@ export function injectQuickEditorStyles() {
     .chq button{color:inherit}
     .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 
-    .chq-focus-shell{width:100%;height:100dvh;min-height:0;margin:0;padding:0;display:grid;grid-template-rows:3.5rem minmax(0,1fr);overflow:hidden;background:#fff}
-    .chq-editor-toolbar{position:relative;z-index:40;display:grid;grid-template-columns:minmax(12rem,17rem) minmax(22rem,1fr) minmax(18rem,23rem);align-items:center;min-width:0;height:3.5rem;margin:0;border-bottom:1px solid var(--cc-line);background:#fff}
+    .chq-focus-shell{width:100%;height:100dvh;min-height:0;margin:0;padding:0;display:grid;grid-template-rows:calc(3.5rem + var(--courthub-safe-top)) minmax(0,1fr);overflow:hidden;background:#fff}
+    .chq-editor-toolbar{position:relative;z-index:40;display:grid;grid-template-columns:minmax(12rem,17rem) minmax(22rem,1fr) minmax(18rem,23rem);align-items:center;min-width:0;height:calc(3.5rem + var(--courthub-safe-top));margin:0;padding:var(--courthub-safe-top) var(--courthub-safe-right) 0 var(--courthub-safe-left);border-bottom:1px solid var(--cc-line);background:#fff}
     .chq-toolbar-leading{display:flex;align-items:center;gap:.65rem;min-width:0;height:100%;padding:0 .85rem;border-right:1px solid var(--cc-line)}
     .chq-icon{display:block;width:1.35rem;height:1.35rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     .chq-icon .dashed{stroke-dasharray:2.5 2.5}
@@ -145,13 +146,13 @@ export function injectQuickEditorStyles() {
       body:has(main#app>.chq-focus-shell){overflow:auto}
       body:has(main#app>.chq-focus-shell)>main#app{overflow:visible}
       .chq-focus-shell{height:auto;min-height:100dvh;overflow:visible;grid-template-rows:auto auto}
-      .chq-editor-toolbar{position:sticky;top:0;grid-template-columns:minmax(9rem,1fr) auto;height:auto;min-height:3.35rem}
+      .chq-editor-toolbar{position:sticky;top:0;grid-template-columns:minmax(9rem,1fr) auto;height:auto;min-height:calc(3.35rem + var(--courthub-safe-top))}
       .chq-toolbar-leading{height:3.35rem;border-right:0}
       .chq-actions{height:3.35rem;border-left:0}
       .chq-toolbar-center{grid-column:1/-1;grid-row:2;height:3.15rem;border-top:1px solid var(--cc-line)}
       .chq-toolbar-tools{justify-content:flex-start;padding:0 .45rem}
       .chq-toolbar-history{margin-left:auto;margin-right:.45rem}
-      .chq-workspace,.chq-workspace:has(.chq-inspector.is-collapsed){display:flex;flex-direction:column;height:auto;overflow:visible}
+      .chq-workspace,.chq-workspace:has(.chq-inspector.is-collapsed){display:flex;flex-direction:column;height:auto;overflow:visible;padding:0 var(--courthub-safe-right) var(--courthub-safe-bottom) var(--courthub-safe-left)}
       .chq-stage-panel{order:1;min-height:0;padding:.55rem}
       .chq-court-wrap{width:100%;max-height:none;aspect-ratio:760/660}
       .chq-phase-rail{order:2;height:7.4rem;padding:.55rem;border-top:1px solid var(--cc-line);border-right:0;overflow:hidden}
@@ -164,7 +165,7 @@ export function injectQuickEditorStyles() {
       .chq-inspector-panel{min-height:20rem}
       .chq-inspector-tabs{flex-direction:column;padding:.2rem;border-left:1px solid var(--cc-line)}
       .chq-inspector-tabs button{width:2.8rem;height:2.8rem}
-      .chq-status{position:fixed;bottom:calc(.75rem + env(safe-area-inset-bottom));max-width:calc(100vw - 1.5rem)}
+      .chq-status{position:fixed;bottom:calc(.75rem + var(--courthub-safe-bottom));max-width:calc(100vw - var(--courthub-safe-left) - var(--courthub-safe-right) - 1.5rem)}
     }
 
     @media(max-width:620px){

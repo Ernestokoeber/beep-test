@@ -247,7 +247,17 @@ async function testPlayEditor2Desktop(page) {
 
 async function testPlayEditor2Mobile(page) {
   assert(await page.locator('body > .mobile-dock').evaluate(element => getComputedStyle(element).display) === 'none', 'Die mobile App-Navigation bleibt im Fokus-Editor sichtbar.');
+  await page.locator('.chq-focus-shell').evaluate(() => {
+    document.documentElement.style.setProperty('--courthub-safe-top', '47px');
+    document.documentElement.style.setProperty('--courthub-safe-right', '21px');
+    document.documentElement.style.setProperty('--courthub-safe-bottom', '34px');
+    document.documentElement.style.setProperty('--courthub-safe-left', '21px');
+  });
   const layout = await page.evaluate(() => {
+    const toolbar = document.querySelector('.chq-editor-toolbar')?.getBoundingClientRect();
+    const leading = document.querySelector('.chq-toolbar-leading')?.getBoundingClientRect();
+    const actions = document.querySelector('.chq-actions')?.getBoundingClientRect();
+    const workspace = document.querySelector('.chq-workspace');
     const stage = document.querySelector('.chq-stage-panel')?.getBoundingClientRect();
     const phase = document.querySelector('.chq-phase-rail')?.getBoundingClientRect();
     const inspector = document.querySelector('.chq-inspector')?.getBoundingClientRect();
@@ -258,17 +268,69 @@ async function testPlayEditor2Mobile(page) {
           phaseTop: phase.top,
           inspectorTop: inspector.top,
           flowDisplay: getComputedStyle(flow).display,
-          firstToolHeight: document.querySelector('.chq-toolbar-tools .chq-tool')?.getBoundingClientRect().height || 0
+          firstToolHeight: document.querySelector('.chq-toolbar-tools .chq-tool')?.getBoundingClientRect().height || 0,
+          toolbarHeight: toolbar?.height || 0,
+          leadingTop: leading?.top || 0,
+          leadingLeft: leading?.left || 0,
+          actionsRight: actions?.right || 0,
+          workspacePaddingBottom: Number.parseFloat(getComputedStyle(workspace).paddingBottom) || 0,
+          viewportWidth: document.documentElement.clientWidth
         }
       : null;
   });
   assert(layout && layout.stageTop < layout.phaseTop && layout.phaseTop < layout.inspectorTop, 'Mobile ordnet Spielfeld, Phasenleiste und Inspector nicht untereinander an.');
   assert(layout.flowDisplay === 'flex', 'Mobile zeigt die Phasenleiste nicht horizontal.');
   assert(layout.firstToolHeight >= 43.5, 'Mobile Werkzeugziele sind kleiner als 44 Pixel.');
+  assert(layout.leadingTop >= 46.5 && layout.toolbarHeight >= 150, 'Die mobile Kopfzeile liegt unter der simulierten iPhone-Notch.');
+  assert(layout.leadingLeft >= 20.5 && layout.actionsRight <= layout.viewportWidth - 20.5, 'Die mobile Kopfzeile missachtet die seitlichen iPhone-Safe-Areas.');
+  assert(layout.workspacePaddingBottom >= 33.5, 'Der Editor lässt keinen Platz für den iPhone-Home-Indikator.');
   const inspectorToggle = page.locator('[data-action="toggle-inspector"]');
   assert(await inspectorToggle.getAttribute('aria-expanded') === 'false', 'Mobile startet den ausziehbaren Inspector nicht kompakt.');
   await page.getByRole('tab', { name: 'Timeline' }).tap();
   assert(await inspectorToggle.getAttribute('aria-expanded') === 'true', 'Mobile kann Timeline und Anweisungen nicht ausklappen.');
+
+  await page.getByRole('button', { name: 'Vorschau' }).tap();
+  await page.waitForSelector('.chp-overlay');
+  const previewSafeArea = await page.evaluate(() => {
+    const head = document.querySelector('.chp-head')?.getBoundingClientRect();
+    const close = document.querySelector('[data-action="preview-close"]')?.getBoundingClientRect();
+    return { headHeight: head?.height || 0, closeTop: close?.top || 0 };
+  });
+  assert(previewSafeArea.headHeight >= 102.5 && previewSafeArea.closeTop >= 46.5, 'Die mobile Vorschau liegt unter der iPhone-Notch.');
+  await page.getByRole('button', { name: /Animation abspielen/ }).tap();
+  await page.waitForSelector('.cha-overlay');
+  const animationSafeArea = await page.evaluate(() => {
+    const close = document.querySelector('[data-action="animation-close"]')?.getBoundingClientRect();
+    const controls = document.querySelector('.cha-controls')?.getBoundingClientRect();
+    return {
+      closeTop: close?.top || 0,
+      controlsLeft: controls?.left || 0,
+      controlsRight: controls?.right || 0,
+      controlsBottomGap: window.innerHeight - (controls?.bottom || window.innerHeight),
+      viewportWidth: document.documentElement.clientWidth
+    };
+  });
+  assert(animationSafeArea.closeTop >= 46.5, 'Der Animationsplayer liegt unter der iPhone-Notch.');
+  assert(animationSafeArea.controlsLeft >= 20.5 && animationSafeArea.controlsRight <= animationSafeArea.viewportWidth - 20.5, 'Die Animationssteuerung liegt in einer seitlichen iPhone-Safe-Area.');
+  assert(animationSafeArea.controlsBottomGap >= 33.5, 'Die Animationssteuerung überlappt den iPhone-Home-Indikator.');
+  await page.getByRole('button', { name: 'Animationsplayer schließen' }).tap();
+  await page.getByRole('button', { name: 'Vorschau schließen' }).tap();
+
+  await page.getByRole('button', { name: 'Export' }).tap();
+  await page.waitForSelector('.che-overlay');
+  const exportSafeArea = await page.evaluate(() => {
+    const dialog = document.querySelector('.che-dialog')?.getBoundingClientRect();
+    return {
+      top: dialog?.top || 0,
+      right: dialog?.right || 0,
+      bottomGap: window.innerHeight - (dialog?.bottom || window.innerHeight),
+      left: dialog?.left || 0,
+      viewportWidth: document.documentElement.clientWidth
+    };
+  });
+  assert(exportSafeArea.top >= 46.5 && exportSafeArea.bottomGap >= 33.5, 'Der Exportdialog missachtet die vertikalen iPhone-Safe-Areas.');
+  assert(exportSafeArea.left >= 20.5 && exportSafeArea.right <= exportSafeArea.viewportWidth - 20.5, 'Der Exportdialog missachtet die seitlichen iPhone-Safe-Areas.');
+  await page.getByRole('button', { name: 'Exportdialog schließen' }).tap();
 }
 
 async function dragTokenWithMouse(page, id, dx, dy) {
