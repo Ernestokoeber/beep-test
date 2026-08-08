@@ -32,8 +32,8 @@ const farLeft = renderer.projectPoint({ x: 10, y: 20 });
 const farRight = renderer.projectPoint({ x: 490, y: 20 });
 const nearLeft = renderer.projectPoint({ x: 10, y: 450 });
 const nearRight = renderer.projectPoint({ x: 490, y: 450 });
-assert(nearRight.x - nearLeft.x > farRight.x - farLeft.x, 'Court wird nach vorne nicht breiter');
-assert(nearLeft.y > farLeft.y, 'Tiefenachse des Perspective Courts ist ungültig');
+assert(Math.abs((nearRight.x - nearLeft.x) - (farRight.x - farLeft.x)) < .01, 'Das 2D-Halbfeld verjüngt sich weiterhin');
+assert(nearLeft.y > farLeft.y, 'Vertikale Achse des 2D-Courts ist ungültig');
 
 for (const point of [{ x: 35, y: 40 }, { x: 250, y: 235 }, { x: 470, y: 430 }]) {
   const roundTrip = renderer.unprojectPoint(renderer.projectPoint(point));
@@ -42,21 +42,22 @@ for (const point of [{ x: 35, y: 40 }, { x: 250, y: 235 }, { x: 470, y: 430 }]) 
 }
 
 const court = renderer.createCourt();
-assert(court.getAttribute('viewBox') === '0 0 760 550', 'Perspective-ViewBox fehlt');
-assert(court.dataset.perspective === 'true', 'Perspective-Modus ist nicht markiert');
-assert(court.querySelector('[data-layer="base"] path'), '3D-Court-Grundfläche fehlt');
+assert(court.getAttribute('viewBox') === '0 0 760 550', '2D-ViewBox fehlt');
+assert(court.dataset.projection === 'top-down', '2D-Vogelperspektive ist nicht markiert');
+assert(!court.hasAttribute('data-perspective'), 'Veralteter 3D-Perspektivmodus ist noch aktiv');
+assert(court.querySelector('[data-layer="base"] path'), '2D-Court-Grundfläche fehlt');
 
 const snapshot = {
   elements: [
     { id: 'o1', type: 'offense', role: '1', x: 250, y: 390 },
-    { id: 'd1', type: 'defense', role: 'X1', x: 220, y: 300 },
+    { id: 'd1', type: 'defense', role: 'X1', defenseMode: 'man', x: 220, y: 300 },
     { id: 'ball', type: 'ball', x: 265, y: 390 }
   ],
   transition: { motions: [], passes: [], screens: [] }
 };
 renderer.drawCourt(court, snapshot, { sourceStep: snapshot, showGuides: true });
-assert(court.querySelector('.offense-token'), '3D-Angreifer-Token fehlt');
-assert(court.querySelector('.defense-token'), '3D-Verteidiger-Token fehlt');
-assert(court.querySelector('.ball-token'), '3D-Ball fehlt');
+assert(court.querySelector('.offense-token'), '2D-Angreifer-Token fehlt');
+assert(court.querySelector('.defense-token'), '2D-Verteidiger-Token fehlt');
+assert(court.querySelector('.ball-token'), '2D-Ball fehlt');
 
-console.log('CourtHub Perspective Renderer: Prüfungen erfolgreich.');
+console.log('CourtHub 2D Renderer: Prüfungen erfolgreich.');

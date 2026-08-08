@@ -5,6 +5,7 @@ import {
   recordedActions,
   removeRecordedAction
 } from './phase-recorder-core.js';
+import { createPlayLibrary } from './play-library.js';
 
 const core = window.BT.tactics.__core;
 const DRAFT_KEY = 'tacticsBoardDraft';
@@ -287,6 +288,8 @@ function openActionEditor(stepIndex, reload) {
 }
 
 function openPlaybook(reload) {
+  return openPlaybookV2(reload);
+  /* Legacy library stays below as a compatibility reference. */
   const modal = createOverlay('Playbook');
   modal.body.innerHTML = `
     <div class="chqw-filter"><input type="search" placeholder="Play suchen …" data-search><select data-category><option value="">Alle Kategorien</option></select></div>
@@ -354,6 +357,92 @@ function openPlaybook(reload) {
   render();
 }
 
+function openPlaybookV2(reload) {
+  const modal = createOverlay('Taktikbibliothek');
+  let items = window.BT.storage.getTactics().map(normalized);
+  let collections = window.BT.storage.getSetting('tacticsPlaybooksV1', []);
+  if (!Array.isArray(collections)) collections = [];
+
+  const saveCollections = () => {
+    collections = collections.map(collection => ({
+      id: String(collection.id || core.uid('playbook_')),
+      title: String(collection.title || 'Playbook').slice(0, 80),
+      playIds: [...new Set((collection.playIds || []).map(String))]
+    }));
+    window.BT.storage.setSetting('tacticsPlaybooksV1', collections);
+  };
+
+  const openBoard = board => {
+    saveDraft(board);
+    modal.close();
+    reload();
+  };
+
+  const render = () => {
+    modal.body.replaceChildren();
+    const library = createPlayLibrary({
+      plays: items,
+      collections,
+      onOpen: openBoard,
+      onDuplicate: item => {
+        const duplicate = clone(item);
+        delete duplicate.id;
+        duplicate.title = `${item.title} – Kopie`;
+        duplicate.published = false;
+        duplicate.publishedAt = null;
+        duplicate.archived = false;
+        duplicate.createdAt = null;
+        duplicate.updatedAt = null;
+        openBoard(duplicate);
+      },
+      onArchive: item => {
+        item.archived = !item.archived;
+        window.BT.storage.upsertTactic(item);
+        items = window.BT.storage.getTactics().map(normalized);
+        render();
+      },
+      onPublish: item => {
+        item.published = !item.published;
+        item.publishedAt = item.published ? new Date().toISOString() : null;
+        window.BT.storage.upsertTactic(item);
+        items = window.BT.storage.getTactics().map(normalized);
+        render();
+      },
+      onAddToCollection: (item, collectionId) => {
+        const collection = collections.find(candidate => candidate.id === collectionId);
+        if (!collection || !item.id) return;
+        collection.playIds = [...new Set([...(collection.playIds || []), String(item.id)])];
+        saveCollections();
+        toast(`„${item.title}“ wurde zum Playbook „${collection.title}“ hinzugefügt.`);
+        render();
+      },
+      onCreateCollection: title => {
+        collections.push({ id: core.uid('playbook_'), title, playIds: [] });
+        saveCollections();
+        render();
+      }
+    });
+    modal.body.append(library);
+
+    const templates = document.createElement('section');
+    templates.className = 'chqw-section';
+    templates.innerHTML = '<h3>CourtHub Vorlagen</h3><div class="chqw-template-list" data-templates></div>';
+    window.BT.tactics.templates().forEach(template => {
+      const row = document.createElement('article');
+      row.className = 'chqw-template-item';
+      row.innerHTML = '<div><strong></strong><small></small></div><button class="chq-btn" type="button">Vorlage laden</button>';
+      row.querySelector('strong').textContent = template.title;
+      row.querySelector('small').textContent = template.description;
+      row.querySelector('button').onclick = () => openBoard(template.board);
+      templates.querySelector('[data-templates]').append(row);
+    });
+    modal.body.append(templates);
+  };
+
+  render();
+  return modal;
+}
+
 function duplicateCurrent(reload) {
   const duplicate = currentBoard();
   delete duplicate.id;
@@ -389,6 +478,7 @@ function activeStepIndex(root) {
 function decorateFlow(root) {
   root.querySelectorAll('.chq-flow-item').forEach((button, index) => {
     button.dataset.quickStepIndex = String(index);
+    if (button.querySelector('[data-phase-menu]')) return;
     if (button.querySelector('[data-quick-edit-step]')) return;
     const edit = document.createElement('span');
     edit.className = 'chqw-edit-step';
@@ -442,6 +532,8 @@ export function enhanceQuickEditor(root, target, options = {}) {
   playbook.className = 'chq-btn';
   playbook.textContent = 'Playbook';
   playbook.onclick = () => openPlaybook(reload);
+  const backToLibrary = root.querySelector('[data-action="back-library"]');
+  if (backToLibrary) backToLibrary.onclick = () => openPlaybook(reload);
 
   const more = document.createElement('details');
   more.className = 'chqw-more';
@@ -497,6 +589,9 @@ export function enhanceQuickEditor(root, target, options = {}) {
     event.stopImmediatePropagation();
     openActionEditor(Number(trigger.dataset.quickEditStep), reload);
   }, true);
+  root.addEventListener('courthub:edit-phase', event => {
+    openActionEditor(Number(event.detail?.index || 0), reload);
+  });
 
   const svg = root.querySelector('.chq-court-wrap svg');
   svg?.addEventListener('pointerdown', event => {

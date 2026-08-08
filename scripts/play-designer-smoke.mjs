@@ -29,7 +29,7 @@ const legacy = tactics.normalizeBoard({
   arrows: [{ x1: 1, y1: 2, x2: 3, y2: 4, style: 'pass' }],
   texts: [{ x: 1, y: 2, text: 'Horns' }]
 });
-assert(legacy.schemaVersion === 2, 'Play-Schema wurde nicht auf Version 2 migriert');
+assert(legacy.schemaVersion === 3, 'Play-Schema wurde nicht auf Version 3 migriert');
 assert(legacy.steps[0].elements.filter(item => item.type === 'offense').length === 1, 'Legacy-Spieler wurde nicht migriert');
 assert(legacy.steps[0].elements.some(item => item.type === 'arrow' && item.kind === 'pass'), 'Legacy-Pass wurde nicht migriert');
 

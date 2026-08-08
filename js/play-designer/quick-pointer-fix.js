@@ -4,6 +4,7 @@ import {
   parallelProject,
   parallelUnproject
 } from './court-enhancements.js';
+import { pointFromEvent, projectPoint } from './rendering.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const DRAFT_KEY = 'tacticsBoardDraft';
@@ -103,6 +104,9 @@ function installHitAreas(svg) {
 }
 
 function coordinatesFor(svg, type, event) {
+  if (svg.dataset.projection === 'top-down') {
+    return { x: event.clientX, y: event.clientY };
+  }
   const snapped = type === 'pointerdown' ? tokenParallelCenter(event.target) : null;
   return quickPointerToLegacyClient(
     svg.getBoundingClientRect(),
@@ -134,6 +138,7 @@ function stepHasActions(step, core) {
 }
 
 function setupCourtPoint(svg, event) {
+  if (svg.dataset.projection === 'top-down') return pointFromEvent(svg, event);
   return parallelUnproject(clientToParallelSvg(
     svg.getBoundingClientRect(),
     event.clientX,
@@ -143,8 +148,8 @@ function setupCourtPoint(svg, event) {
 
 function setupCandidate(svg, event) {
   if (currentTool(svg) !== 'select') return null;
-  const group = event.target?.closest?.('g.token[data-element-id]');
-  if (!group || !svg.contains(group)) return null;
+  const clickedGroup = event.target?.closest?.('g.token[data-element-id]');
+  if (!clickedGroup || !svg.contains(clickedGroup)) return null;
 
   const storage = window.BT?.storage;
   const core = window.BT?.tactics?.__core;
@@ -152,14 +157,24 @@ function setupCandidate(svg, event) {
   const board = core.normalizeBoard(storage.getSetting(DRAFT_KEY, core.defaultBoard()));
   if (board.currentStep !== 0 || stepHasActions(board.steps[0], core)) return null;
 
-  const id = group.dataset.elementId;
-  const element = core.elementById(board.steps[0], id);
-  if (!element || !['offense', 'defense', 'ball'].includes(element.type)) return null;
+  const point = setupCourtPoint(svg, event);
+  const element = core.elements(board.steps[0])
+    .filter(candidate => ['offense', 'defense', 'ball'].includes(candidate.type))
+    .map(candidate => ({ candidate, distance: core.distance(point, candidate) }))
+    .filter(value => value.distance <= (value.candidate.type === 'ball' ? 20 : 30))
+    .sort((left, right) => left.distance - right.distance)[0]?.candidate;
+  if (!element) return null;
+  const id = element.id;
+  const group = [...svg.querySelectorAll('g.token[data-element-id]')]
+    .find(candidate => candidate.dataset.elementId === id);
+  if (!group) return null;
   return { storage, core, board, id, group, element };
 }
 
 function updateVisualToken(state, point) {
-  const projected = parallelProject(point);
+  const projected = state.svg.dataset.projection === 'top-down'
+    ? projectPoint(point)
+    : parallelProject(point);
   const transform = state.group.getAttribute('transform') || '';
   const scale = transform.match(/\s(scale\([^)]*\).*)$/)?.[1] || '';
   state.group.setAttribute(

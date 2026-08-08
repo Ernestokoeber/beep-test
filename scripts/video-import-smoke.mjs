@@ -55,7 +55,9 @@ const board = createBoardFromVideoDraft({
   clipEnd: 4
 });
 
-assert(board.schemaVersion === 2, 'Import erzeugt nicht das aktuelle Play-Schema');
+assert(board.schemaVersion === 3, 'Import erzeugt nicht das aktuelle Play-Schema');
+assert(board.steps.every(step => step.phaseId && step.instruction === ''), 'Import erzeugt keine Editor-2.0-Phasen.');
+assert(board.steps[0].elements.find(item => item.type === 'defense')?.defenseMode === 'man', 'Import setzt keinen Verteidigungstyp.');
 assert(board.steps.length === 2, 'Keyframes werden nicht in Schritte umgewandelt');
 assert(board.steps[0].transition.motions.some(item => item.elementId === 'o1'), 'Spielerbewegung wird nicht erzeugt');
 assert(board.steps[0].transition.passes.length === 1, 'Ballbesitzwechsel wird nicht als Pass erkannt');

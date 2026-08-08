@@ -113,7 +113,8 @@ function normalizeMarkers(markers) {
     return {
       id: String(marker.id || (type === 'ball' ? 'ball' : `${type}_${index + 1}`)),
       type,
-      role: type === 'ball' ? undefined : String(marker.role || (type === 'offense' ? counts[type] : `X${counts[type]}`)).slice(0, 18)
+      role: type === 'ball' ? undefined : String(marker.role || (type === 'offense' ? counts[type] : `X${counts[type]}`)).slice(0, 18),
+      defenseMode: type === 'defense' && marker.defenseMode === 'zone' ? 'zone' : undefined
     };
   }).filter(Boolean);
 }
@@ -157,7 +158,13 @@ export function createBoardFromVideoDraft(input = {}) {
       const court = mapPoint(matrix, previousPositions[marker.id]);
       elements.push(marker.type === 'ball'
         ? { id: marker.id, type: 'ball', ...court }
-        : { id: marker.id, type: marker.type, role: marker.role, ...court });
+        : {
+            id: marker.id,
+            type: marker.type,
+            role: marker.role,
+            ...(marker.type === 'defense' ? { defenseMode: marker.defenseMode === 'zone' ? 'zone' : 'man' } : {}),
+            ...court
+          });
     });
     return { ...frame, elements };
   }).filter(frame => frame.elements.length > 0);
@@ -203,6 +210,8 @@ export function createBoardFromVideoDraft(input = {}) {
 
     return {
       id: `video_step_${index + 1}`,
+      phaseId: `video_phase_${index + 1}`,
+      instruction: '',
       duration,
       elements: frame.elements,
       transition
@@ -212,10 +221,12 @@ export function createBoardFromVideoDraft(input = {}) {
   const clipStart = Number(input.clipStart) || mappedFrames[0].time;
   const clipEnd = Number(input.clipEnd) || mappedFrames.at(-1).time;
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     title: String(input.title || 'Play aus Video').slice(0, 100),
     description: String(input.description || `Halbautomatisch aus einem Videoabschnitt von ${clipStart.toFixed(1)} s bis ${clipEnd.toFixed(1)} s erstellt.`).slice(0, 400),
     category: String(input.category || 'Offense').slice(0, 32),
+    tags: Array.isArray(input.tags) ? [...new Set(input.tags.map(value => String(value).trim()).filter(Boolean))] : [],
+    archived: false,
     courtType: 'half',
     steps,
     currentStep: 0,

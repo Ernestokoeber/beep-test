@@ -95,29 +95,24 @@ function rebuildSegment(source, current, core) {
   return next;
 }
 
-export function reorderQuickFlows(boardInput, fromIndex, toIndex, suppliedCore) {
-  const core = suppliedCore || window.BT.tactics.__core;
-  const board = normalizeRecordedBoard(boardInput, core);
-  const count = Math.max(0, board.steps.length - 1);
-  if (count < 2) return board;
-
-  const from = core.clamp(Math.floor(Number(fromIndex) || 0), 0, count - 1);
-  const to = core.clamp(Math.floor(Number(toIndex) || 0), 0, count - 1);
-  if (from === to) return board;
-
-  const segments = board.steps.slice(0, count).map((step, index) => ({
+function phaseSegments(board) {
+  return board.steps.slice(0, Math.max(0, board.steps.length - 1)).map((step, index) => ({
     originalIndex: index,
     step: clone(step)
   }));
-  const [moved] = segments.splice(from, 1);
-  segments.splice(to, 0, moved);
+}
 
-  const originalCurrent = core.clamp(board.currentStep || 0, 0, count - 1);
+function rebuildQuickSegments(board, segments, core, activeSegment) {
+  const count = segments.length;
+  if (!count) return board;
   const rebuilt = [];
   let current = copyTokenState(board.steps[0], core);
 
   segments.forEach(segment => {
     current.phaseId = segment.step.phaseId;
+    current.instruction = String(segment.step.instruction || '');
+    if (segment.step.thumbnailVersion) current.thumbnailVersion = segment.step.thumbnailVersion;
+    else delete current.thumbnailVersion;
     rebuilt.push(current);
     current = rebuildSegment(segment.step, current, core);
   });
@@ -130,9 +125,66 @@ export function reorderQuickFlows(boardInput, fromIndex, toIndex, suppliedCore) 
   rebuilt.push(current);
 
   board.steps = rebuilt;
-  board.currentStep = segments.findIndex(segment => segment.originalIndex === originalCurrent);
-  if (board.currentStep < 0) board.currentStep = Math.min(to, count - 1);
+  board.currentStep = Math.max(0, Math.min(count - 1, activeSegment));
   return normalizeRecordedBoard(board, core);
+}
+
+export function reorderQuickFlows(boardInput, fromIndex, toIndex, suppliedCore) {
+  const core = suppliedCore || window.BT.tactics.__core;
+  const board = normalizeRecordedBoard(boardInput, core);
+  const count = Math.max(0, board.steps.length - 1);
+  if (count < 2) return board;
+
+  const from = core.clamp(Math.floor(Number(fromIndex) || 0), 0, count - 1);
+  const to = core.clamp(Math.floor(Number(toIndex) || 0), 0, count - 1);
+  if (from === to) return board;
+  const originalCurrent = core.clamp(board.currentStep || 0, 0, count - 1);
+  const segments = phaseSegments(board);
+  const [moved] = segments.splice(from, 1);
+  segments.splice(to, 0, moved);
+  let active = segments.findIndex(segment => segment.originalIndex === originalCurrent);
+  if (active < 0) active = Math.min(to, count - 1);
+  return rebuildQuickSegments(board, segments, core, active);
+}
+
+export function duplicateQuickFlow(boardInput, phaseIndex, suppliedCore) {
+  const core = suppliedCore || window.BT.tactics.__core;
+  const board = normalizeRecordedBoard(boardInput, core);
+  const segments = phaseSegments(board);
+  if (!segments.length) return board;
+  const index = core.clamp(Math.floor(Number(phaseIndex) || 0), 0, segments.length - 1);
+  const duplicate = clone(segments[index]);
+  duplicate.originalIndex = `duplicate-${core.uid('phase_')}`;
+  duplicate.step.id = core.uid('st_');
+  duplicate.step.phaseId = core.uid('phase_');
+  segments.splice(index + 1, 0, duplicate);
+  return rebuildQuickSegments(board, segments, core, index + 1);
+}
+
+export function deleteQuickFlow(boardInput, phaseIndex, suppliedCore) {
+  const core = suppliedCore || window.BT.tactics.__core;
+  const board = normalizeRecordedBoard(boardInput, core);
+  const segments = phaseSegments(board);
+  if (segments.length <= 1) return board;
+  const index = core.clamp(Math.floor(Number(phaseIndex) || 0), 0, segments.length - 1);
+  segments.splice(index, 1);
+  return rebuildQuickSegments(board, segments, core, Math.min(index, segments.length - 1));
+}
+
+export function insertQuickFlow(boardInput, phaseIndex, position = 'after', suppliedCore) {
+  const core = suppliedCore || window.BT.tactics.__core;
+  const board = normalizeRecordedBoard(boardInput, core);
+  const segments = phaseSegments(board);
+  const index = core.clamp(Math.floor(Number(phaseIndex) || 0), 0, Math.max(0, segments.length - 1));
+  const insertionIndex = position === 'before' ? index : index + 1;
+  const source = clone(segments[Math.min(index, segments.length - 1)]?.step || board.steps[0]);
+  source.id = core.uid('st_');
+  source.phaseId = core.uid('phase_');
+  source.instruction = '';
+  source.duration = .8;
+  source.transition = core.emptyTransition();
+  segments.splice(insertionIndex, 0, { originalIndex: `insert-${source.phaseId}`, step: source });
+  return rebuildQuickSegments(board, segments, core, insertionIndex);
 }
 
 function injectStyles() {
@@ -141,6 +193,8 @@ function injectStyles() {
   style.id = 'courthub-quick-reorder';
   style.textContent = `
     .chqr-handle{display:grid;place-items:center;flex:0 0 auto;width:2rem;height:2rem;border:0;border-radius:.55rem;background:rgba(20,60,42,.07);color:var(--muted,#64756d);font:900 1rem/1 system-ui;cursor:grab;touch-action:none;user-select:none}
+    .chq-phase-rail .chqr-handle{position:absolute;z-index:6;top:.5rem;left:.5rem;background:rgba(6,18,24,.88);color:#fff;border:1px solid rgba(255,255,255,.15)}
+    .chq-phase-rail .chq-flow-index{left:2.9rem}
     .chqr-handle:active{cursor:grabbing}.chqr-handle:focus-visible{outline:2px solid #ec7d1d;outline-offset:2px}
     .chq-flow-item.chqr-source{opacity:.5;transform:scale(.985)}
     .chq-flow-item.chqr-target{box-shadow:0 0 0 3px rgba(236,125,29,.22);border-color:#ec7d1d}
@@ -168,15 +222,24 @@ function clearMarkers(root) {
   activeRows(root).forEach(row => row.classList.remove('chqr-source', 'chqr-target', 'chqr-before', 'chqr-after'));
 }
 
-function targetForY(root, clientY) {
+function targetForPoint(root, clientX, clientY) {
   const rows = activeRows(root);
   if (!rows.length) return 0;
-  let target = rows.length - 1;
-  rows.forEach((row, index) => {
-    const rect = row.getBoundingClientRect();
-    if (clientY < rect.top + rect.height / 2 && target === rows.length - 1) target = index;
-  });
-  return target;
+  const rects = rows.map(row => row.getBoundingClientRect());
+  const horizontalSpread = Math.max(...rects.map(rect => rect.left + rect.width / 2))
+    - Math.min(...rects.map(rect => rect.left + rect.width / 2));
+  const verticalSpread = Math.max(...rects.map(rect => rect.top + rect.height / 2))
+    - Math.min(...rects.map(rect => rect.top + rect.height / 2));
+  const horizontal = horizontalSpread > verticalSpread;
+  const pointer = horizontal ? clientX : clientY;
+  return rects
+    .map((rect, index) => ({
+      index,
+      distance: Math.abs(pointer - (horizontal
+        ? rect.left + rect.width / 2
+        : rect.top + rect.height / 2))
+    }))
+    .sort((left, right) => left.distance - right.distance)[0]?.index || 0;
 }
 
 function decorate(root, reload) {
@@ -198,14 +261,14 @@ function decorate(root, reload) {
       event.preventDefault();
       event.stopPropagation();
       drag = { pointerId: event.pointerId, from: index, to: index };
-      handle.setPointerCapture?.(event.pointerId);
+      try { handle.setPointerCapture?.(event.pointerId); } catch (_) {}
       clearMarkers(root);
       activeRows(root)[index]?.classList.add('chqr-source');
     });
     handle.addEventListener('pointermove', event => {
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.preventDefault();
-      drag.to = targetForY(root, event.clientY);
+      drag.to = targetForPoint(root, event.clientX, event.clientY);
       clearMarkers(root);
       const rows = activeRows(root);
       rows[drag.from]?.classList.add('chqr-source');

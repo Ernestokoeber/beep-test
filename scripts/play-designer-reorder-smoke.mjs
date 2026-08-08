@@ -11,7 +11,7 @@ window.eval(readFileSync(resolve(root, 'js/tactics.js'), 'utf8'));
 globalThis.window = window;
 globalThis.document = window.document;
 
-const { reorderQuickFlows } = await import('../js/play-designer/quick-reorder.js');
+const { reorderQuickFlows, duplicateQuickFlow, deleteQuickFlow, insertQuickFlow } = await import('../js/play-designer/quick-reorder.js');
 const core = window.BT.tactics.__core;
 
 function assert(condition, message) {
@@ -44,6 +44,9 @@ step0.phaseId = 'phase-one';
 step1.phaseId = 'phase-two';
 step2.phaseId = 'phase-three';
 final.phaseId = 'phase-final';
+step0.instruction = 'Erste Anweisung';
+step1.instruction = 'Zweite Anweisung';
+step2.instruction = 'Dritte Anweisung';
 
 move(step0, step1, 'o1', 52, -30, 'move-o1');
 Object.assign(core.elementById(step2, 'o1'), core.point(core.elementById(step1, 'o1')));
@@ -72,6 +75,8 @@ assert(reordered.steps[2].transition.screens[0]?.id === 'screen-o5', 'Späterer 
 assert(reordered.currentStep === 0, 'Aktiver Ablauf folgt seiner neuen Position nicht');
 assert(reordered.steps[0].phaseId === 'phase-two', 'Phase-ID folgt dem verschobenen Ablauf nicht');
 assert(reordered.steps[1].phaseId === 'phase-one', 'Phase-ID des verdrängten Ablaufs geht verloren');
+assert(reordered.steps[0].instruction === 'Zweite Anweisung', 'Traineranweisung folgt der verschobenen Phase nicht');
+assert(reordered.steps[1].instruction === 'Erste Anweisung', 'Traineranweisung des verdrängten Ablaufs geht verloren');
 assert(reordered.steps[3].phaseId === 'phase-final', 'Abschlusszustand verliert seine Phase-ID');
 assert(reordered.steps[0].transition.motions[0].groupId === 'pnr-two', 'Pick-&-Roll-Gruppe geht beim Sortieren verloren');
 assert(reordered.steps[2].transition.screens[0].beneficiaryId === 'o2', 'Screen-Zuordnung geht beim Sortieren verloren');
@@ -92,6 +97,22 @@ const translatedScreen = screenStep.transition.screens[0];
 const translatedScreener = core.elementById(screenStep, 'o5');
 assert(Math.round(translatedScreen.x - translatedScreener.x) === 14, 'Screenposition wurde nicht relativ zum Spieler übertragen');
 assert(Math.round(translatedScreen.y - translatedScreener.y) === -8, 'Screenposition wurde vertikal verfälscht');
+
+const duplicated = duplicateQuickFlow(board, 1, core);
+assert(duplicated.steps.length === 5, 'Duplizieren fügt keine vollständige Phase ein');
+assert(duplicated.steps[2].phaseId !== duplicated.steps[1].phaseId, 'Duplizierte Phase erhält keine neue ID');
+assert(duplicated.steps[2].instruction === 'Zweite Anweisung', 'Duplizierte Phase verliert ihre Traineranweisung');
+assert(duplicated.steps[2].transition.motions[0]?.groupId === 'pnr-two', 'Duplizierte Phase verliert Aktionsgruppen');
+assert(core.distance(core.elementById(duplicated.steps[2], 'o2'), duplicated.steps[2].transition.motions[0].path[0]) < .01, 'Duplizierte Aktion startet nicht an der neuen Spielerposition');
+
+const deleted = deleteQuickFlow(duplicated, 2, core);
+assert(deleted.steps.length === 4, 'Phasenlöschen entfernt nicht genau eine Phase');
+assert(deleted.steps[1].instruction === 'Zweite Anweisung', 'Phasenlöschen beschädigt benachbarte Traineranweisungen');
+
+const inserted = insertQuickFlow(board, 1, 'before', core);
+assert(inserted.steps.length === 5, 'Einfügen erzeugt keine neue Phase');
+assert(inserted.steps[1].instruction === '', 'Neu eingefügte Phase ist nicht leer');
+assert(inserted.steps[1].transition.motions.length + inserted.steps[1].transition.passes.length + inserted.steps[1].transition.screens.length === 0, 'Neu eingefügte Phase enthält alte Aktionen');
 
 console.log('CourtHub Schnellmodus: Drag-and-drop-Reihenfolge erfolgreich geprüft.');
 dom.window.close();

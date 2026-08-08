@@ -67,8 +67,8 @@ const snapshot = {
 rendering.drawCourt(court, snapshot, { sourceStep: snapshot, showGuides: true });
 const controller = enhancements.enhanceCourt(court);
 
-assert(court.dataset.projection === 'parallel', 'Parallele Projektionsart fehlt');
-assert(court.querySelector('[data-layer="base"]').style.display === 'none', 'Konische Grundfläche ist noch sichtbar');
+assert(court.dataset.projection === 'top-down', 'Feste 2D-Projektionsart fehlt');
+assert(court.querySelector('[data-layer="base"]').style.display !== 'none', '2D-Grundfläche wurde ausgeblendet');
 assert(court.querySelectorAll('[data-parquet-plank]').length > 80, 'Das Hallenparkett besteht nicht aus Holzplanken');
 assert(wrapper.querySelector('[data-role="court-zoom-controls"]'), 'Zoom-Schaltflächen fehlen');
 assert(controller && controller.getZoom() === 1, 'Zoom-Controller fehlt');

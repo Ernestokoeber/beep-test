@@ -4,12 +4,11 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 export const COURT_VIEW = Object.freeze({
   width: 760,
   height: 550,
-  centerX: 380,
-  farY: 58,
-  nearY: 510,
-  farHalfWidth: 170,
-  nearHalfWidth: 350,
-  yPower: 0.86
+  originX: 110,
+  originY: 20,
+  scale: 1.08,
+  courtWidth: 540,
+  courtHeight: 507.6
 });
 
 let courtSequence = 0;
@@ -29,38 +28,23 @@ function clamp01(value) {
 export function projectPoint(value) {
   const x = Number(value?.x ?? 250);
   const y = Number(value?.y ?? 235);
-  const t = clamp01(y / 470);
-  const depthY = Math.pow(t, COURT_VIEW.yPower);
-  const halfWidth = COURT_VIEW.farHalfWidth
-    + (COURT_VIEW.nearHalfWidth - COURT_VIEW.farHalfWidth) * t;
   return {
-    x: COURT_VIEW.centerX + ((x - 250) / 250) * halfWidth,
-    y: COURT_VIEW.farY + (COURT_VIEW.nearY - COURT_VIEW.farY) * depthY,
-    depth: t,
-    scale: depthScale(y)
+    x: COURT_VIEW.originX + x * COURT_VIEW.scale,
+    y: COURT_VIEW.originY + y * COURT_VIEW.scale,
+    depth: 0,
+    scale: 1
   };
 }
 
 export function unprojectPoint(value) {
-  const projectedY = clamp01(
-    (Number(value?.y ?? COURT_VIEW.farY) - COURT_VIEW.farY)
-    / (COURT_VIEW.nearY - COURT_VIEW.farY)
-  );
-  const t = Math.pow(projectedY, 1 / COURT_VIEW.yPower);
-  const halfWidth = COURT_VIEW.farHalfWidth
-    + (COURT_VIEW.nearHalfWidth - COURT_VIEW.farHalfWidth) * t;
   return {
-    x: core.clamp(
-      250 + ((Number(value?.x ?? COURT_VIEW.centerX) - COURT_VIEW.centerX) / halfWidth) * 250,
-      16,
-      484
-    ),
-    y: core.clamp(t * 470, 16, 454)
+    x: core.clamp((Number(value?.x ?? 380) - COURT_VIEW.originX) / COURT_VIEW.scale, 16, 484),
+    y: core.clamp((Number(value?.y ?? 274) - COURT_VIEW.originY) / COURT_VIEW.scale, 16, 454)
   };
 }
 
 export function depthScale(y) {
-  return 0.68 + clamp01((Number(y) || 0) / 470) * 0.46;
+  return 1;
 }
 
 function pointsPath(points, close = false) {
@@ -116,37 +100,10 @@ function baseLine(parent, points, extra = {}) {
 function buildCourtBase(svg) {
   const prefix = svg.dataset.pdPrefix;
   const base = svg.querySelector('[data-layer="base"]');
-  const topLeft = projectPoint({ x: 10, y: 10 });
-  const topRight = projectPoint({ x: 490, y: 10 });
-  const nearRight = projectPoint({ x: 490, y: 460 });
-  const nearLeft = projectPoint({ x: 10, y: 460 });
-  const slab = 16;
-
   base.appendChild(node('rect', {
     width: COURT_VIEW.width,
     height: COURT_VIEW.height,
     fill: `url(#${prefix}-arena)`
-  }));
-  base.appendChild(node('ellipse', {
-    cx: COURT_VIEW.centerX,
-    cy: 460,
-    rx: 350,
-    ry: 72,
-    fill: 'rgba(0,0,0,.38)',
-    filter: `url(#${prefix}-blur)`
-  }));
-
-  base.appendChild(node('path', {
-    d: `M${nearLeft.x},${nearLeft.y} L${nearRight.x},${nearRight.y} L${nearRight.x},${nearRight.y + slab} L${nearLeft.x},${nearLeft.y + slab} Z`,
-    fill: '#5d3519'
-  }));
-  base.appendChild(node('path', {
-    d: `M${topLeft.x},${topLeft.y} L${nearLeft.x},${nearLeft.y} L${nearLeft.x},${nearLeft.y + slab} L${topLeft.x},${topLeft.y + 7} Z`,
-    fill: '#70401e'
-  }));
-  base.appendChild(node('path', {
-    d: `M${topRight.x},${topRight.y} L${nearRight.x},${nearRight.y} L${nearRight.x},${nearRight.y + slab} L${topRight.x},${topRight.y + 7} Z`,
-    fill: '#4d2b16'
   }));
 
   polygon(base, [
@@ -161,28 +118,30 @@ function buildCourtBase(svg) {
     filter: `url(#${prefix}-court-shadow)`
   });
 
-  for (let x = 10, index = 0; x < 490; x += 40, index += 1) {
-    polygon(base, [
-      { x, y: 10 },
-      { x: Math.min(490, x + 40), y: 10 },
-      { x: Math.min(490, x + 40), y: 460 },
-      { x, y: 460 }
-    ], {
-      fill: index % 2 ? 'rgba(104,48,13,.08)' : 'rgba(255,247,224,.055)'
-    });
-  }
-
-  for (let x = 50; x < 490; x += 40) {
-    baseLine(base, [{ x, y: 10 }, { x, y: 460 }], {
-      stroke: 'rgba(93,44,14,.24)',
-      'stroke-width': 1
-    });
-  }
-  for (let y = 82; y < 460; y += 74) {
-    baseLine(base, [{ x: 10, y }, { x: 490, y }], {
-      stroke: 'rgba(255,250,236,.08)',
-      'stroke-width': 1
-    });
+  const colors = ['#e4b16b', '#dca45e', '#e9b971', '#d79d57', '#e6b36c'];
+  let plankIndex = 0;
+  for (let x = 10; x < 490; x += 24) {
+    const column = Math.floor((x - 10) / 24);
+    const offset = -((column % 3) * 21);
+    for (let y = 10 + offset; y < 460; y += 62) {
+      const y1 = Math.max(10, y);
+      const y2 = Math.min(460, y + 62);
+      if (y2 - y1 < 5) continue;
+      const path = node('path', {
+        d: pointsPath([
+          { x, y: y1 },
+          { x: Math.min(490, x + 24), y: y1 },
+          { x: Math.min(490, x + 24), y: y2 },
+          { x, y: y2 }
+        ], true),
+        fill: colors[(column * 5 + plankIndex * 3) % colors.length],
+        stroke: 'rgba(83,39,13,.24)',
+        'stroke-width': .65,
+        'data-parquet-plank': String(plankIndex)
+      });
+      base.appendChild(path);
+      plankIndex += 1;
+    }
   }
 
   polygon(base, [
@@ -236,9 +195,9 @@ function buildCourtBase(svg) {
   const hoop = projectPoint({ x: 250, y: 52 });
   base.appendChild(node('line', {
     x1: hoop.x,
-    y1: hoop.y - 8,
+    y1: hoop.y - 10,
     x2: hoop.x,
-    y2: hoop.y - 28,
+    y2: hoop.y - 24,
     stroke: 'rgba(226,232,240,.8)',
     'stroke-width': 3
   }));
@@ -251,9 +210,9 @@ export function createCourt(className = 'chpd-court tactics-preview-court') {
     viewBox: `0 0 ${COURT_VIEW.width} ${COURT_VIEW.height}`,
     class: className,
     role: 'img',
-    'aria-label': 'Animiertes Basketball-Play in perspektivischer 3D-Darstellung',
+    'aria-label': 'Zweidimensionales Basketball-Halbfeld aus der Vogelperspektive',
     preserveAspectRatio: 'xMidYMid meet',
-    'data-perspective': 'true'
+    'data-projection': 'top-down'
   });
   svg.dataset.pdPrefix = prefix;
   svg.innerHTML = `
@@ -367,69 +326,63 @@ function drawToken(parent, element, selectedId) {
   const projected = projectPoint(element);
   const prefix = parent.ownerSVGElement.dataset.pdPrefix;
   const defense = element.type === 'defense';
-  const scale = projected.scale;
+  const zoneDefense = defense && element.defenseMode === 'zone';
+  const labelValue = tokenLabel(element, defense);
   const group = node('g', {
-    class: `token ${defense ? 'defense-token' : 'offense-token'}`,
+    class: `token ${defense ? `defense-token ${zoneDefense ? 'defense-zone' : 'defense-man'}` : 'offense-token'}`,
     'data-element-id': element.id,
-    transform: `translate(${projected.x} ${projected.y}) scale(${scale})`,
+    transform: `translate(${projected.x} ${projected.y})`,
+    role: 'img',
+    'aria-label': defense
+      ? `${zoneDefense ? 'Zonenverteidigung' : 'Mannverteidigung'} ${labelValue}`
+      : `Angriffsspieler ${labelValue}`,
     filter: `url(#${prefix}-token-shadow)`
   });
 
-  group.appendChild(node('ellipse', {
-    cx: 3,
-    cy: 11,
-    rx: 25,
-    ry: 8.5,
-    fill: 'rgba(0,0,0,.42)'
-  }));
-  group.appendChild(node('path', {
-    d: 'M-22 -8 C-22 -2 -22 4 -22 8 A22 9 0 0 0 22 8 C22 4 22 -2 22 -8 Z',
-    fill: defense ? `url(#${prefix}-defense-side)` : `url(#${prefix}-offense-side)`,
-    stroke: defense ? '#05070a' : '#062f54',
-    'stroke-width': 1.4
-  }));
-  group.appendChild(node('ellipse', {
-    cx: 0,
-    cy: -8,
-    rx: 22,
-    ry: 9.5,
-    fill: defense ? `url(#${prefix}-defense-top)` : `url(#${prefix}-offense-top)`,
-    stroke: defense ? '#9ca3af' : '#d7efff',
-    'stroke-width': 2.2
-  }));
-
-  if (defense) {
-    group.appendChild(node('path', {
-      d: 'M-8 -13L8 -3M8 -13L-8 -3',
+  if (!defense) {
+    group.appendChild(node('circle', {
+      r: 22,
+      fill: '#0d6b46',
       stroke: '#f8fafc',
       'stroke-width': 3,
-      'stroke-linecap': 'round'
+      'data-token-shape': 'circle'
+    }));
+  } else if (zoneDefense) {
+    group.appendChild(node('path', {
+      d: 'M0 -25 L25 0 L0 25 L-25 0 Z',
+      fill: '#fff8ed',
+      stroke: '#b45309',
+      'stroke-width': 3.2,
+      'data-defense-symbol': 'diamond'
     }));
   } else {
-    const label = node('text', {
-      x: 0,
-      y: -4.2,
-      fill: '#fff',
-      'font-size': 12,
-      'font-weight': 950,
-      'text-anchor': 'middle',
-      'pointer-events': 'none',
-      'paint-order': 'stroke',
-      stroke: 'rgba(4,32,57,.55)',
-      'stroke-width': 1.8
-    });
-    label.textContent = tokenLabel(element, defense);
-    group.appendChild(label);
+    group.appendChild(node('path', {
+      d: 'M-20 -20 L20 20 M20 -20 L-20 20',
+      fill: 'none',
+      stroke: '#172033',
+      'stroke-width': 8,
+      'stroke-linecap': 'round',
+      'data-defense-symbol': 'x'
+    }));
   }
 
+  const label = node('text', {
+    x: 0,
+    y: 5,
+    fill: defense ? (zoneDefense ? '#7c2d12' : '#ffffff') : '#ffffff',
+    'font-size': defense ? 11 : 17,
+    'font-weight': 950,
+    'text-anchor': 'middle',
+    'pointer-events': 'none',
+    'paint-order': 'stroke',
+    stroke: defense && !zoneDefense ? '#172033' : 'rgba(4,32,57,.35)',
+    'stroke-width': defense && !zoneDefense ? 3.4 : 1.4
+  });
+  label.textContent = labelValue;
+  group.appendChild(label);
+
   if (selectedId === element.id) {
-    group.appendChild(node('ellipse', {
-      cx: 0,
-      cy: 1,
-      rx: 30,
-      ry: 17,
-      class: 'selected'
-    }));
+    group.appendChild(node('circle', { r: 31, class: 'selected' }));
   }
   parent.appendChild(group);
 }
@@ -437,20 +390,13 @@ function drawToken(parent, element, selectedId) {
 function drawBall(parent, element, selectedId) {
   const projected = projectPoint(element);
   const prefix = parent.ownerSVGElement.dataset.pdPrefix;
-  const scale = projected.scale * .86;
+  const scale = .92;
   const group = node('g', {
     class: 'token ball-token',
     'data-element-id': element.id,
-    transform: `translate(${projected.x} ${projected.y - 8 * scale}) scale(${scale})`,
+    transform: `translate(${projected.x} ${projected.y}) scale(${scale})`,
     filter: `url(#${prefix}-token-shadow)`
   });
-  group.appendChild(node('ellipse', {
-    cx: 4,
-    cy: 15,
-    rx: 14,
-    ry: 5,
-    fill: 'rgba(0,0,0,.42)'
-  }));
   group.appendChild(node('circle', {
     r: 11,
     fill: `url(#${prefix}-ball)`,
@@ -579,12 +525,14 @@ function drawGuides(target, step, selectedActionId, showGuides) {
   const transition = core.normalizeTransition(step && step.transition);
   transition.motions.forEach(action => {
     if (!showGuides && selectedActionId !== action.id) return;
+    const dribble = action.kind === 'dribble';
     target.paths.appendChild(node('path', {
       d: polylinePath(action.path),
-      class: `motion${selectedActionId === action.id ? ' active' : ''}`,
+      class: `motion ${dribble ? 'dribble' : 'run'}${selectedActionId === action.id ? ' active' : ''}`,
       fill: 'none',
       stroke: selectedActionId === action.id ? '#ef4444' : '#b20e19',
       'stroke-width': selectedActionId === action.id ? 5.2 : 4.2,
+      'stroke-dasharray': dribble ? '3 7' : null,
       'stroke-linecap': 'round',
       'stroke-linejoin': 'round',
       'marker-end': `url(#${prefix}-arrow-red)`,

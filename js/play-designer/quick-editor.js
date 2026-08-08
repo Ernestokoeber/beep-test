@@ -1,6 +1,4 @@
 import {
-  createCourt,
-  drawCourt,
   appendDraftPath,
   formatTime,
   pointFromEvent
@@ -12,11 +10,9 @@ import {
   addQuickPickAndRoll,
   addQuickPause,
   hasStepActions,
-  quickStepLabel,
-  stepActions
+  quickStepLabel
 } from './quick-core.js';
 import {
-  describeRecordedAction,
   normalizeRecordedBoard
 } from './phase-recorder-core.js';
 import {
@@ -26,6 +22,15 @@ import {
 } from './phase-spacing.js';
 import { deletePlayCompletely } from './complete-delete.js';
 import { injectQuickEditorStyles } from './quick-styles.js';
+import { editorShellMarkup } from './editor-shell.js';
+import { createCourtStage, renderCourtStage } from './court-stage.js';
+import { renderPhaseRail } from './phase-rail.js';
+import { renderActionTimeline } from './action-timeline.js';
+import { renderPhaseInstruction, updatePhaseInstruction } from './phase-instructions.js';
+import { openPlayPreview } from './play-preview.js';
+import { openAnimationPlayer } from './animation-player.js';
+import { openExportDialog } from './export-dialog.js';
+import { deleteQuickFlow, duplicateQuickFlow, insertQuickFlow } from './quick-reorder.js';
 
 const core = window.BT.tactics.__core;
 const DRAFT_KEY = 'tacticsBoardDraft';
@@ -44,6 +49,8 @@ function toast(message) {
 }
 
 function template() {
+  return editorShellMarkup();
+  /* Legacy markup remains below temporarily as a compatibility reference. */
   return `
     <header class="chq-header">
       <div class="chq-brand">
@@ -155,7 +162,7 @@ function cleanDraft(points) {
 export function mountQuickEditor(target, options = {}) {
   injectQuickEditorStyles();
   const root = document.createElement('section');
-  root.className = 'view chq';
+  root.className = 'view chq chq-focus-shell';
   root.dataset.role = 'tactics-quick';
   root.innerHTML = template();
   target.appendChild(root);
@@ -167,8 +174,7 @@ export function mountQuickEditor(target, options = {}) {
 
   const q = selector => root.querySelector(selector);
   const qa = selector => [...root.querySelectorAll(selector)];
-  const svg = createCourt();
-  q('[data-role="court"]').append(svg);
+  const svg = createCourtStage(q('[data-role="court"]'));
 
   let board = normalizeRecordedBoard(window.BT.storage.getSetting(DRAFT_KEY, null), core);
   let tool = 'select';
@@ -176,11 +182,26 @@ export function mountQuickEditor(target, options = {}) {
   let pending = null;
   let drag = null;
   let draft = null;
+  let selectedElementId = null;
+  let selectedActionId = null;
   let time = core.stepStartTime(board, board.currentStep);
   let playing = false;
   let speed = 1;
   let last = 0;
   let frame = 0;
+
+  const inspector = q('[data-role="right-panel"]');
+  const inspectorToggle = q('[data-action="toggle-inspector"]');
+  const setInspectorExpanded = expanded => {
+    inspector?.classList.toggle('is-collapsed', !expanded);
+    inspectorToggle?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    const icon = inspectorToggle?.lastElementChild;
+    if (icon) icon.textContent = expanded ? '⌃' : '⌄';
+  };
+  setInspectorExpanded(window.matchMedia?.('(max-width: 900px)')?.matches !== true);
+  if (inspectorToggle) {
+    inspectorToggle.onclick = () => setInspectorExpanded(inspectorToggle.getAttribute('aria-expanded') !== 'true');
+  }
 
   const step = () => board.steps[board.currentStep];
 
@@ -188,6 +209,10 @@ export function mountQuickEditor(target, options = {}) {
     board = normalizeRecordedBoard(board, core);
     window.BT.storage.setSetting(DRAFT_KEY, board);
     if (message) q('[data-role="status"]').textContent = message;
+    const saveState = q('[data-role="save-state"]');
+    if (saveState) saveState.textContent = message?.includes('synchronisiert')
+      ? 'Gespeichert und synchronisiert'
+      : 'Änderungen lokal gesichert';
   }
 
   function stop() {
@@ -205,8 +230,10 @@ export function mountQuickEditor(target, options = {}) {
 
   function draw() {
     const snapshot = currentSnapshot();
-    drawCourt(svg, snapshot, {
+    renderCourtStage(svg, snapshot, {
       sourceStep: snapshot._sourceStep || step(),
+      selectedId: selectedElementId,
+      selectedActionId,
       showGuides: !playing
     });
     appendDraftPath(svg, draft);
@@ -215,7 +242,7 @@ export function mountQuickEditor(target, options = {}) {
       element.classList.toggle('chq-overlap', overlapIds.has(element.dataset.elementId));
     });
     q('[data-role="stage-title"]').textContent = board.title;
-    q('[data-role="stage-step"]').textContent = `Ablauf ${board.currentStep + 1}`;
+    q('[data-role="stage-step"]').textContent = `Phase ${board.currentStep + 1}`;
     q('[data-role="stage-action"]').textContent = board.currentStep < board.steps.length - 1
       ? quickStepLabel(step(), core)
       : 'Endposition';
@@ -223,37 +250,37 @@ export function mountQuickEditor(target, options = {}) {
   }
 
   function renderFlow() {
-    const box = q('[data-role="flow"]');
-    box.replaceChildren();
-    const visible = board.steps.slice(0, Math.max(1, board.steps.length - 1));
-    visible.forEach((item, index) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `chq-flow-item chq-phase-card${index === board.currentStep ? ' active' : ''}`;
-      const label = index < board.steps.length - 1 ? quickStepLabel(item, core) : 'Grundaufstellung';
-      const actions = stepActions(item, core);
-      button.innerHTML = `<span class="chq-flow-index">${index + 1}</span><span class="chq-flow-copy"><strong></strong><ul class="chq-phase-actions"></ul></span><span class="chq-flow-time"></span>`;
-      button.querySelector('strong').textContent = `Phase ${index + 1} · ${label}`;
-      const list = button.querySelector('.chq-phase-actions');
-      if (!actions.length) list.innerHTML = '<li>Wartephase</li>';
-      actions.forEach(action => {
-        const itemLine = document.createElement('li');
-        itemLine.textContent = describeRecordedAction(item, action, core);
-        if (action.groupType === 'pick-and-roll') itemLine.dataset.group = 'pick-and-roll';
-        list.append(itemLine);
-      });
-      button.querySelector('.chq-flow-time').textContent = `${actions.length}×`;
-      button.onclick = () => {
-        stop();
-        board.currentStep = index;
-        time = core.stepStartTime(board, index);
-        pending = null;
-        draft = null;
-        refresh();
-      };
-      box.append(button);
+    renderPhaseRail(q('[data-role="flow"]'), board, board.currentStep, core, index => {
+      stop();
+      board.currentStep = index;
+      time = core.stepStartTime(board, index);
+      pending = null;
+      draft = null;
+      selectedActionId = null;
+      refresh();
+    }, (action, index) => {
+      if (action === 'edit') {
+        root.dispatchEvent(new CustomEvent('courthub:edit-phase', { detail: { index }, bubbles: true }));
+        return;
+      }
+      if (action === 'duplicate') board = duplicateQuickFlow(board, index, core);
+      if (action === 'insert-before') board = insertQuickFlow(board, index, 'before', core);
+      if (action === 'insert-after') board = insertQuickFlow(board, index, 'after', core);
+      if (action === 'delete') {
+        if (Math.max(1, board.steps.length - 1) <= 1) return toast('Die einzige Phase kann nicht gelöscht werden.');
+        if (!window.confirm(`Phase ${index + 1} wirklich löschen?`)) return;
+        board = deleteQuickFlow(board, index, core);
+      }
+      time = core.stepStartTime(board, board.currentStep);
+      selectedActionId = null;
+      persist(action === 'duplicate' ? 'Phase dupliziert.' : action === 'delete' ? 'Phase gelöscht.' : 'Neue Phase eingefügt.');
+      refresh();
     });
-    if (!box.children.length) box.innerHTML = '<div class="chq-empty">Noch keine Aktion vorhanden.</div>';
+    renderActionTimeline(q('[data-role="timeline"]'), step(), core, action => {
+      selectedActionId = action.id;
+      draw();
+    });
+    renderPhaseInstruction(q('[data-role="phase-instruction"]'), step());
   }
 
   function renderPending() {
@@ -296,7 +323,13 @@ export function mountQuickEditor(target, options = {}) {
     q('[data-role="scrubber"]').value = String(Math.round(time * 1000));
     q('[data-role="time"]').textContent = formatTime(time);
     q('[data-role="total"]').textContent = formatTime(total);
-    q('[data-action="play"]').textContent = playing ? 'Ⅱ' : '▶';
+    qa('[data-action="play"]').forEach(button => { button.textContent = playing ? 'Ⅱ' : '▶'; });
+    const selected = core.elementById(step(), selectedElementId);
+    qa('[data-defense-mode]').forEach(button => {
+      const active = selected?.type === 'defense' && selected.defenseMode === button.dataset.defenseMode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
   }
 
   function refresh() {
@@ -307,6 +340,13 @@ export function mountQuickEditor(target, options = {}) {
     renderFields();
     qa('[data-tool]').forEach(button => button.classList.toggle('active', button.dataset.tool === tool));
     qa('[data-relation]').forEach(button => button.classList.toggle('active', button.dataset.relation === relation));
+    const activeTab = root.dataset.inspectorTab || 'timeline';
+    qa('[data-tab]').forEach(button => {
+      const active = button.dataset.tab === activeTab;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    qa('[data-panel]').forEach(panel => { panel.hidden = panel.dataset.panel !== activeTab; });
   }
 
   function tick(timestamp) {
@@ -327,10 +367,11 @@ export function mountQuickEditor(target, options = {}) {
   }
 
   function hit(point) {
-    return core.elements(step()).slice().reverse().find(element =>
-      ['offense', 'defense', 'ball'].includes(element.type)
-        && core.distance(point, element) <= (element.type === 'ball' ? 20 : 30)
-    ) || null;
+    return core.elements(step())
+      .filter(element => ['offense', 'defense', 'ball'].includes(element.type))
+      .map(element => ({ element, distance: core.distance(point, element) }))
+      .filter(candidate => candidate.distance <= (candidate.element.type === 'ball' ? 20 : 30))
+      .sort((left, right) => left.distance - right.distance)[0]?.element || null;
   }
 
   function nearestPlayer(point, offenseOnly = false) {
@@ -451,6 +492,10 @@ export function mountQuickEditor(target, options = {}) {
     refresh();
   }
 
+  function capturePointer(pointerId) {
+    try { svg.setPointerCapture?.(pointerId); } catch (_) {}
+  }
+
   svg.onpointerdown = event => {
     stop();
     const point = pointFromEvent(svg, event);
@@ -460,7 +505,12 @@ export function mountQuickEditor(target, options = {}) {
         return;
       }
       const selected = hit(point);
-      if (!selected) return;
+      if (!selected) {
+        selectedElementId = null;
+        refresh();
+        return;
+      }
+      selectedElementId = selected.id;
       drag = {
         id: event.pointerId,
         elementId: selected.id,
@@ -468,7 +518,7 @@ export function mountQuickEditor(target, options = {}) {
         dy: point.y - selected.y,
         changed: false
       };
-      svg.setPointerCapture(event.pointerId);
+      capturePointer(event.pointerId);
       return;
     }
 
@@ -484,7 +534,7 @@ export function mountQuickEditor(target, options = {}) {
       if (!result || result.distance > 40) return toast('Laufweg direkt auf einem Spieler beginnen.');
       draft = [core.point(result.element)];
       drag = { id: event.pointerId, mode: 'path', actor: result.element };
-      svg.setPointerCapture(event.pointerId);
+      capturePointer(event.pointerId);
       draw();
       return;
     }
@@ -550,12 +600,12 @@ export function mountQuickEditor(target, options = {}) {
         const handler = core.elementById(step(), pending.handlerId);
         draft = [core.point(handler)];
         drag = { id: event.pointerId, mode: 'pnr-handler-path' };
-        svg.setPointerCapture(event.pointerId);
+        capturePointer(event.pointerId);
         draw();
       } else if (pending.stage === 'roll-path') {
         draft = [core.point(pending.screenPoint)];
         drag = { id: event.pointerId, mode: 'pnr-roll-path' };
-        svg.setPointerCapture(event.pointerId);
+        capturePointer(event.pointerId);
         draw();
       }
     }
@@ -647,30 +697,82 @@ export function mountQuickEditor(target, options = {}) {
     };
   });
 
-  q('[data-action="pause"]').onclick = () => {
-    try {
-      board = addQuickPause(board, { stepIndex: board.currentStep, duration: 0.8 }, core);
-      time = core.stepStartTime(board, board.currentStep);
-      persist('Pause von 0,8 Sekunden eingefügt.');
+  const pauseButton = q('[data-action="pause"]');
+  if (pauseButton) {
+    pauseButton.onclick = () => {
+      try {
+        board = addQuickPause(board, { stepIndex: board.currentStep, duration: 0.8 }, core);
+        time = core.stepStartTime(board, board.currentStep);
+        persist('Pause von 0,8 Sekunden eingefügt.');
+        refresh();
+      } catch (error) {
+        toast(error.message);
+      }
+    };
+  }
+
+  const togglePlayback = () => {
+      if (playing) {
+        stop();
+        refresh();
+        return;
+      }
+      const total = window.BT.tactics.boardDuration(board);
+      if (time >= total - 0.02) time = 0;
+      playing = true;
+      last = 0;
       refresh();
-    } catch (error) {
-      toast(error.message);
-    }
+      frame = requestAnimationFrame(tick);
+  };
+  qa('[data-action="play"]').forEach(button => { button.onclick = togglePlayback; });
+
+  qa('[data-tab]').forEach(button => {
+    button.onclick = () => {
+      root.dataset.inspectorTab = button.dataset.tab;
+      refresh();
+    };
+  });
+
+  q('[data-role="phase-instruction"]').oninput = event => {
+    board = updatePhaseInstruction(board, board.currentStep, event.target.value);
+    persist('Traineranweisung lokal gesichert.');
   };
 
-  q('[data-action="play"]').onclick = () => {
-    if (playing) {
-      stop();
+  qa('[data-defense-mode]').forEach(button => {
+    button.onclick = () => {
+      const selected = core.elementById(step(), selectedElementId);
+      if (!selected || selected.type !== 'defense') {
+        toast('Bitte zuerst einen Verteidiger auf dem Spielfeld auswählen.');
+        return;
+      }
+      board.steps.forEach(item => {
+        const defender = core.elementById(item, selected.id);
+        if (defender?.type === 'defense') defender.defenseMode = button.dataset.defenseMode;
+      });
+      persist(button.dataset.defenseMode === 'zone'
+        ? `${selected.role} wird als Zonenverteidiger dargestellt.`
+        : `${selected.role} wird als Mannverteidiger dargestellt.`);
       refresh();
-      return;
-    }
-    const total = window.BT.tactics.boardDuration(board);
-    if (time >= total - 0.02) time = 0;
-    playing = true;
-    last = 0;
+    };
+  });
+
+  q('[data-action="insert-phase"]').onclick = () => {
+    stop();
+    board = insertQuickFlow(board, board.currentStep, 'after', core);
+    time = core.stepStartTime(board, board.currentStep);
+    selectedActionId = null;
+    persist('Neue Phase eingefügt.');
     refresh();
-    frame = requestAnimationFrame(tick);
   };
+
+  q('[data-action="open-animation"]').onclick = () => openAnimationPlayer(board, { core });
+  q('[data-action="export"]').onclick = () => openExportDialog(board);
+  root.addEventListener('courthub:open-export', () => openExportDialog(board));
+  q('[data-action="preview"]').onclick = () => openPlayPreview(board, {
+    core,
+    onPlay: () => openAnimationPlayer(board, { core }),
+    onExport: () => root.dispatchEvent(new CustomEvent('courthub:open-export', { bubbles: true }))
+  });
 
   q('[data-action="restart"]').onclick = () => {
     stop();

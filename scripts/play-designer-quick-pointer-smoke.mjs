@@ -10,6 +10,7 @@ globalThis.document = dom.window.document;
 globalThis.Element = dom.window.Element;
 globalThis.MutationObserver = dom.window.MutationObserver;
 globalThis.BT = { tactics: { __core: {} } };
+dom.window.BT = globalThis.BT;
 
 const enhancements = await import(
   pathToFileURL(resolve(root, 'js/play-designer/court-enhancements.js')).href + '?quick-pointer-smoke=1'

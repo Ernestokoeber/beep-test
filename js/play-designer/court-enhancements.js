@@ -375,7 +375,9 @@ function legacySvgToClient(wrapper, point) {
 }
 
 function adjustedClient(wrapper, state, clientX, clientY) {
-  const court = parallelUnproject(actualClientToParallelSvg(wrapper, state, clientX, clientY));
+  const actual = actualClientToParallelSvg(wrapper, state, clientX, clientY);
+  if (state.topDown) return legacySvgToClient(wrapper, actual);
+  const court = parallelUnproject(actual);
   return legacySvgToClient(wrapper, legacyProject(court));
 }
 
@@ -594,9 +596,10 @@ function watchDynamicLayers(svg) {
 
 export function enhanceCourt(svg, options = {}) {
   if (!svg || enhanced.has(svg)) return enhanced.get(svg)?.controller || null;
-  buildParallelBase(svg);
-  const observer = watchDynamicLayers(svg);
-  const state = { zoom: 1, panX: 0, panY: 0, observer, controller: null };
+  const topDown = svg.dataset.projection === 'top-down';
+  if (!topDown) buildParallelBase(svg);
+  const observer = topDown ? { disconnect() {} } : watchDynamicLayers(svg);
+  const state = { zoom: 1, panX: 0, panY: 0, observer, controller: null, topDown };
   enhanced.set(svg, state);
 
   const wrapper = svg.parentElement;

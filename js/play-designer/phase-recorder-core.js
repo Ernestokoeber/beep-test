@@ -68,6 +68,10 @@ export function normalizeRecordedBoard(boardInput, core) {
     const step = core.copy(source);
     const rawStep = sourceSteps[phaseIndex] || {};
     step.phaseId = String(rawStep.phaseId || core.uid('phase_'));
+    step.instruction = String(rawStep.instruction ?? step.instruction ?? '').slice(0, 2000);
+    if (rawStep.thumbnailVersion) {
+      step.thumbnailVersion = String(rawStep.thumbnailVersion).slice(0, 64);
+    }
     const transition = core.normalizeTransition(step.transition);
     const rawTransition = rawStep.transition || {};
     const relation = phaseIndex === 0 ? 'after' : 'after';

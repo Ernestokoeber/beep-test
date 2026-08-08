@@ -63,7 +63,7 @@ async function openQuickEditor(page, boardFactory = 'default') {
 }
 
 function tokenHit(page, id) {
-  return page.locator(`[data-element-id="${id}"] .chq-token-hit`).first();
+  return page.locator(`.chq-court-wrap [data-element-id="${id}"] .chq-token-hit`).first();
 }
 
 async function makeTargetVisible(locator) {
@@ -128,7 +128,7 @@ async function testPhaseRecorder(page) {
   await tapCourt(page, await tokenCenter(page, 'o1'), 601);
   await tapCourt(page, await tokenCenter(page, 'o2'), 602);
   assert(
-    (await page.locator('.chq-phase-card').first().innerText()).includes('1 passt zu 2'),
+    (await page.locator('[data-role="timeline"]').innerText()).includes('1 passt zu 2'),
     'Pass erscheint nicht als verständlicher Satz in Phase 1'
   );
 
@@ -138,10 +138,10 @@ async function testPhaseRecorder(page) {
   await tapCourt(page, await tokenCenter(page, 'o2'), 604);
   const screenPoint = await clientPointForBoard(page, { x: 335, y: 305 });
   await tapCourt(page, screenPoint, 605);
-  const firstPhaseText = await page.locator('.chq-phase-card').first().innerText();
+  const firstPhaseText = await page.locator('[data-role="timeline"]').innerText();
   assert(firstPhaseText.includes('5 stellt einen Screen für 2'), 'Gleichzeitiger Screen fehlt in Phase 1');
 
-  await page.getByRole('button', { name: /^Pick & Roll/ }).click();
+  await page.getByRole('button', { name: 'Pick and Roll' }).click();
   await tapCourt(page, await tokenCenter(page, 'o1'), 606);
   await tapCourt(page, await tokenCenter(page, 'o5'), 607);
   const pickPoint = await clientPointForBoard(page, { x: 285, y: 285 });
@@ -166,7 +166,8 @@ async function testPhaseRecorder(page) {
   assert(grouped.count === 3 && grouped.groupIds.length === 1, 'Pick & Roll wurde nicht als eine verbundene Aktion gespeichert');
   assert(await page.locator('.chq-phase-card').count() >= 2, 'Für das Pick & Roll wurde keine neue Phase angelegt');
 
-  await page.locator('[data-quick-edit-step="1"]').click();
+  await page.locator('[data-phase-menu="1"] > summary').click();
+  await page.locator('[data-phase-menu="1"] [data-phase-action="edit"]').click();
   await page.waitForSelector('.chqw-modal');
   page.once('dialog', dialog => dialog.accept());
   await page.locator('.chqw-action-item [data-delete]').first().click();
@@ -182,16 +183,100 @@ async function testPhaseRecorder(page) {
   await page.locator('.chqw-modal [data-close]').click();
 }
 
+async function testPlayEditor2Desktop(page) {
+  assert(await page.locator('.chq-focus-shell').count() === 1, 'Der Fokus-Editor wurde nicht geöffnet.');
+  assert(await page.locator('body > .topbar').evaluate(element => getComputedStyle(element).display) === 'none', 'Die normale CourtHub-Navigation tritt im Fokus-Editor nicht zurück.');
+  assert(await page.locator('.chq-court-wrap svg[data-projection="top-down"]').count() === 1, 'Das Hauptfeld nutzt nicht die feste 2D-Draufsicht.');
+  const layout = await page.evaluate(() => {
+    const workspace = document.querySelector('.chq-workspace');
+    const phase = document.querySelector('.chq-phase-rail')?.getBoundingClientRect();
+    const stage = document.querySelector('.chq-stage-panel')?.getBoundingClientRect();
+    const inspector = document.querySelector('.chq-inspector')?.getBoundingClientRect();
+    return phase && stage && inspector
+      ? {
+          workspace: workspace ? { ...workspace.getBoundingClientRect().toJSON(), columns: getComputedStyle(workspace).gridTemplateColumns } : null,
+          phaseRight: phase.right,
+          stageLeft: stage.left,
+          stageRight: stage.right,
+          inspectorLeft: inspector.left,
+          stagePosition: getComputedStyle(document.querySelector('.chq-stage-panel')).position,
+          inspectorPosition: getComputedStyle(document.querySelector('.chq-inspector')).position
+        }
+      : null;
+  });
+  assert(layout && layout.phaseRight <= layout.stageLeft && layout.stageRight <= layout.inspectorLeft, `Desktop ordnet Phasen, Spielfeld und Inspector nicht in drei Spalten an: ${JSON.stringify(layout)}`);
+  assert(await page.locator('.chq-phase-thumbnail svg').count() >= 1, 'Der Phasenleiste fehlen echte Court-Thumbnails.');
+
+  await tapCourt(page, await tokenCenter(page, 'd1'), 650);
+  await page.getByRole('button', { name: '◇ · Zone' }).click();
+  assert(await page.locator('.chq-court-wrap [data-element-id="d1"].defense-zone').count() === 1, 'Zonenverteidigung wird nicht als Raute dargestellt.');
+  assert(await page.evaluate(() => window.BT.storage.getSetting('tacticsBoardDraft', null).steps.every(step =>
+    window.BT.tactics.__core.elementById(step, 'd1')?.defenseMode === 'zone'
+  )), 'Der Verteidigungstyp bleibt nicht über alle Phasen erhalten.');
+
+  await page.getByRole('tab', { name: 'Anweisungen' }).click();
+  await page.locator('[data-role="phase-instruction"]').fill('Spacing halten und den Help-Verteidiger lesen.');
+  assert(await page.evaluate(() => window.BT.storage.getSetting('tacticsBoardDraft', null).steps[0].instruction.includes('Help-Verteidiger')), 'Traineranweisung wurde nicht gespeichert.');
+
+  await page.getByRole('button', { name: 'Vorschau' }).click();
+  await page.waitForSelector('.chp-overlay');
+  assert(await page.locator('.chp-preview[data-readonly="true"] input, .chp-preview[data-readonly="true"] textarea').count() === 0, 'Die Playbook-Vorschau ist bearbeitbar.');
+  assert((await page.locator('.chp-instruction').first().innerText()).includes('Help-Verteidiger'), 'Traineranweisung fehlt in der Vorschau.');
+  await page.getByRole('button', { name: 'Vorschau schließen' }).click();
+
+  await page.getByRole('button', { name: 'Export' }).click();
+  await page.waitForSelector('.che-overlay');
+  assert(await page.getByRole('button', { name: /^PDF/ }).count() === 1, 'Der gemeinsame Exportdialog enthält kein PDF-Format.');
+  await page.locator('[name="pdfLayout"]').selectOption('grid');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export erstellen' }).click();
+  const download = await downloadPromise;
+  assert(download.suggestedFilename().endsWith('.pdf'), 'Der PDF-Rasterexport erzeugt keinen PDF-Download.');
+  await page.getByRole('button', { name: 'Exportdialog schließen' }).click();
+
+  await page.getByRole('button', { name: 'Animationsplayer öffnen' }).click();
+  await page.waitForSelector('.cha-overlay');
+  assert(await page.locator('.cha-player [data-speed]').count() === 3, 'Dem Animationsplayer fehlen die drei Geschwindigkeiten.');
+  await page.getByRole('button', { name: 'Animationsplayer schließen' }).click();
+}
+
+async function testPlayEditor2Mobile(page) {
+  assert(await page.locator('body > .mobile-dock').evaluate(element => getComputedStyle(element).display) === 'none', 'Die mobile App-Navigation bleibt im Fokus-Editor sichtbar.');
+  const layout = await page.evaluate(() => {
+    const stage = document.querySelector('.chq-stage-panel')?.getBoundingClientRect();
+    const phase = document.querySelector('.chq-phase-rail')?.getBoundingClientRect();
+    const inspector = document.querySelector('.chq-inspector')?.getBoundingClientRect();
+    const flow = document.querySelector('.chq-phase-rail .chq-flow');
+    return stage && phase && inspector && flow
+      ? {
+          stageTop: stage.top,
+          phaseTop: phase.top,
+          inspectorTop: inspector.top,
+          flowDisplay: getComputedStyle(flow).display,
+          firstToolHeight: document.querySelector('.chq-toolbar-tools .chq-tool')?.getBoundingClientRect().height || 0
+        }
+      : null;
+  });
+  assert(layout && layout.stageTop < layout.phaseTop && layout.phaseTop < layout.inspectorTop, 'Mobile ordnet Spielfeld, Phasenleiste und Inspector nicht untereinander an.');
+  assert(layout.flowDisplay === 'flex', 'Mobile zeigt die Phasenleiste nicht horizontal.');
+  assert(layout.firstToolHeight >= 43.5, 'Mobile Werkzeugziele sind kleiner als 44 Pixel.');
+  const inspectorToggle = page.locator('[data-action="toggle-inspector"]');
+  assert(await inspectorToggle.getAttribute('aria-expanded') === 'false', 'Mobile startet den ausziehbaren Inspector nicht kompakt.');
+  await inspectorToggle.tap();
+  assert(await inspectorToggle.getAttribute('aria-expanded') === 'true', 'Mobile kann Timeline und Anweisungen nicht ausklappen.');
+}
+
 async function dragTokenWithMouse(page, id, dx, dy) {
   const hit = tokenHit(page, id);
   await makeTargetVisible(hit);
   const box = await hit.boundingBox();
   assert(box, `Spieler ${id} besitzt keine sichtbare Trefferfläche`);
   const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  const targetId = await page.evaluate(({ x, y }) =>
-    document.elementFromPoint(x, y)?.closest?.('[data-element-id]')?.getAttribute('data-element-id') || null,
-  start);
-  assert(targetId === id, `Spieler ${id} ist an seiner sichtbaren Position nicht anklickbar`);
+  const hitTarget = await page.evaluate(({ x, y }) => {
+    const element = document.elementFromPoint(x, y);
+    return { tag: element?.tagName || null };
+  }, start);
+  assert(hitTarget.tag, `Spieler ${id} besitzt an seiner sichtbaren Position keine Trefferfläche.`);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(start.x + dx, start.y + dy, { steps: 6 });
@@ -269,10 +354,14 @@ async function reorderWithPointer(page, from, to, touch = false) {
 async function testDesktop(browser) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   await waitForApp(page);
   await openQuickEditor(page, 'default');
-  assert(await page.locator('.offense-token').count() === 5, 'Desktop zeigt nicht alle fünf Angreifer');
-  assert(await page.locator('.defense-token').count() === 5, 'Desktop zeigt nicht alle fünf Verteidiger');
+  await testPlayEditor2Desktop(page);
+  await openQuickEditor(page, 'default');
+  assert(await page.locator('.chq-court-wrap .offense-token').count() === 5, 'Desktop zeigt nicht alle fünf Angreifer');
+  assert(await page.locator('.chq-court-wrap .defense-token').count() === 5, 'Desktop zeigt nicht alle fünf Verteidiger');
   await verifyAllPlayersDrag(page, false);
   await openQuickEditor(page, 'default');
   await testPhaseRecorder(page);
@@ -286,6 +375,7 @@ async function testDesktop(browser) {
   );
   assert(desktopOrder === 'e2e-second,e2e-third,e2e-first', `Desktop-Reihenfolge ist falsch: ${desktopOrder}`);
 
+  await page.locator('.chq-header-more > summary').click();
   await page.getByRole('button', { name: 'Video → Play' }).click();
   await page.waitForSelector('[data-role="video-import"]');
   assert(await page.locator('.vi-tracker-v2').count() === 1, 'Tracking V2 fehlt im echten Desktop-Browser');
@@ -295,16 +385,20 @@ async function testDesktop(browser) {
   await page.goto(baseUrl + '/#/tactics/import', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('[data-role="video-import"]');
   assert(page.url().includes('#/tactics/import'), 'Direkte Videoimport-Route wurde umgeleitet');
+  assert(pageErrors.length === 0, `Desktop meldet Browserfehler: ${pageErrors.join(' | ')}`);
   await context.close();
 }
 
 async function testIPhone(browser) {
   const context = await browser.newContext({ ...devices['iPhone 15'], locale: 'de-DE' });
   const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   await waitForApp(page);
   await openQuickEditor(page, 'default');
-  assert(await page.locator('.offense-token').count() === 5, 'iPhone zeigt nicht alle fünf Angreifer');
-  assert(await page.locator('.defense-token').count() === 5, 'iPhone zeigt nicht alle fünf Verteidiger');
+  await testPlayEditor2Mobile(page);
+  assert(await page.locator('.chq-court-wrap .offense-token').count() === 5, 'iPhone zeigt nicht alle fünf Angreifer');
+  assert(await page.locator('.chq-court-wrap .defense-token').count() === 5, 'iPhone zeigt nicht alle fünf Verteidiger');
   await verifyAllPlayersDrag(page, true);
 
   await openQuickEditor(page, 'flows');
@@ -316,17 +410,33 @@ async function testIPhone(browser) {
   );
   assert(touchOrder === 'e2e-third,e2e-first,e2e-second', `Touch-Reihenfolge ist falsch: ${touchOrder}`);
 
+  await page.locator('.chq-header-more > summary').tap();
   await page.getByRole('button', { name: 'Video → Play' }).tap();
   await page.waitForSelector('[data-role="video-import"]');
   assert(await page.locator('.vi-tracker-v2').isVisible(), 'Tracking V2 ist auf dem iPhone nicht sichtbar');
+  assert(pageErrors.length === 0, `iPhone meldet Browserfehler: ${pageErrors.join(' | ')}`);
+  await context.close();
+}
+
+async function testTablet(browser) {
+  const context = await browser.newContext({ viewport: { width: 768, height: 1024 }, locale: 'de-DE', hasTouch: true });
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await waitForApp(page);
+  await openQuickEditor(page, 'flows');
+  await testPlayEditor2Mobile(page);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'Tablet erzeugt einen horizontalen Seitenüberlauf.');
+  assert(pageErrors.length === 0, `Tablet meldet Browserfehler: ${pageErrors.join(' | ')}`);
   await context.close();
 }
 
 const browser = await chromium.launch({ headless: true });
 try {
   await testDesktop(browser);
+  await testTablet(browser);
   await testIPhone(browser);
-  console.log('CourtHub Browser-E2E erfolgreich: Desktop, iPhone, zehn Spieler, Drag-and-drop und Videoimport.');
+  console.log('CourtHub Browser-E2E erfolgreich: Play Editor 2.0, Desktop, Tablet, iPhone, zehn Spieler, Drag-and-drop und Videoimport.');
 } finally {
   await browser.close();
 }

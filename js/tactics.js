@@ -36,21 +36,29 @@ BT.tactics = (function() {
     const defense = [[250, 338], [108, 282], [392, 282], [145, 142], [355, 142]];
     return [
       ...offense.map((coords, index) => ({ id: 'o' + (index + 1), type: 'offense', role: String(index + 1), x: coords[0], y: coords[1] })),
-      ...defense.map((coords, index) => ({ id: 'd' + (index + 1), type: 'defense', role: 'X' + (index + 1), x: coords[0], y: coords[1] })),
+      ...defense.map((coords, index) => ({ id: 'd' + (index + 1), type: 'defense', role: 'X' + (index + 1), defenseMode: 'man', x: coords[0], y: coords[1] })),
       { id: 'ball', type: 'ball', x: 267, y: 388 }
     ];
   }
   function emptyTransition() { return { motions: [], passes: [], screens: [] }; }
-  function defaultStep(elements) { return { id: uid('st_'), duration: 1.8, elements: copy(elements || startingElements()), transition: emptyTransition() }; }
+  function defaultStep(elements) { return { id: uid('st_'), phaseId: uid('phase_'), instruction: '', duration: 1.8, elements: copy(elements || startingElements()), transition: emptyTransition() }; }
   function defaultBoard() {
-    return { schemaVersion: 2, title: 'Neues Play', description: '', category: 'Offense', courtType: 'half', steps: [defaultStep()], currentStep: 0, published: false, publishedAt: null, createdAt: null, updatedAt: null, createdBy: null };
+    return { schemaVersion: 3, title: 'Neues Play', description: '', category: 'Offense', tags: [], archived: false, courtType: 'half', steps: [defaultStep()], currentStep: 0, published: false, publishedAt: null, createdAt: null, updatedAt: null, createdBy: null };
   }
 
   function normalizeElement(raw, index) {
     if (!raw || typeof raw !== 'object') return null;
     const type = raw.type;
     const id = String(raw.id || uid('el_'));
-    if (type === 'offense' || type === 'defense') return { id, type, role: String(raw.role || raw.label || (type === 'offense' ? index + 1 : 'X' + (index + 1))).slice(0, 18), ...point(raw) };
+    if (type === 'offense' || type === 'defense') {
+      return {
+        id,
+        type,
+        role: String(raw.role || raw.label || (type === 'offense' ? index + 1 : 'X' + (index + 1))).slice(0, 18),
+        ...(type === 'defense' ? { defenseMode: raw.defenseMode === 'zone' ? 'zone' : 'man' } : {}),
+        ...point(raw)
+      };
+    }
     if (type === 'ball') return { id, type, ...point(raw) };
     if (type === 'arrow' && ARROW_KINDS.has(raw.kind || raw.style || 'run')) return { id, type, kind: raw.kind || raw.style || 'run', x: clamp(number(raw.x ?? raw.x1, 250), 16, 484), y: clamp(number(raw.y ?? raw.y1, 235), 16, 454), x2: clamp(number(raw.x2, 300), 16, 484), y2: clamp(number(raw.y2, 190), 16, 454), curve: clamp(number(raw.curve, 0), -180, 180) };
     if (type === 'cone') return { id, type, label: String(raw.label || '').slice(0, 16), ...point(raw) };
@@ -60,15 +68,15 @@ BT.tactics = (function() {
   }
   function normalizeMotion(raw) {
     if (!raw || typeof raw !== 'object' || !raw.elementId) return null;
-    return { id: String(raw.id || uid('motion_')), type: 'move', elementId: String(raw.elementId), start: clamp(number(raw.start, 0), 0, 20), duration: clamp(number(raw.duration, 1.2), .15, 20), path: (Array.isArray(raw.path) ? raw.path : []).map(point).slice(0, 80) };
+    return { id: String(raw.id || uid('motion_')), type: 'move', elementId: String(raw.elementId), kind: raw.kind === 'dribble' ? 'dribble' : 'run', relation: raw.relation === 'simultaneous' ? 'simultaneous' : 'after', ...(raw.groupId ? { groupId: String(raw.groupId) } : {}), ...(raw.groupType ? { groupType: String(raw.groupType) } : {}), ...(raw.groupRole ? { groupRole: String(raw.groupRole) } : {}), start: clamp(number(raw.start, 0), 0, 20), duration: clamp(number(raw.duration, 1.2), .15, 20), path: (Array.isArray(raw.path) ? raw.path : []).map(point).slice(0, 80) };
   }
   function normalizePass(raw) {
     if (!raw || typeof raw !== 'object' || !raw.fromId || !raw.toId) return null;
-    return { id: String(raw.id || uid('pass_')), type: 'pass', fromId: String(raw.fromId), toId: String(raw.toId), start: clamp(number(raw.start, .8), 0, 20), duration: clamp(number(raw.duration, .38), .12, 5), curve: clamp(number(raw.curve, -36), -180, 180) };
+    return { id: String(raw.id || uid('pass_')), type: 'pass', fromId: String(raw.fromId), toId: String(raw.toId), relation: raw.relation === 'simultaneous' ? 'simultaneous' : 'after', ...(raw.groupId ? { groupId: String(raw.groupId) } : {}), ...(raw.groupType ? { groupType: String(raw.groupType) } : {}), start: clamp(number(raw.start, .8), 0, 20), duration: clamp(number(raw.duration, .38), .12, 5), curve: clamp(number(raw.curve, -36), -180, 180) };
   }
   function normalizeScreen(raw) {
     if (!raw || typeof raw !== 'object' || !raw.elementId) return null;
-    return { id: String(raw.id || uid('screen_')), type: 'screen', elementId: String(raw.elementId), start: clamp(number(raw.start, .4), 0, 20), duration: clamp(number(raw.duration, 1), .15, 20), x: clamp(number(raw.x, 250), 16, 484), y: clamp(number(raw.y, 230), 16, 454), angle: clamp(number(raw.angle, 0), -180, 180) };
+    return { id: String(raw.id || uid('screen_')), type: 'screen', elementId: String(raw.elementId), relation: raw.relation === 'simultaneous' ? 'simultaneous' : 'after', ...(raw.beneficiaryId ? { beneficiaryId: String(raw.beneficiaryId) } : {}), ...(raw.targetDefenderId ? { targetDefenderId: String(raw.targetDefenderId) } : {}), ...(raw.groupId ? { groupId: String(raw.groupId) } : {}), ...(raw.groupType ? { groupType: String(raw.groupType) } : {}), start: clamp(number(raw.start, .4), 0, 20), duration: clamp(number(raw.duration, 1), .15, 20), x: clamp(number(raw.x, 250), 16, 484), y: clamp(number(raw.y, 230), 16, 454), angle: clamp(number(raw.angle, 0), -180, 180) };
   }
   function normalizeTransition(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
@@ -92,7 +100,15 @@ BT.tactics = (function() {
       if (DRAWING_TYPES.has(element.type) && ++counts.drawings > 40) return;
       elements.push(element);
     });
-    return { id: String(source.id || uid('st_')), duration: clamp(number(source.duration, 1.8), .3, 10), elements: elements.length ? elements : copy(startingElements()), transition: normalizeTransition(source.transition) };
+    return {
+      id: String(source.id || uid('st_')),
+      phaseId: String(source.phaseId || uid('phase_')),
+      instruction: String(source.instruction || '').slice(0, 2000),
+      ...(source.thumbnailVersion ? { thumbnailVersion: String(source.thumbnailVersion).slice(0, 64) } : {}),
+      duration: clamp(number(source.duration, 1.8), .3, 10),
+      elements: elements.length ? elements : copy(startingElements()),
+      transition: normalizeTransition(source.transition)
+    };
   }
   function normalizeBoard(input) {
     const source = input && typeof input === 'object' ? input : {};
@@ -100,9 +116,12 @@ BT.tactics = (function() {
     const rawSteps = legacy ? [source] : (Array.isArray(source.steps) ? source.steps : []);
     const fallback = defaultBoard();
     const steps = rawSteps.map(normalizeStep);
-    return { schemaVersion: 2, id: source.id, title: String(source.title || fallback.title).slice(0, 100), description: String(source.description || '').slice(0, 400), category: String(source.category || 'Offense').slice(0, 32), courtType: source.courtType === 'full' ? 'full' : 'half', steps: steps.length ? steps : fallback.steps, currentStep: clamp(Math.floor(number(source.currentStep, 0)), 0, Math.max(0, (steps.length || 1) - 1)), published: source.published === true, publishedAt: source.publishedAt || null, createdAt: source.createdAt || null, updatedAt: source.updatedAt || null, createdBy: source.createdBy || null };
+    const tags = [...new Set((Array.isArray(source.tags) ? source.tags : [])
+      .map(value => String(value || '').trim().slice(0, 32))
+      .filter(Boolean))].slice(0, 12);
+    return { schemaVersion: 3, id: source.id, title: String(source.title || fallback.title).slice(0, 100), description: String(source.description || '').slice(0, 400), category: String(source.category || 'Offense').slice(0, 32), tags, archived: source.archived === true, courtType: 'half', steps: steps.length ? steps : fallback.steps, currentStep: clamp(Math.floor(number(source.currentStep, 0)), 0, Math.max(0, (steps.length || 1) - 1)), published: source.published === true, publishedAt: source.publishedAt || null, createdAt: source.createdAt || null, updatedAt: source.updatedAt || null, createdBy: source.createdBy || null };
   }
-  function cloneStep(step) { const normalized = normalizeStep(step, 0); return { id: uid('st_'), duration: normalized.duration, elements: copy(normalized.elements), transition: emptyTransition() }; }
+  function cloneStep(step) { const normalized = normalizeStep(step, 0); return { id: uid('st_'), phaseId: uid('phase_'), instruction: '', duration: normalized.duration, elements: copy(normalized.elements), transition: emptyTransition() }; }
   function elements(step, type) { const list = step && Array.isArray(step.elements) ? step.elements : []; return type ? list.filter(item => item.type === type) : list; }
   function elementById(step, id) { return elements(step).find(item => item.id === id) || null; }
   function arrowStyle(kind) { return ARROW_STYLES[kind] || ARROW_STYLES.run; }
