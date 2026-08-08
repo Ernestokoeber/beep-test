@@ -65,7 +65,7 @@ export default async function handler(req, res) {
       );
       const conflict = current.rows[0] || { data: {}, version: 0, updated_at: null };
       return res.status(409).json({
-        error: 'Teamdaten wurden auf einem anderen Gerät verändert.',
+        error: 'Teamdaten wurden zwischenzeitlich verändert.',
         conflict: {
           data: conflict.data || {},
           version: Number(conflict.version || 0),

@@ -8,6 +8,9 @@ BT.sync = (function() {
     catch { return 0; }
   })();
   let timer = null;
+  let pushWorker = null;
+  let pushRequested = false;
+  let sessionEpoch = 0;
   let applying = false;
   let status = 'guest';
   let lastSyncAt = null;
@@ -64,40 +67,87 @@ BT.sync = (function() {
     window.dispatchEvent(new Event('hashchange'));
   }
 
-  async function push(data, expectedVersion) {
-    if (!user) return;
+  async function pushLatest(epoch) {
+    if (!user || epoch !== sessionEpoch) return;
     setStatus('syncing');
-    const cleaned = cleanForSync(data);
-    try {
-      const result = await BT.api.saveWorkspace(cleaned, expectedVersion);
-      storeVersion(result.version);
-      lastSyncAt = result.updatedAt || new Date().toISOString();
-      setStatus('synced');
-    } catch (error) {
-      if (error.status === 409 && error.data && error.data.conflict) {
-        const remote = error.data.conflict;
-        if (timestamp(cleaned) >= timestamp(remote.data)) {
+
+    while (user && epoch === sessionEpoch) {
+      // Immer den aktuellsten lokalen Stand lesen. Ein älterer Snapshot darf
+      // nach einer langsamen Serverantwort keine neuere Board-Bewegung ersetzen.
+      const cleaned = cleanForSync(BT.storage.load());
+      const expectedVersion = version;
+      try {
+        const result = await BT.api.saveWorkspace(cleaned, expectedVersion);
+        if (epoch !== sessionEpoch) return;
+        storeVersion(result.version);
+        lastSyncAt = result.updatedAt || new Date().toISOString();
+        setStatus(pushRequested ? 'pending' : 'synced');
+        return;
+      } catch (error) {
+        if (epoch !== sessionEpoch) return;
+        if (error.status === 409 && error.data && error.data.conflict) {
+          const remote = error.data.conflict;
+          const latestLocal = cleanForSync(BT.storage.load());
           storeVersion(remote.version);
-          return push(cleaned, remote.version);
+
+          if (timestamp(latestLocal) >= timestamp(remote.data)) {
+            // Der lokale Stand ist während der laufenden Anfrage weitergelaufen.
+            // Er enthält bereits alle bis hierhin vorgemerkten Schreibvorgänge.
+            clearTimeout(timer);
+            timer = null;
+            pushRequested = false;
+            continue;
+          }
+
+          // Nur ein wirklich neuerer Serverstand darf lokale Daten ersetzen.
+          clearTimeout(timer);
+          timer = null;
+          pushRequested = false;
+          applyRemote(remote.data, remote.version);
+          lastSyncAt = remote.updatedAt || new Date().toISOString();
+          setStatus('synced');
+          BT.util.toast('Aktuellere Teamdaten wurden synchronisiert.');
+          return;
         }
-        applyRemote(remote.data, remote.version);
-        lastSyncAt = remote.updatedAt || new Date().toISOString();
-        setStatus('synced');
-        BT.util.toast('Neuere Teamdaten wurden von einem anderen Gerät geladen.');
+        setStatus(error.status === 0 ? 'offline' : 'error', error.message);
         return;
       }
-      setStatus(error.status === 0 ? 'offline' : 'error', error.message);
     }
+  }
+
+  async function drainPushes(epoch) {
+    try {
+      while (pushRequested && user && epoch === sessionEpoch) {
+        pushRequested = false;
+        await pushLatest(epoch);
+      }
+    } finally {
+      pushWorker = null;
+      // Falls während eines Accountwechsels oder direkt am Ende der letzten
+      // Anfrage erneut gespeichert wurde, übernimmt ein neuer Worker den Rest.
+      if (pushRequested && user) return push();
+    }
+  }
+
+  function push() {
+    if (!user) return Promise.resolve();
+    pushRequested = true;
+    if (!pushWorker) pushWorker = drainPushes(sessionEpoch);
+    return pushWorker;
   }
 
   function queueSave(data) {
     if (!user || user.role === 'viewer' || applying) return;
     clearTimeout(timer);
-    timer = setTimeout(() => push(data, version), 900);
+    timer = setTimeout(() => {
+      timer = null;
+      push();
+    }, 900);
     setStatus(navigator.onLine ? 'pending' : 'offline');
   }
 
   async function reconcile() {
+    if (pushWorker) await pushWorker;
     setStatus('syncing');
     const remote = await BT.api.getWorkspace();
     const local = BT.storage.load();
@@ -111,13 +161,13 @@ BT.sync = (function() {
     }
 
     if (!hasTeamData(remote.data) && hasTeamData(local)) {
-      await push(local, remote.version);
+      await push();
       return;
     }
     if (hasTeamData(remote.data) && (!hasTeamData(local) || timestamp(remote.data) > timestamp(local))) {
       applyRemote(remote.data, remote.version);
     } else if (hasTeamData(local) && timestamp(local) > timestamp(remote.data)) {
-      await push(local, remote.version);
+      await push();
       return;
     }
     lastSyncAt = remote.updatedAt || new Date().toISOString();
@@ -125,6 +175,10 @@ BT.sync = (function() {
   }
 
   async function setSession(result) {
+    sessionEpoch += 1;
+    clearTimeout(timer);
+    timer = null;
+    pushRequested = false;
     BT.api.setToken(result.token);
     user = result.user;
     emit();
@@ -144,7 +198,10 @@ BT.sync = (function() {
   }
 
   function logout() {
+    sessionEpoch += 1;
     clearTimeout(timer);
+    timer = null;
+    pushRequested = false;
     BT.api.setToken(null);
     try { localStorage.removeItem(VERSION_KEY); } catch { /* Offline-Speicher blockiert. */ }
     user = null;
@@ -159,7 +216,9 @@ BT.sync = (function() {
       await reconcile();
       return;
     }
-    await push(BT.storage.load(), version);
+    clearTimeout(timer);
+    timer = null;
+    await push();
   }
 
   async function init() {
