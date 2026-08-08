@@ -10,6 +10,7 @@ const scripts = [
   'js/play-designer/main.js', 'js/play-designer/styles.js', 'js/play-designer/rendering.js',
   'js/play-designer/court-enhancements.js', 'js/play-designer/layout-fix.js',
   'js/play-designer/timing-core.js', 'js/play-designer/timing-fix.js',
+  'js/play-designer/defensive-reactions.js',
   'js/play-designer/complete-delete.js',
   'js/play-designer/quick-core.js', 'js/play-designer/quick-styles.js',
   'js/play-designer/quick-pointer-fix.js', 'js/play-designer/quick-editor.js',

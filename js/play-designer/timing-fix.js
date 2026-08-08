@@ -5,6 +5,7 @@ import {
   fitTransitionTiming,
   locateBoardTime
 } from './timing-core.js';
+import { isAutomaticDefenseMotion, motionProgress } from './defensive-reactions.js';
 
 const tactics = window.BT?.tactics;
 const core = tactics?.__core;
@@ -174,7 +175,9 @@ if (tactics && core && !tactics.__timingFixApplied) {
 
     const elapsed = Math.max(0, core.number(elapsedInput, 0));
     if (elapsed < motion.start) return sourcePoint || path[0];
-    const ratio = core.clamp((elapsed - motion.start) / motion.duration, 0, 1);
+    const ratio = isAutomaticDefenseMotion(motion)
+      ? motionProgress(motion, elapsed)
+      : core.clamp((elapsed - motion.start) / motion.duration, 0, 1);
     return core.pointOnPath(path, ratio);
   }
 
