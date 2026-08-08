@@ -69,7 +69,8 @@ const controller = enhancements.enhanceCourt(court);
 
 assert(court.dataset.projection === 'top-down', 'Feste 2D-Projektionsart fehlt');
 assert(court.querySelector('[data-layer="base"]').style.display !== 'none', '2D-Grundfläche wurde ausgeblendet');
-assert(court.querySelectorAll('[data-parquet-plank]').length > 80, 'Das Hallenparkett besteht nicht aus Holzplanken');
+assert(court.querySelectorAll('[data-parquet-plank]').length === 0, 'Die alte Holzparkett-Darstellung ist noch aktiv');
+assert(court.querySelector('[data-layer="base"] rect')?.getAttribute('fill') === '#f8d9b2', 'Die ruhige Canvas-Courtfläche fehlt');
 assert(wrapper.querySelector('[data-role="court-zoom-controls"]'), 'Zoom-Schaltflächen fehlen');
 assert(controller && controller.getZoom() === 1, 'Zoom-Controller fehlt');
 controller.zoomIn();
@@ -81,4 +82,4 @@ assert(court.querySelector('.offense-token'), 'Angreifer-Token fehlt');
 assert(court.querySelector('.defense-token'), 'Verteidiger-Token fehlt');
 assert(court.querySelector('.ball-token'), 'Ball-Token fehlt');
 
-console.log('CourtHub: paralleles Hallenparkett und Board-Zoom erfolgreich geprüft.');
+console.log('CourtHub: paralleles Canvas-Court und Board-Zoom erfolgreich geprüft.');

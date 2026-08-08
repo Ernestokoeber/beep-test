@@ -195,8 +195,9 @@ export function mountQuickEditor(target, options = {}) {
   const setInspectorExpanded = expanded => {
     inspector?.classList.toggle('is-collapsed', !expanded);
     inspectorToggle?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    inspectorToggle?.setAttribute('aria-label', expanded ? 'Seitenbereich einklappen' : 'Seitenbereich ausklappen');
     const icon = inspectorToggle?.lastElementChild;
-    if (icon) icon.textContent = expanded ? '⌃' : '⌄';
+    if (icon) icon.textContent = expanded ? '›' : '‹';
   };
   setInspectorExpanded(window.matchMedia?.('(max-width: 900px)')?.matches !== true);
   if (inspectorToggle) {
@@ -324,6 +325,13 @@ export function mountQuickEditor(target, options = {}) {
     q('[data-role="time"]').textContent = formatTime(time);
     q('[data-role="total"]').textContent = formatTime(total);
     qa('[data-action="play"]').forEach(button => { button.textContent = playing ? 'Ⅱ' : '▶'; });
+    const inlinePlay = q('[data-action="open-animation"]');
+    if (inlinePlay) {
+      inlinePlay.classList.toggle('active', playing);
+      inlinePlay.setAttribute('aria-pressed', playing ? 'true' : 'false');
+      const label = inlinePlay.querySelector('span');
+      if (label) label.textContent = playing ? 'Pause' : 'Play';
+    }
     const selected = core.elementById(step(), selectedElementId);
     qa('[data-defense-mode]').forEach(button => {
       const active = selected?.type === 'defense' && selected.defenseMode === button.dataset.defenseMode;
@@ -341,6 +349,8 @@ export function mountQuickEditor(target, options = {}) {
     qa('[data-tool]').forEach(button => button.classList.toggle('active', button.dataset.tool === tool));
     qa('[data-relation]').forEach(button => button.classList.toggle('active', button.dataset.relation === relation));
     const activeTab = root.dataset.inspectorTab || 'timeline';
+    const inspectorTitle = q('[data-role="inspector-title"]');
+    if (inspectorTitle) inspectorTitle.textContent = activeTab === 'instructions' ? 'Anweisungen' : 'Timeline';
     qa('[data-tab]').forEach(button => {
       const active = button.dataset.tab === activeTab;
       button.classList.toggle('active', active);
@@ -729,6 +739,7 @@ export function mountQuickEditor(target, options = {}) {
   qa('[data-tab]').forEach(button => {
     button.onclick = () => {
       root.dataset.inspectorTab = button.dataset.tab;
+      setInspectorExpanded(true);
       refresh();
     };
   });
@@ -765,7 +776,7 @@ export function mountQuickEditor(target, options = {}) {
     refresh();
   };
 
-  q('[data-action="open-animation"]').onclick = () => openAnimationPlayer(board, { core });
+  q('[data-action="open-animation"]').onclick = togglePlayback;
   q('[data-action="export"]').onclick = () => openExportDialog(board);
   root.addEventListener('courthub:open-export', () => openExportDialog(board));
   q('[data-action="preview"]').onclick = () => openPlayPreview(board, {

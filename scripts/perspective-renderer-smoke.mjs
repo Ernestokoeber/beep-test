@@ -42,7 +42,7 @@ for (const point of [{ x: 35, y: 40 }, { x: 250, y: 235 }, { x: 470, y: 430 }]) 
 }
 
 const court = renderer.createCourt();
-assert(court.getAttribute('viewBox') === '0 0 760 550', '2D-ViewBox fehlt');
+assert(court.getAttribute('viewBox') === '0 0 760 660', 'CoachCanvas-Proportion des 2D-ViewBox fehlt');
 assert(court.dataset.projection === 'top-down', '2D-Vogelperspektive ist nicht markiert');
 assert(!court.hasAttribute('data-perspective'), 'Veralteter 3D-Perspektivmodus ist noch aktiv');
 assert(court.querySelector('[data-layer="base"] path'), '2D-Court-Grundfläche fehlt');
@@ -60,4 +60,4 @@ assert(court.querySelector('.offense-token'), '2D-Angreifer-Token fehlt');
 assert(court.querySelector('.defense-token'), '2D-Verteidiger-Token fehlt');
 assert(court.querySelector('.ball-token'), '2D-Ball fehlt');
 
-console.log('CourtHub 2D Renderer: Prüfungen erfolgreich.');
+console.log('CourtHub Canvas-Renderer: Prüfungen erfolgreich.');

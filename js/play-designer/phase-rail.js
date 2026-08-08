@@ -18,7 +18,7 @@ export function renderPhaseRail(container, board, activeIndex, core, onSelect, o
 
     const number = document.createElement('span');
     number.className = 'chq-flow-index';
-    number.textContent = String(index + 1).padStart(2, '0');
+    number.textContent = String(index + 1);
 
     const thumbnail = document.createElement('span');
     thumbnail.className = 'chq-phase-thumbnail';
@@ -26,16 +26,14 @@ export function renderPhaseRail(container, board, activeIndex, core, onSelect, o
     drawCourt(svg, step, { sourceStep: step, showGuides: true });
     thumbnail.append(svg);
 
-    const copy = document.createElement('span');
-    copy.className = 'chq-flow-copy';
     const actions = recordedActions(step, core);
-    copy.innerHTML = `<strong>Phase ${index + 1}</strong><span>${actions.length ? `${actions.length} Aktion${actions.length === 1 ? '' : 'en'}` : 'Grundaufstellung / Pause'}</span>`;
+    thumbnail.setAttribute('aria-label', `Phase ${index + 1}, ${actions.length ? `${actions.length} Aktionen` : 'Grundaufstellung'}`);
 
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'chq-phase-open';
     open.setAttribute('aria-label', `Phase ${index + 1} öffnen`);
-    open.append(number, thumbnail, copy);
+    open.append(number, thumbnail);
     open.onclick = () => onSelect?.(index);
 
     const menu = document.createElement('details');
@@ -52,6 +50,12 @@ export function renderPhaseRail(container, board, activeIndex, core, onSelect, o
     row.append(open, menu);
     container.append(row);
   });
+
+  const addButton = container.parentElement?.querySelector('[data-action="insert-phase"]');
+  if (addButton) {
+    const visibleIndex = Math.max(0, Math.min(activeIndex, Math.max(0, container.children.length - 1)));
+    addButton.style.setProperty('--chq-active-phase', String(visibleIndex));
+  }
 
   if (!container.children.length) {
     container.innerHTML = '<div class="chq-empty">Noch keine Phase vorhanden.</div>';

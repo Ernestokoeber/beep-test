@@ -3,12 +3,12 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 export const COURT_VIEW = Object.freeze({
   width: 760,
-  height: 550,
-  originX: 110,
-  originY: 20,
-  scale: 1.08,
-  courtWidth: 540,
-  courtHeight: 507.6
+  height: 660,
+  originX: 60,
+  originY: 30,
+  scale: 1.28,
+  courtWidth: 640,
+  courtHeight: 601.6
 });
 
 let courtSequence = 0;
@@ -98,12 +98,11 @@ function baseLine(parent, points, extra = {}) {
 }
 
 function buildCourtBase(svg) {
-  const prefix = svg.dataset.pdPrefix;
   const base = svg.querySelector('[data-layer="base"]');
   base.appendChild(node('rect', {
     width: COURT_VIEW.width,
     height: COURT_VIEW.height,
-    fill: `url(#${prefix}-arena)`
+    fill: '#f8d9b2'
   }));
 
   polygon(base, [
@@ -112,37 +111,10 @@ function buildCourtBase(svg) {
     { x: 490, y: 460 },
     { x: 10, y: 460 }
   ], {
-    fill: `url(#${prefix}-floor)`,
-    stroke: 'rgba(255,255,255,.35)',
-    'stroke-width': 1.2,
-    filter: `url(#${prefix}-court-shadow)`
+    fill: '#f9ddb8',
+    stroke: '#fffdf8',
+    'stroke-width': 3
   });
-
-  const colors = ['#e4b16b', '#dca45e', '#e9b971', '#d79d57', '#e6b36c'];
-  let plankIndex = 0;
-  for (let x = 10; x < 490; x += 24) {
-    const column = Math.floor((x - 10) / 24);
-    const offset = -((column % 3) * 21);
-    for (let y = 10 + offset; y < 460; y += 62) {
-      const y1 = Math.max(10, y);
-      const y2 = Math.min(460, y + 62);
-      if (y2 - y1 < 5) continue;
-      const path = node('path', {
-        d: pointsPath([
-          { x, y: y1 },
-          { x: Math.min(490, x + 24), y: y1 },
-          { x: Math.min(490, x + 24), y: y2 },
-          { x, y: y2 }
-        ], true),
-        fill: colors[(column * 5 + plankIndex * 3) % colors.length],
-        stroke: 'rgba(83,39,13,.24)',
-        'stroke-width': .65,
-        'data-parquet-plank': String(plankIndex)
-      });
-      base.appendChild(path);
-      plankIndex += 1;
-    }
-  }
 
   polygon(base, [
     { x: 160, y: 10 },
@@ -150,9 +122,9 @@ function buildCourtBase(svg) {
     { x: 340, y: 200 },
     { x: 160, y: 200 }
   ], {
-    fill: 'rgba(132,64,21,.16)',
+    fill: '#f6a98b',
     stroke: '#fffdf6',
-    'stroke-width': 2.5
+    'stroke-width': 3
   });
 
   baseLine(base, [
@@ -180,17 +152,15 @@ function buildCourtBase(svg) {
     y1: backboardLeft.y - 4,
     x2: backboardRight.x,
     y2: backboardRight.y - 4,
-    stroke: '#e5f3ff',
-    'stroke-width': 5,
-    'stroke-linecap': 'round',
-    filter: `url(#${prefix}-glow)`
+    stroke: '#fffdf8',
+    'stroke-width': 4,
+    'stroke-linecap': 'round'
   }));
   base.appendChild(node('path', {
     d: pointsPath(sampleArc(250, 52, 9, 9, 0, Math.PI * 2, 32), true),
     fill: 'none',
-    stroke: '#ef4444',
-    'stroke-width': 3.2,
-    filter: `url(#${prefix}-glow)`
+    stroke: '#fffdf8',
+    'stroke-width': 3
   }));
   const hoop = projectPoint({ x: 250, y: 52 });
   base.appendChild(node('line', {
@@ -198,8 +168,8 @@ function buildCourtBase(svg) {
     y1: hoop.y - 10,
     x2: hoop.x,
     y2: hoop.y - 24,
-    stroke: 'rgba(226,232,240,.8)',
-    'stroke-width': 3
+    stroke: '#fffdf8',
+    'stroke-width': 2.5
   }));
 }
 
@@ -217,57 +187,19 @@ export function createCourt(className = 'chpd-court tactics-preview-court') {
   svg.dataset.pdPrefix = prefix;
   svg.innerHTML = `
     <defs>
-      <linearGradient id="${prefix}-arena" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#07101b"/>
-        <stop offset=".55" stop-color="#101a24"/>
-        <stop offset="1" stop-color="#02060b"/>
-      </linearGradient>
-      <linearGradient id="${prefix}-floor" x1="0" y1="0" x2="1" y2=".82">
-        <stop offset="0" stop-color="#d7a15e"/>
-        <stop offset=".24" stop-color="#f0c37b"/>
-        <stop offset=".5" stop-color="#c98943"/>
-        <stop offset=".76" stop-color="#edbd70"/>
-        <stop offset="1" stop-color="#bd7739"/>
-      </linearGradient>
-      <linearGradient id="${prefix}-offense-side" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#1769ad"/>
-        <stop offset="1" stop-color="#06345e"/>
-      </linearGradient>
-      <radialGradient id="${prefix}-offense-top" cx=".34" cy=".24" r=".8">
-        <stop offset="0" stop-color="#6ec8ff"/>
-        <stop offset=".48" stop-color="#1976bd"/>
-        <stop offset="1" stop-color="#084274"/>
-      </radialGradient>
-      <linearGradient id="${prefix}-defense-side" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#343b48"/>
-        <stop offset="1" stop-color="#080b10"/>
-      </linearGradient>
-      <radialGradient id="${prefix}-defense-top" cx=".34" cy=".24" r=".8">
-        <stop offset="0" stop-color="#5a6472"/>
-        <stop offset=".55" stop-color="#1f2937"/>
-        <stop offset="1" stop-color="#080b10"/>
-      </radialGradient>
       <radialGradient id="${prefix}-ball" cx=".32" cy=".25" r=".78">
         <stop offset="0" stop-color="#ffbd66"/>
         <stop offset=".5" stop-color="#f97316"/>
         <stop offset="1" stop-color="#9a3412"/>
       </radialGradient>
-      <filter id="${prefix}-court-shadow" x="-20%" y="-20%" width="140%" height="150%">
-        <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity=".52"/>
-      </filter>
       <filter id="${prefix}-token-shadow" x="-80%" y="-80%" width="260%" height="280%">
-        <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#000" flood-opacity=".55"/>
+        <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#3f2d21" flood-opacity=".2"/>
       </filter>
-      <filter id="${prefix}-glow" x="-80%" y="-80%" width="260%" height="260%">
-        <feGaussianBlur stdDeviation="1.2" result="blur"/>
-        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-      </filter>
-      <filter id="${prefix}-blur"><feGaussianBlur stdDeviation="15"/></filter>
-      <marker id="${prefix}-arrow-red" markerWidth="10" markerHeight="10" refX="8.5" refY="5" orient="auto">
-        <path d="M0 0L10 5L0 10Z" fill="#b20e19"/>
+      <marker id="${prefix}-arrow-red" markerWidth="7" markerHeight="7" refX="6.2" refY="3.5" orient="auto">
+        <path d="M0 0L7 3.5L0 7Z" fill="#111111"/>
       </marker>
-      <marker id="${prefix}-arrow-dark" markerWidth="10" markerHeight="10" refX="8.5" refY="5" orient="auto">
-        <path d="M0 0L10 5L0 10Z" fill="#111827"/>
+      <marker id="${prefix}-arrow-dark" markerWidth="7" markerHeight="7" refX="6.2" refY="3.5" orient="auto">
+        <path d="M0 0L7 3.5L0 7Z" fill="#111111"/>
       </marker>
     </defs>
     <g data-layer="base"></g>
@@ -308,6 +240,31 @@ export function polylinePath(points) {
   return smoothProjectedPath(points);
 }
 
+function zigzagPath(points) {
+  const projected = (points || []).map(projectPoint);
+  if (projected.length < 2) return smoothProjectedPath(points || []);
+  const output = [projected[0]];
+  projected.slice(1).forEach((end, segmentIndex) => {
+    const start = projected[segmentIndex];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = -dy / length;
+    const ny = dx / length;
+    const steps = Math.max(2, Math.floor(length / 9));
+    for (let index = 1; index < steps; index += 1) {
+      const ratio = index / steps;
+      const offset = (index % 2 ? 1 : -1) * 3.2;
+      output.push({
+        x: start.x + dx * ratio + nx * offset,
+        y: start.y + dy * ratio + ny * offset
+      });
+    }
+    output.push(end);
+  });
+  return output.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ');
+}
+
 function layers(svg) {
   const output = {};
   ['zones', 'paths', 'objects', 'tokens', 'overlay'].forEach(name => {
@@ -341,26 +298,26 @@ function drawToken(parent, element, selectedId) {
 
   if (!defense) {
     group.appendChild(node('circle', {
-      r: 22,
-      fill: '#0d6b46',
-      stroke: '#f8fafc',
-      'stroke-width': 3,
+      r: 20,
+      fill: '#ffffff',
+      stroke: '#111111',
+      'stroke-width': 3.2,
       'data-token-shape': 'circle'
     }));
   } else if (zoneDefense) {
     group.appendChild(node('path', {
-      d: 'M0 -25 L25 0 L0 25 L-25 0 Z',
-      fill: '#fff8ed',
-      stroke: '#b45309',
-      'stroke-width': 3.2,
+      d: 'M0 -23 L23 0 L0 23 L-23 0 Z',
+      fill: '#ffffff',
+      stroke: '#111111',
+      'stroke-width': 3,
       'data-defense-symbol': 'diamond'
     }));
   } else {
     group.appendChild(node('path', {
-      d: 'M-20 -20 L20 20 M20 -20 L-20 20',
+      d: 'M-18 -18 L18 18 M18 -18 L-18 18',
       fill: 'none',
-      stroke: '#172033',
-      'stroke-width': 8,
+      stroke: '#111111',
+      'stroke-width': 6,
       'stroke-linecap': 'round',
       'data-defense-symbol': 'x'
     }));
@@ -369,20 +326,20 @@ function drawToken(parent, element, selectedId) {
   const label = node('text', {
     x: 0,
     y: 5,
-    fill: defense ? (zoneDefense ? '#7c2d12' : '#ffffff') : '#ffffff',
-    'font-size': defense ? 11 : 17,
-    'font-weight': 950,
+    fill: defense ? (zoneDefense ? '#111111' : '#ffffff') : '#111111',
+    'font-size': defense ? 10.5 : 17,
+    'font-weight': 800,
     'text-anchor': 'middle',
     'pointer-events': 'none',
     'paint-order': 'stroke',
-    stroke: defense && !zoneDefense ? '#172033' : 'rgba(4,32,57,.35)',
-    'stroke-width': defense && !zoneDefense ? 3.4 : 1.4
+    stroke: defense && !zoneDefense ? '#111111' : 'none',
+    'stroke-width': defense && !zoneDefense ? 3 : 0
   });
   label.textContent = labelValue;
   group.appendChild(label);
 
   if (selectedId === element.id) {
-    group.appendChild(node('circle', { r: 31, class: 'selected' }));
+    group.appendChild(node('circle', { r: 27, class: 'selected', fill: 'none', stroke: '#f26f55', 'stroke-width': 3 }));
   }
   parent.appendChild(group);
 }
@@ -390,7 +347,7 @@ function drawToken(parent, element, selectedId) {
 function drawBall(parent, element, selectedId) {
   const projected = projectPoint(element);
   const prefix = parent.ownerSVGElement.dataset.pdPrefix;
-  const scale = .92;
+  const scale = 1;
   const group = node('g', {
     class: 'token ball-token',
     'data-element-id': element.id,
@@ -410,7 +367,7 @@ function drawBall(parent, element, selectedId) {
     'stroke-width': 1.25
   }));
   if (selectedId === element.id) {
-    group.appendChild(node('circle', { r: 17, class: 'selected' }));
+    group.appendChild(node('circle', { r: 17, class: 'selected', fill: 'none', stroke: '#f26f55', 'stroke-width': 2.5 }));
   }
   parent.appendChild(group);
 }
@@ -437,8 +394,8 @@ function drawScreen(parent, action, active = false) {
     x2: p2.x,
     y2: p2.y,
     class: 'screen',
-    stroke: active ? '#111827' : 'rgba(17,24,39,.86)',
-    'stroke-width': width,
+    stroke: '#111111',
+    'stroke-width': active ? 5.5 : 4.2,
     'stroke-linecap': 'round',
     'data-action-id': action.id
   }));
@@ -447,7 +404,7 @@ function drawScreen(parent, action, active = false) {
     y1: center.y - 8 * center.scale,
     x2: center.x + 5 * center.scale,
     y2: center.y + 8 * center.scale,
-    stroke: '#111827',
+    stroke: '#111111',
     'stroke-width': active ? 4.2 : 3.2,
     'stroke-linecap': 'round',
     opacity: active ? 1 : .82,
@@ -508,13 +465,12 @@ function drawStatic(target, element, selectedId) {
       d: bezierPath(element, { x: element.x2, y: element.y2 }, element.curve),
       class: `tactics-arrow ${element.kind}`,
       fill: 'none',
-      stroke: pass ? '#a70f1a' : (element.kind === 'screen' ? '#111827' : '#b20e19'),
-      'stroke-width': element.kind === 'screen' ? 7 : 4.2,
+      stroke: '#111111',
+      'stroke-width': element.kind === 'screen' ? 5 : 3.6,
       'stroke-dasharray': pass ? '11 8' : style.dash.join(' '),
       'stroke-linecap': 'round',
       'stroke-linejoin': 'round',
-      'marker-end': element.kind === 'screen' ? null : `url(#${prefix}-arrow-red)`,
-      filter: `url(#${prefix}-glow)`,
+      'marker-end': element.kind === 'screen' ? null : `url(#${prefix}-arrow-dark)`,
       'data-element-id': element.id
     }));
   }
@@ -527,16 +483,15 @@ function drawGuides(target, step, selectedActionId, showGuides) {
     if (!showGuides && selectedActionId !== action.id) return;
     const dribble = action.kind === 'dribble';
     target.paths.appendChild(node('path', {
-      d: polylinePath(action.path),
+      d: dribble ? zigzagPath(action.path) : polylinePath(action.path),
       class: `motion ${dribble ? 'dribble' : 'run'}${selectedActionId === action.id ? ' active' : ''}`,
       fill: 'none',
-      stroke: selectedActionId === action.id ? '#ef4444' : '#b20e19',
-      'stroke-width': selectedActionId === action.id ? 5.2 : 4.2,
-      'stroke-dasharray': dribble ? '3 7' : null,
+      stroke: selectedActionId === action.id ? '#f26f55' : '#111111',
+      'stroke-width': selectedActionId === action.id ? 4.6 : 3.5,
+      'stroke-dasharray': dribble ? '1 0' : null,
       'stroke-linecap': 'round',
       'stroke-linejoin': 'round',
-      'marker-end': `url(#${prefix}-arrow-red)`,
-      filter: `url(#${prefix}-glow)`,
+      'marker-end': `url(#${prefix}-arrow-dark)`,
       opacity: showGuides ? .96 : .76,
       'data-action-id': action.id
     }));
@@ -550,12 +505,11 @@ function drawGuides(target, step, selectedActionId, showGuides) {
       d: bezierPath(from, to, action.curve),
       class: 'pass',
       fill: 'none',
-      stroke: selectedActionId === action.id ? '#f43f5e' : '#a70f1a',
-      'stroke-width': selectedActionId === action.id ? 5 : 4,
-      'stroke-dasharray': '12 9',
+      stroke: selectedActionId === action.id ? '#f26f55' : '#111111',
+      'stroke-width': selectedActionId === action.id ? 4.5 : 3.4,
+      'stroke-dasharray': '9 7',
       'stroke-linecap': 'round',
-      'marker-end': `url(#${prefix}-arrow-red)`,
-      filter: `url(#${prefix}-glow)`,
+      'marker-end': `url(#${prefix}-arrow-dark)`,
       opacity: .96,
       'data-action-id': action.id
     }));
@@ -592,12 +546,11 @@ export function appendDraftPath(svg, points) {
     d: polylinePath(points),
     class: 'motion active',
     fill: 'none',
-    stroke: '#ef4444',
-    'stroke-width': 5,
+    stroke: '#f26f55',
+    'stroke-width': 4,
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
-    'marker-end': `url(#${prefix}-arrow-red)`,
-    filter: `url(#${prefix}-glow)`
+    'marker-end': `url(#${prefix}-arrow-dark)`
   }));
 }
 

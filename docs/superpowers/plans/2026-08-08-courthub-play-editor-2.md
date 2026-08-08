@@ -4,6 +4,8 @@
 
 **Grundsatz:** Die vorhandene `steps`-/`transition`-Engine bleibt erhalten. Alte Plays werden beim Öffnen nur im Arbeitsspeicher normalisiert und erst beim bewussten Speichern im erweiterten Format persistiert. PDF- und GIF-Export bleiben während des Umbaus funktionsfähig.
 
+**UI-Referenz:** CoachCanvas ist für Layout, visuelle Dichte und Bedienfluss verbindlich. Die Umsetzung folgt der hellen Vollbildstruktur mit weißer Symbolleiste, schmaler Phasenleiste, pastellfarbenem Court und rechter Timeline möglichst genau, verwendet aber ausschließlich CourtHub-Code, CourtHub-Daten und eigene SVG-Assets.
+
 **Technik:** Vanilla JavaScript ES-Module, SVG-Halbfeld, bestehender CourtHub-Speicher und Workspace-Sync, Node-Smoke-Tests, JSDOM und Browser-E2E.
 
 ## Verbindliche Grenzen
@@ -65,7 +67,7 @@
 **Implementierung:**
 
 - Perspektivprojektion durch eine lineare 2D-Abbildung ersetzen.
-- Ruhige Holzstruktur und klare Court-Linien beibehalten.
+- Flachen pastellfarbenen Court mit weißen Linien und zurückhaltenden Schatten wie in der Referenz umsetzen.
 - Token-Renderer nach `defenseMode` differenzieren.
 - Dribbling als visuell strukturierte Linie, Pass gestrichelt, Lauf durchgezogen und Screen als T darstellen.
 

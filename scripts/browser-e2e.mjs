@@ -141,7 +141,7 @@ async function testPhaseRecorder(page) {
   const firstPhaseText = await page.locator('[data-role="timeline"]').innerText();
   assert(firstPhaseText.includes('5 stellt einen Screen für 2'), 'Gleichzeitiger Screen fehlt in Phase 1');
 
-  await page.getByRole('button', { name: 'Pick and Roll' }).click();
+  await page.getByRole('button', { name: 'Pick & Roll' }).click();
   await tapCourt(page, await tokenCenter(page, 'o1'), 606);
   await tapCourt(page, await tokenCenter(page, 'o5'), 607);
   const pickPoint = await clientPointForBoard(page, { x: 285, y: 285 });
@@ -234,10 +234,15 @@ async function testPlayEditor2Desktop(page) {
   assert(download.suggestedFilename().endsWith('.pdf'), 'Der PDF-Rasterexport erzeugt keinen PDF-Download.');
   await page.getByRole('button', { name: 'Exportdialog schließen' }).click();
 
-  await page.getByRole('button', { name: 'Animationsplayer öffnen' }).click();
+  await page.getByRole('button', { name: 'Play' }).click();
+  assert(await page.getByRole('button', { name: 'Pause' }).getAttribute('aria-pressed') === 'true', 'Play startet die Animation nicht direkt auf dem Canvas.');
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Vorschau' }).click();
+  await page.getByRole('button', { name: /Animation abspielen/ }).click();
   await page.waitForSelector('.cha-overlay');
   assert(await page.locator('.cha-player [data-speed]').count() === 3, 'Dem Animationsplayer fehlen die drei Geschwindigkeiten.');
   await page.getByRole('button', { name: 'Animationsplayer schließen' }).click();
+  await page.getByRole('button', { name: 'Vorschau schließen' }).click();
 }
 
 async function testPlayEditor2Mobile(page) {
@@ -262,7 +267,7 @@ async function testPlayEditor2Mobile(page) {
   assert(layout.firstToolHeight >= 43.5, 'Mobile Werkzeugziele sind kleiner als 44 Pixel.');
   const inspectorToggle = page.locator('[data-action="toggle-inspector"]');
   assert(await inspectorToggle.getAttribute('aria-expanded') === 'false', 'Mobile startet den ausziehbaren Inspector nicht kompakt.');
-  await inspectorToggle.tap();
+  await page.getByRole('tab', { name: 'Timeline' }).tap();
   assert(await inspectorToggle.getAttribute('aria-expanded') === 'true', 'Mobile kann Timeline und Anweisungen nicht ausklappen.');
 }
 

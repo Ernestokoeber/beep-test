@@ -112,18 +112,17 @@ function injectStyles() {
     .chq-flow-item{gap:.45rem}
     .chqw-lock{display:inline-flex;align-items:center;gap:.35rem;margin-left:auto;padding:.28rem .48rem;border-radius:999px;background:rgba(185,28,28,.08);color:#b91c1c;font-size:.66rem;font-weight:800}
     [data-theme="dark"] .chqw-lock{color:#fda4af;background:rgba(244,63,94,.12)}
-    .chqw-overlay{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:1rem;background:rgba(2,12,8,.68);backdrop-filter:blur(5px)}
-    .chqw-modal{width:min(48rem,100%);max-height:min(88vh,52rem);overflow:auto;border-radius:1rem;background:var(--surface,#fff);color:var(--text,#13221b);border:1px solid rgba(20,60,42,.16);box-shadow:0 2rem 5rem rgba(0,0,0,.35)}
-    [data-theme="dark"] .chqw-modal{background:#0c1c16;color:#f5f8f6;border-color:rgba(255,255,255,.12)}
-    .chqw-modal-head{position:sticky;z-index:2;top:0;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid rgba(20,60,42,.1);background:inherit}
-    [data-theme="dark"] .chqw-modal-head{border-color:rgba(255,255,255,.09)}
-    .chqw-modal-head h2{margin:0;font-size:1.15rem}.chqw-modal-body{padding:1rem}
+    .chqw-overlay{position:fixed;z-index:1000;inset:0;display:block;padding:0;background:#fff}
+    .chqw-modal{width:100%;height:100dvh;max-height:none;overflow:auto;border:0;border-radius:0;background:#fff;color:#253139;box-shadow:none}
+    [data-theme="dark"] .chqw-modal{background:#fff;color:#253139;border-color:transparent}
+    .chqw-modal-head{position:sticky;z-index:5;top:0;display:flex;align-items:center;justify-content:space-between;gap:1rem;height:3.5rem;padding:0 1rem;border-bottom:1px solid #eceeef;background:rgba(255,255,255,.96);backdrop-filter:blur(.6rem)}
+    .chqw-modal-head h2{margin:0;font-size:.9rem;font-weight:600}.chqw-modal-head .chq-btn{display:grid;place-items:center;width:2.5rem;height:2.5rem;border:0;border-radius:.3rem;background:transparent;color:#4c565c;cursor:pointer}.chqw-modal-head .chq-btn:hover{background:#f4f5f5}.chqw-modal-body{width:min(64rem,calc(100% - 2rem));margin:0 auto;padding:2rem 0 4rem}
     .chqw-filter{display:grid;grid-template-columns:minmax(0,1fr) 12rem;gap:.55rem;margin-bottom:.8rem}
     .chqw-filter input,.chqw-filter select,.chqw-field input,.chqw-field textarea,.chqw-field select{width:100%;border:1px solid rgba(20,60,42,.17);border-radius:.62rem;padding:.6rem;background:var(--surface,#fff);color:inherit;font:inherit}
     [data-theme="dark"] .chqw-filter input,[data-theme="dark"] .chqw-filter select,[data-theme="dark"] .chqw-field input,[data-theme="dark"] .chqw-field textarea,[data-theme="dark"] .chqw-field select{background:#06120d;border-color:rgba(255,255,255,.12)}
     .chqw-library,.chqw-action-list,.chqw-template-list{display:grid;gap:.5rem}
-    .chqw-library-item,.chqw-action-item,.chqw-template-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.6rem;align-items:center;padding:.72rem;border:1px solid rgba(20,60,42,.12);border-radius:.72rem;background:rgba(20,60,42,.025)}
-    [data-theme="dark"] .chqw-library-item,[data-theme="dark"] .chqw-action-item,[data-theme="dark"] .chqw-template-item{border-color:rgba(255,255,255,.09);background:rgba(255,255,255,.025)}
+    .chqw-library-item,.chqw-action-item,.chqw-template-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.6rem;align-items:center;padding:.72rem;border:1px solid #e5e7e8;border-radius:.4rem;background:#fff}
+    [data-theme="dark"] .chqw-library-item,[data-theme="dark"] .chqw-action-item,[data-theme="dark"] .chqw-template-item{border-color:#e5e7e8;background:#fff;color:#253139}
     .chqw-library-item strong,.chqw-action-item strong,.chqw-template-item strong{display:block}.chqw-library-item small,.chqw-action-item small,.chqw-template-item small{color:var(--muted,#64756d)}
     .chqw-row{display:flex;gap:.4rem;flex-wrap:wrap}.chqw-section{margin-top:1rem}.chqw-section h3{font-size:.9rem;margin:.2rem 0 .55rem}
     .chqw-action-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem;margin-top:.5rem}
@@ -518,6 +517,7 @@ export function enhanceQuickEditor(root, target, options = {}) {
   undo.className = 'chq-btn chqw-icon';
   undo.dataset.quickUndo = 'true';
   undo.title = 'Rückgängig · Strg/Cmd + Z';
+  undo.setAttribute('aria-label', 'Rückgängig');
   undo.textContent = '↶';
 
   const redo = document.createElement('button');
@@ -525,21 +525,20 @@ export function enhanceQuickEditor(root, target, options = {}) {
   redo.className = 'chq-btn chqw-icon';
   redo.dataset.quickRedo = 'true';
   redo.title = 'Wiederholen · Strg/Cmd + Umschalt + Z';
+  redo.setAttribute('aria-label', 'Wiederholen');
   redo.textContent = '↷';
 
-  const playbook = document.createElement('button');
-  playbook.type = 'button';
-  playbook.className = 'chq-btn';
-  playbook.textContent = 'Playbook';
-  playbook.onclick = () => openPlaybook(reload);
   const backToLibrary = root.querySelector('[data-action="back-library"]');
   if (backToLibrary) backToLibrary.onclick = () => openPlaybook(reload);
 
-  const more = document.createElement('details');
-  more.className = 'chqw-more';
-  more.innerHTML = `<summary class="chq-btn">Mehr</summary><div class="chqw-menu"><button class="chq-btn" type="button" data-more="pdf">PDF exportieren</button><button class="chq-btn" type="button" data-more="gif">GIF exportieren</button><button class="chq-btn" type="button" data-more="publish">Veröffentlichen</button><button class="chq-btn" type="button" data-more="duplicate">Duplizieren</button><a class="chq-btn" href="#/tactics/player">Spieleransicht</a></div>`;
+  const history = root.querySelector('.chq-toolbar-history') || actions;
+  history.append(undo, redo);
 
-  actions.prepend(undo, redo, playbook, more);
+  const more = root.querySelector('.chq-header-more');
+  const moreMenu = more?.querySelector('.chq-header-menu');
+  if (moreMenu) {
+    moreMenu.insertAdjacentHTML('beforeend', `<button type="button" data-more="pdf">PDF exportieren</button><button type="button" data-more="gif">GIF exportieren</button><button type="button" data-more="publish">Veröffentlichen</button><button type="button" data-more="duplicate">Duplizieren</button><a href="#/tactics/player">Spieleransicht</a>`);
+  }
 
   const fields = root.querySelector('.chq-fields');
   if (fields && !fields.querySelector('[data-role="quick-description"]')) {
@@ -577,10 +576,10 @@ export function enhanceQuickEditor(root, target, options = {}) {
     toast('Vorgang wiederhergestellt.');
   };
 
-  more.querySelector('[data-more="pdf"]').onclick = () => { more.open = false; exportPdf(currentBoard()); };
-  more.querySelector('[data-more="gif"]').onclick = () => { more.open = false; exportGif(currentBoard()); };
-  more.querySelector('[data-more="publish"]').onclick = () => { more.open = false; togglePublish(reload); };
-  more.querySelector('[data-more="duplicate"]').onclick = () => { more.open = false; duplicateCurrent(reload); };
+  more?.querySelector('[data-more="pdf"]')?.addEventListener('click', () => { more.open = false; exportPdf(currentBoard()); });
+  more?.querySelector('[data-more="gif"]')?.addEventListener('click', () => { more.open = false; exportGif(currentBoard()); });
+  more?.querySelector('[data-more="publish"]')?.addEventListener('click', () => { more.open = false; togglePublish(reload); });
+  more?.querySelector('[data-more="duplicate"]')?.addEventListener('click', () => { more.open = false; duplicateCurrent(reload); });
 
   root.addEventListener('click', event => {
     const trigger = event.target.closest('[data-quick-edit-step]');

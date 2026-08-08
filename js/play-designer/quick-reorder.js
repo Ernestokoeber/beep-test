@@ -192,13 +192,13 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'courthub-quick-reorder';
   style.textContent = `
-    .chqr-handle{display:grid;place-items:center;flex:0 0 auto;width:2rem;height:2rem;border:0;border-radius:.55rem;background:rgba(20,60,42,.07);color:var(--muted,#64756d);font:900 1rem/1 system-ui;cursor:grab;touch-action:none;user-select:none}
-    .chq-phase-rail .chqr-handle{position:absolute;z-index:6;top:.5rem;left:.5rem;background:rgba(6,18,24,.88);color:#fff;border:1px solid rgba(255,255,255,.15)}
-    .chq-phase-rail .chq-flow-index{left:2.9rem}
-    .chqr-handle:active{cursor:grabbing}.chqr-handle:focus-visible{outline:2px solid #ec7d1d;outline-offset:2px}
+    .chqr-handle{display:grid;place-items:center;flex:0 0 auto;width:1.6rem;height:1.45rem;border:0;border-radius:.2rem;background:rgba(255,255,255,.92);color:#687177;font:700 .72rem/1 system-ui;cursor:grab;touch-action:none;user-select:none}
+    .chq-phase-rail .chqr-handle{position:absolute;z-index:6;right:.25rem;bottom:.25rem;opacity:0;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .chq-phase-rail .chq-flow-item:hover .chqr-handle,.chq-phase-rail .chqr-handle:focus-visible{opacity:1}
+    .chqr-handle:active{cursor:grabbing}.chqr-handle:focus-visible{outline:2px solid #ef6b52;outline-offset:2px}
     .chq-flow-item.chqr-source{opacity:.5;transform:scale(.985)}
-    .chq-flow-item.chqr-target{box-shadow:0 0 0 3px rgba(236,125,29,.22);border-color:#ec7d1d}
-    .chq-flow-item.chqr-before::before,.chq-flow-item.chqr-after::after{content:'';position:absolute;left:.55rem;right:.55rem;height:3px;border-radius:3px;background:#ec7d1d}
+    .chq-flow-item.chqr-target{box-shadow:0 0 0 3px rgba(239,107,82,.18);border-color:#ef6b52}
+    .chq-flow-item.chqr-before::before,.chq-flow-item.chqr-after::after{content:'';position:absolute;left:.35rem;right:.35rem;height:3px;border-radius:3px;background:#ef6b52}
     .chq-flow-item.chqr-before::before{top:-.28rem}.chq-flow-item.chqr-after::after{bottom:-.28rem}
     .chq-flow-item{position:relative}
   `;

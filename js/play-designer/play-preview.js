@@ -7,13 +7,15 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'courthub-play-preview-2';
   style.textContent = `
-    .chp-overlay{position:fixed;z-index:1200;inset:0;overflow:auto;padding:1rem;background:rgba(2,12,8,.78);backdrop-filter:blur(.7rem)}
-    .chp-preview{width:min(74rem,100%);margin:auto;border:1px solid rgba(255,255,255,.13);border-radius:1.1rem;background:#f5f7f5;color:#14231c;box-shadow:0 2rem 6rem rgba(0,0,0,.45);overflow:hidden}
-    [data-theme="dark"] .chp-preview{background:#07140f;color:#f5f8f6}
-    .chp-head{position:sticky;z-index:3;top:0;display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;border-bottom:1px solid rgba(18,58,39,.13);background:inherit}.chp-head h1{margin:0;font-size:1.45rem}.chp-head p{margin:.28rem 0 0;color:#64756d;line-height:1.5}.chp-actions{display:flex;gap:.4rem;flex-wrap:wrap}
-    .chp-phases{display:grid;gap:1rem;padding:1rem}.chp-phase{display:grid;grid-template-columns:minmax(18rem,1fr) minmax(16rem,.8fr);gap:1rem;align-items:start;padding:1rem;border:1px solid rgba(18,58,39,.12);border-radius:.9rem;background:rgba(255,255,255,.58)}[data-theme="dark"] .chp-phase{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.1)}
-    .chp-phase-diagram{overflow:hidden;border-radius:.72rem;background:#07151b}.chp-phase-diagram svg{display:block;width:100%;height:auto}.chp-phase-copy{display:grid;gap:.55rem}.chp-phase-number{color:#d76812;font-size:.66rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.chp-phase-copy h2{margin:0;font-size:1rem}.chp-instruction{white-space:pre-wrap;line-height:1.62;color:inherit}.chp-instruction.is-empty{color:#718078;font-style:italic}
-    @media(max-width:720px){.chp-overlay{padding:.45rem}.chp-head{position:relative;flex-direction:column}.chp-phase{grid-template-columns:1fr;padding:.65rem}.chp-actions{width:100%}.chp-actions button{flex:1;min-height:44px}}
+    .chp-overlay{position:fixed;z-index:1200;inset:0;overflow:auto;padding:0;background:#fff}
+    .chp-preview{width:100%;min-height:100dvh;margin:0;background:#fff;color:#282321}
+    .chp-head{position:sticky;z-index:3;top:0;display:flex;align-items:center;justify-content:space-between;gap:1rem;height:3.5rem;padding:0 1.4rem;border-bottom:1px solid #eceeef;background:rgba(255,255,255,.96);backdrop-filter:blur(.6rem)}
+    .chp-head>div{display:flex;align-items:center;gap:.55rem}.chp-head .chq-kicker,.chp-head p{display:none}.chp-head h1{margin:0;font-size:.88rem;font-weight:550}.chp-actions{display:flex;align-items:center;gap:.25rem}.chp-actions .chq-btn{min-height:2.5rem;padding:.45rem .65rem;border:0;border-radius:.3rem;background:transparent;color:#354048;font-size:.78rem;cursor:pointer}.chp-actions .chq-btn:hover{background:#f4f5f5}.chp-actions .primary{position:fixed;right:1rem;bottom:1rem;z-index:5;background:#111;color:#fff;box-shadow:0 .6rem 1.5rem rgba(0,0,0,.16)}
+    .chp-intro{width:min(54rem,calc(100% - 2rem));margin:0 auto;padding:3rem 0 1.6rem;border-bottom:1px solid #eceeef}.chp-intro h2{margin:0;font-size:1.6rem}.chp-intro p{margin:.55rem 0 1.4rem;color:#5f5b58;font-size:.82rem;line-height:1.55}.chp-meta{display:flex;align-items:center;gap:.6rem;color:#8a8987;font-size:.7rem}.chp-avatar{display:grid;place-items:center;width:2.35rem;height:2.35rem;border-radius:50%;background:#ef6b52;color:#fff;font-weight:750}
+    .chp-phases{display:grid;gap:2rem;width:min(54rem,calc(100% - 2rem));margin:0 auto;padding:2rem 0 5rem}
+    .chp-phase{display:grid;grid-template-columns:16.2rem minmax(0,1fr);gap:1.5rem;align-items:start;padding-top:1.5rem;border-top:1px solid #eceeef;background:#fff}
+    .chp-phase:first-child{border-top:0;padding-top:0}.chp-phase-diagram{position:relative;overflow:hidden;border-radius:.3rem;background:#f8d9b2}.chp-phase-diagram svg{display:block;width:100%;height:auto}.chp-phase-copy{display:grid;gap:.65rem;padding:.25rem 0}.chp-phase-number{display:inline-grid;place-items:center;width:1.65rem;height:1.35rem;border-radius:.2rem;background:#666;color:#fff;font-size:.62rem;font-weight:750}.chp-phase-copy h2{display:none}.chp-instruction{white-space:pre-wrap;color:#4d4a48;font-size:.78rem;line-height:1.65}.chp-instruction.is-empty{color:#a0a0a0}
+    @media(max-width:720px){.chp-head{padding:0 .55rem}.chp-head h1{max-width:10rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chp-actions .chq-btn:not(.primary){padding:.35rem}.chp-phases{gap:1.2rem;padding-top:1.5rem}.chp-phase{grid-template-columns:1fr;gap:.75rem}.chp-phase-diagram{width:100%}.chp-actions .primary{right:.65rem;bottom:calc(.65rem + env(safe-area-inset-bottom));min-height:44px}}
   `;
   document.head.append(style);
 }
@@ -26,10 +28,13 @@ export function createPlayPreview(boardInput, suppliedCore) {
   root.className = 'chp-preview';
   root.dataset.readonly = 'true';
   root.innerHTML = `
-    <header class="chp-head"><div><span class="chq-kicker">Playbook-Vorschau</span><h1></h1><p></p></div><div class="chp-actions"><button class="chq-btn primary" type="button" data-action="preview-animation">Animation abspielen</button><button class="chq-btn" type="button" data-action="preview-export">Export</button><button class="chq-btn icon" type="button" data-action="preview-close" aria-label="Vorschau schließen">×</button></div></header>
+    <header class="chp-head"><div><span class="chq-kicker">Playbook-Vorschau</span><button class="chq-btn" type="button" data-action="preview-close" aria-label="Vorschau schließen">‹</button><h1></h1><p></p></div><div class="chp-actions"><button class="chq-btn primary" type="button" data-action="preview-animation">▶&nbsp; Animation abspielen</button><button class="chq-btn" type="button" data-action="preview-export">⇧&nbsp; Export</button></div></header>
+    <section class="chp-intro"><h2></h2><p></p><div class="chp-meta"><span class="chp-avatar">CH</span><span>CourtHub Team · aktuell</span></div></section>
     <div class="chp-phases"></div>`;
   root.querySelector('h1').textContent = board.title || 'CourtHub Play';
   root.querySelector('.chp-head p').textContent = board.description || board.category || '';
+  root.querySelector('.chp-intro h2').textContent = board.title || 'CourtHub Play';
+  root.querySelector('.chp-intro p').textContent = board.description || board.category || '';
   const phases = root.querySelector('.chp-phases');
   visiblePhases(board).forEach((step, index) => {
     const section = document.createElement('section');

@@ -4,7 +4,7 @@
 
 Dieses Dokument hält den abgestimmten Zielzustand für den zukünftigen CourtHub-Taktikeditor fest. Es dient als Übergabe für die Weiterentwicklung auf einem anderen Gerät oder in einer neuen Codex-Sitzung.
 
-Der neue Editor orientiert sich am ruhigen und fokussierten Arbeitsablauf moderner Playbook-Editoren wie CoachCanvas. Gestaltung, Quellcode und Bedienlogik werden nicht kopiert. CourtHub erhält eine eigenständige Oberfläche in der bestehenden grünen und orangefarbenen Vereinsgestaltung und behält seine bereits implementierte basketballspezifische Aktionslogik.
+CoachCanvas ist die verbindliche Referenz für Aufbau, Dichte, visuelle Hierarchie und Bedienfluss des neuen Editors. CourtHub übernimmt dessen helle Vollbildstruktur mit kompakter Werkzeugleiste, Phasenleiste, großem Spielfeld und rechter Timeline so genau wie technisch sinnvoll. CourtHub-Branding, Datenmodell und Basketballlogik bleiben erhalten; fremder Quellcode und fremde Assets werden nicht übernommen.
 
 ## Ausgangslage
 
@@ -31,7 +31,7 @@ Die neue Arbeit ist deshalb kein technischer Neubau der Taktik-Engine. Sie ist h
 
 - CourtHub verwendet ein festes zweidimensionales Halbfeld aus der Vogelperspektive.
 - Eine drehbare Kamera, 3D-Spielermodelle und perspektivische Spielfeldverzerrungen gehören nicht zum Zielbild.
-- Leichte Holzstruktur, Schatten und Ebenen dürfen visuelle Tiefe erzeugen, verändern aber nicht die zweidimensionale Geometrie.
+- Das Spielfeld verwendet die flache, helle CoachCanvas-Anmutung mit pastellfarbenem Court, weißen Linien und zurückhaltenden Schatten.
 - Das Spielfeld muss auf Desktop, Tablet, Smartphone, PDF, Bild und Video identisch lesbar bleiben.
 
 ### Spielersymbole
@@ -380,7 +380,7 @@ Mindestens folgende automatisierte Prüfungen sind erforderlich:
 - echte 3D-Grafik,
 - drehbare Kamera,
 - 3D-Spielermodelle,
-- vollständige Kopie einer fremden Oberfläche,
+- Übernahme fremden Quellcodes oder fremder Grafik-Assets,
 - kollaboratives gleichzeitiges Bearbeiten,
 - Videoexport als Voraussetzung für den ersten Release,
 - automatische KI-Generierung kompletter Plays.
