@@ -36,7 +36,7 @@ export function editorToolbarMarkup() {
       <div class="chq-toolbar-center">
         <div class="chq-toolbar-tools" role="toolbar" aria-label="Basketball-Aktionen">
           ${tool('select', 'Auswahl', ICONS.select, 'Auswählen und Grundaufstellung verschieben')}
-          ${tool('move', 'Lauf', ICONS.move, 'Lauf oder Dribbling zeichnen')}
+          ${tool('move', 'Laufweg', ICONS.move, 'Lauf oder Dribbling zeichnen')}
           ${tool('pass', 'Pass', ICONS.pass, 'Pass einzeichnen')}
           ${tool('screen', 'Screen', ICONS.screen, 'Screen setzen')}
           ${tool('pick-and-roll', 'Pick & Roll', ICONS.pick, 'Pick & Roll aufnehmen')}

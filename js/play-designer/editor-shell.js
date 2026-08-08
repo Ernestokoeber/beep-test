@@ -43,6 +43,12 @@ export function editorShellMarkup() {
               <span>Nächste Aktion</span>
               <div><button type="button" class="active" data-relation="after">Danach</button><button type="button" data-relation="same">Gleichzeitig</button></div>
             </div>
+            <div class="chq-line-legend" aria-label="Bedeutung der Linien auf dem Spielfeld">
+              <span><i aria-hidden="true">→</i>Laufweg</span>
+              <span><i aria-hidden="true">〰</i>Dribbling</span>
+              <span><i aria-hidden="true">⇢</i>Pass</span>
+              <span><i aria-hidden="true">⊥</i>Screen</span>
+            </div>
             <div class="chq-spacing-warning" data-role="spacing-warning" hidden><span></span><button type="button" data-action="snap-readable">Lesbar einrasten</button></div>
             <div class="chq-timeline" data-role="timeline"></div>
           </div>

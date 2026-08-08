@@ -106,6 +106,9 @@ export function injectQuickEditorStyles() {
     .chq-relation>div{display:flex;padding:.12rem;border:1px solid #e4e6e7;border-radius:.35rem;background:#f7f8f8}
     .chq-relation button{min-height:1.7rem;padding:.18rem .42rem;border:0;border-radius:.25rem;background:transparent;color:#697176;font-size:.62rem;cursor:pointer}
     .chq-relation button.active{background:#fff;color:#202b31;box-shadow:0 1px 3px rgba(26,34,38,.1)}
+    .chq-line-legend{display:flex;flex-wrap:wrap;gap:.35rem .7rem;margin:-.15rem 0 .75rem;padding:0 0 .65rem;border-bottom:1px solid var(--cc-line);color:#727b80;font-size:.58rem}
+    .chq-line-legend span{display:inline-flex;align-items:center;gap:.25rem;white-space:nowrap}
+    .chq-line-legend i{display:inline-grid;place-items:center;width:1.35rem;color:#263139;font-size:.9rem;font-style:normal;font-weight:750}
     .chq-spacing-warning{display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center;margin-bottom:.65rem;padding:.5rem;border:1px solid #f0d58a;border-radius:.35rem;background:#fff9e8;color:#7c5b05;font-size:.64rem}
     .chq-spacing-warning[hidden]{display:none}
     .chq-spacing-warning button{border:0;background:transparent;color:#835f00;font-weight:750;cursor:pointer}
@@ -149,8 +152,12 @@ export function injectQuickEditorStyles() {
       .chq-editor-toolbar{position:sticky;top:0;grid-template-columns:minmax(9rem,1fr) auto;height:auto;min-height:calc(3.35rem + var(--courthub-safe-top))}
       .chq-toolbar-leading{height:3.35rem;border-right:0}
       .chq-actions{height:3.35rem;border-left:0}
-      .chq-toolbar-center{grid-column:1/-1;grid-row:2;height:3.15rem;border-top:1px solid var(--cc-line)}
+      .chq-toolbar-center{grid-column:1/-1;grid-row:2;height:3.65rem;border-top:1px solid var(--cc-line)}
       .chq-toolbar-tools{justify-content:flex-start;padding:0 .45rem}
+      .chq-tool{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;width:3.6rem;height:3.4rem}
+      .chq-tool .chq-icon{width:1.2rem;height:1.2rem;flex:0 0 auto}
+      .chq-tool>span{position:static;display:block;width:100%;padding:0;transform:none;border-radius:0;background:transparent;color:#5f686d;font-size:.55rem;font-weight:600;line-height:1;text-align:center;opacity:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .chq-tool.active>span{color:#fff}
       .chq-toolbar-history{margin-left:auto;margin-right:.45rem}
       .chq-workspace,.chq-workspace:has(.chq-inspector.is-collapsed){display:flex;flex-direction:column;height:auto;overflow:visible;padding:0 var(--courthub-safe-right) var(--courthub-safe-bottom) var(--courthub-safe-left)}
       .chq-stage-panel{order:1;min-height:0;padding:.55rem}
@@ -179,7 +186,7 @@ export function injectQuickEditorStyles() {
       .chq-actions>.chqw-more,.chq-actions>button[data-quick-undo],.chq-actions>button[data-quick-redo],.chq-actions>button:not(.chq-top-action){display:none}
       .chq-toolbar-center{justify-content:flex-start}
       .chq-toolbar-history{display:none}
-      .chq-tool{width:2.8rem;height:2.75rem}
+      .chq-tool{width:3.5rem}
       .chq-stage-panel{padding:.25rem}
       .chq-phase-rail{height:6.4rem;padding:.45rem}
       .chq-flow-item{flex-basis:7.35rem}

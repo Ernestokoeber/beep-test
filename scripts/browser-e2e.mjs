@@ -285,10 +285,18 @@ async function testPlayEditor2Mobile(page) {
   assert(layout.leadingTop >= 46.5 && layout.toolbarHeight >= 150, 'Die mobile Kopfzeile liegt unter der simulierten iPhone-Notch.');
   assert(layout.leadingLeft >= 20.5 && layout.actionsRight <= layout.viewportWidth - 20.5, 'Die mobile Kopfzeile missachtet die seitlichen iPhone-Safe-Areas.');
   assert(layout.workspacePaddingBottom >= 33.5, 'Der Editor lässt keinen Platz für den iPhone-Home-Indikator.');
+  const mobileToolLabels = await page.locator('.chq-toolbar-tools .chq-tool > span').evaluateAll(labels => labels.map(label => ({
+    text: label.textContent.trim(),
+    opacity: getComputedStyle(label).opacity,
+    position: getComputedStyle(label).position
+  })));
+  assert(['Auswahl', 'Laufweg', 'Pass', 'Screen', 'Pick & Roll', 'Ball'].every(label => mobileToolLabels.some(item => item.text === label)), 'Die Werkzeugbeschriftungen sind unvollständig.');
+  assert(mobileToolLabels.every(item => item.opacity === '1' && item.position === 'static'), 'Die Werkzeugbeschriftungen sind auf Touch-Geräten nicht dauerhaft sichtbar.');
   const inspectorToggle = page.locator('[data-action="toggle-inspector"]');
   assert(await inspectorToggle.getAttribute('aria-expanded') === 'false', 'Mobile startet den ausziehbaren Inspector nicht kompakt.');
   await page.getByRole('tab', { name: 'Timeline' }).tap();
   assert(await inspectorToggle.getAttribute('aria-expanded') === 'true', 'Mobile kann Timeline und Anweisungen nicht ausklappen.');
+  assert(await page.locator('.chq-line-legend').isVisible(), 'Die Linienlegende ist im mobilen Inspector nicht sichtbar.');
 
   await page.getByRole('button', { name: 'Vorschau' }).tap();
   await page.waitForSelector('.chp-overlay');
