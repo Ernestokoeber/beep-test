@@ -62,8 +62,8 @@ function rebuildSegment(source, current, core) {
     if (!originalActor || !currentActor) return;
     rebuilt.screens.push({
       ...clone(action),
-      x: core.clamp(Number(action.x || originalActor.x) + currentActor.x - originalActor.x, 16, 484),
-      y: core.clamp(Number(action.y || originalActor.y) + currentActor.y - originalActor.y, 16, 454)
+      x: core.clampX(Number(action.x || originalActor.x) + currentActor.x - originalActor.x),
+      y: core.clampY(Number(action.y || originalActor.y) + currentActor.y - originalActor.y)
     });
   });
 
@@ -76,8 +76,8 @@ function rebuildSegment(source, current, core) {
     const carrier = movedBallCarriers.at(-1);
     const actor = core.elementById(next, carrier.actorId);
     if (actor) {
-      nextBall.x = core.clamp(actor.x + carrier.offsetX, 16, 484);
-      nextBall.y = core.clamp(actor.y + carrier.offsetY, 16, 454);
+      nextBall.x = core.clampX(actor.x + carrier.offsetX);
+      nextBall.y = core.clampY(actor.y + carrier.offsetY);
     }
   }
 
@@ -87,8 +87,7 @@ function rebuildSegment(source, current, core) {
     ).at(-1);
     const receiver = lastPass ? core.elementById(next, lastPass.toId) : null;
     if (receiver) {
-      nextBall.x = core.clamp(receiver.x + 16, 16, 484);
-      nextBall.y = core.clamp(receiver.y, 16, 454);
+      Object.assign(nextBall, core.ballPointForPlayer(receiver));
     }
   }
 

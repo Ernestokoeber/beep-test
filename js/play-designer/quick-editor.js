@@ -305,7 +305,7 @@ export function mountQuickEditor(target, options = {}) {
 
   function assignBall(player) {
     if (!player || player.type !== 'offense') return toast('Bitte einen Angreifer auswählen.');
-    const point = { x: core.clamp(player.x + 16, 16, 484), y: player.y };
+    const point = core.ballPointForPlayer(player);
     updateSetupPosition('ball', point);
     persist(`Ball ist jetzt bei Spieler ${player.role}.`);
     refresh();
@@ -531,8 +531,8 @@ export function mountQuickEditor(target, options = {}) {
       draw();
       return;
     }
-    const x = core.clamp(point.x - drag.dx, 16, 484);
-    const y = core.clamp(point.y - drag.dy, 16, 454);
+    const x = core.clampX(point.x - drag.dx);
+    const y = core.clampY(point.y - drag.dy);
     const element = core.elementById(step(), drag.elementId);
     if (!element) return;
     if (element.x !== x || element.y !== y) drag.changed = true;

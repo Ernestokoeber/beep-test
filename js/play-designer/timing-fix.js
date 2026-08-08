@@ -93,7 +93,7 @@ if (tactics && core && !tactics.__timingFixApplied) {
       if (lastPass) {
         const receiver = core.elementById(to, lastPass.toId)
           || core.elementById(from, lastPass.toId);
-        if (receiver) Object.assign(targetBall, { x: receiver.x + 16, y: receiver.y });
+        if (receiver) Object.assign(targetBall, core.ballPointForPlayer(receiver));
         continue;
       }
 
@@ -109,8 +109,8 @@ if (tactics && core && !tactics.__timingFixApplied) {
       const playerEnd = motionEndPoint(from, to, carrier.motion);
       if (playerEnd) {
         Object.assign(targetBall, {
-          x: core.clamp(playerEnd.x + carrier.offset.x, 16, 484),
-          y: core.clamp(playerEnd.y + carrier.offset.y, 16, 454)
+          x: core.clampX(playerEnd.x + carrier.offset.x),
+          y: core.clampY(playerEnd.y + carrier.offset.y)
         });
       }
     }
@@ -202,7 +202,7 @@ if (tactics && core && !tactics.__timingFixApplied) {
       || core.elementById(stepTo, playerId);
     const fallback = fallbackElement ? core.point(fallbackElement) : null;
     const player = positionDuring(stepFrom, stepTo, playerId, elapsed) || fallback;
-    return player ? { x: player.x + 16, y: player.y } : null;
+    return player ? core.ballPointForPlayer(player) : null;
   }
 
   function carrierBallPoint(stepFrom, stepTo, carrier, elapsed) {
@@ -210,8 +210,8 @@ if (tactics && core && !tactics.__timingFixApplied) {
     const player = positionDuring(stepFrom, stepTo, carrier.elementId, elapsed);
     if (!player) return null;
     return {
-      x: core.clamp(player.x + carrier.offset.x, 16, 484),
-      y: core.clamp(player.y + carrier.offset.y, 16, 454)
+      x: core.clampX(player.x + carrier.offset.x),
+      y: core.clampY(player.y + carrier.offset.y)
     };
   }
 

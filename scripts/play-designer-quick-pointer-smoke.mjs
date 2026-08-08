@@ -30,6 +30,7 @@ function near(left, right, tolerance = 0.01) {
 const rect = { left: 120, top: 40, width: 1140, height: 620 };
 const metrics = pointer.fittedSvgMetrics(rect);
 const courtPoints = [
+  { x: -10, y: 120 },
   { x: 250, y: 388 }, { x: 82, y: 324 }, { x: 418, y: 324 },
   { x: 106, y: 168 }, { x: 394, y: 168 },
   { x: 250, y: 338 }, { x: 108, y: 282 }, { x: 392, y: 282 },

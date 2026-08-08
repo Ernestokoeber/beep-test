@@ -184,8 +184,8 @@ function updateVisualToken(state, point) {
 }
 
 function updateSetupBoard(state, point) {
-  const x = state.core.clamp(point.x - state.dx, 16, 484);
-  const y = state.core.clamp(point.y - state.dy, 16, 454);
+  const x = state.core.clampX(point.x - state.dx);
+  const y = state.core.clampY(point.y - state.dy);
   const origin = state.core.elementById(state.board.steps[0], state.id);
   if (!origin) return;
   if (Math.abs(origin.x - x) > .01 || Math.abs(origin.y - y) > .01) state.changed = true;

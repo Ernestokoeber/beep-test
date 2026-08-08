@@ -165,7 +165,7 @@ export function addQuickPass(boardInput, options, core) {
     curve: numeric(options?.curve, -36)
   });
   if (nextReceiver && nextBall) {
-    Object.assign(nextBall, { x: nextReceiver.x + 16, y: nextReceiver.y });
+    Object.assign(nextBall, core.ballPointForPlayer(nextReceiver));
   }
   fitStepDuration(step, start + duration, hadActions, core);
   board.currentStep = index;

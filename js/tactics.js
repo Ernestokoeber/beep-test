@@ -7,6 +7,7 @@ BT.tactics = (function() {
   const WRITER_ROLES = new Set(['admin', 'coach', 'assistant']);
   const TOKEN_TYPES = new Set(['offense', 'defense', 'ball']);
   const DRAWING_TYPES = new Set(['arrow', 'cone', 'zone', 'label']);
+  const POSITION_BOUNDS = Object.freeze({ minX: -10, maxX: 510, minY: -5, maxY: 475 });
   const ARROW_KINDS = new Set(['run', 'pass', 'dribble', 'screen', 'closeout', 'rotation']);
   const ARROW_STYLES = {
     run: { color: '#f8fafc', rgb: [248, 250, 252], dash: [] },
@@ -27,7 +28,16 @@ BT.tactics = (function() {
   function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
   function number(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
   function copy(value) { return JSON.parse(JSON.stringify(value)); }
-  function point(value) { const source = value || {}; return { x: clamp(number(source.x, 250), 16, 484), y: clamp(number(source.y, 235), 16, 454) }; }
+  function clampX(value) { return clamp(value, POSITION_BOUNDS.minX, POSITION_BOUNDS.maxX); }
+  function clampY(value) { return clamp(value, POSITION_BOUNDS.minY, POSITION_BOUNDS.maxY); }
+  function point(value) { const source = value || {}; return { x: clampX(number(source.x, 250)), y: clampY(number(source.y, 235)) }; }
+  function ballPointForPlayer(player, offsetX = 16, offsetY = 0) {
+    const source = player || { x: 250, y: 235 };
+    let xOffset = number(offsetX, 16);
+    if (source.x > 490 && xOffset > 0) xOffset *= -1;
+    if (source.x < 10 && xOffset < 0) xOffset *= -1;
+    return point({ x: source.x + xOffset, y: source.y + number(offsetY, 0) });
+  }
   function currentUser() { return BT.sync && BT.sync.getState ? BT.sync.getState().user : null; }
   function canEdit() { const user = currentUser(); return !!(user && WRITER_ROLES.has(user.role)); }
 
@@ -60,7 +70,7 @@ BT.tactics = (function() {
       };
     }
     if (type === 'ball') return { id, type, ...point(raw) };
-    if (type === 'arrow' && ARROW_KINDS.has(raw.kind || raw.style || 'run')) return { id, type, kind: raw.kind || raw.style || 'run', x: clamp(number(raw.x ?? raw.x1, 250), 16, 484), y: clamp(number(raw.y ?? raw.y1, 235), 16, 454), x2: clamp(number(raw.x2, 300), 16, 484), y2: clamp(number(raw.y2, 190), 16, 454), curve: clamp(number(raw.curve, 0), -180, 180) };
+    if (type === 'arrow' && ARROW_KINDS.has(raw.kind || raw.style || 'run')) return { id, type, kind: raw.kind || raw.style || 'run', x: clampX(number(raw.x ?? raw.x1, 250)), y: clampY(number(raw.y ?? raw.y1, 235)), x2: clampX(number(raw.x2, 300)), y2: clampY(number(raw.y2, 190)), curve: clamp(number(raw.curve, 0), -180, 180) };
     if (type === 'cone') return { id, type, label: String(raw.label || '').slice(0, 16), ...point(raw) };
     if (type === 'zone') return { id, type, shape: raw.shape === 'circle' ? 'circle' : 'rect', width: clamp(number(raw.width, 110), 30, 340), height: clamp(number(raw.height, 80), 30, 340), label: String(raw.label || '').slice(0, 24), ...point(raw) };
     if (type === 'label') return { id, type, text: String(raw.text || '').slice(0, 64), ...point(raw) };
@@ -76,7 +86,7 @@ BT.tactics = (function() {
   }
   function normalizeScreen(raw) {
     if (!raw || typeof raw !== 'object' || !raw.elementId) return null;
-    return { id: String(raw.id || uid('screen_')), type: 'screen', elementId: String(raw.elementId), relation: raw.relation === 'simultaneous' ? 'simultaneous' : 'after', ...(raw.beneficiaryId ? { beneficiaryId: String(raw.beneficiaryId) } : {}), ...(raw.targetDefenderId ? { targetDefenderId: String(raw.targetDefenderId) } : {}), ...(raw.groupId ? { groupId: String(raw.groupId) } : {}), ...(raw.groupType ? { groupType: String(raw.groupType) } : {}), start: clamp(number(raw.start, .4), 0, 20), duration: clamp(number(raw.duration, 1), .15, 20), x: clamp(number(raw.x, 250), 16, 484), y: clamp(number(raw.y, 230), 16, 454), angle: clamp(number(raw.angle, 0), -180, 180) };
+    return { id: String(raw.id || uid('screen_')), type: 'screen', elementId: String(raw.elementId), relation: raw.relation === 'simultaneous' ? 'simultaneous' : 'after', ...(raw.beneficiaryId ? { beneficiaryId: String(raw.beneficiaryId) } : {}), ...(raw.targetDefenderId ? { targetDefenderId: String(raw.targetDefenderId) } : {}), ...(raw.groupId ? { groupId: String(raw.groupId) } : {}), ...(raw.groupType ? { groupType: String(raw.groupType) } : {}), start: clamp(number(raw.start, .4), 0, 20), duration: clamp(number(raw.duration, 1), .15, 20), x: clampX(number(raw.x, 250)), y: clampY(number(raw.y, 230)), angle: clamp(number(raw.angle, 0), -180, 180) };
   }
   function normalizeTransition(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
@@ -189,7 +199,7 @@ BT.tactics = (function() {
       Object.assign(ball, quadraticPoint(start, end, activePass.curve, clamp((location.elapsed - activePass.start) / activePass.duration, 0, 1)));
     } else if (ball && completedPass) {
       const receiver = positionDuring(from, to, completedPass.toId, location.elapsed);
-      if (receiver) Object.assign(ball, { x: receiver.x + 16, y: receiver.y });
+      if (receiver) Object.assign(ball, ballPointForPlayer(receiver));
     }
     snapshot._activeScreens = transition.screens.filter(screen => location.elapsed >= screen.start && location.elapsed <= screen.start + screen.duration);
     return snapshot;
@@ -199,7 +209,7 @@ BT.tactics = (function() {
     const board = defaultBoard(), first = board.steps[0], next = cloneStep(first); board.steps.push(next);
     const set = (step, id, x, y) => Object.assign(elementById(step, id), { x, y });
     const move = (id, path, start = 0, duration = first.duration) => { const end = path[path.length - 1]; set(next, id, end.x, end.y); first.transition.motions.push({ id: uid('motion_'), type: 'move', elementId: id, start, duration, path: path.map(point) }); };
-    const pass = (fromId, toId, start, duration, curve) => { first.transition.passes.push({ id: uid('pass_'), type: 'pass', fromId, toId, start, duration, curve }); const receiver = elementById(next, toId), ball = elementById(next, 'ball'); if (receiver && ball) Object.assign(ball, { x: receiver.x + 16, y: receiver.y }); };
+    const pass = (fromId, toId, start, duration, curve) => { first.transition.passes.push({ id: uid('pass_'), type: 'pass', fromId, toId, start, duration, curve }); const receiver = elementById(next, toId), ball = elementById(next, 'ball'); if (receiver && ball) Object.assign(ball, ballPointForPlayer(receiver)); };
     if (name === 'horns') {
       board.title = 'Horns – Elbow Entry'; board.description = 'Point Guard nutzt den rechten Screen, der linke Big setzt den Backscreen.'; board.category = 'Horns'; first.duration = 2.6;
       [[250,395],[66,302],[434,302],[176,214],[324,214]].forEach((c,i) => { set(first,'o'+(i+1),c[0],c[1]); set(next,'o'+(i+1),c[0],c[1]); });
@@ -247,6 +257,6 @@ BT.tactics = (function() {
     loadModule().then(module => { if (!loading.isConnected) return; loading.remove(); module.mountPlayer(target); }).catch(() => {});
   }
 
-  const core = { uid, clamp, number, copy, point, currentUser, canEdit, startingElements, emptyTransition, defaultStep, defaultBoard, normalizeTransition, normalizeStep, normalizeBoard, cloneStep, elements, elementById, arrowStyle, boardDuration, stepStartTime, locateTime, distance, pointOnPath, quadraticPoint, positionDuring, interpolateStep, snapshotAt };
+  const core = { uid, clamp, number, copy, positionBounds: POSITION_BOUNDS, clampX, clampY, point, ballPointForPlayer, currentUser, canEdit, startingElements, emptyTransition, defaultStep, defaultBoard, normalizeTransition, normalizeStep, normalizeBoard, cloneStep, elements, elementById, arrowStyle, boardDuration, stepStartTime, locateTime, distance, pointOnPath, quadraticPoint, positionDuring, interpolateStep, snapshotAt };
   return { render, renderPlayer, normalizeBoard, templates, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
 })();

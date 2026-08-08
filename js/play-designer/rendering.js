@@ -38,8 +38,8 @@ export function projectPoint(value) {
 
 export function unprojectPoint(value) {
   return {
-    x: core.clamp((Number(value?.x ?? 380) - COURT_VIEW.originX) / COURT_VIEW.scale, 16, 484),
-    y: core.clamp((Number(value?.y ?? 274) - COURT_VIEW.originY) / COURT_VIEW.scale, 16, 454)
+    x: core.clampX((Number(value?.x ?? 380) - COURT_VIEW.originX) / COURT_VIEW.scale),
+    y: core.clampY((Number(value?.y ?? 274) - COURT_VIEW.originY) / COURT_VIEW.scale)
   };
 }
 

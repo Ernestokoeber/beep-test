@@ -61,8 +61,8 @@ export function parallelUnproject(point) {
   const depth = depthFromScreenY(point?.y ?? VIEW.farY);
   return {
     x: clamp(250 + ((Number(point?.x ?? VIEW.centerX) - VIEW.centerX)
-      / VIEW.targetHalfWidth) * 250, 16, 484),
-    y: clamp(depth * 470, 16, 454)
+      / VIEW.targetHalfWidth) * 250, -10, 510),
+    y: clamp(depth * 470, -5, 475)
   };
 }
 

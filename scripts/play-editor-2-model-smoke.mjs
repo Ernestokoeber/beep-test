@@ -73,4 +73,18 @@ assert(core.elementById(normalizedMixed.steps[1], 'd1').defenseMode === 'zone', 
 assert(normalizedMixed.steps[0].instruction === 'X1 bleibt in der Zone.', 'Traineranweisung geht beim Laden verloren.');
 assert(normalizedMixed.steps[1].instruction === '', 'Eine duplizierte Folgephase übernimmt ungewollt die vorherige Traineranweisung.');
 
+const inbound = core.defaultBoard();
+Object.assign(core.elementById(inbound.steps[0], 'o1'), { x: -10, y: 120 });
+Object.assign(core.elementById(inbound.steps[0], 'ball'), { x: 6, y: 120 });
+inbound.steps[0].transition.motions.push({
+  id: 'inbound-cut', type: 'move', elementId: 'o1', start: 0, duration: 1,
+  path: [{ x: -10, y: 120 }, { x: 80, y: 120 }]
+});
+const normalizedInbound = recorder.normalizeRecordedBoard(inbound, core);
+assert(core.elementById(normalizedInbound.steps[0], 'o1').x === -10, 'Einwerfer wird beim Speichern zurück auf das Spielfeld gesetzt.');
+assert(normalizedInbound.steps[0].transition.motions[0].path[0].x === -10, 'Ein Laufweg darf nicht außerhalb des Spielfelds beginnen.');
+assert(core.point({ x: -100, y: 800 }).x === core.positionBounds.minX, 'Linker Außenbereich wird nicht sicher begrenzt.');
+assert(core.point({ x: -100, y: 800 }).y === core.positionBounds.maxY, 'Unterer Außenbereich wird nicht sicher begrenzt.');
+assert(core.ballPointForPlayer({ x: 510, y: 120 }).x < 510, 'Ball wird beim rechten Seiteneinwurf außerhalb des sichtbaren Bereichs platziert.');
+
 console.log('CourtHub Play Editor 2.0: Datenmodell und Migration erfolgreich geprüft.');

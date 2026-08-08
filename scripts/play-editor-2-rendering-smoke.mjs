@@ -12,6 +12,8 @@ window.BT = {
   tactics: {
     __core: {
       clamp: (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0)),
+      clampX: value => Math.max(-10, Math.min(510, Number(value) || 0)),
+      clampY: value => Math.max(-5, Math.min(475, Number(value) || 0)),
       normalizeTransition: value => value || { motions: [], passes: [], screens: [] },
       elements: (step, type) => (step?.elements || []).filter(item => !type || item.type === type),
       elementById: (step, id) => (step?.elements || []).find(item => item.id === id)
@@ -34,6 +36,9 @@ const bottom = renderer.projectPoint({ x: 25, y: 450 });
 const topWidth = renderer.projectPoint({ x: 475, y: 20 }).x - top.x;
 const bottomWidth = renderer.projectPoint({ x: 475, y: 450 }).x - bottom.x;
 assert(Math.abs(topWidth - bottomWidth) < 0.01, 'Das feste 2D-Halbfeld verjüngt sich weiterhin.');
+const inboundPoint = { x: -10, y: 120 };
+const inboundRoundTrip = renderer.unprojectPoint(renderer.projectPoint(inboundPoint));
+assert(Math.abs(inboundRoundTrip.x - inboundPoint.x) < 0.01, 'Eine Außenposition am Seiteneinwurf geht beim Zeigen verloren.');
 
 const court = renderer.createCourt();
 assert(court.dataset.projection === 'top-down', 'Das Spielfeld ist nicht als 2D-Vogelperspektive markiert.');

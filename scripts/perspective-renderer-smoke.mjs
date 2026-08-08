@@ -13,6 +13,8 @@ window.BT = {
   tactics: {
     __core: {
       clamp: (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0)),
+      clampX: value => Math.max(-10, Math.min(510, Number(value) || 0)),
+      clampY: value => Math.max(-5, Math.min(475, Number(value) || 0)),
       normalizeTransition: value => value || { motions: [], passes: [], screens: [] },
       elements: (step, type) => (step?.elements || []).filter(item => !type || item.type === type),
       elementById: (step, id) => (step?.elements || []).find(item => item.id === id)

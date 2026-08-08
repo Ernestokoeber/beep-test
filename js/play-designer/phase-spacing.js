@@ -52,8 +52,8 @@ export function suggestScreenPlacement(step, beneficiaryId, pointInput, core) {
   const adjusted = distance < minimum;
   const output = adjusted
     ? {
-        x: core.clamp(defender.x + direction.x * minimum, 16, 484),
-        y: core.clamp(defender.y + direction.y * minimum, 16, 454)
+        x: core.clampX(defender.x + direction.x * minimum),
+        y: core.clampY(defender.y + direction.y * minimum)
       }
     : point;
   return {
@@ -84,8 +84,8 @@ export function snapPhaseReadable(boardInput, stepIndex, core, minimum = 34) {
         if (distance >= minimum - 0.001) continue;
         const direction = unitVector(first, second, `${first.id}:${second.id}`);
         const missing = minimum - distance;
-        second.x = core.clamp(second.x + direction.x * missing, 16, 484);
-        second.y = core.clamp(second.y + direction.y * missing, 16, 454);
+        second.x = core.clampX(second.x + direction.x * missing);
+        second.y = core.clampY(second.y + direction.y * missing);
         changed = true;
       }
     }
