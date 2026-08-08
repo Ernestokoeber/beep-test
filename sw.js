@@ -1,6 +1,6 @@
 // Bump this whenever the offline asset manifest changes so installed clients
 // cannot keep an older editor or planner bundle.
-const CACHE = 'courthub-v128';
+const CACHE = 'courthub-v129';
 const ASSETS = [
   './',
   './index.html',
@@ -35,7 +35,6 @@ const ASSETS = [
   './js/play-designer/layout-fix.js',
   './js/play-designer/timing-core.js',
   './js/play-designer/timing-fix.js',
-  './js/play-designer/editor-stability.js',
   './js/play-designer/complete-delete.js',
   './js/play-designer/quick-core.js',
   './js/play-designer/phase-recorder-core.js',
@@ -54,13 +53,11 @@ const ASSETS = [
   './js/play-designer/export-dialog.js',
   './js/play-designer/play-library.js',
   './js/play-designer/quick-workflow.js',
-  './js/play-designer/quick-details.js',
   './js/play-designer/quick-reorder.js',
   './js/play-designer/tactic-trash.js',
   './js/play-designer/gif-encoder.js',
   './js/play-designer/pdf-writer.js',
   './js/play-designer/history.js',
-  './js/play-designer/editor.js',
   './js/play-designer/viewer.js',
   './js/play-designer/exports.js',
   './js/video-import/core.js',

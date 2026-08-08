@@ -602,7 +602,7 @@ export function enhanceQuickEditor(root, target, options = {}) {
     if (!locked) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    toast('Direktes Verschieben ist nur in der Grundaufstellung möglich. Nutze für spätere Positionen einen Laufweg oder öffne den Profi-Modus.');
+    toast('Direktes Verschieben ist nur in der Grundaufstellung möglich. Nutze für spätere Positionen einen Laufweg.');
   }, true);
 
   const flow = root.querySelector('[data-role="flow"]');

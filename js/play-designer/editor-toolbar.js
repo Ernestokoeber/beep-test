@@ -55,7 +55,6 @@ export function editorToolbarMarkup() {
             <button type="button" data-action="save">Speichern &amp; synchronisieren</button>
             <button type="button" data-action="new">Neues Play</button>
             <button type="button" data-action="video-import">Video → Play</button>
-            <button type="button" data-action="pro-mode">Profi-Modus</button>
             <button class="danger" type="button" data-action="delete">Play löschen</button>
           </div>
         </details>

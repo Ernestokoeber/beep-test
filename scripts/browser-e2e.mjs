@@ -52,12 +52,13 @@ async function openQuickEditor(page, boardFactory = 'default') {
       addMove(third, final, 'd1', 32, 28, 'e2e-third');
     }
 
-    window.BT.storage.setSetting('tacticsEditorMode', 'quick');
+    window.BT.storage.setSetting('tacticsEditorMode', 'pro');
     window.BT.storage.setSetting('tacticsBoardDraft', board);
     location.hash = '#/tactics';
     window.dispatchEvent(new HashChangeEvent('hashchange'));
   }, boardFactory);
   await page.waitForSelector('[data-role="tactics-quick"]');
+  assert(await page.getByRole('button', { name: /Profi-Modus/ }).count() === 0, 'Ein alter gespeicherter Profi-Modus öffnet noch den Legacy-Editor.');
   await page.waitForSelector('.chq-token-hit');
   await page.waitForTimeout(120);
 }

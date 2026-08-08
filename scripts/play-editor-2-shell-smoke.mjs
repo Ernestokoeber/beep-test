@@ -72,6 +72,7 @@ const instruction = view.querySelector('[data-role="phase-instruction"]');
 assert(instruction && instruction.value === 'Spacing halten.', 'Phasenanweisung wird nicht geladen.');
 assert(view.querySelector('[data-defense-mode="man"]'), 'Werkzeug für Mannverteidigung fehlt.');
 assert(view.querySelector('[data-defense-mode="zone"]'), 'Werkzeug für Zonenverteidigung fehlt.');
+assert(!view.querySelector('[data-action="pro-mode"]'), 'Der entfernte Profi-Modus ist noch erreichbar.');
 const editorStyles = window.document.getElementById('courthub-quick-editor-v1')?.textContent || '';
 assert(editorStyles.includes('safe-area-inset-top'), 'Der Editor berücksichtigt die iPhone-Notch nicht.');
 assert(editorStyles.includes('safe-area-inset-bottom'), 'Der Editor berücksichtigt den iPhone-Home-Indikator nicht.');

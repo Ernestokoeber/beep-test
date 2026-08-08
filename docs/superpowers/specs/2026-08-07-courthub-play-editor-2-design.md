@@ -94,7 +94,7 @@ Die Kopfzeile enthält nur häufig benötigte Funktionen:
 - Export,
 - Vorschau.
 
-Selten benötigte Einstellungen werden unter „Mehr“ oder in einem Eigenschaftsbereich angeboten. Manuelle Start- und Dauerwerte bleiben dem Profi-Modus vorbehalten.
+Selten benötigte Einstellungen werden unter „Mehr“ oder in einem Eigenschaftsbereich angeboten. Einen separaten Profi-Modus gibt es nicht; CourtHub verwendet ausschließlich den neuen Editor.
 
 ### Phasenleiste links
 

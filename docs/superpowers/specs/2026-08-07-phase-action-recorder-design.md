@@ -42,7 +42,7 @@ Beim Auswählen einer Phase zeigt das Feld deren Ausgangsposition. Beim Auswähl
 
 CourtHub berechnet die Dauer jeder Aktion aus Aktionstyp und Weglänge. Die Dauer einer Phase entspricht der längsten enthaltenen Aktion. Kürzere parallele Aktionen enden früher, ohne die nächste Phase vorzeitig zu starten. Pausen werden als eigene Phase gespeichert.
 
-Die Zeitwerte bleiben im Datenmodell erhalten und können im Profi-Modus weiterhin feinjustiert werden. Im Aktionsrekorder werden sie nicht als primäre Eingabe angezeigt.
+Die Zeitwerte bleiben für bestehende Plays im Datenmodell erhalten. CourtHub berechnet sie im einheitlichen Editor automatisch und bietet keinen separaten Profi-Modus mehr an.
 
 ## Screen- und Pick-and-Roll-Logik
 

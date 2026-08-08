@@ -50,104 +50,6 @@ function toast(message) {
 
 function template() {
   return editorShellMarkup();
-  /* Legacy markup remains below temporarily as a compatibility reference. */
-  return `
-    <header class="chq-header">
-      <div class="chq-brand">
-        <div class="chq-logo">CH</div>
-        <div>
-          <span class="chq-kicker">CourtHub Schnellmodus</span>
-          <h1>Play einfach aufbauen</h1>
-        </div>
-      </div>
-      <div class="chq-actions">
-        <div class="chq-mode" aria-label="Editor-Modus">
-          <button type="button" class="active">Schnell</button>
-          <button type="button" data-action="pro-mode">Profi</button>
-        </div>
-        <button class="chq-btn" type="button" data-action="video-import">Video → Play</button>
-        <button class="chq-btn" type="button" data-action="new">Neu</button>
-        <button class="chq-btn primary" type="button" data-action="save">Speichern</button>
-      </div>
-    </header>
-
-    <div class="chq-grid">
-      <section class="chq-card">
-        <div class="chq-card-head">
-          <h2 data-role="stage-title">Neues Play</h2>
-          <span class="chq-kicker" data-role="stage-step">Aufstellung</span>
-        </div>
-        <div class="chq-stage">
-          <div class="chq-stage-copy">
-            <div><strong data-role="stage-action">Grundaufstellung</strong><span data-role="stage-help">Spieler und Ball positionieren.</span></div>
-            <button class="chq-btn danger" type="button" data-action="delete">Play vollständig löschen</button>
-          </div>
-          <div class="chq-court-wrap" data-role="court"></div>
-          <div class="chq-transport">
-            <div class="chq-transport-buttons">
-              <button class="chq-btn icon" type="button" data-action="restart" aria-label="Neu starten">↺</button>
-              <button class="chq-btn icon primary" type="button" data-action="play" aria-label="Abspielen">▶</button>
-            </div>
-            <div class="chq-scrubber">
-              <span data-role="time">0.0 s</span>
-              <input type="range" min="0" value="0" data-role="scrubber">
-              <span data-role="total">0.0 s</span>
-            </div>
-            <div class="chq-speed">
-              <label class="chq-help" style="margin:0">Tempo</label>
-              <select data-role="speed"><option value=".75">Langsam</option><option value="1" selected>Normal</option><option value="1.3">Schnell</option></select>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <aside class="chq-side">
-        <section class="chq-card">
-          <div class="chq-card-body">
-            <div class="chq-section-title"><span>1</span><strong>Aufstellung</strong></div>
-            <p class="chq-help">Name vergeben, Spieler verschieben und den Ball einem Angreifer zuordnen.</p>
-            <div class="chq-fields">
-              <div class="chq-field"><label>Play-Name</label><input maxlength="100" data-role="title"></div>
-              <div class="chq-field"><label>Kategorie</label><select data-role="category"><option>Offense</option><option>Defense</option><option>Horns</option><option>5-Out</option><option>Transition</option><option>Einwurf</option><option>Press Break</option></select></div>
-            </div>
-            <div class="chq-tools" style="margin-top:.55rem">
-              <button class="chq-tool active" type="button" data-tool="select">Verschieben<small>Spieler frei setzen</small></button>
-              <button class="chq-tool" type="button" data-tool="ball">Ball zuordnen<small>Ballführer wählen</small></button>
-            </div>
-          </div>
-        </section>
-
-        <section class="chq-card">
-          <div class="chq-card-body">
-            <div class="chq-section-title"><span>2</span><strong>Aktion hinzufügen</strong></div>
-            <p class="chq-help">CourtHub legt Dauer und Startzeit automatisch fest.</p>
-            <div class="chq-relation" aria-label="Reihenfolge">
-              <button type="button" class="active" data-relation="after">Danach</button>
-              <button type="button" data-relation="same">Gleichzeitig</button>
-            </div>
-            <div class="chq-tools">
-              <button class="chq-tool" type="button" data-tool="move">Lauf / Dribbling<small>Weg zeichnen</small></button>
-              <button class="chq-tool" type="button" data-tool="pass">Pass<small>Geber → Empfänger</small></button>
-              <button class="chq-tool" type="button" data-tool="screen">Screen<small>Steller → Spieler → Position</small></button>
-              <button class="chq-tool" type="button" data-tool="pick-and-roll">Pick &amp; Roll<small>Screen und beide Wege</small></button>
-              <button class="chq-tool" type="button" data-action="pause">Pause<small>0,8 Sekunden</small></button>
-            </div>
-            <div class="chq-pending" data-role="pending" hidden></div>
-            <button class="chq-btn chq-cancel-recording" type="button" data-action="cancel-recording" hidden>Aktion abbrechen</button>
-            <div class="chq-status" data-role="status">${TOOL_HELP.select}</div>
-          </div>
-        </section>
-
-        <section class="chq-card">
-          <div class="chq-card-body">
-            <div class="chq-section-title"><span>3</span><strong>Phasen</strong></div>
-            <p class="chq-help">Eine Phase enthält alle Aktionen, die gleichzeitig passieren.</p>
-            <div class="chq-spacing-warning" data-role="spacing-warning" hidden><span></span><button class="chq-btn" type="button" data-action="snap-readable">Lesbar einrasten</button></div>
-            <div class="chq-flow" data-role="flow"></div>
-          </div>
-        </section>
-      </aside>
-    </div>`;
 }
 
 function cleanDraft(points) {
@@ -850,7 +752,6 @@ export function mountQuickEditor(target, options = {}) {
     refresh();
   };
 
-  q('[data-action="pro-mode"]').onclick = () => options.onModeChange?.('pro');
   q('[data-action="video-import"]').onclick = () => options.onVideoImport?.();
 
   persist();
