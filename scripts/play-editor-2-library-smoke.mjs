@@ -27,8 +27,15 @@ assert(filtered.length === 1 && filtered[0].id === 'horns', 'Suche und Filter ar
 const latest = library.filterAndSortPlays(plays, { sort: 'updated' });
 assert(latest[0].id === 'horns', 'Sortierung nach zuletzt geändert ist falsch.');
 
-const root = library.createPlayLibrary({ plays, collections: [{ id: 'book-1', title: 'Herren Playbook', playIds: ['horns'] }] });
+let newPlayRequests = 0;
+const root = library.createPlayLibrary({
+  plays,
+  collections: [{ id: 'book-1', title: 'Herren Playbook', playIds: ['horns'] }],
+  onCreatePlay: () => { newPlayRequests += 1; }
+});
 assert(root.querySelector('[data-role="library-search"]'), 'Bibliothekssuche fehlt.');
+root.querySelector('[data-action="create-play"]').click();
+assert(newPlayRequests === 1, 'Aus der Bibliothek kann kein neues Play erstellt werden.');
 for (const filter of ['man-offense', 'zone-offense', 'pick-and-roll', 'horns', 'inbound', 'press-break']) {
   assert(root.querySelector(`[data-library-filter="${filter}"]`), `Filter ${filter} fehlt.`);
 }

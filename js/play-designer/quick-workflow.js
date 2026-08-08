@@ -382,6 +382,7 @@ function openPlaybookV2(reload) {
     const library = createPlayLibrary({
       plays: items,
       collections,
+      onCreatePlay: () => openBoard(core.defaultBoard()),
       onOpen: openBoard,
       onDuplicate: item => {
         const duplicate = clone(item);

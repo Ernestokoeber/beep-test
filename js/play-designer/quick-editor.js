@@ -727,13 +727,20 @@ export function mountQuickEditor(target, options = {}) {
   q('[data-action="new"]').onclick = () => {
     if (!window.confirm('Aktuellen Entwurf verwerfen und ein neues Play beginnen?')) return;
     stop();
+    q('.chq-header-more').open = false;
     board = normalizeRecordedBoard(core.defaultBoard(), core);
     time = 0;
     tool = 'select';
     relation = 'after';
     pending = null;
+    drag = null;
+    draft = null;
+    selectedElementId = null;
+    selectedActionId = null;
+    root.dataset.inspectorTab = 'timeline';
     persist('Neues Play begonnen.');
     refresh();
+    q('[data-role="title"]').focus();
   };
 
   q('[data-action="delete"]').onclick = () => {

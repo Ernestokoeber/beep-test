@@ -244,6 +244,30 @@ async function testPlayEditor2Desktop(page) {
   assert(await page.locator('.cha-player [data-speed]').count() === 3, 'Dem Animationsplayer fehlen die drei Geschwindigkeiten.');
   await page.getByRole('button', { name: 'Animationsplayer schließen' }).click();
   await page.getByRole('button', { name: 'Vorschau schließen' }).click();
+
+  await page.locator('[data-role="title"]').fill('Alter Entwurf');
+  await page.locator('.chq-header-more > summary').click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Neues Play', exact: true }).click();
+  const freshFromMenu = await page.evaluate(() => {
+    const board = window.BT.storage.getSetting('tacticsBoardDraft', null);
+    return {
+      title: board?.title,
+      id: board?.id || null,
+      menuOpen: document.querySelector('.chq-header-more')?.open === true,
+      titleField: document.querySelector('[data-role="title"]')?.value
+    };
+  });
+  assert(freshFromMenu.title === 'Neues Play' && freshFromMenu.titleField === 'Neues Play' && !freshFromMenu.id, 'Der Menüpunkt erstellt keinen leeren neuen Entwurf.');
+  assert(freshFromMenu.menuOpen === false, 'Das Aktionsmenü bleibt nach „Neues Play“ geöffnet.');
+
+  await page.getByRole('button', { name: 'Zurück zur Taktikbibliothek' }).click();
+  await page.waitForSelector('.chl-library');
+  assert(await page.locator('.chl-new-play').isVisible(), 'Der Taktikbibliothek fehlt der sichtbare „Neues Play“-Button.');
+  await page.locator('.chl-new-play').click();
+  await page.waitForSelector('.chqw-overlay', { state: 'detached' });
+  const freshFromLibrary = await page.evaluate(() => window.BT.storage.getSetting('tacticsBoardDraft', null));
+  assert(freshFromLibrary?.title === 'Neues Play' && !freshFromLibrary?.id, 'Aus der Taktikbibliothek wird kein neues Play geöffnet.');
 }
 
 async function testPlayEditor2Mobile(page) {
