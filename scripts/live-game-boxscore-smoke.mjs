@@ -81,3 +81,14 @@ for(let period=1;period<=6;period++){
 }
 assert.equal(p('p1').plusMinus,-6);assert.equal(p('p1').minutesSeconds,3000);
 console.log('Live boxscore: lineup scoring, participation, time, corrections and coverage passed.');
+// Execute the service worker install handler: the projection must be cached offline.
+const {readFileSync}=await import('node:fs');
+const {runInNewContext}=await import('node:vm');
+const listeners=new Map(),cached=new Set();let installed;
+runInNewContext(readFileSync(new URL('../sw.js',import.meta.url),'utf8'),{
+  self:{addEventListener:(type,fn)=>listeners.set(type,fn),skipWaiting(){}},
+  caches:{open:async()=>({addAll:async paths=>{for(const path of paths)cached.add(path);}})}
+});
+listeners.get('install')({waitUntil:p=>{installed=p;}});await installed;
+assert.ok(cached.has('./js/live-game/boxscore.mjs'),'Offline install must cache the new projection');
+console.log('Live boxscore: offline install includes projection.');

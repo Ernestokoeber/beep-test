@@ -1,13 +1,17 @@
 # Live-Spielstatistik in CourtHub
 
-Für einen Coach am Handy. Erfasst werden ausschließlich Aktionen der eigenen
-Mannschaft. Die Trainingsuhr bleibt eine separate Funktion.
+Für einen Coach am Handy. Individuelle Aktionen werden ausschließlich für die
+eigene Mannschaft erfasst. Gegnerische Treffer werden als Teampunkte festgehalten,
+damit Plus/Minus berechnet werden kann. Die Trainingsuhr bleibt separat.
 
 ## Vor dem Spiel
 
 1. App einmal online öffnen, unter **Konto & Sync** anmelden und synchronisieren.
 2. Unter **Spiele** das Spiel auswählen und **Live erfassen** öffnen.
 3. Spieltagskader und genau fünf Starter auswählen. Abschnittsdauer einstellen.
+   Trikotnummern für dieses Spiel prüfen: `0` und `00` sind verschieden; fehlende
+   Nummern dürfen leer bleiben. Profiländerungen verändern diesen Spieltagskader
+   nicht rückwirkend. Doppelte Nummern sind nicht zulässig.
 4. **Erfassung starten** legt das lokale Protokoll an; **Uhr starten** beginnt
    erst danach die Spielzeit. Die Hallenuhr wird nicht ferngesteuert.
 
@@ -15,19 +19,22 @@ Mannschaft. Die Trainingsuhr bleibt eine separate Funktion.
 
 - Spieler antippen, anschließend Treffer, Fehlwurf, Rebound oder andere Aktion.
   Jede Aktion wird vor der Anzeige in IndexedDB gespeichert.
+- Gegnerische Treffer ohne Spielerauswahl über **Gegner +1**, **+2**, **+3** erfassen.
+  Eigene Treffer ausschließlich beim jeweiligen Spieler buchen. Angezeigt wird
+  der selbst erfasste, nicht der offizielle Spielstand.
 - Spieluhr bei Unterbrechungen selbst stoppen. Nur laufende Spielzeit zählt.
 - **Uhr anhalten und wechseln** stoppt zuerst die Uhr. Aus- und Einwechslungen
   gemeinsam auswählen, dann bestätigen. Bei weniger als fünf Spielern Unterzahl
   ausdrücklich bestätigen. Die Uhr danach selbst wieder starten.
 - Fünf Fouls erzeugen einen Hinweis, keine automatische Auswechslung.
-- **Letzte Aktion rückgängig** betrifft die letzte Statistikaktion, Wechselgruppe
+- **Letzte Aktion rückgängig** betrifft die letzte Statistikaktion, Gegnerpunkte, Wechselgruppe
   oder Kaderkorrektur. Widersprüchliche Folgeaktionen verhindern die Änderung.
 - **Uhr korrigieren** setzt die angehaltene Uhr auf MM:SS. Betroffene Wechselzeiten
   müssen unter **Protokoll korrigieren** gemeinsam mit den Pausenzeiten geändert
   werden. Das Protokoll wird nicht still repariert.
 - Nach 0:00 den nächsten Abschnitt ausdrücklich vorbereiten. Nach den regulären
   Abschnitten folgen Verlängerungen. Keine automatische Weiterzählung in Pausen.
-- **Kader korrigieren** ergänzt Nachmeldungen oder korrigiert Namen, ohne die
+- **Kader korrigieren** ergänzt Nachmeldungen oder korrigiert Namen/Nummern, ohne die
   ursprüngliche Historie zu löschen.
 
 ## Speicherung und Offlinebetrieb
@@ -71,10 +78,34 @@ zusätzlicher Bestätigung löschen. Vorher auch andere Geräte synchronisieren.
 im Korrekturmodus. **Live-Auswertung** zeigt Punkte, FT/2P/3P, FG, Quoten,
 OREB/DREB/REB, AST/STL/BLK/TO/PF, Einsatzminuten und Aufstellungsverlauf.
 
+Zusätzlich zeigt der Bericht Spieltagsnummer, **Gespielt** bzw. **DNP – nicht
+eingesetzt** und Plus/Minus. Während des Spiels heißt DNP noch „Noch nicht
+eingesetzt“. Auch eine Einwechslung ohne verstrichene Sekunde zählt als Einsatz;
+die Minutenanzeige allein entscheidet das nicht. Intern bleiben Millisekunden
+erhalten, im Bericht stehen außerdem ganze Sekunden zur Verfügung.
+
+Plus/Minus verteilt jeden erfassten eigenen bzw. gegnerischen Treffer auf die
+damals aktive eigene Aufstellung. Bei identischer Spielzeit zählt die Reihenfolge
+vor oder nach dem Wechsel. Nach Korrekturen werden die Werte neu berechnet.
+DNP-Spieler erhalten keinen numerischen Plus/Minus-Wert.
+
+Beim Abschluss nur dann **Gesamten Punkteverlauf beider Teams erfasst** auswählen,
+wenn alle Treffer und Wechsel richtig erfasst wurden. Ohne Bestätigung lässt
+sich das Spiel ebenfalls abschließen, die Werte bleiben ausdrücklich vorläufig.
+Nach nachträglicher Statistik-/Zeitkorrektur im Korrekturmodus den **Punkteverlauf
+bestätigen**. Eine alte Bestätigung wird dadurch nicht automatisch erneuert.
+Ein passender Endstand allein beweist keine korrekte Zuordnung zu Spielern.
+
+Alte Erfassungen (Format 1) bleiben unverändert nutzbar, ohne Gegnerpunkte und
+ohne geschätztes Plus/Minus. Diese Ergänzungen gelten für neu angelegte
+Erfassungen (Format 2). Vor einem neuen Spiel die App auf allen Geräten online
+aktualisieren. Bei einer nicht unterstützten Datenversion aktualisieren, niemals
+Browserdaten löschen oder eine neue Erfassung über die alte schreiben.
+
 Live-Auswertung, bestehender manueller Boxscore und Atlas bleiben unabhängige
 Quellen. Keine automatische Addition oder Übertragung zwischen ihnen. Bei
 eindeutiger Lindau-Zuordnung wird eine Differenz zum gepflegten Ergebnis gezeigt.
-Keine Gegnerstatistiken, kein Plus/Minus und keine API zur offiziellen Ergebnis-App.
+Keine individuellen Gegnerstatistiken und keine API zur offiziellen Ergebnis-App.
 
 ## Technische Abnahme
 
