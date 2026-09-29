@@ -9,8 +9,12 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[]}={}){
   const overview=el('div'),form=el('form'),status=el('p');status.setAttribute('role','status');details.append(overview,form,status);
   const fields={};for(const [key,label]of [['goals','Spielziele'],['warmup','Aufwärmen'],['coachingNote','Coaching-Notiz'],['closingNote','Abschlussnotiz']]){const l=el('label',label),n=el('textarea');n.dataset.field=key;n.maxLength=4000;n.value=base[key];l.append(n);form.append(l);fields[key]=n;}
   const save=el('button','Notizen speichern');save.type='submit';form.append(save);
+  const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;details.append(discard);
+  discard.addEventListener('click',()=>{dirty=false;update(controller.getState());});
   container.append(hint,pause,liveHost,details,conflicts,report);
-  function mark(){if(!dirty){parents=controller.getState().heads;base=clone(controller.getState().draft);}dirty=true;revision++;status.textContent='Notizen ungespeichert';}
+  // Base and parents belong to the displayed fields, including a focused field
+  // whose remote update was deliberately held back.
+  function mark(){dirty=true;revision++;status.textContent='Notizen ungespeichert';}
   form.addEventListener('input',mark);
   function flush(){
     if(saving)return pending.then(()=>dirty?flush():true);if(!dirty)return Promise.resolve(true);
@@ -27,11 +31,12 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[]}={}){
       const box=s.liveState.boxscore;pause.replaceChildren(el('h3',half?'Halbzeit':'Abschnittspause'),el('p',`Erfasster Stand: ${box.teamPoints} : ${box.opponentPoints??'–'}`),el('p','Aufstellung und Spielziele prüfen. Nächsten Abschnitt unten bewusst vorbereiten und starten.'),el('p',s.draft.goals));
       const list=el('ul');for(const id of s.liveState.lineups.onCourt){const p=box.players.find(p=>p.id===id);if(p)list.append(el('li',`${p.name} · ${p.fouls} Fouls`));}pause.append(list);
     }
-    if(!dirty&&!saving){parents=s.heads;base=clone(s.draft);for(const [k,n]of Object.entries(fields))if(document.activeElement!==n)n.value=base[k];}
+    if(!dirty&&!saving&&!form.contains(document.activeElement)){parents=s.heads;base=clone(s.draft);for(const [k,n]of Object.entries(fields))n.value=base[k];}
+    discard.hidden=!(dirty&&s.readOnly);discard.disabled=saving;
     for(const n of Object.values(fields))n.disabled=s.readOnly||s.conflict;save.disabled=s.readOnly||s.conflict||saving;
     status.textContent=s.error||(dirty?'Notizen ungespeichert':s.localStatus==='synced'?'Vorbereitung synchronisiert':s.localStatus==='pending'?'Lokal gesichert · Synchronisation ausstehend':'Noch keine Notizen gespeichert');
     overview.replaceChildren();for(const t of s.draft.tactics)overview.append(el('p',t.title+(tactics().some(x=>x.id===t.id)?'':' – Nicht mehr verfügbar')));
-    const key=canonical(s.choices);if(key!==conflictKey){conflictKey=key;conflicts.replaceChildren();if(s.conflict){conflicts.append(el('h3','Vorbereitungskonflikt – Live-Erfassung bleibt verfügbar'));for(const choice of s.choices){const p=el('pre',JSON.stringify(choice.value,null,2)),b=el('button','Diese Vorbereitung übernehmen');b.disabled=s.readOnly;b.addEventListener('click',()=>controller.resolve(choice.id));conflicts.append(p,b);}}}
+    const key=canonical([s.choices,s.readOnly,dirty]);if(key!==conflictKey){conflictKey=key;conflicts.replaceChildren();if(s.conflict){conflicts.append(el('h3','Vorbereitungskonflikt – Live-Erfassung bleibt verfügbar'));for(const choice of s.choices){const p=el('pre',JSON.stringify(choice.value,null,2)),b=el('button',dirty?'Ungespeicherte Notizen verwerfen und diese Vorbereitung übernehmen':'Diese Vorbereitung übernehmen');b.disabled=s.readOnly;b.addEventListener('click',async()=>{const result=await controller.resolve(choice.id,{heads:s.heads});if(result.ok){dirty=false;form.querySelector(':focus')?.blur();update(controller.getState());}});conflicts.append(p,b);}}}
     if(s.stage==='finished'){const next=canonical(s.liveState.boxscore);if(reportKey!==next){reportKey=next;report.replaceChildren(renderLiveReport(s.liveState.boxscore));}}else{reportKey='';report.replaceChildren();}
   }
   const unmount=mountLiveView(liveHost,controller.live),unsub=controller.subscribe(update);

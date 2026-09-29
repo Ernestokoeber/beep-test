@@ -127,8 +127,13 @@
   }
 
   let renderedHash = location.hash || '#/dashboard';
+  let initialSync = Promise.resolve();
   async function route() {
     const hash = location.hash || '#/dashboard';
+    if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
+      await initialSync;
+      if ((location.hash || '#/dashboard') !== hash) return;
+    }
     const leaving=BT.games?.beforeLeave?.();
     if(leaving){const ok=await leaving;if((location.hash||'#/dashboard')!==hash)return;if(!ok){history.replaceState(null,'',renderedHash);return;}}
     renderedHash=hash;
@@ -250,8 +255,9 @@
   function init() {
     if (initialized) return;
     initialized = true;
-    setupTheme(); setupHamburger(); setupViewportMetrics(); setupTopbarHeight(); route();
-    if (BT.sync && BT.sync.init) BT.sync.init();
+    setupTheme(); setupHamburger(); setupViewportMetrics(); setupTopbarHeight();
+    if (BT.sync && BT.sync.init) initialSync = Promise.resolve(BT.sync.init()).catch(() => {});
+    route();
   }
   if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', init);

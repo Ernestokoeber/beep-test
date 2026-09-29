@@ -46,7 +46,14 @@ export async function openMatchday({gameId,scope,deps=browserDependencies(gameId
       await write(reviseMatchday(envelope,{...metadata(),parents:baseParents,value:snapshot}));
     });
   }
-  function resolve(chosenId){return enqueue(async()=>{await refresh();guarded();await write(resolveMatchday(envelope,chosenId,metadata()));});}
+  function resolve(chosenId,{heads=selectDraft(envelope).heads}={}){
+    const displayedHeads=[...heads].sort();
+    return enqueue(async()=>{
+      await refresh();guarded();
+      ensure(canonical(selectDraft(envelope).heads)===canonical(displayedHeads),'collision','Weitere Vorbereitung eingetroffen. Bitte die aktualisierten Versionen erneut prüfen.');
+      await write(resolveMatchday(envelope,chosenId,metadata()));
+    });
+  }
   function start(){return enqueue(async()=>{
     const state=live.getState();if(state.session)return;
     ensure(!state.hasLiveData,'selection','Erfassung zuerst auswählen.');

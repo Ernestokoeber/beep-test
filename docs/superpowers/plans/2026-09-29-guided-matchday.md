@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-29-guided-matchday-design.md` (vom Nutzer freigegeben).
 
-Status: Direkt umgesetzt auf `feat/guided-matchday`; automatisierte Gesamtprüfung und Abschlussreview. Manuelle Offline-/Handyabnahme teilweise offen, siehe `docs/MATCHDAY-MODE.md`. Noch nicht integriert oder veröffentlicht.
+Status: Direkt umgesetzt auf `feat/guided-matchday`; automatisierte Gesamtprüfung bestanden. Vier wichtige Befunde des unabhängigen Abschlussreviews behoben und durch zunächst fehlgeschlagene Regressionstests abgesichert; gesamte Suite danach erneut grün. Manuelle Offline-/Handyabnahme teilweise offen, siehe `docs/MATCHDAY-MODE.md`. Noch nicht integriert oder veröffentlicht.
 Ausgangsstand: lokaler `main`, Produktcode `0501923`, Designcommit `60899e5`.
 
 ## Global Constraints

@@ -1,10 +1,12 @@
-import {clone} from '../live-game/core.mjs';
+import {clone,canonical} from '../live-game/core.mjs';
 import {buildSetup} from './flow.mjs';
 import {mountMatchdayLive} from './live-shell.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],onLive=(host,c)=>mountMatchdayLive(host,c,{tactics})}={}){
   container.classList.add('matchday');let stage='',draft,parents,read=()=>draft,dirty=false,saving=false,revision=0,liveCleanup=null,dead=false,pending=Promise.resolve(true);
-  const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div');status.setAttribute('role','status');container.append(title,steps,status,body);
+  const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div'),conflicts=el('section');let conflictKey='';status.setAttribute('role','status');container.append(title,steps,status,body,conflicts);
+  const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;container.append(discard);
+  discard.addEventListener('click',()=>{dirty=false;stage='';update(controller.getState());});
   function field(parent,label,key,type,value){const l=el('label',label),n=el(type==='textarea'?'textarea':type==='select'?'select':'input');if(n.tagName==='INPUT')n.type=type;n.dataset.field=key;if(type!=='select')n.value=value??'';l.append(n);parent.append(l);return n;}
   function button(parent,label,action,fn){const n=el('button',label);n.type='button';n.dataset.action=action;n.addEventListener('click',fn);parent.append(n);return n;}
   function mark(){dirty=true;revision++;status.textContent='Ungespeichert';}
@@ -26,8 +28,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
     if(stage==='live'){steps.textContent='Spiel begleiten';liveCleanup=onLive(body,controller);read=()=>draft;return;}
     draft=clone(s.draft);parents=s.heads;dirty=false;
     if(stage==='conflict'){
-      body.append(el('h3','Vorbereitung auf mehreren Geräten geändert'),el('p','Wähle bewusst eine Version. Die andere bleibt in der Historie erhalten.'));
-      for(const choice of s.choices){const section=el('section');section.append(el('pre',JSON.stringify(choice.value,null,2)));button(section,'Diese Version übernehmen','resolve',()=>controller.resolve(choice.id));body.append(section);}return;
+      steps.textContent='Vorbereitungskonflikt';return;
     }
     const names={game:'1 · Spiel prüfen',roster:'2 · Mannschaft',preparation:'3 · Vorbereitung (optional)',review:'4 · Bereit für das Spiel'};
     steps.textContent=names[stage];const form=el('form'),group=el('fieldset');form.append(group);body.append(form);
@@ -71,7 +72,24 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
     }
     button(actions,'Entwurf speichern','save',()=>{dirty=true;save();});group.append(actions);
   }
-  function update(s){if(dead)return;if(!saving&&(!dirty||stage==='live'))render(s);status.textContent=s.error|| (dirty?'Ungespeichert':s.localStatus==='pending'?'Lokal gesichert · Synchronisation ausstehend':s.localStatus==='synced'?'Vorbereitung synchronisiert':'Vorbereitung noch nicht gespeichert');for(const fs of body.querySelectorAll('form > fieldset'))fs.disabled=s.readOnly;}
+  function update(s){
+    if(dead)return;
+    if(!saving&&(!dirty||stage==='live'))render(s);
+    status.textContent=s.error|| (dirty?'Ungespeichert':s.localStatus==='pending'?'Lokal gesichert · Synchronisation ausstehend':s.localStatus==='synced'?'Vorbereitung synchronisiert':'Vorbereitung noch nicht gespeichert');
+    for(const fs of body.querySelectorAll('form > fieldset'))fs.disabled=s.readOnly;
+    discard.hidden=stage==='live'||!(dirty&&s.readOnly);discard.disabled=saving;
+    const key=canonical([s.choices,s.readOnly,dirty,s.busy,stage==='live']);
+    if(key===conflictKey)return;conflictKey=key;conflicts.replaceChildren();
+    if(!s.conflict||stage==='live')return;
+    conflicts.append(el('h3','Vorbereitung auf mehreren Geräten geändert'),el('p',dirty?'Deine ungespeicherten Eingaben bleiben oben stehen. Übernehmen verwirft diese Eingaben ausdrücklich.':'Wähle bewusst eine Version. Die andere bleibt in der Historie erhalten.'));
+    for(const choice of s.choices){
+      const section=el('section');section.append(el('pre',JSON.stringify(choice.value,null,2)));
+      const b=button(section,dirty?'Ungespeicherte Eingaben verwerfen und diese Version übernehmen':'Diese Version übernehmen','resolve',async()=>{
+        const result=await controller.resolve(choice.id,{heads:s.heads});
+        if(result.ok){dirty=false;stage='';update(controller.getState());}
+      });b.disabled=s.readOnly||saving||s.busy;conflicts.append(section);
+    }
+  }
   const unsub=controller.subscribe(update);
   const unload=e=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',unload);
   function cleanup(){dead=true;unsub();liveCleanup?.();window.removeEventListener('beforeunload',unload);}

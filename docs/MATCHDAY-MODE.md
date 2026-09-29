@@ -48,6 +48,11 @@ bestehende Erfassung am neuen Gerät bewusst übernehmen.
 Versionen werden nicht still überschrieben; eine Version bewusst auswählen.
 Eine laufende Live-Erfassung bleibt dabei verfügbar. Bei erneut eintreffenden
 unbekannten Offline-Änderungen muss gegebenenfalls nochmals entschieden werden.
+Trifft ein Konflikt während einer offenen Eingabe ein, bleibt der Text sichtbar.
+Die Versionsauswahl erklärt ausdrücklich, wenn sie ungespeicherte Eingaben verwirft.
+Bei verlorenem Schreibrecht kann man offene Eingaben ausdrücklich verwerfen, um
+die Ansicht zu verlassen. Neu eingetroffene, noch nicht angezeigte Versionen
+erfordern eine erneute Auswahl.
 
 ## Abschluss
 
@@ -75,8 +80,28 @@ Geräten; die abschließende Abnahme dokumentiert den tatsächlich geprüften Um
 Die automatisierten Tests decken insbesondere Wiederaufnahme ohne zweite Sitzung,
 parallele Entwürfe, verspätete Synchronisationsbestätigung, Speicherfehler,
 Kontowechsel während des Speicherns und Notizen während Abschluss/Pausen ab.
+Die vier wichtigen Befunde des unabhängigen Reviews sind durch zusätzliche
+Regressionstests für Offline-Routeninitialisierung, fokussierte veraltete Notizen,
+offene Konfliktformulare und neu eintreffende Konfliktversionen abgesichert.
 Die Vorbereitungsansicht wurde im Browser bei 320 Pixeln visuell geprüft.
 Dabei wurde ein verschluckter Folgetipp während automatischer Speicherung behoben.
 Die Browsersteuerung fiel beim Serviceworker-Test aus. Deshalb sind ein tatsächlicher
 Offline-Neuladedurchlauf, der komplette manuelle Ablauf bei 320/390 Pixeln und
 die Prüfung auf einem echten Handy vor der Veröffentlichung noch offen.
+
+### Noch ausstehende manuelle Freigabe
+
+Mit einem Testspiel, nicht während eines echten Spiels, prüfen:
+
+- Bei 320 und 390 Pixeln: sechs Spieler auswählen, fünf Starter markieren,
+  Vorbereitung überspringen, Live-Ansicht öffnen. Kein horizontaler Überlauf.
+- Eigene und gegnerische Punkte erfassen, Uhr anhalten, einen Spieler wechseln.
+  Nach Abschnittsende startet nichts automatisch; den nächsten Abschnitt bewusst
+  vorbereiten und starten. Anschließend abschließen und Abschlussnotiz speichern.
+- Vorbereiteten Stand online sichern, Netzwerk abschalten, neu laden, Notiz ändern
+  und sichern, erneut laden. Auch eine Live-Aktion muss nach Neuladen erhalten sein.
+  Wieder online gehen und auf tatsächliche Synchronisationsbestätigung warten.
+- Zwei Tabs desselben Testspiels mit abweichenden Vorbereitungen bearbeiten.
+  Der Konflikt muss sichtbar werden; keine Version darf still verschwinden.
+- Auf dem tatsächlichen Trainingshandy Sperrbildschirm und App-Wechsel testen.
+  Die App-Uhr ist eine eigene Erfassung und kein Ersatz für die offizielle Hallenuhr.
