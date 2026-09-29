@@ -79,7 +79,24 @@ Keine Gegnerstatistiken, kein Plus/Minus und keine API zur offiziellen Ergebnis-
 ## Technische Abnahme
 
 `npm test` enthält Modell-, Zeit-, Journal-, API-, Sync-, UI- und Berichtstests.
+Zusätzliche Review-Regressionen prüfen tabübergreifende Kontowechsel, den
+serverseitig ergänzten Ereignisstand, verspätete Altgeräte-Aktionen und
+Wechselkorrekturen nach Fortsetzung der Uhr.
 `node scripts/live-game-browser.mjs` startet eine ausschließlich lokale
 Testoberfläche mit synthetischen Spielern für 320/390-Pixel-Prüfungen. Keine
 Verbindung zu Neon oder dem produktiven Team. Tests auf echten iOS-/Android-
 Geräten müssen zusätzlich vom Coach durchgeführt werden.
+
+### Bekannte kleine Restpunkte
+
+Die separate GitHub-Browserprüfung für den Taktikboard-Fokus-Editor scheiterte
+bereits vor dieser Funktion auf `b2ea207` (Run `36533594396`,
+`scripts/browser-e2e.mjs:188`). Sie wurde in diesem Auftrag nicht verändert.
+Die lokale `npm test`-Suite einschließlich aller Live-Tests ist davon getrennt.
+
+- Während einer laufenden Synchronisierung neu erfasste Aktionen bleiben sicher
+  im Journal, die globale Anzeige kann aber kurz vorzeitig „synchronisiert“
+  anzeigen, bis deren Speichertimer startet.
+- Technische Wiederholungen einer Command-ID müssen identischen Inhalt tragen.
+  Der Controller überprüft eine wiederverwendete ID noch nicht zusätzlich auf
+  abweichenden Inhalt; normale Bedienaktionen erhalten jeweils neue UUIDs.

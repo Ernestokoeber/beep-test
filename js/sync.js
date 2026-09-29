@@ -4,7 +4,16 @@ BT.sync = (function() {
   const VERSION_KEY = 'beeptest_workspace_version';
   const IDENTITY_KEY = 'courthub_live_identity';
   const OWNER_KEY = 'courthub_workspace_team';
-  function rememberIdentity() { try { localStorage.setItem(IDENTITY_KEY, JSON.stringify(user)); } catch {} }
+  async function tokenFingerprint(token) {
+    if(!token)return null;
+    if(!crypto.subtle)return undefined;
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
+    return Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('');
+  }
+  async function rememberIdentity() { try {
+    const fingerprint=await tokenFingerprint(sessionToken);
+    if(fingerprint!==undefined)localStorage.setItem(IDENTITY_KEY,JSON.stringify({user,fingerprint}));
+  } catch {} }
   function activateTeam(nextUser) {
     const next = nextUser?.organization?.id;
     if (!next) return;
@@ -19,6 +28,7 @@ BT.sync = (function() {
     localStorage.setItem(OWNER_KEY, next);
   }
   let user = null;
+  let sessionToken = BT.api.getToken();
   let version = (() => {
     try { return Number.parseInt(localStorage.getItem(VERSION_KEY) || '0', 10) || 0; }
     catch { return 0; }
@@ -31,6 +41,19 @@ BT.sync = (function() {
   let status = 'guest';
   let lastSyncAt = null;
   let lastError = null;
+  function accountCurrent() {
+    try {const owner=localStorage.getItem(OWNER_KEY);return BT.api.getToken()===sessionToken&&(!user?.organization?.id||!owner||owner===user.organization.id);}
+    catch {return false;}
+  }
+  function invalidateOtherTab() {
+    sessionEpoch++;clearTimeout(timer);timer=null;pushRequested=false;user=null;version=0;
+    status='guest';lastError='Konto wurde in einem anderen Tab geändert. Bitte diese Ansicht neu laden.';emit();
+  }
+  function current(epoch) {
+    if(epoch!==sessionEpoch)return false;
+    if(user&&!accountCurrent()){invalidateOtherTab();return false;}
+    return true;
+  }
 
   function emit() {
     window.dispatchEvent(new CustomEvent('bt-sync-change', { detail: getState() }));
@@ -43,6 +66,7 @@ BT.sync = (function() {
   }
 
   function getState() {
+    if(user&&!accountCurrent())invalidateOtherTab();
     return { user, version, status, lastSyncAt, lastError, sessionEpoch };
   }
 
@@ -78,7 +102,7 @@ BT.sync = (function() {
   async function applyRemote(data, nextVersion) {
     const epoch = sessionEpoch, scope = liveScope(), bridge = await liveBridge();
     const protectedData = bridge && user?.role !== 'viewer' ? await bridge.beforeApply(data, scope) : data;
-    if (epoch !== sessionEpoch) return;
+    if (!current(epoch)) return;
     applying = true;
     try {
       BT.storage.save(protectedData, { fromSync: true, preserveTimestamp: true });
@@ -90,11 +114,11 @@ BT.sync = (function() {
   }
 
   async function pushLatest(epoch) {
-    if (!user || epoch !== sessionEpoch) return;
+    if (!user || !current(epoch)) return;
     setStatus('syncing');
 
     let conflicts = 0;
-    while (user && epoch === sessionEpoch) {
+    while (user && current(epoch)) {
       // Immer den aktuellsten lokalen Stand lesen. Ein älterer Snapshot darf
       // nach einer langsamen Serverantwort keine neuere Board-Bewegung ersetzen.
       let cleaned = cleanForSync(BT.storage.load());
@@ -102,28 +126,33 @@ BT.sync = (function() {
       try {
         const scope = liveScope(), bridge = await liveBridge();
         const prepared = bridge ? await bridge.beforeSend(cleaned, scope) : { data: cleaned, receipt: [] };
-        if (epoch !== sessionEpoch) return;
+        if (!current(epoch)) return;
         cleaned = prepared.data;
         const result = await BT.api.saveWorkspace(cleaned, expectedVersion);
-        if (epoch !== sessionEpoch) return;
+        if (!current(epoch)) return;
+        if(bridge && result.data){
+          const accepted=await bridge.mergeAccepted(BT.storage.load(),result.data,scope);
+          if(!current(epoch))return;
+          BT.storage.save(accepted,{fromSync:true,preserveTimestamp:true});
+        }
         if (bridge) await bridge.ack(prepared.receipt, scope);
-        if (epoch !== sessionEpoch) return;
+        if (!current(epoch)) return;
         storeVersion(result.version);
         lastSyncAt = result.updatedAt || new Date().toISOString();
         setStatus(pushRequested ? 'pending' : 'synced');
         return;
       } catch (error) {
-        if (epoch !== sessionEpoch) return;
+        if (!current(epoch)) return;
         if (error.status === 409 && error.data && error.data.conflict) {
           if (++conflicts >= 3) { setStatus('error', 'Wiederholter Datenkonflikt. Live-Aktionen bleiben lokal gesichert.'); return; }
           const remote = error.data.conflict;
           const latestLocal = cleanForSync(BT.storage.load());
           storeVersion(remote.version);
           const bridge = await liveBridge();
-          if (epoch !== sessionEpoch) return;
+          if (!current(epoch)) return;
           if (bridge && (await bridge.hasPending(liveScope()))) {
             const merged = await bridge.beforeApply(remote.data, liveScope());
-            if (epoch !== sessionEpoch) return;
+            if (!current(epoch)) return;
             BT.storage.save(merged, { fromSync: true, preserveTimestamp: true });
             continue;
           }
@@ -142,7 +171,7 @@ BT.sync = (function() {
           timer = null;
           pushRequested = false;
           await applyRemote(remote.data, remote.version);
-          if (epoch !== sessionEpoch) return;
+          if (!current(epoch)) return;
           lastSyncAt = remote.updatedAt || new Date().toISOString();
           setStatus('synced');
           BT.util.toast('Aktuellere Teamdaten wurden synchronisiert.');
@@ -156,12 +185,12 @@ BT.sync = (function() {
 
   async function drainPushes(epoch) {
     try {
-      while (pushRequested && user && epoch === sessionEpoch) {
+      while (pushRequested && user && current(epoch)) {
         pushRequested = false;
         await pushLatest(epoch);
       }
     } catch (error) {
-      if (epoch === sessionEpoch) setStatus('error', error.message);
+      if (current(epoch)) setStatus('error', error.message);
     } finally {
       pushWorker = null;
       // Falls während eines Accountwechsels oder direkt am Ende der letzten
@@ -171,14 +200,14 @@ BT.sync = (function() {
   }
 
   function push() {
-    if (!user || user.role === 'viewer') return Promise.resolve();
+    if (!user || !current(sessionEpoch) || user.role === 'viewer') return Promise.resolve();
     pushRequested = true;
     if (!pushWorker) pushWorker = drainPushes(sessionEpoch);
     return pushWorker;
   }
 
   function queueSave(data) {
-    if (!user || user.role === 'viewer' || applying) return;
+    if (!user || !current(sessionEpoch) || user.role === 'viewer' || applying) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
@@ -190,21 +219,28 @@ BT.sync = (function() {
   async function reconcile() {
     const epoch = sessionEpoch;
     if (pushWorker) await pushWorker;
-    if (epoch !== sessionEpoch) return;
+    if (!current(epoch)) return;
     setStatus('syncing');
     const remote = await BT.api.getWorkspace();
-    if (epoch !== sessionEpoch) return;
-    const local = BT.storage.load();
+    if (!current(epoch)) return;
+    let local = BT.storage.load();
     storeVersion(remote.version);
 
     if (user?.role === 'viewer') {
       await applyRemote(remote.data, remote.version);
-      if (epoch !== sessionEpoch) return;
+      if (!current(epoch)) return;
       lastSyncAt = remote.updatedAt || new Date().toISOString();
       setStatus('synced');
       return;
     }
 
+    const bridge = await liveBridge();
+    if(!current(epoch))return;
+    if(bridge && timestamp(local)>=timestamp(remote.data)){
+      local=await bridge.mergeAccepted(local,remote.data,liveScope());
+      if(!current(epoch))return;
+      BT.storage.save(local,{fromSync:true,preserveTimestamp:true});
+    }
     if (!hasTeamData(remote.data) && hasTeamData(local)) {
       await push();
       return;
@@ -215,10 +251,9 @@ BT.sync = (function() {
       await push();
       return;
     }
-    const bridge = await liveBridge();
-    if (epoch !== sessionEpoch) return;
+    if (!current(epoch)) return;
     const pending = bridge && await bridge.hasPending(liveScope());
-    if (epoch !== sessionEpoch) return;
+    if (!current(epoch)) return;
     if (pending) { await push(); return; }
     lastSyncAt = remote.updatedAt || new Date().toISOString();
     setStatus('synced');
@@ -230,9 +265,10 @@ BT.sync = (function() {
     timer = null;
     pushRequested = false;
     BT.api.setToken(result.token);
+    sessionToken=BT.api.getToken();
     activateTeam(result.user);
     user = result.user;
-    rememberIdentity();
+    const epoch=sessionEpoch;await rememberIdentity();if(!current(epoch))return;
     emit();
     await reconcile();
   }
@@ -255,6 +291,7 @@ BT.sync = (function() {
     timer = null;
     pushRequested = false;
     BT.api.setToken(null);
+    sessionToken=null;
     try { localStorage.removeItem(IDENTITY_KEY); } catch {}
     try { localStorage.removeItem(VERSION_KEY); } catch { /* Offline-Speicher blockiert. */ }
     user = null;
@@ -275,22 +312,30 @@ BT.sync = (function() {
   }
 
   async function init() {
+    const epoch=sessionEpoch, token=BT.api.getToken();sessionToken=token;
     if (!BT.api.getToken()) {
       setStatus('guest');
       return;
     }
     try {
       const result = await BT.api.me();
+      if(epoch!==sessionEpoch||BT.api.getToken()!==token)return;
       activateTeam(result.user);
       user = result.user;
-      rememberIdentity();
+      await rememberIdentity();if(!current(epoch))return;
       emit();
       await reconcile();
     } catch (error) {
+      if(epoch!==sessionEpoch||BT.api.getToken()!==token)return;
       if (error.status === 401 || error.status === 403) logout();
       else {
         if (error.status === 0 && !user) {
-          try { user = JSON.parse(localStorage.getItem(IDENTITY_KEY) || 'null'); } catch {}
+          try {
+            const saved=JSON.parse(localStorage.getItem(IDENTITY_KEY)||'null');
+            const fingerprint=await tokenFingerprint(token);
+            if(epoch!==sessionEpoch||BT.api.getToken()!==token)return;
+            if(saved?.fingerprint===fingerprint&&fingerprint!==undefined)user=saved.user;
+          } catch {}
         }
         setStatus(error.status === 0 ? 'offline' : 'error', error.message);
       }
@@ -300,6 +345,7 @@ BT.sync = (function() {
   window.addEventListener('online', () => {
     if (user) reconcile().catch((error) => setStatus('error', error.message));
   });
+  window.addEventListener('storage',()=>{if(user&&!accountCurrent())invalidateOtherTab();});
   window.addEventListener('offline', () => {
     if (user) setStatus('offline');
   });
@@ -308,14 +354,14 @@ BT.sync = (function() {
     if (!user || user.role === 'viewer' || !navigator.onLine) throw new Error('Live-Spiele nur online mit Schreibrecht löschen.');
     const epoch = sessionEpoch, scope = liveScope();
     await syncNow();
-    if (epoch !== sessionEpoch || status !== 'synced') throw new Error('Zuerst alle Änderungen synchronisieren.');
+    if (!current(epoch) || status !== 'synced') throw new Error('Zuerst alle Änderungen synchronisieren.');
     const bridge = await liveBridge();
     if (bridge && await bridge.hasPending(scope)) throw new Error('Ungesicherte Live-Aktionen zuerst synchronisieren.');
     const remote = await BT.api.getWorkspace();
-    if (epoch !== sessionEpoch) return;
+    if (!current(epoch)) return;
     remote.data.games = (remote.data.games || []).filter(g => g.id !== id);
     const result = await BT.api.saveWorkspace(cleanForSync(remote.data), remote.version, [id]);
-    if (epoch !== sessionEpoch) return;
+    if (!current(epoch)) return;
     await applyRemote(remote.data, result.version);
   }
   return { init, login, register, logout, syncNow, queueSave, isApplying, getState, deleteLiveGame };

@@ -27,6 +27,14 @@ export function mergeLiveStats(local,remote) {
   let selected=local.resolutionRevision>remote.resolutionRevision?local.selectedSessionId:remote.selectedSessionId;
   if(local.resolutionRevision===remote.resolutionRevision && local.selectedSessionId!==remote.selectedSessionId)selected=null;
   if(sessions.length>1 && revision===0)selected=null;
+  // An explicit choice covers only the events actually reviewed in that decision.
+  // Late actions in a discarded session require another visible choice.
+  if(selected){
+    const decisions=[local,remote].filter(v=>v.resolutionRevision===revision&&v.selectedSessionId===selected);
+    for(const s of sessions.filter(s=>s.id!==selected)){
+      if(decisions.some(v=>s.events.length>(v.sessions.find(x=>x.id===s.id)?.events.length??-1))){selected=null;break;}
+    }
+  }
   return {value:{schemaVersion:1,sessions,selectedSessionId:selected,resolutionRevision:revision},conflicts:selected?[]:['Mehrere Erfassungen: gültige Sitzung auswählen.']};
 }
 export function protectWorkspace(incoming,current,confirmedGameDeletions=[]) {

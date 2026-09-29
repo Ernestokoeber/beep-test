@@ -51,7 +51,7 @@ export function mountLiveView(container,controller){
     const f=form('Protokoll korrigieren');f.append(el('p','Nur geänderte Zeilen werden gemeinsam gespeichert. Ungültige Folgeaktionen werden nicht automatisch umgebucht.'));
     const changes=[];
     for(const e of effectiveEvents(current.session)){
-      if(['roster','period-start','clock-start'].includes(e.kind))continue;
+      if(['roster','period-start'].includes(e.kind))continue;
       const row=el('fieldset');row.id='live-event-'+e.id;row.append(el('legend','#'+e.seq+' · '+(actions[e.payload.action]||e.kind)+' · Abschnitt '+e.period));
       const t=field(row,'Restzeit (MM:SS)','text',formatTime(e.remainingMs));
       const remove=field(row,'Aktion rückgängig machen','checkbox','yes');let payload=()=>e.payload;

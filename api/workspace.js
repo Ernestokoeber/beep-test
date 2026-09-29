@@ -86,6 +86,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
+      data: protectedData,
       version: Number(rows[0].version),
       updatedAt: rows[0].updated_at
     });
