@@ -1,3 +1,4 @@
+import { validateTimeline } from './clock.mjs';
 export class LiveValidationError extends Error {
   constructor(code, message, eventIds = []) { super(message); this.code = code; this.eventIds = eventIds; }
 }
@@ -52,9 +53,6 @@ export function effectiveEvents(s) {
   }
   return [...originals.values()].sort((a,b)=>a.seq-b.seq);
 }
-// Timeline validation is attached by clock.mjs; core's public append uses it once loaded.
-let timelineValidator = null;
-export function setTimelineValidator(fn) { timelineValidator = fn; }
 export function validateSession(s) {
   ensure(s?.schemaVersion===1,'schema','Unbekannte Live-Datenversion.');
   createSession(s);
@@ -66,8 +64,8 @@ export function validateSession(s) {
     ids.add(e.id);seq=e.seq;
   }
   effectiveEvents(s);
-  if (timelineValidator) {
-    const result=timelineValidator(s);
+  {
+    const result=validateTimeline(s);
     ensure(result.valid,result.issues[0]?.code,result.issues[0]?.message,result.issues[0]?.eventIds);
   }
   return s;
