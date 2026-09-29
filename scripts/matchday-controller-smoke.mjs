@@ -24,4 +24,10 @@ await a.refresh();assert.equal(a.getState().conflict,true);assert.equal((await a
 await a.resolve(a.getState().heads[0]);assert.equal(a.getState().conflict,false);
 await b.close();await a.close();
 const h=await fixture();const d=await h.open();h.identity({role:'mystery'});assert.equal((await d.saveDraft(draft)).ok,false);await d.close();
+const late=await fixture(),lc=await late.open(),append=late.deps.journal.append;
+let release,entered;const gate=new Promise(r=>release=r),waiting=new Promise(r=>entered=r);
+late.deps.journal.append=async(...args)=>{entered();await gate;return append(...args);};
+const saving=lc.saveDraft(draft);await waiting;late.identity({actorId:'different-coach',sessionEpoch:2});release();
+assert.equal((await saving).ok,false);assert.equal(late.workspace().games[0].matchday,undefined);
+assert.ok(await late.journal.read('g'));await lc.close();
 console.log('Matchday controller: recovery, double start, failed writes, conflicts and identity guards passed.');

@@ -6,6 +6,10 @@ damit Plus/Minus berechnet werden kann. Die Trainingsuhr bleibt separat.
 
 ## Vor dem Spiel
 
+Alternativ führt **Spieltag starten** durch Kader und optionale Vorbereitung.
+Die anschließende freie Live-Ansicht nutzt dieselbe Erfassung, keine zweite
+Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
+
 1. App einmal online öffnen, unter **Konto & Sync** anmelden und synchronisieren.
 2. Unter **Spiele** das Spiel auswählen und **Live erfassen** öffnen.
 3. Spieltagskader und genau fünf Starter auswählen. Abschnittsdauer einstellen.
@@ -120,9 +124,8 @@ Geräten müssen zusätzlich vom Coach durchgeführt werden.
 
 ### Bekannte kleine Restpunkte
 
-- Eine alte, für die neue Erfassung ungültige Profilnummer (z. B. `123`) kann
-  das Startformular auch bei einem abgewählten Spieler blockieren. Dessen
-  Nummernfeld vorerst leeren; sein Profil wird dadurch nicht geändert.
+- Ungültige Profilnummern abgewählter Spieler blockieren den Start nicht mehr.
+  Ausgewählte Spieler benötigen weiterhin eine gültige oder leere Nummer.
 
 Die separate GitHub-Browserprüfung für den Taktikboard-Fokus-Editor scheiterte
 bereits vor dieser Funktion auf `b2ea207` (Run `36533594396`,

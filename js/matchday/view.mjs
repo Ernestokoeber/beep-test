@@ -9,7 +9,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
   function button(parent,label,action,fn){const n=el('button',label);n.type='button';n.dataset.action=action;n.addEventListener('click',fn);parent.append(n);return n;}
   function mark(){dirty=true;revision++;status.textContent='Ungespeichert';}
   function save(next){
-    if(saving)return pending;
+    if(saving)return pending.then(ok=>ok?save(next):false);
     if(!dirty&&!next)return Promise.resolve(true);
     const value=read(),version=revision;if(next)value.step=next;
     saving=true;
@@ -71,7 +71,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
     }
     button(actions,'Entwurf speichern','save',()=>{dirty=true;save();});group.append(actions);
   }
-  function update(s){if(dead)return;if(!saving&&(!dirty||stage==='live'))render(s);status.textContent=s.error|| (dirty?'Ungespeichert':s.localStatus==='pending'?'Lokal gesichert · Synchronisation ausstehend':s.localStatus==='synced'?'Vorbereitung synchronisiert':'Vorbereitung noch nicht gespeichert');for(const fs of body.querySelectorAll('form > fieldset'))fs.disabled=s.readOnly||saving;}
+  function update(s){if(dead)return;if(!saving&&(!dirty||stage==='live'))render(s);status.textContent=s.error|| (dirty?'Ungespeichert':s.localStatus==='pending'?'Lokal gesichert · Synchronisation ausstehend':s.localStatus==='synced'?'Vorbereitung synchronisiert':'Vorbereitung noch nicht gespeichert');for(const fs of body.querySelectorAll('form > fieldset'))fs.disabled=s.readOnly;}
   const unsub=controller.subscribe(update);
   const unload=e=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',unload);
   function cleanup(){dead=true;unsub();liveCleanup?.();window.removeEventListener('beforeunload',unload);}

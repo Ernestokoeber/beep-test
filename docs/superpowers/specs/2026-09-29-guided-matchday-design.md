@@ -1,7 +1,7 @@
 # Geführter Spieltag-Modus
 
 Datum: 29.09.2026
-Status: Schriftliches Design vom Nutzer freigegeben; noch nicht implementiert.
+Status: Vom Nutzer freigegeben und lokal implementiert auf `feat/guided-matchday`. Automatisierte Tests bestanden; Abschlussreview und verbleibende manuelle Offline-/Handyabnahme siehe `docs/MATCHDAY-MODE.md`. Nicht veröffentlicht.
 Basis: lokaler `main`, Commit `0501923`.
 
 ## Ziel und abgestimmter Ansatz

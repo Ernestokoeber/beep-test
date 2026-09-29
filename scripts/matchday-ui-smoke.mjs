@@ -9,6 +9,14 @@ const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>[{id:'t
 const input=(key,value)=>{const n=root.querySelector('[data-field="'+key+'"]');n.value=value;n.dispatchEvent(new window.Event('input',{bubbles:true}));return n;};
 const click=async key=>{root.querySelector('[data-action="'+key+'"]').click();await new Promise(r=>setTimeout(r,20));await c.idle();};
 input('ownSide','home');await click('next');assert.equal(c.getState().stage,'roster');
+// A blur save must not swallow the next player's tap by disabling the form.
+let release;const append=f.deps.journal.append;
+f.deps.journal.append=async(...args)=>{await new Promise(r=>{release=r;});return append(...args);};
+const first=root.querySelector('[data-starter="p0"]');first.checked=true;first.dispatchEvent(new window.Event('input',{bubbles:true}));
+root.querySelector('form').dispatchEvent(new window.FocusEvent('focusout',{bubbles:true}));
+await new Promise(r=>setTimeout(r,10));
+assert.equal(root.querySelector('fieldset').disabled,false,'Autosave must not disable the next tap');
+release();await c.idle();f.deps.journal.append=append;
 const excluded=root.querySelector('[data-roster="p5"]');excluded.checked=false;excluded.dispatchEvent(new window.Event('change',{bubbles:true}));
 assert.equal(root.querySelector('[data-jersey="p5"]').disabled,true);
 for(const el of root.querySelectorAll('[data-starter]'))if(el.dataset.starter!=='p5')el.checked=true;

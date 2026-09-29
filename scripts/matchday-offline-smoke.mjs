@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const handlers={},cached=[];let pending;
+vm.runInNewContext(readFileSync(new URL('../sw.js',import.meta.url),'utf8'),{self:{addEventListener:(k,fn)=>{handlers[k]=fn;},skipWaiting:async()=>{}},caches:{open:async()=>({addAll:async urls=>{cached.push(...urls);}})}});
+handlers.install({waitUntil:p=>{pending=p;}});await pending;
+for(const name of ['model','flow','journal','bridge','controller','view','live-shell'])assert.ok(cached.some(url=>url.endsWith('/js/matchday/'+name+'.mjs')),name+' must be offline');
+assert.ok(cached.some(url=>url.endsWith('/matchday.css')));
+console.log('Matchday offline install: all new modules and styles precached.');
