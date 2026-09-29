@@ -20,7 +20,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
   const listeners=new Set();
   const identityOK=()=>{const i=deps.getIdentity();return i.actorId===scope.actorId&&i.organizationId===scope.organizationId&&i.sessionEpoch===scope.sessionEpoch;};
   function session(){return live?.sessions.find(s=>s.id===live.selectedSessionId);}
-  function getState(){const s=session(),identity=deps.getIdentity();return {live:clone(live),session:clone(s),roster:s?sessionRoster(s):deps.players(),
+  function getState(){const s=session(),identity=deps.getIdentity();return {live:clone(live),hasLiveData:!!live,session:clone(s),roster:s?sessionRoster(s):deps.players(),
     clock:s?clockAt(s,deps.now()):null,stats:s?projectStats(s):null,lineups:s?projectLineups(s,deps.now()):null,
     boxscore:s?projectBoxscore(s,deps.now()):null,
     readOnly:closed||identity.role==='viewer'||!identityOK(),needsTakeover:!!s&&s.deviceId!==deps.deviceId,
