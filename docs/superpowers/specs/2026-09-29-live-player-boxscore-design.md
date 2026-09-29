@@ -1,7 +1,7 @@
 # CourtHub: vollständige Spielerstatistik und Plus/Minus
 
 Datum: 29.09.2026
-Status: Geprüfter Entwurf zur Freigabe; noch nicht implementiert.
+Status: Vom Nutzer freigegeben; noch nicht implementiert.
 Ausgangsstand: `aed77fb`.
 
 ## Ziel und Abgrenzung
