@@ -139,7 +139,9 @@ BT.sync = (function() {
         if (!current(epoch)) return;
         storeVersion(result.version);
         lastSyncAt = result.updatedAt || new Date().toISOString();
-        setStatus(pushRequested ? 'pending' : 'synced');
+        const pending = pushRequested || (bridge && await bridge.hasPending(scope));
+        if (!current(epoch)) return;
+        setStatus(pending ? 'pending' : 'synced');
         return;
       } catch (error) {
         if (!current(epoch)) return;

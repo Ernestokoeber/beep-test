@@ -1,4 +1,5 @@
 import {canonical,clone,ensure,validateSession} from './core.mjs';
+import {mergeMatchday,validateMatchday} from '../matchday/model.mjs';
 export function validateLive(value) {
   ensure(value && value.schemaVersion===1 && Array.isArray(value.sessions) && value.sessions.length>=1 && value.sessions.length<=20,'schema','Ungültige Live-Daten.');
   ensure(new Set(value.sessions.map(s=>s.id)).size===value.sessions.length,'collision','Konflikt: doppelte Sitzungen.');
@@ -43,11 +44,13 @@ export function protectWorkspace(incoming,current,confirmedGameDeletions=[]) {
   ensure(Array.isArray(confirmedGameDeletions)&&confirmedGameDeletions.every(id=>typeof id==='string'),'schema','Ungültiger Löschauftrag.');
   result.games=result.games||[];
   for(const old of current?.games||[]){
-    if(!old.liveStats)continue;
+    if(!old.liveStats&&!old.matchday)continue;
     const next=result.games.find(g=>g.id===old.id);
     if(!next){ensure(confirmedGameDeletions.includes(old.id),'deletion','Live-Spiel fehlt. Expliziten Löschauftrag bestätigen.');continue;}
-    next.liveStats=mergeLiveStats(next.liveStats,old.liveStats).value;
+    if(old.liveStats)next.liveStats=mergeLiveStats(next.liveStats,old.liveStats).value;
+    if(old.matchday)next.matchday=mergeMatchday(next.matchday,old.matchday).value;
   }
   for(const g of result.games)if(g.liveStats)validateLive(g.liveStats);
+  for(const g of result.games)if(g.matchday!==undefined)validateMatchday(g.matchday);
   return result;
 }

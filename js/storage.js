@@ -438,6 +438,7 @@ BT.storage = (function() {
       if (data.games[index].liveStats && game.liveStats !== data.games[index].liveStats) {
         game = Object.assign({}, game, { liveStats: data.games[index].liveStats });
       }
+      if (data.games[index].matchday) game = Object.assign({}, game, { matchday: data.games[index].matchday });
       data.games[index] = Object.assign({}, data.games[index], game, { id: data.games[index].id, updatedAt: now });
       game = data.games[index];
     } else {

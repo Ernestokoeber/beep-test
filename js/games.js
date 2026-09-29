@@ -175,8 +175,8 @@ BT.games = (function() {
     $('[data-action="delete-game"]', wrap).addEventListener('click', async () => {
       if (!confirm('Spiel und interne Spielnotizen löschen?')) return;
       try {
-        if(BT.storage.getGame(game.id)?.liveStats){
-          if(!confirm('Auch die gesamte Live-Erfassung löschen? Vorher alle Erfassungsgeräte synchronisieren und schließen.'))return;
+        if(BT.storage.getGame(game.id)?.liveStats||BT.storage.getGame(game.id)?.matchday){
+          if(!confirm('Auch die gesamte Spieltagsvorbereitung und Live-Erfassung löschen? Vorher alle Erfassungsgeräte synchronisieren und schließen.'))return;
           cleanup();await BT.sync.deleteLiveGame(game.id);
         }else BT.storage.deleteGame(game.id);
         selectedGameId = null; drawList(); drawDetail();
