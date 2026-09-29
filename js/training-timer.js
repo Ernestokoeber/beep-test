@@ -14,7 +14,7 @@ BT.trainingTimer = (() => {
       since: typeof c?.since === 'number' && Number.isFinite(c.since) && c.since >= 0 ? c.since : null
     });
     return {
-      mode: ['stopwatch', 'countdown', 'interval'].includes(r.mode) ? r.mode : 'stopwatch',
+      mode: ['stopwatch', 'countdown', 'interval', 'game'].includes(r.mode) ? r.mode : 'stopwatch',
       config: {
         duration: Math.round(finite(r.config?.duration, 600, 1, 7200)),
         work: Math.round(finite(r.config?.work, 60, 1, 3600)),
@@ -22,7 +22,7 @@ BT.trainingTimer = (() => {
         rounds: Math.round(finite(r.config?.rounds, 5, 1, 99))
       },
       clock: normalizeClock(r.clock), shot: normalizeClock(r.shot),
-      shotEnabled: r.shotEnabled === true,
+      shotEnabled: r.mode === 'game' || r.shotEnabled === true,
       shotDuration: r.shotDuration === 14 ? 14 : 24,
       names: [0, 1].map(i => typeof r.names?.[i] === 'string' ? r.names[i].slice(0, 24) : `Team ${i + 1}`),
       scores: [0, 1].map(i => Math.round(finite(r.scores?.[i], 0, 0, 999))),
@@ -34,9 +34,9 @@ BT.trainingTimer = (() => {
     const e = elapsed(s.clock, now);
     if (s.mode === 'stopwatch') return { ms: e, phase: 'Stoppuhr', key: 'stopwatch', done: false, total: Infinity };
     const c = s.config;
-    const total = (s.mode === 'countdown' ? c.duration : c.work * c.rounds + c.rest * (c.rounds - 1)) * 1000;
+    const total = (s.mode === 'countdown' || s.mode === 'game' ? c.duration : c.work * c.rounds + c.rest * (c.rounds - 1)) * 1000;
     if (e >= total) return { ms: 0, phase: 'Beendet', key: 'done', done: true, total };
-    if (s.mode === 'countdown') return { ms: total - e, phase: 'Countdown', key: 'countdown', done: false, total };
+    if (s.mode === 'countdown' || s.mode === 'game') return { ms: total - e, phase: s.mode === 'game' ? 'Trainingsspiel' : 'Countdown', key: s.mode, done: false, total };
     const cycle = (c.work + c.rest) * 1000;
     const round = Math.floor(e / cycle);
     const offset = e % cycle;
@@ -65,9 +65,26 @@ BT.trainingTimer = (() => {
     if (!active) return;
     const a = active, s = a.state, now = Date.now();
     const view = mainView(s, now);
+    const game = s.mode === 'game';
+    // Freeze the shotclock at the exact game end, even when this tick is late.
+    const shotNow = game && view.done && s.clock.since !== null
+      ? Math.min(now, s.clock.since + Math.max(0, view.total - s.clock.elapsed)) : now;
     let changed = false;
-    const shotDone = s.shotEnabled && elapsed(s.shot, now) >= s.shotDuration * 1000;
+    let shotDone = s.shotEnabled && elapsed(s.shot, shotNow) >= s.shotDuration * 1000;
     const alarm = (s.clock.since !== null && a.phase !== view.key) || (s.shot.since !== null && shotDone);
+    const shotRemaining = s.shotDuration * 1000 - elapsed(s.shot, shotNow);
+    const announce = s.shotEnabled && s.shot.since !== null && !view.done &&
+      a.shotRemaining > 10000 && shotRemaining <= 10000 && shotRemaining > 9000;
+    if (game && shotDone && s.shot.since !== null) {
+      // The first period may be a manual 14s reset; every subsequent period is 24s.
+      s.shot = { elapsed: (elapsed(s.shot, shotNow) - s.shotDuration * 1000) % 24000, since: shotNow };
+      s.shotDuration = 24;
+      shotDone = false;
+      changed = true;
+    }
+    if (game && view.done && s.shot.since !== null) {
+      s.shot = { elapsed: elapsed(s.shot, shotNow), since: null }; changed = true;
+    }
     if (view.done && s.clock.since !== null) {
       s.clock = { elapsed: view.total, since: null }; changed = true;
     }
@@ -75,6 +92,7 @@ BT.trainingTimer = (() => {
       s.shot = { elapsed: s.shotDuration * 1000, since: null }; changed = true;
     }
     a.phase = view.key;
+    a.shotRemaining = s.shotDuration * 1000 - elapsed(s.shot, now);
     const q = key => a.root.querySelector(`[data-tt="${key}"]`);
     const text = (key, value) => { const el = q(key); if (el.textContent !== String(value)) el.textContent = value; };
     text('time', format(view.ms, s.mode !== 'stopwatch'));
@@ -84,9 +102,15 @@ BT.trainingTimer = (() => {
     text('reset', 'Uhr zurücksetzen');
     q('mode').disabled = s.clock.since !== null;
     a.root.querySelectorAll('[data-config]').forEach(el => { el.disabled = s.clock.since !== null; });
-    q('countdown-config').hidden = s.mode !== 'countdown';
+    q('countdown-config').hidden = s.mode !== 'countdown' && !game;
     q('interval-config').hidden = s.mode !== 'interval';
     q('shot-panel').hidden = !s.shotEnabled;
+    q('shot-enabled').checked = s.shotEnabled;
+    q('shot-enabled').disabled = game;
+    q('shot-toggle').hidden = game;
+    text('mode-help', game
+      ? 'Start und Pause steuern beide Uhren. Bei 10 Sekunden: Ansage. Bei 0: Piepton und automatisch neue 24 Sekunden. Ballbesitzwechsel bei Bedarf mit Reset markieren. Keine automatische Erkennung von Ballbesitz.'
+      : 'Shotclock separat starten und pausieren. Bei 10 Sekunden: Ansage; bei 0: Piepton und Stopp.');
     text('shot-time', Math.ceil(Math.max(0, s.shotDuration * 1000 - elapsed(s.shot, now)) / 1000));
     text('shot-toggle', s.shot.since === null ? 'Shotclock starten' : 'Shotclock pausieren');
     q('shot-toggle').disabled = shotDone;
@@ -94,6 +118,9 @@ BT.trainingTimer = (() => {
     q('undo').disabled = !s.history.length;
     if (changed) save();
     if (sound && alarm) signal();
+    else if (sound && announce && document.visibilityState !== 'hidden') {
+      try { BT.audio?.speak('Noch zehn Sekunden'); } catch (_) { /* Optional speech output. */ }
+    }
   }
   function close() {
     if (!active) return;
@@ -123,7 +150,7 @@ BT.trainingTimer = (() => {
     root.innerHTML = `
       <header class="tt-header"><h2 id="training-timer-title">Timer & Punkte</h2><button type="button" data-tt="close" autofocus>Zum Training</button></header>
       <div class="tt-body">
-        <label class="tt-mode">Uhr auswählen<select data-tt="mode"><option value="stopwatch">Stoppuhr</option><option value="countdown">Countdown</option><option value="interval">Intervalle</option></select></label>
+        <label class="tt-mode">Uhr auswählen<select data-tt="mode"><option value="stopwatch">Stoppuhr</option><option value="countdown">Countdown</option><option value="interval">Intervalle</option><option value="game">Trainingsspiel</option></select></label>
         <div data-tt="countdown-config" class="tt-config"><label>Dauer (Sekunden)<input data-tt="duration" data-config type="number" inputmode="numeric" min="1" max="7200"></label></div>
         <div data-tt="interval-config" class="tt-config"><label>Belastung (Sek.)<input data-tt="work" data-config type="number" inputmode="numeric" min="1" max="3600"></label><label>Pause (Sek.)<input data-tt="rest" data-config type="number" inputmode="numeric" min="0" max="3600"></label><label>Runden<input data-tt="rounds" data-config type="number" inputmode="numeric" min="1" max="99"></label></div>
         <section class="tt-clock" aria-label="Trainingsuhr"><p data-tt="phase" role="status"></p><output class="tt-time" data-tt="time" aria-label="Zeit" aria-live="off"></output><div class="tt-controls"><button type="button" data-tt="toggle" class="tt-primary">Start</button><button type="button" data-tt="reset">Uhr zurücksetzen</button></div></section>
@@ -131,7 +158,8 @@ BT.trainingTimer = (() => {
         <div class="tt-controls"><button type="button" data-tt="undo">Letzte Punkte zurück</button><button type="button" data-tt="clear-scores">Punkte auf null</button></div>
         <label class="tt-check"><input type="checkbox" data-tt="shot-enabled"> Shotclock verwenden</label>
         <section data-tt="shot-panel" class="tt-shot" aria-label="Shotclock"><output data-tt="shot-time" aria-label="Shotclock Sekunden" aria-live="off">24</output><div><div class="tt-controls"><button type="button" data-tt="shot-24">Reset 24 s</button><button type="button" data-tt="shot-14">Reset 14 s</button></div><button type="button" data-tt="shot-toggle">Shotclock starten</button></div></section>
-        <p class="tt-help">Uhren laufen beim Zurückgehen weiter. Shotclock separat starten und pausieren. Der Stand wird nur auf diesem Gerät gespeichert, nicht als Spielstatistik.</p>
+        <p class="tt-help" data-tt="mode-help"></p>
+        <p class="tt-help">Uhren laufen beim Zurückgehen weiter. Der Stand wird nur auf diesem Gerät gespeichert, nicht als Spielstatistik.</p>
         <p class="tt-help">Bei Bildschirmsperre läuft die Zeit weiter; ein Tonsignal ist dann nicht garantiert. Solange diese Ansicht offen ist, versuchen wir den Bildschirm wach zu halten.</p>
         <p data-tt="notice" role="status" class="tt-help"></p>
       </div>`;
@@ -148,14 +176,19 @@ BT.trainingTimer = (() => {
       const now = Date.now();
       if (action === 'close') { close(); return; }
       if (action === 'toggle' || action === 'shot-toggle') {
+        if (s.mode === 'game' && action === 'shot-toggle') return;
         const c = action === 'toggle' ? s.clock : s.shot;
         if (c.since === null) {
           try { BT.audio?.ensureContext(); } catch (_) { /* Optional audio. */ }
           c.since = now;
         } else { c.elapsed = elapsed(c, now); c.since = null; }
+        if (s.mode === 'game' && action === 'toggle') {
+          s.shot = { elapsed: elapsed(s.shot, now), since: c.since };
+        }
       } else if (action === 'reset') {
         if (elapsed(s.clock, now) > 0 && !window.confirm('Die Uhr zurücksetzen? Punkte bleiben erhalten.')) return;
         s.clock = clock();
+        if (s.mode === 'game') { s.shot = clock(); s.shotDuration = 24; }
       } else if (action.startsWith('score-')) {
         const [, team, delta] = action.match(/^score-(\d)-(-?\d)$/) || [];
         if (team === undefined) return;
@@ -175,7 +208,7 @@ BT.trainingTimer = (() => {
       tick(); save();
     });
     root.addEventListener('change', event => {
-      const el = event.target, field = el.dataset.tt;
+      const el = event.target, field = el.dataset.tt, checked = el.checked;
       tick();
       if (field === 'mode' || el.hasAttribute('data-config')) {
         if (el.hasAttribute('data-config') && (!el.checkValidity() || el.value === '')) {
@@ -184,11 +217,14 @@ BT.trainingTimer = (() => {
         if (elapsed(s.clock, Date.now()) > 0 && !window.confirm('Diese Änderung setzt die Uhr zurück. Fortfahren?')) {
           el.value = field === 'mode' ? s.mode : s.config[field]; return;
         }
+        const wasGame = s.mode === 'game';
         if (field === 'mode') s.mode = el.value;
         else s.config[field] = Number(el.value);
         s.clock = clock();
+        if (wasGame || s.mode === 'game') { s.shot = clock(); s.shotDuration = 24; }
+        if (s.mode === 'game') s.shotEnabled = true;
       } else if (field === 'shot-enabled') {
-        s.shotEnabled = el.checked;
+        s.shotEnabled = checked;
         if (!s.shotEnabled) { s.shot.elapsed = elapsed(s.shot, Date.now()); s.shot.since = null; }
       } else if (field?.startsWith('name-')) {
         s.names[Number(field.slice(-1))] = el.value.slice(0, 24);

@@ -1,6 +1,6 @@
 // Bump this whenever the offline asset manifest changes so installed clients
 // cannot keep an older editor or planner bundle.
-const CACHE = 'courthub-v136';
+const CACHE = 'courthub-v137';
 const ASSETS = [
   './',
   './index.html',

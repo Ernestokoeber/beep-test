@@ -7,6 +7,12 @@ Bedienung am Handy vorgesehen, nicht zur Fernsteuerung einer Hallenanzeige.
 
 - **Stoppuhr:** Start, Pause, Fortsetzen und Zurücksetzen.
 - **Countdown:** Dauer in Sekunden einstellen, dann starten.
+- **Trainingsspiel:** Spielzeit in Sekunden einstellen. Start/Pause steuern
+  Spielzeit und Shotclock gemeinsam. Bei zehn Sekunden Restzeit sagt die
+  Shotclock „Noch zehn Sekunden“. Bei Ablauf piept sie und beginnt automatisch
+  neue 24 Sekunden. Manuell bleiben Reset 24/14 möglich; nach einem 14er-Ablauf
+  folgt wieder ein 24er-Zyklus. Bei Spielzeitende stoppen beide Uhren.
+  Dies ist ein Trainingstakt, keine automatische Ballbesitzerkennung.
 - **Intervalle:** Belastung, Pause und Rundenzahl einstellen. Nach der letzten
   Belastung endet die Uhr ohne zusätzliche Pausenrunde.
 - **Punkte:** Zwei frei benennbare Teams, +1/+2/+3 und −1. „Letzte Punkte zurück“
@@ -14,6 +20,7 @@ Bedienung am Handy vorgesehen, nicht zur Fernsteuerung einer Hallenanzeige.
 - **Shotclock:** Optional zuschalten, separat starten/pausieren und auf 24 oder
   14 Sekunden zurücksetzen. Ein Reset während des Laufens läuft sofort weiter;
   ein Reset einer pausierten/abgelaufenen Shotclock bleibt pausiert.
+  Auch die separate Shotclock sagt zehn Sekunden an, wiederholt sich aber nicht.
 
 Beim Wechsel zum Training laufen gestartete Uhren weiter. Zum Beenden vorher
 pausieren. Der Moduswechsel und Änderungen an den Zeitvorgaben setzen die
@@ -26,6 +33,9 @@ Stand und Einstellungen liegen pro Training im lokalen Browserspeicher unter
 Spielstatistiken übernommen und nicht zwischen Geräten synchronisiert.
 Das Löschen von Browserdaten löscht auch diese Stände.
 
+Im Trainingsspiel setzt „Uhr zurücksetzen“ auch die Shotclock auf pausierte
+24 Sekunden. Der Punktestand bleibt erhalten.
+
 Laufzeiten werden aus Zeitstempeln ermittelt, nicht durch herunterzählende
 Browser-Intervalle. Nach Hintergrundbetrieb oder Neuladen wird die verstrichene
 Zeit berücksichtigt. Eine Änderung der Geräteuhr kann die Laufzeit beeinflussen.
@@ -34,6 +44,8 @@ Die geöffnete Ansicht fordert eine Bildschirmsperre-Verhinderung an, sofern der
 Browser dies unterstützt. Signalton bei Phasenwechsel und Ablauf gibt es nur bei
 aktiver Ansicht; im Hintergrund oder bei Bildschirmsperre ist er nicht garantiert.
 Beim Wiederöffnen werden verpasste Signale nicht nachträglich abgespielt.
+Für Ansagen und Pieptöne die Timeransicht geöffnet lassen. Die Ansage benötigt
+Sprachausgabe-Unterstützung im Browser; ohne diese bleiben Anzeige und Piepton.
 Lautstärke/Stummschaltung des Geräts beachten. Dieselbe Trainingsuhr möglichst
 nur in einem Tab bedienen.
 

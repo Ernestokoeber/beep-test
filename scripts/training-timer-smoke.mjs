@@ -105,6 +105,48 @@ assert.equal(signals, 2);
 reopen('alarm'); pulse(); assert.equal(signals, 2);
 
 // Malformed persisted values do not create NaN or an unbounded running timer.
+const spoken = [];
+w.BT.audio.speak = message => spoken.push(message);
+signals = 0;
+reopen('game'); change('mode', 'game'); change('duration', '120');
+assert.equal(output('time'), '02:00');
+click('toggle'); now += 14000; pulse();
+assert.equal(output('shot-time'), '10');
+assert.deepEqual(spoken, ['Noch zehn Sekunden']);
+pulse(); assert.equal(spoken.length, 1);
+click('toggle'); now += 5000; pulse();
+assert.equal(output('time'), '01:46');
+assert.equal(output('shot-time'), '10');
+click('toggle'); now += 10000; pulse();
+assert.equal(output('shot-time'), '24');
+assert.equal(output('time'), '01:36');
+assert.equal(signals, 1);
+click('shot-14'); now += 4000; pulse();
+assert.equal(spoken.length, 2);
+now += 10000; pulse();
+assert.equal(output('shot-time'), '24');
+assert.equal(signals, 2);
+// Catch up 50 seconds without replaying missed sounds; remain aligned with wall time.
+api.close(); now += 50000; api.open('game');
+assert.equal(output('shot-time'), '22');
+assert.equal(output('time'), '00:32');
+assert.equal(signals, 2);
+assert.equal(spoken.length, 2);
+now += 40000; pulse();
+assert.equal(output('time'), '00:00');
+assert.equal(output('shot-time'), '14'); // stop at game end, not 8 seconds later
+now += 20000; pulse();
+assert.equal(output('shot-time'), '14');
+click('reset');
+assert.equal(output('shot-time'), '24');
+assert.equal(output('time'), '02:00');
+
+// Standalone shotclock also announces ten, but must NOT automatically restart.
+reopen('standalone'); click('shot-enabled'); click('shot-toggle');
+now += 14000; pulse(); assert.equal(spoken.length, 3);
+now += 10000; pulse(); assert.equal(output('shot-time'), '0');
+now += 5000; pulse(); assert.equal(output('shot-time'), '0');
+
 api.close();
 w.localStorage.setItem('courthub-training-timer-v1:bad', '{"mode":"interval","clock":{"elapsed":-4,"since":"bad"},"config":{"work":0},"scores":[-2,null]}');
 api.open('bad');
