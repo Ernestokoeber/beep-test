@@ -29,3 +29,8 @@ assert.throws(()=>createSession({...fixture(),startingFive:['p1','p1','p2','p3',
 assert.throws(()=>createSession({...fixture(),config:{periods:0,periodMs:NaN,overtimeMs:1}}));
 assert.equal(fixture().roster[0].name,'Spieler 1');
 console.log('Live core: scoring, corrections, idempotence and validation passed.');
+s=fixture();
+for(const action of ['ft-made','ft-missed','two-made','two-missed','three-made','three-missed','oreb','dreb','assist','steal','block','turnover','foul'])add('stat',{playerId:'p1',action});
+p=projectStats(s).players.p1;
+assert.deepEqual([p.points,p.ftMade,p.ftAttempted,p.twoMade,p.twoAttempted,p.threeMade,p.threeAttempted,p.fieldGoalsMade,p.fieldGoalsAttempted,p.fieldGoalPct,p.freeThrowPct,p.rebounds,p.assists,p.steals,p.blocks,p.turnovers,p.fouls],[6,1,2,1,2,1,2,2,4,50,50,2,1,1,1,1,1]);
+const copy=structuredClone(s);copy.roster[0].name='Archived in current roster';assert.equal(s.roster[0].name,'Spieler 1');

@@ -134,6 +134,7 @@
     if (BT.checkin && BT.checkin.cleanup) BT.checkin.cleanup();
     if (BT.training && BT.training.cleanup) BT.training.cleanup();
     if (BT.account && BT.account.cleanup) BT.account.cleanup();
+    if (BT.games && BT.games.cleanup) BT.games.cleanup();
 
     setActiveNav(hash);
 

@@ -39,3 +39,27 @@ assert.throws(()=>add('void',500000,{targetId:'e3'}));
 s=fresh();add('clock-start',600000,{startedAtMs:100000});
 assert.equal(clockAt(s,90000).running,false);assert.ok(clockAt(s,90000).clockSkew);
 console.log('Live clock: pauses, substitutions, corrections, understrength and recovery passed.');
+// Full regulation and two overtimes; every section is explicitly started and stopped.
+s=fresh();let anchor=100000;
+for(let period=1;period<=6;period++){
+  const ms=period<=4?600000:300000;
+  if(period>1)add('period-start',ms,{},period);
+  add('clock-start',ms,{startedAtMs:anchor},period);add('clock-pause',0,{},period);anchor+=ms+60000;
+}
+assert.equal(projectLineups(s,anchor).minutesMs.p1,3000000);
+assert.equal(Object.values(projectLineups(s,anchor).minutesMs).reduce((a,b)=>a+b,0),15000000);
+add('finish',0,{},6);assert.equal(clockAt(s,anchor).ended,true);
+// Five fouls are counted, not an implicit lineup mutation.
+s=fresh();for(let i=0;i<5;i++)add('stat',600000,{playerId:'p1',action:'foul'});
+assert.ok(projectLineups(s,0).onCourt.includes('p1'));
+// Atomic correction of paused clock and substitution, with dependent start.
+s=fresh();add('clock-start',600000,{startedAtMs:100000});add('clock-pause',500000);
+add('substitution',500000,{out:['p1'],in:['p6']});
+add('amend',500000,{changes:[{targetId:'e2',patch:{remainingMs:510000}},{targetId:'e3',patch:{remainingMs:510000}}]});
+assert.equal(projectLineups(s,999999).minutesMs.p1,90000);
+console.log('Live clock: full regulation, two overtimes, foul limit and atomic correction passed.');
+s=fresh();add('clock-start',600000,{startedAtMs:100000});add('clock-pause',600000,{clockSkew:true});
+assert.equal(clockAt(s,90000).needsCorrection,true);
+assert.throws(()=>add('clock-start',600000,{startedAtMs:90000}));
+add('clock-correction',600000,{toRemainingMs:590000});
+add('clock-start',590000,{startedAtMs:90000});assert.equal(clockAt(s,90000).needsCorrection,false);

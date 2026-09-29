@@ -4,8 +4,12 @@ BT.games = (function() {
   const { $, renderTemplate, escapeHTML, formatDate, todayISO } = BT.util;
   let root = null;
   let selectedGameId = null;
+  let liveCleanup = null;
+  let liveGeneration = 0;
+  function cleanup() { liveGeneration++; if(liveCleanup){liveCleanup();liveCleanup=null;} }
 
   function render(target) {
+    cleanup();
     root = renderTemplate('tpl-games');
     target.appendChild(root);
     const form = $('[data-role="game-form"]', root);
@@ -109,6 +113,7 @@ BT.games = (function() {
   function saveGame(game) { BT.storage.upsertGame(game); }
 
   function drawDetail() {
+    cleanup();
     const wrap = $('[data-role="game-detail"]', root);
     const game = BT.storage.getGame(selectedGameId);
     if (!game) { wrap.innerHTML = '<div class="empty empty--field"><p class="empty-body">Spiel auswählen.</p></div>'; return; }
@@ -124,6 +129,7 @@ BT.games = (function() {
       <div class="head-actions"><button class="btn small" data-action="edit-selected">Bearbeiten</button><button class="btn small" data-action="share-game">Bericht teilen</button></div>
     </div>
 
+    <section class="boxscore-panel"><h3>Live-Spielstatistik</h3><p>Eigene Spieleraktionen, Wechsel und Einsatzminuten. Unabhängig von Atlas und dem manuellen Boxscore.</p><button class="btn primary" data-action="open-live">Live erfassen</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
     <div class="game-observation-grid">
       <label>Was hat funktioniert?<textarea data-game-field="strengths" rows="4" placeholder="Stärken, erfolgreiche Lineups, gute Entscheidungen …">${escapeHTML(game.strengths || '')}</textarea></label>
       <label>Was müssen wir verbessern?<textarea data-game-field="improvements" rows="4" placeholder="Konkrete Spielsituationen und Trainingsbedarf …">${escapeHTML(game.improvements || '')}</textarea></label>
@@ -164,10 +170,48 @@ BT.games = (function() {
     $('[data-action="load-atlas"]', wrap).addEventListener('click', () => loadAtlas(game));
     $('[data-action="create-training"]', wrap).addEventListener('click', () => createTrainingFromGame(game, analysis));
     $('[data-action="share-game"]', wrap).addEventListener('click', () => shareGame(game, analysis));
-    $('[data-action="delete-game"]', wrap).addEventListener('click', () => {
+    $('[data-action="open-live"]', wrap).addEventListener('click', () => openLive(game.id, wrap));
+    $('[data-action="live-report"]', wrap).addEventListener('click', () => showLiveReport(game.id, wrap));
+    $('[data-action="delete-game"]', wrap).addEventListener('click', async () => {
       if (!confirm('Spiel und interne Spielnotizen löschen?')) return;
-      BT.storage.deleteGame(game.id); selectedGameId = null; drawList(); drawDetail();
+      try {
+        if(BT.storage.getGame(game.id)?.liveStats){
+          if(!confirm('Auch die gesamte Live-Erfassung löschen? Vorher alle Erfassungsgeräte synchronisieren und schließen.'))return;
+          cleanup();await BT.sync.deleteLiveGame(game.id);
+        }else BT.storage.deleteGame(game.id);
+        selectedGameId = null; drawList(); drawDetail();
+      }catch(error){BT.util.toast(error.message);}
     });
+  }
+
+  async function openLive(gameId, wrap) {
+    cleanup();const generation=liveGeneration;
+    const host=$('[data-role="live-game-host"]',wrap);host.textContent='Live-Erfassung wird geöffnet …';
+    try{
+      const state=BT.sync.getState(),user=state.user;
+      if(!user?.organization?.id)throw Error('Zuerst unter Konto & Sync im Team anmelden.');
+      const [{openLiveGame},{mountLiveView}]=await Promise.all([import('./live-game/controller.mjs'),import('./live-game/view.mjs')]);
+      if(generation!==liveGeneration)return;
+      const controller=await openLiveGame({gameId,scope:{organizationId:user.organization.id,actorId:user.id,sessionEpoch:state.sessionEpoch}});
+      if(generation!==liveGeneration){await controller.close();return;}
+      host.replaceChildren();const unmount=mountLiveView(host,controller);
+      liveCleanup=()=>{unmount();controller.close().catch(()=>{});};host.scrollIntoView?.({block:'start'});
+    }catch(error){if(generation===liveGeneration)host.textContent=error.message;}
+  }
+  async function showLiveReport(gameId, wrap){
+    cleanup();const generation=liveGeneration,host=$('[data-role="live-game-host"]',wrap);
+    try{
+      const {buildLiveReport,renderLiveReport}=await import('./live-game/report.mjs');
+      if(generation!==liveGeneration)return;
+      const game=BT.storage.getGame(gameId),live=game?.liveStats;
+      const session=live?.sessions.find(s=>s.id===live.selectedSessionId);
+      host.replaceChildren();
+      if(!session){host.textContent=live?'Mehrere Erfassungen: In „Live erfassen“ zuerst eine Sitzung auswählen.':'Noch keine Live-Erfassung vorhanden.';return;}
+      const report=buildLiveReport(session,Date.now());host.append(renderLiveReport(report));
+      const score=String(game.score||'').match(/^(\d+)\s*:\s*(\d+)$/);
+      const home=/\blindau\b/i.test(game.home||''),away=/\blindau\b/i.test(game.away||'');
+      if(score&&home!==away&&report.teamPoints!==null){const official=Number(score[home?1:2]);const p=document.createElement('p');p.textContent='Gepflegtes Ergebnis: '+official+' eigene Punkte · Differenz zur Live-Erfassung: '+(report.teamPoints-official)+'.';host.append(p);}
+    }catch(error){host.textContent=error.message;}
   }
 
   function normalizedAtlas(pkg) {
@@ -356,5 +400,5 @@ BT.games = (function() {
     catch { BT.util.downloadBlob('spielauswertung-' + game.date + '.txt', new Blob([text], { type: 'text/plain;charset=utf-8' })); }
   }
 
-  return { render };
+  return { render, cleanup, isLiveOpen: () => !!liveCleanup };
 })();

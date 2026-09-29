@@ -31,10 +31,12 @@ function validateEvent(s,e) {
   ensure(kinds.includes(e.kind) && e.payload && typeof e.payload === 'object' && !Array.isArray(e.payload),'event','Unbekannte Aktion.');
   ensure(Number.isInteger(e.period) && e.period >= 1 && e.period <= 50 && Number.isInteger(e.remainingMs) && e.remainingMs >= 0 && e.remainingMs <= duration(s,e.period),'time','Ungültige Spielzeit.',[e.id]);
   ensure(typeof e.recordedAt === 'string' && Number.isFinite(Date.parse(e.recordedAt)),'time','Ungültige Erfassungszeit.');
-  if (e.kind === 'stat') ensure(s.roster.some(p=>p.id===e.payload.playerId) && Object.hasOwn(actions,e.payload.action),'stat','Unbekannter Spieler oder Statistikaktion.',[e.id]);
+  const known = s.roster.concat(s.events.filter(x=>x.kind==='roster' && x.seq<e.seq).flatMap(x=>x.payload.players||[]));
+  if (e.kind === 'roster') ensure(Array.isArray(e.payload.players) && e.payload.players.length>0 && e.payload.players.length<=40 && e.payload.players.every(p=>idOK(p.id)&&typeof p.name==='string'&&p.name.length>0&&p.name.length<=100),'roster','Ungültige Kaderkorrektur.');
+  if (e.kind === 'stat') ensure(known.some(p=>p.id===e.payload.playerId) && Object.hasOwn(actions,e.payload.action),'stat','Unbekannter Spieler oder Statistikaktion.',[e.id]);
   if (e.kind === 'clock-start') ensure(Number.isSafeInteger(e.payload.startedAtMs) && e.payload.startedAtMs >= 0,'time','Ungültiger Zeitanker.');
   if (e.kind === 'clock-correction') ensure(Number.isInteger(e.payload.toRemainingMs) && e.payload.toRemainingMs >= 0 && e.payload.toRemainingMs <= duration(s,e.period),'time','Ungültige Uhrkorrektur.');
-  if (e.kind === 'substitution') ensure(Array.isArray(e.payload.out) && Array.isArray(e.payload.in) && [...e.payload.out,...e.payload.in].every(id=>s.roster.some(p=>p.id===id)),'lineup','Ungültiger Wechsel.',[e.id]);
+  if (e.kind === 'substitution') ensure(Array.isArray(e.payload.out) && Array.isArray(e.payload.in) && [...e.payload.out,...e.payload.in].every(id=>known.some(p=>p.id===id)),'lineup','Ungültiger Wechsel.',[e.id]);
 }
 export function effectiveEvents(s) {
   const originals = new Map();
@@ -76,7 +78,7 @@ export function appendEvent(s,e) {
   const next=clone(s);next.events.push(clone(e));validateSession(next);return next;
 }
 export function projectStats(s) {
-  const players=Object.fromEntries(s.roster.map(p=>[p.id,{...p,points:0,ftMade:0,ftAttempted:0,twoMade:0,twoAttempted:0,threeMade:0,threeAttempted:0,oreb:0,dreb:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0}]));
+  const players=Object.fromEntries(sessionRoster(s).map(p=>[p.id,{...p,points:0,ftMade:0,ftAttempted:0,twoMade:0,twoAttempted:0,threeMade:0,threeAttempted:0,oreb:0,dreb:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0}]));
   const counters={oreb:'oreb',dreb:'dreb',assist:'assists',steal:'steals',block:'blocks',turnover:'turnovers',foul:'fouls'};
   for (const e of effectiveEvents(s)) {
     if(e.kind!=='stat')continue;
@@ -91,4 +93,10 @@ export function projectStats(s) {
     p.freeThrowPct=p.ftAttempted ? 100*p.ftMade/p.ftAttempted : null;
   }
   return {players,points:Object.values(players).reduce((n,p)=>n+p.points,0),issues:[]};
+}
+export function sessionRoster(s) {
+  const roster=new Map(s.roster.map(p=>[p.id,clone(p)]));
+  for(const e of effectiveEvents(s))if(e.kind==='roster')for(const p of e.payload.players)roster.set(p.id,clone(p));
+  ensure(roster.size<=40,'roster','Höchstens 40 Spieler pro Spiel.');
+  return [...roster.values()];
 }

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {JSDOM} from 'jsdom';
+import {createSession,appendEvent} from '../js/live-game/core.mjs';
+const {buildLiveReport,renderLiveReport}=await import('../js/live-game/report.mjs');
+let s=createSession({id:'r',deviceId:'d',actorId:'u',roster:Array.from({length:5},(_,i)=>({id:'p'+i,name:'<b>Spieler '+i+'</b>'})),startingFive:['p0','p1','p2','p3','p4'],config:{periods:4,periodMs:600000,overtimeMs:300000}});
+const game={playerStats:[{points:8}],atlas:{points:10},liveStats:s};
+s=appendEvent(s,{id:'e',sessionId:'r',seq:1,period:1,remainingMs:600000,recordedAt:'2026-09-29',kind:'stat',payload:{playerId:'p0',action:'three-made'}});
+const report=buildLiveReport(s,1000);assert.equal(report.teamPoints,3);assert.equal(report.players[0].threeMade,1);assert.equal(report.players[1].fieldGoalPct,null);
+assert.equal(game.playerStats[0].points,8);assert.equal(game.atlas.points,10);
+globalThis.document=new JSDOM('<main></main>').window.document;
+const view=renderLiveReport(report);assert.equal(view.querySelectorAll('b').length,0);assert.ok(view.textContent.includes('Coach-Statistik'));assert.ok(!view.textContent.includes('Plus/Minus'));
+assert.equal(report.complete,false);
+console.log('Live report: independent source, literal stats, zero-attempt percentages and safe rendering passed.');

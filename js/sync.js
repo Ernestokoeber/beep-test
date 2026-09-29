@@ -3,7 +3,21 @@ window.BT = window.BT || {};
 BT.sync = (function() {
   const VERSION_KEY = 'beeptest_workspace_version';
   const IDENTITY_KEY = 'courthub_live_identity';
+  const OWNER_KEY = 'courthub_workspace_team';
   function rememberIdentity() { try { localStorage.setItem(IDENTITY_KEY, JSON.stringify(user)); } catch {} }
+  function activateTeam(nextUser) {
+    const next = nextUser?.organization?.id;
+    if (!next) return;
+    // Preserve the old team's cache, but never upload it into a newly signed-in team.
+    const previous = localStorage.getItem(OWNER_KEY);
+    if (previous && previous !== next) {
+      localStorage.setItem('courthub_team_cache:' + previous, JSON.stringify(BT.storage.load()));
+      const cached = JSON.parse(localStorage.getItem('courthub_team_cache:' + next) || '{"games":[]}');
+      BT.storage.save(cached, { fromSync: true, preserveTimestamp: true });
+      storeVersion(0);
+    }
+    localStorage.setItem(OWNER_KEY, next);
+  }
   let user = null;
   let version = (() => {
     try { return Number.parseInt(localStorage.getItem(VERSION_KEY) || '0', 10) || 0; }
@@ -72,7 +86,7 @@ BT.sync = (function() {
     } finally {
       applying = false;
     }
-    window.dispatchEvent(new Event('hashchange'));
+    if (!BT.games?.isLiveOpen?.()) window.dispatchEvent(new Event('hashchange'));
   }
 
   async function pushLatest(epoch) {
@@ -128,6 +142,7 @@ BT.sync = (function() {
           timer = null;
           pushRequested = false;
           await applyRemote(remote.data, remote.version);
+          if (epoch !== sessionEpoch) return;
           lastSyncAt = remote.updatedAt || new Date().toISOString();
           setStatus('synced');
           BT.util.toast('Aktuellere Teamdaten wurden synchronisiert.');
@@ -184,6 +199,7 @@ BT.sync = (function() {
 
     if (user?.role === 'viewer') {
       await applyRemote(remote.data, remote.version);
+      if (epoch !== sessionEpoch) return;
       lastSyncAt = remote.updatedAt || new Date().toISOString();
       setStatus('synced');
       return;
@@ -201,7 +217,9 @@ BT.sync = (function() {
     }
     const bridge = await liveBridge();
     if (epoch !== sessionEpoch) return;
-    if (bridge && await bridge.hasPending(liveScope())) { await push(); return; }
+    const pending = bridge && await bridge.hasPending(liveScope());
+    if (epoch !== sessionEpoch) return;
+    if (pending) { await push(); return; }
     lastSyncAt = remote.updatedAt || new Date().toISOString();
     setStatus('synced');
   }
@@ -212,6 +230,7 @@ BT.sync = (function() {
     timer = null;
     pushRequested = false;
     BT.api.setToken(result.token);
+    activateTeam(result.user);
     user = result.user;
     rememberIdentity();
     emit();
@@ -262,6 +281,7 @@ BT.sync = (function() {
     }
     try {
       const result = await BT.api.me();
+      activateTeam(result.user);
       user = result.user;
       rememberIdentity();
       emit();
