@@ -6,7 +6,9 @@ BT.games = (function() {
   let selectedGameId = null;
   let liveCleanup = null;
   let liveGeneration = 0;
-  function cleanup() { liveGeneration++; if(liveCleanup){liveCleanup();liveCleanup=null;} }
+  let matchdayView = null;
+  function cleanup() { liveGeneration++; matchdayView=null; if(liveCleanup){liveCleanup();liveCleanup=null;} }
+  function beforeLeave(){return matchdayView?.flush?.()||null;}
 
   function render(target) {
     cleanup();
@@ -22,6 +24,7 @@ BT.games = (function() {
     $('[data-role="schedule-team-name"]', root).value = source.teamName;
 
     $('[data-action="new-game"]', root).addEventListener('click', () => openForm());
+    $('[data-action="new-training-game"]', root)?.addEventListener('click',()=>{openForm();form.dataset.trainingGame='true';});
     $('[data-action="cancel-game"]', root).addEventListener('click', closeForm);
     teamFilter.addEventListener('change', drawList);
     search.addEventListener('input', drawList);
@@ -36,7 +39,9 @@ BT.games = (function() {
         status: fields.score.value.trim() ? 'played' : 'upcoming'
       });
       selectedGameId = game.id;
+      const trainingGame=form.dataset.trainingGame==='true';
       closeForm(); drawList(); drawDetail();
+      if(trainingGame)location.hash='#/games/'+encodeURIComponent(game.id)+'/matchday?training';
     });
 
     $('[data-action="save-schedule-source"]', root).addEventListener('click', () => {
@@ -69,6 +74,7 @@ BT.games = (function() {
 
   function openForm(game) {
     const form = $('[data-role="game-form"]', root);
+    form.dataset.trainingGame='false';
     form.classList.remove('hidden');
     form.elements.id.value = game && game.id || '';
     form.elements.team.value = game && game.team || 'herren';
@@ -129,7 +135,7 @@ BT.games = (function() {
       <div class="head-actions"><button class="btn small" data-action="edit-selected">Bearbeiten</button><button class="btn small" data-action="share-game">Bericht teilen</button></div>
     </div>
 
-    <section class="boxscore-panel"><h3>Live-Spielstatistik</h3><p>Eigene Spieleraktionen, Wechsel und Einsatzminuten. Unabhängig von Atlas und dem manuellen Boxscore.</p><button class="btn primary" data-action="open-live">Live erfassen</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
+    <section class="boxscore-panel"><h3>Spieltag</h3><p>Geführte Vorbereitung, freie Live-Erfassung und Auswertung.</p><button class="btn primary" data-action="open-matchday">${game.liveStats?.sessions?.find(s=>s.id===game.liveStats.selectedSessionId)?.events.some(e=>e.kind==='finish')?'Spieltag ansehen':game.matchday||game.liveStats?'Spieltag fortsetzen':'Spieltag starten'}</button><button class="btn" data-action="open-live">Live erfassen</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
     <div class="game-observation-grid">
       <label>Was hat funktioniert?<textarea data-game-field="strengths" rows="4" placeholder="Stärken, erfolgreiche Lineups, gute Entscheidungen …">${escapeHTML(game.strengths || '')}</textarea></label>
       <label>Was müssen wir verbessern?<textarea data-game-field="improvements" rows="4" placeholder="Konkrete Spielsituationen und Trainingsbedarf …">${escapeHTML(game.improvements || '')}</textarea></label>
@@ -171,6 +177,7 @@ BT.games = (function() {
     $('[data-action="create-training"]', wrap).addEventListener('click', () => createTrainingFromGame(game, analysis));
     $('[data-action="share-game"]', wrap).addEventListener('click', () => shareGame(game, analysis));
     $('[data-action="open-live"]', wrap).addEventListener('click', () => openLive(game.id, wrap));
+    $('[data-action="open-matchday"]',wrap).addEventListener('click',()=>{location.hash='#/games/'+encodeURIComponent(game.id)+'/matchday';});
     $('[data-action="live-report"]', wrap).addEventListener('click', () => showLiveReport(game.id, wrap));
     $('[data-action="delete-game"]', wrap).addEventListener('click', async () => {
       if (!confirm('Spiel und interne Spielnotizen löschen?')) return;
@@ -400,5 +407,24 @@ BT.games = (function() {
     catch { BT.util.downloadBlob('spielauswertung-' + game.date + '.txt', new Blob([text], { type: 'text/plain;charset=utf-8' })); }
   }
 
-  return { render, cleanup, isLiveOpen: () => !!liveCleanup };
+  async function renderMatchday(target,gameId,training=false){
+    cleanup();const generation=liveGeneration;
+    const host=document.createElement('section');host.textContent='Spieltag wird geöffnet …';target.append(host);
+    try{
+      const game=BT.storage.getGame(gameId),state=BT.sync.getState(),user=state.user;
+      if(!game)throw Error('Spiel nicht gefunden. Unter Spiele auswählen.');
+      if(!user?.organization?.id)throw Error('Für den Spieltag zuerst unter Konto & Sync anmelden.');
+      const [{openMatchday},{mountMatchdayView}]=await Promise.all([import('./matchday/controller.mjs'),import('./matchday/view.mjs')]);
+      if(generation!==liveGeneration)return;
+      const c=await openMatchday({gameId:game.id,scope:{organizationId:user.organization.id,actorId:user.id,sessionEpoch:state.sessionEpoch}});
+      if(generation!==liveGeneration){await c.close();return;}
+      if(training&&!game.matchday&&!c.getState().liveState.hasLiveData)await c.saveDraft({...c.getState().draft,kind:'training'});
+      host.replaceChildren();const heading=document.createElement('h1');heading.textContent=game.home+' – '+game.away;host.append(heading);
+      const meta=document.createElement('p');meta.textContent=formatDate(game.date)+(game.time?' · '+game.time:'');host.append(meta);
+      const content=document.createElement('div');host.append(content);
+      matchdayView=mountMatchdayView(content,c,{players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics()});
+      const view=matchdayView;liveCleanup=()=>{view();c.close().catch(()=>{});};
+    }catch(e){if(generation===liveGeneration)host.textContent=e.message;}
+  }
+  return { render, renderMatchday, beforeLeave, cleanup, isLiveOpen: () => !!liveCleanup };
 })();

@@ -126,8 +126,12 @@
     });
   }
 
-  function route() {
+  let renderedHash = location.hash || '#/dashboard';
+  async function route() {
     const hash = location.hash || '#/dashboard';
+    const leaving=BT.games?.beforeLeave?.();
+    if(leaving){const ok=await leaving;if((location.hash||'#/dashboard')!==hash)return;if(!ok){history.replaceState(null,'',renderedHash);return;}}
+    renderedHash=hash;
     const isDashboard = hash === '#/dashboard' || hash === '#/' || hash === '';
     if (!isDashboard) app.innerHTML = '';
     if (BT.test && BT.test.cleanup) BT.test.cleanup();
@@ -163,6 +167,8 @@
     } else if (hash.startsWith('#/training/')) {
       const id = hash.slice('#/training/'.length);
       BT.training.renderDetail(app, id);
+    } else if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
+      BT.games.renderMatchday(app,decodeURIComponent(hash.split('/')[2]),hash.endsWith('?training'));
     } else if (hash === '#/games') {
       BT.games.render(app);
     } else if (hash === '#/tablecrew') {

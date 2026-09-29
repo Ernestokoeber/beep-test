@@ -26,7 +26,7 @@ export function mountLiveView(container,controller){
     body.replaceChildren(el('h2','Spieltagskader'),el('p','Eigene Mannschaft auswählen, anschließend genau fünf Starter markieren.'),el('p','Für Plus/Minus alle Treffer beider Teams erfassen. Die Trikotnummer gilt nur für dieses Spiel.'));
     const f=el('form');body.append(f);const rows=[];
     for(const p of s.roster){const row=el('div',undefined,'live-roster-row');const active=field(row,p.name,'checkbox',p.id);active.checked=true;
-      const starter=field(row,'Startet','checkbox',p.id);starter.dataset.starter='';const jersey=jerseyField(row,p);jersey.dataset.jerseyPlayer=p.id;rows.push({p,active,starter,jersey});f.append(row);}
+      const starter=field(row,'Startet','checkbox',p.id);starter.dataset.starter='';const jersey=jerseyField(row,p);jersey.dataset.jerseyPlayer=p.id;active.addEventListener('change',()=>{jersey.disabled=!active.checked;starter.disabled=!active.checked;if(!active.checked)starter.checked=false;});rows.push({p,active,starter,jersey});f.append(row);}
     const periods=field(f,'Reguläre Abschnitte','number',4);periods.min='1';periods.max='12';
     const minutes=field(f,'Minuten je Abschnitt','number',10);minutes.min='1';minutes.max='60';
     const overtime=field(f,'Minuten je Verlängerung','number',5);overtime.min='1';overtime.max='60';
