@@ -3,6 +3,10 @@ export function position(s,period,remainingMs) {
   let offset=0;for(let p=1;p<period;p++)offset+=duration(s,p);
   return offset+duration(s,period)-remainingMs;
 }
+export function lineupAtEvent(boundaries,s,e) {
+  const at=position(s,e.period,e.remainingMs);
+  return [...(boundaries.filter(b=>b.at<at || b.at===at&&b.seq<e.seq).at(-1)||boundaries[0]).onCourt];
+}
 function replay(s) {
   const events=effectiveEvents(s);
   let c={period:1,remainingMs:duration(s,1),running:false,ended:false,startedAtMs:null};
@@ -14,6 +18,7 @@ function replay(s) {
     const at=position(s,e.period,e.remainingMs);
     if(e.kind==='roster'){for(const p of e.payload.players)known.add(p.id);ensure(known.size<=40,'roster','Höchstens 40 Spieler.');continue;}
     if(e.kind==='stat'){ensure(known.has(e.payload.playerId),'roster','Spieler fehlt im Kader.',[e.id]);stats.push(e);continue;}
+    if(e.kind==='opponent-score'||e.kind==='score-coverage'){stats.push(e);continue;}
     ensure(!c.ended,'finished','Das Spiel wurde bereits beendet.',[e.id]);
     if(e.kind==='period-start') {
       ensure(e.period===c.period+1 && c.remainingMs===0 && !c.running && e.remainingMs===duration(s,e.period),'period','Vorherigen Abschnitt zuerst bei 0:00 anhalten.',[e.id]);
@@ -52,8 +57,7 @@ function replay(s) {
   for(const e of stats) {
     const at=position(s,e.period,e.remainingMs);
     ensure(e.period<=c.period && (c.running || at<=end),'time','Statistik liegt nach der erfassten Spielzeit.',[e.id]);
-    const lineup=boundaries.filter(b=>b.at<at || (b.at===at && b.seq<e.seq)).at(-1)||boundaries[0];
-    ensure(lineup.onCourt.includes(e.payload.playerId),'lineup','Spieler war zu diesem Zeitpunkt nicht auf dem Feld.',[e.id,lineup.eventId]);
+    if(e.kind==='stat')ensure(lineupAtEvent(boundaries,s,e).includes(e.payload.playerId),'lineup','Spieler war zu diesem Zeitpunkt nicht auf dem Feld.',[e.id]);
   }
   return {clock:c,boundaries,onCourt};
 }
@@ -79,5 +83,5 @@ export function projectLineups(s,nowMs) {
     const from=boundaries[i].at, to=i+1<boundaries.length?boundaries[i+1].at:end;
     if(to>from){const stint={fromMs:from,toMs:to,onCourt:[...boundaries[i].onCourt]};stints.push(stint);for(const id of stint.onCourt)minutesMs[id]+=to-from;}
   }
-  return {onCourt,stints,minutesMs,issues:[]};
+  return {onCourt,stints,minutesMs,boundaries,playedIds:[...new Set(boundaries.flatMap(b=>b.onCourt))],issues:[]};
 }
