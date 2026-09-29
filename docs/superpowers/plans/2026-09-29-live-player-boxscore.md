@@ -1,5 +1,10 @@
 # Vollständiger Live-Spielerboxscore – Implementation Plan
 
+Status: Aufgaben 1–5 umgesetzt auf `feat/live-player-boxscore`. Gesamte Testsuite,
+unabhängige Codeprüfung, 320/390-Pixel-Browserprüfung und echter Offline-Reload
+abgeschlossen. Noch nicht zusammengeführt oder veröffentlicht. Ein kleiner
+Formular-Randfall ist in `docs/LIVE-GAME-STATISTICS.md` dokumentiert.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Die bestehende mobile Erfassung um Spieltagsnummern, Einsatzstatus und nachvollziehbares Plus/Minus erweitern.

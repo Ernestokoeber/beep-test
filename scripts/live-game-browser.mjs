@@ -7,7 +7,7 @@ const html=`<!doctype html><html lang="de"><meta charset="utf-8"><meta name="vie
 const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,'http://localhost');
   if(url.pathname==='/live-test'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(html);return;}
-  const path=resolve(root,'.'+decodeURIComponent(url.pathname));
+  const path=resolve(root,url.pathname==='/'?'index.html':'.'+decodeURIComponent(url.pathname));
   if(!path.startsWith(root.endsWith(sep)?root:root+sep)){res.writeHead(403).end();return;}
   try{const data=await readFile(path);res.setHeader('Content-Type',({'.mjs':'text/javascript','.js':'text/javascript','.css':'text/css','.html':'text/html','.woff2':'font/woff2'})[extname(path)]||'application/octet-stream');res.end(data);}catch{res.writeHead(404).end();}
 });

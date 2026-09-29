@@ -1,7 +1,7 @@
 # CourtHub: vollständige Spielerstatistik und Plus/Minus
 
 Datum: 29.09.2026
-Status: Vom Nutzer freigegeben; noch nicht implementiert.
+Status: Vom Nutzer freigegeben und auf `feat/live-player-boxscore` implementiert; noch nicht produktiv veröffentlicht.
 Ausgangsstand: `aed77fb`.
 
 ## Ziel und Abgrenzung

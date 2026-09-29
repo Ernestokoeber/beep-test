@@ -120,6 +120,10 @@ Geräten müssen zusätzlich vom Coach durchgeführt werden.
 
 ### Bekannte kleine Restpunkte
 
+- Eine alte, für die neue Erfassung ungültige Profilnummer (z. B. `123`) kann
+  das Startformular auch bei einem abgewählten Spieler blockieren. Dessen
+  Nummernfeld vorerst leeren; sein Profil wird dadurch nicht geändert.
+
 Die separate GitHub-Browserprüfung für den Taktikboard-Fokus-Editor scheiterte
 bereits vor dieser Funktion auf `b2ea207` (Run `36533594396`,
 `scripts/browser-e2e.mjs:188`). Sie wurde in diesem Auftrag nicht verändert.
