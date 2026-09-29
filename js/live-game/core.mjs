@@ -15,24 +15,44 @@ export const actions = Object.freeze({
   oreb:'Offensiv-Rebound',dreb:'Defensiv-Rebound',assist:'Assist',steal:'Steal',
   block:'Block',turnover:'Ballverlust',foul:'Foul'
 });
-const kinds = ['stat','substitution','clock-start','clock-pause','clock-correction','period-start','finish','amend','void','roster'];
+const kinds = ['stat','substitution','clock-start','clock-pause','clock-correction','period-start','finish','amend','void','roster','opponent-score','score-coverage'];
 export const duration = (s,p) => p <= s.config.periods ? s.config.periodMs : s.config.overtimeMs;
 const idOK = id => typeof id === 'string' && id.length > 0 && id.length <= 120 && !['__proto__','constructor','prototype'].includes(id);
-export function createSession({id,deviceId,actorId,roster,startingFive,config}) {
+function validateJerseys(roster) {
+  const used=new Set();
+  for(const p of roster){
+    if(!Object.hasOwn(p,'jerseyNumber'))continue;
+    const n=p.jerseyNumber;
+    ensure(n===null || typeof n==='string' && /^\d{1,2}$/.test(n),'jersey','Trikotnummer: eine oder zwei Ziffern eingeben.');
+    if(n===null)continue;
+    ensure(!used.has(n),'jersey','Trikotnummern dürfen im Spieltagskader nicht doppelt sein.');used.add(n);
+  }
+}
+export function createSession({schemaVersion=1,id,deviceId,actorId,roster,startingFive,config}) {
+  ensure([1,2].includes(schemaVersion),'schema','Unbekannte Live-Datenversion. App aktualisieren.');
   ensure([id,deviceId,actorId].every(idOK),'identity','Ungültige Sitzungskennung.');
   ensure(Array.isArray(roster) && roster.length >= 5 && roster.length <= 40 && roster.every(p => idOK(p.id) && typeof p.name === 'string' && p.name.length <= 100),'roster','Ungültiger Spieltagskader.');
   ensure(new Set(roster.map(p=>p.id)).size === roster.length,'roster','Spieler dürfen nicht doppelt im Kader stehen.');
+  validateJerseys(roster);
   ensure(Array.isArray(startingFive) && startingFive.length === 5 && new Set(startingFive).size === 5 && startingFive.every(id=>roster.some(p=>p.id===id)),'lineup','Genau fünf unterschiedliche Starter auswählen.');
   ensure(config && Number.isInteger(config.periods) && config.periods >= 1 && config.periods <= 12 && ['periodMs','overtimeMs'].every(k => Number.isInteger(config[k]) && config[k] >= 1000 && config[k] <= 3600000),'config','Ungültige Abschnittsdauer.');
-  return clone({schemaVersion:1,id,deviceId,actorId,roster,startingFive,config,events:[]});
+  return clone({schemaVersion,id,deviceId,actorId,roster,startingFive,config,events:[]});
 }
 function validateEvent(s,e) {
   ensure(e && idOK(e.id) && e.sessionId === s.id && Number.isInteger(e.seq) && e.seq > 0,'event','Ungültige Aktion.');
   ensure(kinds.includes(e.kind) && e.payload && typeof e.payload === 'object' && !Array.isArray(e.payload),'event','Unbekannte Aktion.');
+  if(['opponent-score','score-coverage'].includes(e.kind)){
+    ensure(s.schemaVersion===2,'schema','Gegnerpunkte benötigen eine neue Erfassung mit Format 2.');
+    const field=e.kind==='opponent-score'?'points':'complete';
+    ensure(Object.keys(e.payload).length===1 && Object.hasOwn(e.payload,field) &&
+      (field==='points'?[1,2,3].includes(e.payload.points):typeof e.payload.complete==='boolean'),
+      'event','Ungültige Gegnerpunkte oder Vollständigkeitsangabe.');
+  }
   ensure(Number.isInteger(e.period) && e.period >= 1 && e.period <= 50 && Number.isInteger(e.remainingMs) && e.remainingMs >= 0 && e.remainingMs <= duration(s,e.period),'time','Ungültige Spielzeit.',[e.id]);
   ensure(typeof e.recordedAt === 'string' && Number.isFinite(Date.parse(e.recordedAt)),'time','Ungültige Erfassungszeit.');
   const known = s.roster.concat(s.events.filter(x=>x.kind==='roster' && x.seq<e.seq).flatMap(x=>x.payload.players||[]));
   if (e.kind === 'roster') ensure(Array.isArray(e.payload.players) && e.payload.players.length>0 && e.payload.players.length<=40 && e.payload.players.every(p=>idOK(p.id)&&typeof p.name==='string'&&p.name.length>0&&p.name.length<=100),'roster','Ungültige Kaderkorrektur.');
+  if(e.kind==='roster')validateJerseys(e.payload.players);
   if (e.kind === 'stat') ensure(known.some(p=>p.id===e.payload.playerId) && Object.hasOwn(actions,e.payload.action),'stat','Unbekannter Spieler oder Statistikaktion.',[e.id]);
   if (e.kind === 'clock-start') ensure(Number.isSafeInteger(e.payload.startedAtMs) && e.payload.startedAtMs >= 0,'time','Ungültiger Zeitanker.');
   if (e.kind === 'clock-correction') ensure(Number.isInteger(e.payload.toRemainingMs) && e.payload.toRemainingMs >= 0 && e.payload.toRemainingMs <= duration(s,e.period),'time','Ungültige Uhrkorrektur.');
@@ -56,7 +76,7 @@ export function effectiveEvents(s) {
   return [...originals.values()].sort((a,b)=>a.seq-b.seq);
 }
 export function validateSession(s) {
-  ensure(s?.schemaVersion===1,'schema','Unbekannte Live-Datenversion.');
+  ensure([1,2].includes(s?.schemaVersion),'schema','Unbekannte Live-Datenversion. App aktualisieren.');
   createSession(s);
   ensure(Array.isArray(s.events) && s.events.length <= 10000,'events','Zu viele oder ungültige Aktionen.');
   const ids = new Set(); let seq=0;
@@ -65,7 +85,7 @@ export function validateSession(s) {
     ensure(!ids.has(e.id) && e.seq===seq+1,'sequence','Konflikt in der Aktionsreihenfolge.',[e.id]);
     ids.add(e.id);seq=e.seq;
   }
-  effectiveEvents(s);
+  sessionRoster(s);
   {
     const result=validateTimeline(s);
     ensure(result.valid,result.issues[0]?.code,result.issues[0]?.message,result.issues[0]?.eventIds);
@@ -96,7 +116,10 @@ export function projectStats(s) {
 }
 export function sessionRoster(s) {
   const roster=new Map(s.roster.map(p=>[p.id,clone(p)]));
-  for(const e of effectiveEvents(s))if(e.kind==='roster')for(const p of e.payload.players)roster.set(p.id,clone(p));
+  for(const e of effectiveEvents(s))if(e.kind==='roster'){
+    for(const p of e.payload.players)roster.set(p.id,{...roster.get(p.id),...clone(p)});
+    validateJerseys([...roster.values()]);
+  }
   ensure(roster.size<=40,'roster','Höchstens 40 Spieler pro Spiel.');
   return [...roster.values()];
 }

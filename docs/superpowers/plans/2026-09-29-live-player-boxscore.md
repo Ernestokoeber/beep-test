@@ -42,7 +42,7 @@
 - `scripts/live-game-boxscore-smoke.mjs`: neue Modelltests; bestehende Live-Testskripte um Integrationsfälle ergänzen.
 - `package.json`, `sw.js`, `docs/LIVE-GAME-STATISTICS.md`: Tests einbinden, Offline-Cache aktualisieren, Bedienung erklären.
 
-## Aufgabe 1: Rückwärtskompatibles Format und Spieltagsnummer
+## Task 1: Rückwärtskompatibles Format und Spieltagsnummer
 
 **Dateien:** `core.mjs`; neu `scripts/live-game-boxscore-smoke.mjs`; `package.json`.
 
@@ -74,7 +74,7 @@ assert.throws(()=>appendEvent(fresh(1),event(fresh(1),'opponent-score',{points:2
 - [ ] `node scripts/live-game-boxscore-smoke.mjs` und `npm run test:live` grün ausführen; neuen Test an `test:live` anhängen.
 - [ ] Nur zugehörige Dateien committen: `feat: validate live boxscore v2 and game jerseys`.
 
-## Aufgabe 2: Gemeinsame Zeitzuordnung und Boxscore-Projektion
+## Task 2: Gemeinsame Zeitzuordnung und Boxscore-Projektion
 
 **Dateien:** `clock.mjs`, neu `boxscore.mjs`, `scripts/live-game-boxscore-smoke.mjs`, `scripts/live-game-clock-smoke.mjs`.
 
@@ -115,7 +115,7 @@ export function lineupAtEvent(boundaries,s,e) {
 - [ ] Tests ergänzen: alle Wurfarten/Fehlwürfe; zwei Nullsekundenwechsel; Zeiten vor/nach Wechsel; Unterzahl; zwei Verlängerungen; Gegnerwert ändern/aufheben; Wechselzeit atomar korrigieren; Version 1; DNP; Sekundenabrundung. Coverage nach Abschluss bestätigen, danach Treffer korrigieren → false, erneut bestätigen → true; alte Bestätigung abändern → bleibt false. Summenregel `sum(plusMinus)===5*(teamPoints-opponentPoints)` nur bei durchgehend fünf Spielern prüfen.
 - [ ] Modelltests und `npm run test:live` grün ausführen; committen: `feat: derive participation and lineup plus-minus`.
 
-## Aufgabe 3: Befehle, dauerhafte Sicherung und Serverkompatibilität
+## Task 3: Befehle, dauerhafte Sicherung und Serverkompatibilität
 
 **Dateien:** `controller.mjs`; Tests `live-game-ui-smoke.mjs`, `live-game-sync-smoke.mjs`, `live-game-api-smoke.mjs`, `live-game-integration-smoke.mjs`.
 
@@ -137,7 +137,7 @@ assert.equal(c.getState().boxscore.opponentPoints,0);
 - [ ] Journalfehler beim bestätigten Abschluss injizieren: `clock.ended===false`, kein neues Coverage-Ereignis, erneuter Versuch mit derselben Befehls-ID erzeugt genau einen Abschluss und eine Bestätigung. Reload und Geräteübernahme erhalten bestätigten Zustand.
 - [ ] Alle Live-Tests grün; committen: `feat: persist opponent scoring and score coverage safely`.
 
-## Aufgabe 4: Mobile Eingabe und vollständige Auswertung
+## Task 4: Mobile Eingabe und vollständige Auswertung
 
 **Dateien:** `view.mjs`, `report.mjs`, `live-game.css`; Tests `live-game-ui-smoke.mjs`, `live-game-report-smoke.mjs`.
 
@@ -160,7 +160,7 @@ assert.equal(c.getState().boxscore.opponentPoints,2);
 - [ ] Bericht um Nummer, Status, Plus/Minus und Vollständigkeit ergänzen. `null` als „Nicht verfügbar“ bzw. bei DNP „–“ anzeigen; 0 muss 0 bleiben, positive Werte mit +. Laufendes Spiel „Noch nicht eingesetzt“ statt endgültigem DNP. Vorläufige Werte deutlich so beschriften; bestätigte Werte „Punkteverlauf vom Coach bestätigt“, nicht „offiziell“.
 - [ ] Tests: Speicherausfall, Doppeltipp, Tick nach Spielerwahl, Viewer, fremdes Gerät, Namens-XSS, Nummer 0/00, Abschluss mit/ohne Bestätigung, erneute Bestätigung nach Korrektur. UI schließt auf fehlgeschlagenen Befehlen nicht die Fehlermeldung weg. Alle Live-Tests grün; committen: `feat: expose complete mobile live player statistics`.
 
-## Aufgabe 5: Offline-Auslieferung, Gesamttest und Dokumentation
+## Task 5: Offline-Auslieferung, Gesamttest und Dokumentation
 
 **Dateien:** `sw.js`, `docs/LIVE-GAME-STATISTICS.md`, bei Bedarf `scripts/live-game-browser-fixture.mjs`; Tests aus Aufgaben 1–4.
 
