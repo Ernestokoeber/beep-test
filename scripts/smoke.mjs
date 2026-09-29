@@ -140,6 +140,15 @@ window.BT.storage.upsertTraining({
   date: secondTrainingDate, startTime: '20:15', note: 'Folgetraining', attendance: [{ playerId: player.id, status: null, late: false, note: '' }], freethrows: [], shots: []
 });
 route('#/training/' + training.id);
+const trainingBeforeTimer = JSON.stringify(window.BT.storage.getTraining(training.id));
+window.document.querySelector('[data-action="training-timer"]').click();
+assert(window.document.querySelector('dialog.training-timer[open]'), 'Trainingsuhr wird nicht geöffnet');
+window.document.querySelector('[data-tt="score-0-2"]').click();
+window.document.querySelector('[data-tt="close"]').click();
+window.document.querySelector('[data-action="training-timer"]').click();
+assert(window.document.querySelector('[data-tt="points-0"]').textContent === '2', 'Punkte gehen beim Rückwechsel verloren');
+window.document.querySelector('[data-tt="close"]').click();
+assert(JSON.stringify(window.BT.storage.getTraining(training.id)) === trainingBeforeTimer, 'Timer darf Trainingsstatistiken nicht verändern');
 assert(window.document.querySelector('[data-role="plan-duration"]').value === '90', 'Trainingsdauer wurde nicht geladen');
 assert(window.document.querySelector('.intensity-high'), 'Belastungsstufe fehlt');
 assert(window.document.querySelector('[data-role="checkin-card"]'), 'QR-Check-in fehlt');

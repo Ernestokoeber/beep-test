@@ -232,6 +232,7 @@ BT.training = (function() {
     });
 
     $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
+    $('[data-action="training-timer"]', detailRoot).addEventListener('click', () => BT.trainingTimer.open(training.id));
     $('[data-action="ai-summary"]', detailRoot).addEventListener('click', () => openAISummary(currentTraining));
     $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTraining(currentTraining));
     $('[data-action="export-csv"]', detailRoot).addEventListener('click', () => exportCSV(currentTraining));

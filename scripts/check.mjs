@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scripts = [
+  'js/training-timer.js',
   'js/util.js', 'js/storage.js', 'js/api.js', 'js/sync.js', 'js/aiimport.js',
   'js/schedule.js', 'js/seasonplanner.js', 'js/training.js', 'js/tactics.js',
   'js/play-designer/main.js', 'js/play-designer/styles.js', 'js/play-designer/rendering.js',
