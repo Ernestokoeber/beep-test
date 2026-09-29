@@ -1,7 +1,7 @@
 # Geführter Spieltag-Modus
 
 Datum: 29.09.2026
-Status: Design zur schriftlichen Prüfung; noch nicht implementiert.
+Status: Schriftliches Design vom Nutzer freigegeben; noch nicht implementiert.
 Basis: lokaler `main`, Commit `0501923`.
 
 ## Ziel und abgestimmter Ansatz
