@@ -1,8 +1,8 @@
 import {clone} from '../live-game/core.mjs';
 import {buildSetup} from './flow.mjs';
-import {mountLiveView} from '../live-game/view.mjs';
+import {mountMatchdayLive} from './live-shell.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
-export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],onLive=(host,c)=>mountLiveView(host,c.live)}={}){
+export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],onLive=(host,c)=>mountMatchdayLive(host,c,{tactics})}={}){
   container.classList.add('matchday');let stage='',draft,parents,read=()=>draft,dirty=false,saving=false,revision=0,liveCleanup=null,dead=false,pending=Promise.resolve(true);
   const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div');status.setAttribute('role','status');container.append(title,steps,status,body);
   function field(parent,label,key,type,value){const l=el('label',label),n=el(type==='textarea'?'textarea':type==='select'?'select':'input');if(n.tagName==='INPUT')n.type=type;n.dataset.field=key;if(type!=='select')n.value=value??'';l.append(n);parent.append(l);return n;}
