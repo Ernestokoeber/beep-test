@@ -16,6 +16,12 @@ assert.match(host.querySelector('[data-role="pause"]').textContent,/Abschnittspa
 await c.live.dispatch({kind:'period-start'});assert.equal(c.live.getState().clock.running,false);
 await c.live.dispatch({kind:'clock-start'});f.advance(600000);await c.refresh();assert.match(host.querySelector('[data-role="pause"]').textContent,/Halbzeit/);
 await c.live.dispatch({kind:'finish',payload:{scoreComplete:false}});assert.equal(c.getState().stage,'finished');assert.equal(note.value,'Nicht verlieren');
+assert.equal(host.firstElementChild.tagName,'P');
+const reportPosition=[...host.children].indexOf(host.querySelector('[data-role="report"]'));
+const toolsPosition=[...host.children].indexOf(host.querySelector('[data-role="live-tools"]'));
+assert.ok(reportPosition<toolsPosition,'Die Auswertung steht vor Live-Werkzeugen und Korrekturen.');
+assert.equal(host.querySelector('[data-role="live-tools"]').open,false);
+assert.equal(host.querySelector('[data-role="live-tools"] > summary').textContent,'Details und Korrekturen');
 const events=c.live.getState().session.events.length;assert.equal(await cleanup.flush(),true);assert.equal(c.live.getState().session.events.length,events);assert.equal(c.getState().draft.closingNote,'Nicht verlieren');
 assert.equal(c.live.getState().boxscore.plusMinusComplete,false);assert.match(host.querySelector('[data-role="report"]').textContent,/vorläufig/i);
 cleanup();await c.close();host.replaceChildren();

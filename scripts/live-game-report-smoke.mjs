@@ -19,4 +19,13 @@ assert.ok(html.includes('#0'));assert.ok(html.includes('#00'));assert.ok(html.in
 v2=appendEvent(v2,{id:'end',sessionId:v2.id,seq:2,period:1,remainingMs:600000,recordedAt:'2026-09-29',kind:'finish',payload:{}});
 box=buildLiveReport(v2,1000);html=renderLiveReport(box).textContent;
 assert.ok(html.includes('DNP – nicht eingesetzt'));assert.ok(html.includes('+3'));assert.equal(box.plusMinusComplete,false);
+const finishedView=renderLiveReport(box);
+assert.equal(finishedView.querySelector('.live-report-score [data-team="own"] strong').textContent,'3');
+assert.equal(finishedView.querySelector('.live-report-score [data-team="opponent"] strong').textContent,'0');
+assert.equal(finishedView.querySelector('.live-report-status').textContent,'Vorläufig');
+assert.deepEqual([...finishedView.querySelectorAll('.live-report-player-quick dt')].slice(0,4).map(n=>n.textContent),['PTS','REB','AST','+/−']);
+assert.equal(finishedView.querySelectorAll('.live-report-player[data-played="true"]').length,5);
+assert.equal(finishedView.querySelectorAll('.live-report-dnp li').length,1);
+assert.equal(finishedView.querySelector('.live-report-dnp').open,false);
+assert.equal(finishedView.querySelector('.live-report-capture-notes').open,false);
 console.log('Live report: independent source, literal stats, zero-attempt percentages and safe rendering passed.');

@@ -4,14 +4,14 @@ import {renderLiveReport} from '../live-game/report.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 export function mountMatchdayLive(container,controller,{tactics=()=>[]}={}){
   let dirty=false,revision=0,parents=controller.getState().heads,base=clone(controller.getState().draft),saving=false,pending=Promise.resolve(true),dead=false,reportKey='',conflictKey='';
-  const hint=el('p'),pause=el('section'),liveHost=el('section'),details=el('details'),report=el('section'),conflicts=el('section');
-  pause.dataset.role='pause';report.dataset.role='report';details.append(el('summary','Vorbereitung & Spieltagsnotizen'));
+  const hint=el('p'),pause=el('section'),liveTools=el('details'),liveHost=el('section'),details=el('details'),report=el('section'),conflicts=el('section');
+  pause.dataset.role='pause';report.dataset.role='report';liveTools.dataset.role='live-tools';liveTools.open=true;liveTools.append(el('summary','Details und Korrekturen'),liveHost);details.append(el('summary','Vorbereitung & Spieltagsnotizen'));
   const overview=el('div'),form=el('form'),status=el('p');status.setAttribute('role','status');details.append(overview,form,status);
   const fields={};for(const [key,label]of [['goals','Spielziele'],['warmup','Aufwärmen'],['coachingNote','Coaching-Notiz'],['closingNote','Abschlussnotiz']]){const l=el('label',label),n=el('textarea');n.dataset.field=key;n.maxLength=4000;n.value=base[key];l.append(n);form.append(l);fields[key]=n;}
   const save=el('button','Notizen speichern');save.type='submit';form.append(save);
   const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;details.append(discard);
   discard.addEventListener('click',()=>{dirty=false;update(controller.getState());});
-  container.append(hint,pause,liveHost,details,conflicts,report);
+  container.append(hint,pause,report,liveTools,details,conflicts);
   // Base and parents belong to the displayed fields, including a focused field
   // whose remote update was deliberately held back.
   function mark(){dirty=true;revision++;status.textContent='Notizen ungespeichert';}
@@ -37,7 +37,8 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[]}={}){
     status.textContent=s.error||(dirty?'Notizen ungespeichert':s.localStatus==='synced'?'Vorbereitung synchronisiert':s.localStatus==='pending'?'Lokal gesichert · Synchronisation ausstehend':'Noch keine Notizen gespeichert');
     overview.replaceChildren();for(const t of s.draft.tactics)overview.append(el('p',t.title+(tactics().some(x=>x.id===t.id)?'':' – Nicht mehr verfügbar')));
     const key=canonical([s.choices,s.readOnly,dirty]);if(key!==conflictKey){conflictKey=key;conflicts.replaceChildren();if(s.conflict){conflicts.append(el('h3','Vorbereitungskonflikt – Live-Erfassung bleibt verfügbar'));for(const choice of s.choices){const p=el('pre',JSON.stringify(choice.value,null,2)),b=el('button',dirty?'Ungespeicherte Notizen verwerfen und diese Vorbereitung übernehmen':'Diese Vorbereitung übernehmen');b.disabled=s.readOnly;b.addEventListener('click',async()=>{const result=await controller.resolve(choice.id,{heads:s.heads});if(result.ok){dirty=false;form.querySelector(':focus')?.blur();update(controller.getState());}});conflicts.append(p,b);}}}
-    if(s.stage==='finished'){const next=canonical(s.liveState.boxscore);if(reportKey!==next){reportKey=next;report.replaceChildren(renderLiveReport(s.liveState.boxscore));}}else{reportKey='';report.replaceChildren();}
+    const finished=s.stage==='finished';liveTools.querySelector(':scope > summary').hidden=!finished;if(!finished)liveTools.open=true;
+    if(finished){const next=canonical(s.liveState.boxscore);if(reportKey!==next){reportKey=next;liveTools.open=false;report.replaceChildren(renderLiveReport(s.liveState.boxscore));}}else{reportKey='';report.replaceChildren();}
   }
   const unmount=mountLiveView(liveHost,controller.live),unsub=controller.subscribe(update);
   const unload=e=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',unload);
