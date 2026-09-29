@@ -1,6 +1,6 @@
 # CourtHub: Live-Spielstatistik für den Coach
 
-Status: Konzept zur Durchsicht; noch nicht implementiert.
+Status: Vom Nutzer freigegeben; noch nicht implementiert.
 Datum: 29.09.2026
 
 ## 1. Ziel und freigegebener Umfang
