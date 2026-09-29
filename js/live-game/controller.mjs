@@ -2,6 +2,7 @@ import {createSession,appendEvent,projectStats,sessionRoster,effectiveEvents,clo
 import {clockAt,projectLineups} from './clock.mjs';
 import {mergeLiveStats} from './merge.mjs';
 import {getJournal} from './bridge.mjs';
+import {projectBoxscore} from './boxscore.mjs';
 
 function browserDependencies() {
   const BT=window.BT;
@@ -21,6 +22,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
   function session(){return live?.sessions.find(s=>s.id===live.selectedSessionId);}
   function getState(){const s=session(),identity=deps.getIdentity();return {live:clone(live),session:clone(s),roster:s?sessionRoster(s):deps.players(),
     clock:s?clockAt(s,deps.now()):null,stats:s?projectStats(s):null,lineups:s?projectLineups(s,deps.now()):null,
+    boxscore:s?projectBoxscore(s,deps.now()):null,
     readOnly:closed||identity.role==='viewer'||!identityOK(),needsTakeover:!!s&&s.deviceId!==deps.deviceId,
     error:error||leaseError,busy,status:identity.status||'offline',syncError:identity.lastError};}
   function notify(){for(const fn of listeners)fn(getState());}
@@ -49,7 +51,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     let s=session();
     if(command.kind==='setup'){
       ensure(!live,'session','Eine Erfassung ist bereits vorhanden.');
-      s=createSession({id:command.id,deviceId:deps.deviceId,actorId:scope.actorId,...command.payload});
+      s=createSession({...command.payload,id:command.id,deviceId:deps.deviceId,actorId:scope.actorId,schemaVersion:2});
       await write({schemaVersion:1,sessions:[s],selectedSessionId:s.id,resolutionRevision:0});return;
     }
     if(command.kind==='select-session'){
@@ -65,9 +67,11 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     ensure(s.deviceId===deps.deviceId,'device','Dieses Gerät muss die Erfassung zuerst ausdrücklich übernehmen.');
     if(s.events.some(e=>e.id===command.id))return;
     let c=clockAt(s,deps.now());
-    ensure(!c.ended||['amend','void','roster'].includes(command.kind),'finished','Spiel beendet. Nur explizite Korrekturen sind möglich.');
+    ensure(!c.ended||['amend','void','roster','score-coverage'].includes(command.kind),'finished','Spiel beendet. Nur explizite Korrekturen sind möglich.');
+    const confirmScore=command.kind==='finish'&&Object.hasOwn(command.payload||{},'scoreComplete');
+    if(confirmScore)ensure(s.schemaVersion===2&&typeof command.payload.scoreComplete==='boolean'&&command.id.length<=111,'event','Ungültige Abschlussbestätigung.');
     if(command.kind==='undo-last'){
-      const target=effectiveEvents(s).filter(e=>['stat','substitution','roster'].includes(e.kind)).at(-1);
+      const target=effectiveEvents(s).filter(e=>['stat','opponent-score','substitution','roster'].includes(e.kind)).at(-1);
       ensure(target,'undo','Keine rückgängig machbare Aktion.');
       command={...command,kind:'void',payload:{targetId:target.id}};
     }
@@ -82,8 +86,9 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     const period=command.kind==='period-start'?c.period+1:c.period;
     const e={id:command.id,sessionId:s.id,seq:s.events.length+1,kind:command.kind,period,
       remainingMs:command.kind==='period-start'?duration(s,period):c.remainingMs,
-      recordedAt:new Date(deps.now()).toISOString(),payload:command.kind==='clock-start'?{startedAtMs:deps.now()}:command.payload||{}};
+      recordedAt:new Date(deps.now()).toISOString(),payload:command.kind==='clock-start'?{startedAtMs:deps.now()}:confirmScore?{}:command.payload||{}};
     s=appendEvent(s,e);
+    if(confirmScore)s=appendEvent(s,{...e,id:command.id+':coverage',seq:s.events.length+1,kind:'score-coverage',payload:{complete:command.payload.scoreComplete}});
     await write({...live,sessions:live.sessions.map(x=>x.id===s.id?s:x)});
     if(clockAt(s,deps.now()).running)deps.wake.acquire?.('live-game');else deps.wake.release?.('live-game');
   }
