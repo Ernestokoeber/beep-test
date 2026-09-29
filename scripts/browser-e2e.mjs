@@ -185,9 +185,27 @@ async function testPhaseRecorder(page) {
 }
 
 async function testPlayEditor2Desktop(page) {
-  assert(await page.locator('.chq-focus-shell').count() === 1, 'Der Fokus-Editor wurde nicht geöffnet.');
+  const focusShells = await page.locator('.chq-focus-shell').count();
+  if (focusShells !== 1) {
+    console.error('Play-Editor-Diagnose:', await page.evaluate(() => ({
+      hash: location.hash,
+      quickEditors: document.querySelectorAll('[data-role="tactics-quick"]').length,
+      focusShells: document.querySelectorAll('.chq-focus-shell').length,
+      appText: document.querySelector('#app')?.textContent?.slice(0, 300) || ''
+    })));
+  }
+  assert(focusShells === 1, 'Der Fokus-Editor wurde nicht geöffnet.');
   assert(await page.locator('body > .topbar').evaluate(element => getComputedStyle(element).display) === 'none', 'Die normale CourtHub-Navigation tritt im Fokus-Editor nicht zurück.');
-  assert(await page.locator('.chq-court-wrap svg[data-projection="top-down"]').count() === 1, 'Das Hauptfeld nutzt nicht die feste 2D-Draufsicht.');
+  const projectedCourts = await page.locator('.chq-court-wrap svg[data-projection="top-down"]').count();
+  if (projectedCourts !== 1) {
+    console.error('Play-Editor-Court-Diagnose:', await page.evaluate(() => ({
+      user: window.BT.sync.getState().user,
+      focusShells: document.querySelectorAll('.chq-focus-shell').length,
+      projectedCourts: document.querySelectorAll('.chq-court-wrap svg[data-projection="top-down"]').length,
+      appText: document.querySelector('#app')?.textContent?.slice(0, 300) || ''
+    })));
+  }
+  assert(projectedCourts === 1, 'Das Hauptfeld nutzt nicht die feste 2D-Draufsicht.');
   const layout = await page.evaluate(() => {
     const workspace = document.querySelector('.chq-workspace');
     const phase = document.querySelector('.chq-phase-rail')?.getBoundingClientRect();
@@ -452,7 +470,7 @@ async function reorderWithPointer(page, from, to, touch = false) {
 }
 
 async function testDesktop(browser) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
@@ -490,7 +508,7 @@ async function testDesktop(browser) {
 }
 
 async function testIPhone(browser) {
-  const context = await browser.newContext({ ...devices['iPhone 15'], locale: 'de-DE' });
+  const context = await browser.newContext({ ...devices['iPhone 15'], locale: 'de-DE', serviceWorkers: 'block' });
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
@@ -519,7 +537,7 @@ async function testIPhone(browser) {
 }
 
 async function testTablet(browser) {
-  const context = await browser.newContext({ viewport: { width: 768, height: 1024 }, locale: 'de-DE', hasTouch: true });
+  const context = await browser.newContext({ viewport: { width: 768, height: 1024 }, locale: 'de-DE', hasTouch: true, serviceWorkers: 'block' });
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
