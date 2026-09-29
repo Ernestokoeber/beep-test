@@ -5,6 +5,7 @@ Thumbs.db
 .idea/
 .claude/
 .superpowers/
+.worktrees/
 
 # Lokale Daten-Backups (nicht versionieren)
 nach Training*.json
