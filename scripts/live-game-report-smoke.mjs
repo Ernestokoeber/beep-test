@@ -8,6 +8,15 @@ s=appendEvent(s,{id:'e',sessionId:'r',seq:1,period:1,remainingMs:600000,recorded
 const report=buildLiveReport(s,1000);assert.equal(report.teamPoints,3);assert.equal(report.players[0].threeMade,1);assert.equal(report.players[1].fieldGoalPct,null);
 assert.equal(game.playerStats[0].points,8);assert.equal(game.atlas.points,10);
 globalThis.document=new JSDOM('<main></main>').window.document;
-const view=renderLiveReport(report);assert.equal(view.querySelectorAll('b').length,0);assert.ok(view.textContent.includes('Coach-Statistik'));assert.ok(!view.textContent.includes('Plus/Minus'));
+const view=renderLiveReport(report);assert.equal(view.querySelectorAll('b').length,0);assert.ok(view.textContent.includes('Coach-Statistik'));
+assert.equal(report.players[0].plusMinus,null);assert.ok(view.textContent.includes('Punkteverlauf fehlt'));
 assert.equal(report.complete,false);
+let v2=createSession({...s,schemaVersion:2,roster:[...s.roster.map((p,i)=>({...p,jerseyNumber:String(i)})),{id:'bench',name:'Bank',jerseyNumber:'00'}]});
+v2=appendEvent(v2,{...s.events[0],sessionId:v2.id});
+let box=buildLiveReport(v2,1000),html=renderLiveReport(box).textContent;
+assert.equal(box.players[0].plusMinus,3);assert.equal(box.players[0].played,true);assert.equal(box.players[0].minutesSeconds,0);
+assert.ok(html.includes('#0'));assert.ok(html.includes('#00'));assert.ok(html.includes('Noch nicht eingesetzt'));assert.ok(html.includes('Vorläufig'));
+v2=appendEvent(v2,{id:'end',sessionId:v2.id,seq:2,period:1,remainingMs:600000,recordedAt:'2026-09-29',kind:'finish',payload:{}});
+box=buildLiveReport(v2,1000);html=renderLiveReport(box).textContent;
+assert.ok(html.includes('DNP – nicht eingesetzt'));assert.ok(html.includes('+3'));assert.equal(box.plusMinusComplete,false);
 console.log('Live report: independent source, literal stats, zero-attempt percentages and safe rendering passed.');
