@@ -64,8 +64,8 @@ BT.api = (function() {
     updateMemberRole: (userId, role) => request('/members', {
       method: 'PATCH', body: { userId, role }
     }),
-    saveWorkspace: (data, expectedVersion) => request('/workspace', {
-      method: 'PUT', body: { data, expectedVersion }
+    saveWorkspace: (data, expectedVersion, confirmedGameDeletions = []) => request('/workspace', {
+      method: 'PUT', body: { data, expectedVersion, confirmedGameDeletions }
     }),
     ai: (action, payload) => request('/ai/gemini', {
       method: 'POST', body: { action, payload }

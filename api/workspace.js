@@ -2,6 +2,7 @@ import { query } from './_lib/db.js';
 import { canWrite, requireMembership } from './_lib/auth.js';
 import { method, noStore, safeError } from './_lib/http.js';
 import { filterWorkspaceForRole, hasValidTacticsShape } from './_lib/workspace-data.js';
+import { protectWorkspace } from '../js/live-game/merge.mjs';
 
 const MAX_WORKSPACE_BYTES = 4 * 1024 * 1024;
 
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
 
     if (!canWrite(auth.role)) return res.status(403).json({ error: 'Nur Trainer dürfen Teamdaten verändern.' });
 
-    const { data, expectedVersion } = req.body || {};
+    const { data, expectedVersion, confirmedGameDeletions = [] } = req.body || {};
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       return res.status(400).json({ error: 'Ungültiger Workspace.' });
     }
@@ -41,7 +42,16 @@ export default async function handler(req, res) {
     if (!hasValidTacticsShape(data)) {
       return res.status(400).json({ error: 'Ungültige Taktikdaten.' });
     }
-    const serialized = JSON.stringify(data);
+    const latest = await query('SELECT data, version, updated_at FROM workspaces WHERE organization_id = $1', [auth.organization_id]);
+    const current = latest.rows[0] || { data: {}, version: 0, updated_at: null };
+    if (Number(current.version) !== expectedVersion) return res.status(409).json({
+      error: 'Teamdaten wurden zwischenzeitlich verändert.',
+      conflict: { data: current.data, version: Number(current.version), updatedAt: current.updated_at }
+    });
+    let protectedData;
+    try { protectedData = protectWorkspace(data, current.data, confirmedGameDeletions); }
+    catch (error) { return res.status(['collision','sequence','deletion'].includes(error.code) ? 409 : 400).json({ error: error.message }); }
+    const serialized = JSON.stringify(protectedData);
     if (Buffer.byteLength(serialized, 'utf8') > MAX_WORKSPACE_BYTES) {
       return res.status(413).json({ error: 'Der Teamdatenbestand ist zu groß für die Synchronisierung.' });
     }

@@ -434,6 +434,10 @@ BT.storage = (function() {
     const index = data.games.findIndex(item => item.id === game.id || (game.externalId && item.externalId === game.externalId));
     const now = new Date().toISOString();
     if (index >= 0) {
+      // Imports and older open forms must not overwrite the independent live journal.
+      if (data.games[index].liveStats && game.liveStats !== data.games[index].liveStats) {
+        game = Object.assign({}, game, { liveStats: data.games[index].liveStats });
+      }
       data.games[index] = Object.assign({}, data.games[index], game, { id: data.games[index].id, updatedAt: now });
       game = data.games[index];
     } else {
