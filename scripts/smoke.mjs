@@ -283,6 +283,9 @@ assert(!seasonSlots.some(slot => slot.date >= '2026-08-03' && slot.date <= '2026
 assert(!seasonSlots.some(slot => slot.date >= '2026-12-24' && slot.date <= '2027-01-08'), 'Training wurde in den Weihnachtsferien geplant');
 assert(seasonSlots.some(slot => slot.weekday === 'tue' && slot.load === 'high'), 'Dienstag ist nicht als Haupttrainingstag priorisiert');
 const protectedSlot = seasonSlots[0];
+// Earlier timer fixtures use today + 1/+2 days and can fall on these season
+// slots. Isolate this scenario so exactly one manual training is protected.
+window.BT.storage.getTrainings().forEach(entry => window.BT.storage.deleteTraining(entry.id));
 window.BT.storage.upsertTraining({
   date: protectedSlot.date, startTime: '20:15', note: 'Manuell geschützt',
   attendance: [], freethrows: [], shots: [], plan: { summary: 'Manuell', drills: [] }

@@ -549,12 +549,138 @@ async function testTablet(browser) {
   await context.close();
 }
 
+async function testMatchday(browser, name, options) {
+  // Fresh storage per viewport; only identity is synthetic. Routes, UI,
+  // controllers, localStorage and IndexedDB use the production app.
+  const context = await browser.newContext({ ...options, locale: 'de-DE', serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => {
+    // Existing static-host diagnostic, unrelated to JavaScript/runtime failures.
+    const metaCspWarning = "The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element.";
+    if (message.type() === 'error' && message.text() !== metaCspWarning) errors.push(message.text());
+  });
+  await context.addInitScript(() => {
+    // Install identity before app.js initializes a deep link, including reloads.
+    window.BT = {};
+    let sync;
+    Object.defineProperty(window.BT, 'sync', {
+      configurable: true,
+      get: () => sync,
+      set(value) {
+        sync = value;
+        const original = value.getState.bind(value);
+        value.getState = () => ({
+          ...original(), user: { id: 'matchday-coach', role: 'coach', organization: { id: 'matchday-e2e' } }
+        });
+      }
+    });
+  });
+  async function noOverflow(stage) {
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth
+    }));
+    assert(Math.max(dimensions.document, dimensions.body) <= dimensions.viewport + 1,
+      `${name} · ${stage}: horizontaler Überlauf ${JSON.stringify(dimensions)}`);
+    assert(errors.length === 0, `${name} · ${stage}: Browserfehler ${errors.join(' | ')}`);
+  }
+  async function report() {
+    await page.getByRole('heading', { name: 'Spielauswertung', exact: true }).waitFor();
+    assert(await page.locator('.live-report-score [data-team="own"] strong').innerText() === '2', `${name}: eigene Punkte fehlen`);
+    assert(await page.locator('.live-report-score [data-team="opponent"] strong').innerText() === '3', `${name}: Gegnerpunkte fehlen`);
+    assert(await page.locator('.live-report-status').getAttribute('data-state') === 'confirmed', `${name}: Abschlussbestätigung fehlt`);
+    const player = page.locator('.live-report-player').filter({ hasText: 'E2E Spieler 1' });
+    const metrics = await player.locator('.live-report-player-quick dt').evaluateAll(labels =>
+      Object.fromEntries(labels.map(label => [label.textContent, label.nextElementSibling.textContent])));
+    assert(metrics.PTS === '2' && metrics['+/−'] === '-1', `${name}: Spielerwerte falsch ${JSON.stringify(metrics)}`);
+    await player.getByText('Würfe und weitere Werte', { exact: true }).tap();
+    assert((await player.innerText()).includes('1/1'), `${name}: Wurfstatistik fehlt`);
+    await page.locator('.live-report-dnp > summary').tap();
+    assert((await page.locator('.live-report-dnp').innerText()).includes('E2E Spieler 6 · DNP'), `${name}: Bankspieler fehlt`);
+    await noOverflow('Auswertung mit aufgeklappten Details');
+  }
+  try {
+    await page.goto(baseUrl + '/#/dashboard', { waitUntil: 'domcontentloaded' });
+    await page.locator('#app > *').first().waitFor();
+    const gameId = await page.evaluate(() => {
+      for (let i = 1; i <= 6; i++) window.BT.storage.upsertPlayer({ name: `E2E Spieler ${i}`, jerseyNumber: String(i) });
+      return window.BT.storage.upsertGame({ date: '2026-09-30', home: 'E2E Heim', away: 'E2E Gast', source: 'manual' }).id;
+    });
+    await page.goto(baseUrl + '/#/games', { waitUntil: 'domcontentloaded' });
+    await page.locator(`[data-game-id="${gameId}"]`).tap();
+    await page.getByRole('button', { name: 'Spieltag starten', exact: true }).tap();
+    await page.locator('[data-field="ownSide"]').selectOption('home');
+    await noOverflow('Spiel prüfen');
+    await page.getByRole('button', { name: 'Weiter zur Mannschaft' }).tap();
+    await page.locator('[data-starter]').first().waitFor();
+    const starters = page.locator('[data-starter]');
+    assert(await starters.count() === 6, `${name}: synthetischer Kader fehlt`);
+    for (let i = 0; i < 5; i++) await starters.nth(i).check();
+    await noOverflow('Kader');
+    await page.getByRole('button', { name: 'Weiter zur Vorbereitung' }).tap();
+    await page.locator('[data-field="goals"]').fill('Rebounds sichern');
+    await noOverflow('Vorbereitung');
+    await page.getByRole('button', { name: 'Vorbereitung überspringen' }).tap();
+    await page.getByRole('button', { name: 'Zur Live-Ansicht' }).waitFor();
+    assert((await page.locator('.matchday').innerText()).includes('Rebounds sichern'), `${name}: Überspringen verwirft Ziele`);
+    await noOverflow('Übersicht');
+    await page.getByRole('button', { name: 'Zur Live-Ansicht' }).tap();
+    await page.getByRole('button', { name: 'Uhr starten', exact: true }).waitFor();
+    await page.locator('[data-player]').first().tap();
+    await page.getByRole('button', { name: 'Zweier getroffen', exact: true }).tap();
+    await page.locator('.live-clock').filter({ hasText: 'Eigene 2' }).waitFor();
+    await page.getByRole('button', { name: 'Gegner +3', exact: true }).tap();
+    await page.locator('.live-clock').filter({ hasText: 'Gegner 3' }).waitFor();
+    await noOverflow('Live-Erfassung');
+    const liveBeforeReload = await page.evaluate(id => window.BT.storage.getGame(id).liveStats, gameId);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Spiel abschließen', exact: true }).waitFor();
+    assert(JSON.stringify(await page.evaluate(id => window.BT.storage.getGame(id).liveStats, gameId)) === JSON.stringify(liveBeforeReload), `${name}: Reload verändert oder dupliziert die Live-Sitzung`);
+    await noOverflow('Live-Wiederaufnahme');
+    // Abrupt reload does not await the old tab's asynchronous lease release.
+    // Respect the production journal's 15-second lease instead of clearing it.
+    await page.waitForTimeout(16000);
+    await page.getByRole('button', { name: 'Spiel abschließen', exact: true }).tap();
+    await page.getByLabel('Gesamten Punkteverlauf beider Teams erfasst').check();
+    await noOverflow('Abschlussformular');
+    await page.getByRole('button', { name: 'Abschluss speichern', exact: true }).tap();
+    await report();
+    await page.getByText('Vorbereitung & Spieltagsnotizen', { exact: true }).tap();
+    assert(await page.locator('[data-field="goals"]').inputValue() === 'Rebounds sichern', `${name}: gespeicherte Ziele fehlen`);
+    await page.locator('[data-field="closingNote"]').fill('Ausboxen weiter trainieren');
+    await page.getByRole('button', { name: 'Notizen speichern', exact: true }).tap();
+    await page.locator('.matchday details > [role="status"]').filter({ hasText: 'Lokal gesichert' }).waitFor();
+    const finished = await page.evaluate(id => window.BT.storage.getGame(id), gameId);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await report();
+    await page.getByText('Vorbereitung & Spieltagsnotizen', { exact: true }).tap();
+    assert(await page.locator('[data-field="closingNote"]').inputValue() === 'Ausboxen weiter trainieren', `${name}: Abschlussnotiz fehlt nach Reload`);
+    assert(JSON.stringify(await page.evaluate(id => window.BT.storage.getGame(id), gameId)) === JSON.stringify(finished), `${name}: Abschluss/Entwurf nach Reload verändert`);
+    await noOverflow('Abgeschlossener Spieltag nach Reload');
+    console.log(`Matchday Browser-E2E erfolgreich: ${name}, Vorbereitung, Live, Abschluss, Auswertung und zwei Reloads.`);
+  } catch (error) {
+    console.error(`${name} Matchday-Diagnose:`, page.url(), await page.locator('#app').innerText(), errors);
+    throw error;
+  } finally {
+    await context.close();
+  }
+}
+
 const browser = await chromium.launch({ headless: true });
 try {
-  await testDesktop(browser);
-  await testTablet(browser);
-  await testIPhone(browser);
-  console.log('CourtHub Browser-E2E erfolgreich: Play Editor 2.0, Desktop, Tablet, iPhone, zehn Spieler, Drag-and-drop und Videoimport.');
+  if (!process.env.E2E_MATCHDAY_ONLY) {
+    await testDesktop(browser);
+    await testTablet(browser);
+    await testIPhone(browser);
+  }
+  await testMatchday(browser, 'iPhone 15', devices['iPhone 15']);
+  await testMatchday(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
+  console.log(process.env.E2E_MATCHDAY_ONLY
+    ? 'CourtHub Matchday Browser-E2E erfolgreich: iPhone und 320 px.'
+    : 'CourtHub Browser-E2E erfolgreich: Play Editor 2.0, Desktop, Tablet, iPhone, zehn Spieler, Drag-and-drop, Videoimport und Matchday (iPhone/320 px).');
 } finally {
   await browser.close();
 }

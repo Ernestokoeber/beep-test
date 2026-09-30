@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-29-guided-matchday-design.md` (vom Nutzer freigegeben).
 
-Status: Direkt umgesetzt auf `feat/guided-matchday`; automatisierte Gesamtprüfung bestanden. Vier wichtige Befunde des unabhängigen Abschlussreviews behoben und durch zunächst fehlgeschlagene Regressionstests abgesichert; gesamte Suite danach erneut grün. Manuelle Offline-/Handyabnahme teilweise offen, siehe `docs/MATCHDAY-MODE.md`. Noch nicht integriert oder veröffentlicht.
+Status (30.09.2026): Die Implementierung ist auf `main` integriert, einschließlich `9ae5dc4` vom 29.09.2026 (vereinfachte mobile Auswertung). Die CI-Browserprüfung wurde um vollständige Matchday-Läufe im iPhone-15-Profil (393 CSS-Pixel) und bei 320 CSS-Pixeln ergänzt: Vorbereitung, Live-Punkte, Abschluss, Bericht, zwei Reloads mit Persistenzvergleich sowie Overflow-/Browserfehlerprüfungen. Die Testidentität ist synthetisch, Serviceworker sind blockiert. Eine echte Offline-Neuladung, Server-Synchronisierung und Abnahme auf iOS-/Android-Hardware bleiben offen; Umfang siehe `docs/MATCHDAY-MODE.md`. Produktivdeployment durch diese Prüfung nicht bestätigt. Historische Task-Checkboxen unten sind die ursprünglichen Implementierungsschritte und kein aktueller Abnahmebericht.
 Ausgangsstand: lokaler `main`, Produktcode `0501923`, Designcommit `60899e5`.
 
 ## Global Constraints

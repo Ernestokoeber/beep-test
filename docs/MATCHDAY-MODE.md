@@ -1,7 +1,9 @@
 # Spieltag-Modus
 
 Für einen Coach am Handy: Vorbereitung in Schritten, danach freie Live-Erfassung.
-Noch nicht veröffentlicht; Umsetzung auf `feat/guided-matchday`.
+Auf `main` integriert; Ausgangsstand der Browserabnahme ist `9ae5dc4`
+(29.09.2026, vereinfachte mobile Spielauswertung). Eine produktive Bereitstellung
+wird durch die lokale Browserabnahme nicht bestätigt.
 
 ## Einstieg
 
@@ -83,18 +85,47 @@ Kontowechsel während des Speicherns und Notizen während Abschluss/Pausen ab.
 Die vier wichtigen Befunde des unabhängigen Reviews sind durch zusätzliche
 Regressionstests für Offline-Routeninitialisierung, fokussierte veraltete Notizen,
 offene Konfliktformulare und neu eintreffende Konfliktversionen abgesichert.
-Die Vorbereitungsansicht wurde im Browser bei 320 Pixeln visuell geprüft.
-Dabei wurde ein verschluckter Folgetipp während automatischer Speicherung behoben.
-Die Browsersteuerung fiel beim Serviceworker-Test aus. Deshalb sind ein tatsächlicher
-Offline-Neuladedurchlauf, der komplette manuelle Ablauf bei 320/390 Pixeln und
-die Prüfung auf einem echten Handy vor der Veröffentlichung noch offen.
+Am 30.09.2026 wurde die bestehende CI-Browserprüfung (`scripts/browser-e2e.mjs`,
+Playwright 1.54.2 / Chromium) um vollständige Matchday-Läufe mit iPhone-15-Profil
+(393 CSS-Pixel) und einer schmalen Touch-Ansicht mit 320 CSS-Pixeln ergänzt:
 
-### Noch ausstehende manuelle Freigabe
+- Unter **Spiele** Vorbereitung starten, Heimseite wählen, sechs Spieler und
+  fünf Starter prüfen, Ziele eintragen und Vorbereitung überspringen.
+- Live-Ansicht öffnen, eigene und gegnerische Punkte über die Oberfläche erfassen,
+  neu laden und dieselbe Sitzung samt Protokoll wiederaufnehmen.
+- Spiel mit bestätigtem Punkteverlauf abschließen; Bericht auf 2:3, Spielerpunkte,
+  Plus/Minus −1, Wurfstatistik und DNP prüfen, auch mit aufgeklappten Details.
+- Abschlussnotiz speichern, erneut laden und unveränderte Spiel-/Entwurfsdaten
+  einschließlich Abschluss und Notiz prüfen.
+- In jedem Schritt Dokument- und Body-Breite auf horizontalen Overflow prüfen;
+  JavaScript-Ausnahmen und Console-Fehler lassen den Lauf scheitern. Einzig die
+  bereits vorhandene Chromium-Meldung zum ignorierten `frame-ancestors` im
+  CSP-Metaelement ist ausdrücklich ausgenommen.
+
+Die Tests verwenden isolierte Browserkontexte, synthetische Traineridentität und
+Spieldaten, aber echte App-Routen, Controller, localStorage und IndexedDB. Sie
+laufen über den bestehenden Browser-Job in `.github/workflows/test.yml`.
+Serviceworker sind wie in den bisherigen E2E-Läufen blockiert: Reload/Persistenz
+ist damit abgedeckt, tatsächlicher Offline-Neustart und Server-Synchronisierung
+werden hier nicht abgenommen. Mobile Chromium-Emulation ist kein Safari- oder
+Hardwaretest. Die unten aufgeführten zusätzlichen manuellen Prüfungen bleiben offen.
+Nach abruptem Live-Reload wartet der Test vor weiteren Schreibaktionen 16 Sekunden,
+damit die bestehende 15-Sekunden-Tabsperre ablaufen kann; die Sperre wird nicht
+gelöscht oder umgangen. Ein isolierter Wiederholungslauf ist mit
+`E2E_MATCHDAY_ONLY=1 node scripts/browser-e2e.mjs` möglich; CI führt weiterhin
+die komplette Browser-Suite aus.
+
+Prüfergebnis am 30.09.2026: `npm test`, die vollständige Browser-Suite
+(`node scripts/browser-e2e.mjs`) und `git diff --check` bestanden.
+Der allgemeine UI-Smoke-Test isoliert jetzt seine Saisonplanungsdaten von den
+datumsabhängigen Trainingsfixtures, damit diese Prüfung reproduzierbar bleibt.
+
+### Noch ausstehende manuelle Geräte-/Offline-Abnahme
 
 Mit einem Testspiel, nicht während eines echten Spiels, prüfen:
 
-- Bei 320 und 390 Pixeln: sechs Spieler auswählen, fünf Starter markieren,
-  Vorbereitung überspringen, Live-Ansicht öffnen. Kein horizontaler Überlauf.
+- Auf dem echten Trainingshandy den automatisiert geprüften Vorbereitungs-,
+  Live- und Abschlussablauf wiederholen; Safari-/PWA-Bedienung und Layout prüfen.
 - Eigene und gegnerische Punkte erfassen, Uhr anhalten, einen Spieler wechseln.
   Nach Abschnittsende startet nichts automatisch; den nächsten Abschnitt bewusst
   vorbereiten und starten. Anschließend abschließen und Abschlussnotiz speichern.
