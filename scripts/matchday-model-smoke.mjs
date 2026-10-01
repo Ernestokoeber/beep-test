@@ -23,8 +23,18 @@ for(const invalid of [
  {schemaVersion:1,revisions:[{...make('a',[]),value:{...emptyDraft(),roster:'bad'}}]}
 ])assert.throws(()=>validateMatchday(invalid));
 const roster=Array.from({length:6},(_,i)=>({id:'p'+i,name:'Player '+i,jerseyNumber:['0','00','2','3','4',null][i]}));
-const good={...emptyDraft(),ownSide:'home',roster,startingFive:roster.slice(0,5).map(p=>p.id)};
+const plannedRoster=roster.map((player,index)=>({...player,gameStatus:index<5?'starter':'dnp',role:index===0?'Ballhandler':''}));
+const good={...emptyDraft(),ownSide:'home',roster:plannedRoster,startingFive:plannedRoster.slice(0,5).map(p=>p.id),tactics:[{id:'horns',title:'Horns',usage:'offense'}]};
 assert.equal(buildSetup(good).roster[1].jerseyNumber,'00');
+assert.equal(buildSetup(good).roster[5].gameStatus,'dnp');
+assert.equal(buildSetup(good).gameplan.ownSide,'home');
+assert.deepEqual(buildSetup(good).gameplan.tactics,good.tactics);
+assert.equal(Object.hasOwn(buildSetup(good).gameplan,'closingNote'),false,'Die veränderliche Abschlussnotiz darf nicht Teil des eingefrorenen Gameplans sein.');
+for(const value of [
+  {...good,roster:plannedRoster.map((p,index)=>index? p:{...p,gameStatus:'reserve'})},
+  {...good,roster:plannedRoster.map((p,index)=>index? p:{...p,role:'x'.repeat(121)})},
+  {...good,tactics:[{id:'horns',title:'Horns',usage:'special'}]}
+])assert.throws(()=>reviseMatchday(undefined,{...make(crypto.randomUUID(),[]),value}));
 assert.throws(()=>buildSetup(emptyDraft()));
 assert.throws(()=>buildSetup({...good,startingFive:['p0','p0','p2','p3','p4']}));
 const bad={...good,roster:roster.map((p,i)=>i? p:{...p,jerseyNumber:'123'})};

@@ -36,7 +36,7 @@ export function mountLiveView(container,controller){
     if(current.clock.running){const r=await send({kind:'clock-pause'});if(!r.ok)return;}
     const f=form('Wechsel gemeinsam erfassen');
     const out=checks(f,'Vom Feld',current.roster.filter(p=>current.lineups.onCourt.includes(p.id)));
-    const incoming=checks(f,'Von der Bank',current.roster.filter(p=>!current.lineups.onCourt.includes(p.id)));
+    const incoming=checks(f,'Von der Bank',current.roster.filter(p=>p.gameStatus!=='dnp'&&!current.lineups.onCourt.includes(p.id)));
     const short=field(f,'Unterzahl ausdrücklich bestätigen','checkbox','yes');
     submit(f,'Wechsel bestätigen',()=>send({kind:'substitution',payload:{out:out(),in:incoming(),allowShortHanded:short.checked}}));
   }
@@ -74,7 +74,7 @@ export function mountLiveView(container,controller){
       }else if(e.kind==='score-coverage'){
         const complete=field(row,'Punkteverlauf vollständig','checkbox','yes');complete.checked=e.payload.complete;payload=()=>({complete:complete.checked});
       }else if(e.kind==='substitution'){
-        const out=checks(row,'Ausgewechselt',current.roster,e.payload.out),incoming=checks(row,'Eingewechselt',current.roster,e.payload.in);
+        const out=checks(row,'Ausgewechselt',current.roster,e.payload.out),incoming=checks(row,'Eingewechselt',current.roster.filter(p=>p.gameStatus!=='dnp'),e.payload.in);
         const short=field(row,'Unterzahl bestätigen','checkbox','yes');short.checked=!!e.payload.allowShortHanded;
         payload=()=>({out:out(),in:incoming(),allowShortHanded:short.checked});
       }else if(e.kind==='clock-correction'){

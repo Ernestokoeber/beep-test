@@ -28,15 +28,29 @@ function validateJerseys(roster) {
     ensure(!used.has(n),'jersey','Trikotnummern dürfen im Spieltagskader nicht doppelt sein.');used.add(n);
   }
 }
-export function createSession({schemaVersion=1,id,deviceId,actorId,roster,startingFive,config}) {
+function validateRosterFields(roster) {
+  ensure(roster.every(p=>(p.gameStatus===undefined||['starter','bench','dnp'].includes(p.gameStatus))&&
+    (p.role===undefined||typeof p.role==='string'&&p.role.length<=120)),'roster','Ungültiger Spielerstatus oder ungültige Spielerrolle.');
+}
+function validateGameplan(gameplan) {
+  if(gameplan===undefined)return;
+  ensure(gameplan&&typeof gameplan==='object'&&!Array.isArray(gameplan),'gameplan','Ungültiger bestätigter Gameplan.');
+  ensure(['home','away'].includes(gameplan.ownSide)&&['match','training'].includes(gameplan.kind),'gameplan','Ungültiger bestätigter Gameplan.');
+  ensure(['goals','warmup','coachingNote'].every(key=>typeof gameplan[key]==='string'&&gameplan[key].length<=4000),'gameplan','Ungültige Gameplan-Notiz.');
+  ensure(Array.isArray(gameplan.tactics)&&gameplan.tactics.length<=20&&gameplan.tactics.every(t=>t&&idOK(t.id)&&typeof t.title==='string'&&t.title.length<=200&&
+    (t.usage===undefined||['offense','defense','inbound','pressbreak'].includes(t.usage))),'gameplan','Ungültige Taktikauswahl im Gameplan.');
+}
+export function createSession({schemaVersion=1,id,deviceId,actorId,roster,startingFive,config,gameplan}) {
   ensure([1,2].includes(schemaVersion),'schema','Unbekannte Live-Datenversion. App aktualisieren.');
   ensure([id,deviceId,actorId].every(idOK),'identity','Ungültige Sitzungskennung.');
   ensure(Array.isArray(roster) && roster.length >= 5 && roster.length <= 40 && roster.every(p => idOK(p.id) && typeof p.name === 'string' && p.name.length <= 100),'roster','Ungültiger Spieltagskader.');
   ensure(new Set(roster.map(p=>p.id)).size === roster.length,'roster','Spieler dürfen nicht doppelt im Kader stehen.');
-  validateJerseys(roster);
+  validateJerseys(roster);validateRosterFields(roster);
   ensure(Array.isArray(startingFive) && startingFive.length === 5 && new Set(startingFive).size === 5 && startingFive.every(id=>roster.some(p=>p.id===id)),'lineup','Genau fünf unterschiedliche Starter auswählen.');
+  ensure(roster.every(p=>p.gameStatus===undefined||(p.gameStatus==='starter')===startingFive.includes(p.id)),'lineup','Starting Five und Spielerstatus stimmen nicht überein.');
   ensure(config && Number.isInteger(config.periods) && config.periods >= 1 && config.periods <= 12 && ['periodMs','overtimeMs'].every(k => Number.isInteger(config[k]) && config[k] >= 1000 && config[k] <= 3600000),'config','Ungültige Abschnittsdauer.');
-  return clone({schemaVersion,id,deviceId,actorId,roster,startingFive,config,events:[]});
+  validateGameplan(gameplan);
+  return clone({schemaVersion,id,deviceId,actorId,roster,startingFive,config,...(gameplan===undefined?{}:{gameplan}),events:[]});
 }
 function validateEvent(s,e) {
   ensure(e && idOK(e.id) && e.sessionId === s.id && Number.isInteger(e.seq) && e.seq > 0,'event','Ungültige Aktion.');
@@ -52,11 +66,14 @@ function validateEvent(s,e) {
   ensure(typeof e.recordedAt === 'string' && Number.isFinite(Date.parse(e.recordedAt)),'time','Ungültige Erfassungszeit.');
   const known = s.roster.concat(s.events.filter(x=>x.kind==='roster' && x.seq<e.seq).flatMap(x=>x.payload.players||[]));
   if (e.kind === 'roster') ensure(Array.isArray(e.payload.players) && e.payload.players.length>0 && e.payload.players.length<=40 && e.payload.players.every(p=>idOK(p.id)&&typeof p.name==='string'&&p.name.length>0&&p.name.length<=100),'roster','Ungültige Kaderkorrektur.');
-  if(e.kind==='roster')validateJerseys(e.payload.players);
+  if(e.kind==='roster'){validateJerseys(e.payload.players);validateRosterFields(e.payload.players);}
   if (e.kind === 'stat') ensure(known.some(p=>p.id===e.payload.playerId) && Object.hasOwn(actions,e.payload.action),'stat','Unbekannter Spieler oder Statistikaktion.',[e.id]);
   if (e.kind === 'clock-start') ensure(Number.isSafeInteger(e.payload.startedAtMs) && e.payload.startedAtMs >= 0,'time','Ungültiger Zeitanker.');
   if (e.kind === 'clock-correction') ensure(Number.isInteger(e.payload.toRemainingMs) && e.payload.toRemainingMs >= 0 && e.payload.toRemainingMs <= duration(s,e.period),'time','Ungültige Uhrkorrektur.');
-  if (e.kind === 'substitution') ensure(Array.isArray(e.payload.out) && Array.isArray(e.payload.in) && [...e.payload.out,...e.payload.in].every(id=>known.some(p=>p.id===id)),'lineup','Ungültiger Wechsel.',[e.id]);
+  if (e.kind === 'substitution') {
+    ensure(Array.isArray(e.payload.out) && Array.isArray(e.payload.in) && [...e.payload.out,...e.payload.in].every(id=>known.some(p=>p.id===id)),'lineup','Ungültiger Wechsel.',[e.id]);
+    ensure(e.payload.in.every(id=>known.find(p=>p.id===id)?.gameStatus!=='dnp'),'lineup','DNP-Spieler sind für dieses Spiel nicht eingeplant.',[e.id]);
+  }
 }
 export function effectiveEvents(s) {
   const originals = new Map();

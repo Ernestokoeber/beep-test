@@ -10,18 +10,25 @@ wird durch die lokale Browserabnahme nicht bestätigt.
 1. Einmal online anmelden und synchronisieren. Unter **Spiele** ein Spiel wählen
    und **Spieltag starten** öffnen. **+ Trainingsspiel** legt ein manuelles Spiel
    an; die eigene Seite wird anschließend ausdrücklich als Heim oder Gast gewählt.
-2. Kader und Spieltagsnummern kontrollieren. Genau fünf Starter markieren.
-   `0` und `00` sind verschieden. Nummern dürfen leer bleiben, aber nicht doppelt sein.
-3. Abschnittsanzahl und Dauer prüfen. Spielziele, Aufwärmen und Taktikauswahl sind
-   optional. **Vorbereitung überspringen** behält bereits eingetragene Texte.
-4. Übersicht prüfen und **Zur Live-Ansicht** öffnen. Das legt eine Erfassung an,
-   startet aber noch nicht die Spieluhr.
+2. Für jeden Spieler **Starting Five**, **Bank** oder **DNP – nicht eingesetzt**
+   festlegen. Genau fünf Spieler müssen starten. Spieltagsnummern kontrollieren;
+   `0` und `00` sind verschieden. Eine optionale Rolle beschreibt beispielsweise
+   Ballhandler, Shooter oder Big.
+3. Abschnittsanzahl und Dauer prüfen. Spielziele, Aufwärmen und Coaching-Notiz
+   sind optional. Vorhandene Taktiken werden nach Offense, Defense, Einwurf und
+   Pressbreak aus dem Taktikboard übernommen. **Optionale Angaben überspringen**
+   behält bereits eingetragene Texte.
+4. Den vollständigen Gameplan prüfen und **Zur Live-Ansicht** öffnen. Das legt
+   eine Erfassung an, friert den Gameplan ein und startet noch nicht die Spieluhr.
 
 ## Während des Spiels
 
 Die vorhandenen Aktionen für eigene Spieler, Gegnerpunkte, Wechsel, Uhr und
 Korrekturen bleiben frei bedienbar. Es gibt keinen Pflicht-Assistenten zwischen
-Statistikaktionen. **Vorbereitung & Spieltagsnotizen** lässt sich aufklappen.
+Statistikaktionen. **Gameplan & Abschluss** lässt sich aufklappen. Starting Five,
+Bank, DNP, Rollen, Schwerpunkte und Taktiken bleiben dort lesbar, können während
+des Spiels aber nicht mehr verändert werden. DNP-Spieler werden nicht zur
+Einwechslung angeboten. Nur die Abschlussnotiz bleibt bearbeitbar.
 
 Bei 0:00 erscheint eine Abschnitts- bzw. Halbzeitübersicht. Der nächste Abschnitt
 wird bewusst vorbereitet und gestartet. Ein Pausieren mitten im Viertel ist
@@ -32,7 +39,7 @@ oder Schließen läuft die gestartete App-Uhr rechnerisch bis 0:00 weiter.
 
 Eingaben werden beim Weitergehen, expliziten Speichern und Verlassen des Formulars
 lokal gesichert. **Ungespeichert** heißt: Eingabe noch nicht bestätigt im Speicher.
-Vor dem Schließen auf **Entwurf speichern** bzw. **Notizen speichern** achten.
+Vor dem Schließen auf **Entwurf speichern** bzw. **Abschlussnotiz speichern** achten.
 Browser können Warnungen beim Schließen unterdrücken; ungesicherte Texte sind
 nicht garantiert wiederherstellbar.
 
@@ -46,10 +53,13 @@ dasselbe Gerät und dasselbe Konto sind für lokale Wiederaufnahme erforderlich.
 Browserdaten nicht löschen. Für Gerätewechsel erst synchronisieren und die
 bestehende Erfassung am neuen Gerät bewusst übernehmen.
 
-Änderungen auf mehreren Geräten können einen Vorbereitungskonflikt erzeugen.
-Versionen werden nicht still überschrieben; eine Version bewusst auswählen.
-Eine laufende Live-Erfassung bleibt dabei verfügbar. Bei erneut eintreffenden
-unbekannten Offline-Änderungen muss gegebenenfalls nochmals entschieden werden.
+Änderungen auf mehreren Geräten können vor Spielbeginn einen Vorbereitungskonflikt
+erzeugen. Versionen werden nicht still überschrieben; eine Version bewusst
+auswählen. Nach Beginn der Live-Erfassung kann keine andere Vorbereitung mehr
+übernommen werden; der beim Start bestätigte Gameplan ist Teil der Live-Sitzung.
+Parallele Abschlussnotizen können getrennt davon bewusst zusammengeführt und
+anschließend weiterbearbeitet werden. Bei erneut eintreffenden unbekannten
+Offline-Änderungen muss gegebenenfalls vor dem Start nochmals entschieden werden.
 Trifft ein Konflikt während einer offenen Eingabe ein, bleibt der Text sichtbar.
 Die Versionsauswahl erklärt ausdrücklich, wenn sie ungespeicherte Eingaben verwirft.
 Bei verlorenem Schreibrecht kann man offene Eingaben ausdrücklich verwerfen, um
@@ -89,8 +99,9 @@ Am 30.09.2026 wurde die bestehende CI-Browserprüfung (`scripts/browser-e2e.mjs`
 Playwright 1.54.2 / Chromium) um vollständige Matchday-Läufe mit iPhone-15-Profil
 (393 CSS-Pixel) und einer schmalen Touch-Ansicht mit 320 CSS-Pixeln ergänzt:
 
-- Unter **Spiele** Vorbereitung starten, Heimseite wählen, sechs Spieler und
-  fünf Starter prüfen, Ziele eintragen und Vorbereitung überspringen.
+- Unter **Spiele** Vorbereitung starten, Heimseite wählen, fünf Starter und
+  einen DNP festlegen, eine Rolle und Ziele eintragen sowie optionale Angaben
+  überspringen.
 - Live-Ansicht öffnen, eigene und gegnerische Punkte über die Oberfläche erfassen,
   neu laden und dieselbe Sitzung samt Protokoll wiederaufnehmen.
 - Spiel mit bestätigtem Punkteverlauf abschließen; Bericht auf 2:3, Spielerpunkte,
