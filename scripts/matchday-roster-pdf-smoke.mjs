@@ -80,6 +80,11 @@ const pageBreaks=pagedDoc.events.filter(event=>event[0]==='addPage').length,poin
 assert.ok(pageBreaks>0,'Der Mehrseiten-Test muss tatsächlich einen Seitenwechsel erzeugen.');
 assert.equal(pointGuardHeaders,pageBreaks+1,'Eine Positionsgruppe muss auf jeder Folgeseite erneut beschriftet werden.');
 
+const twelvePlayers=['pg','pg','sg','sg','sf','sf','pf','pf','c','c',null,null].map((gamePosition,index)=>({id:'twelve-'+index,name:`Spieler ${String(index+1).padStart(2,'0')}`,gameStatus:'bench',gamePosition,role:index%2?'Shooter und Verteidiger':''}));
+const twelveDoc=new PdfStub();
+pdfModule.buildRosterPdf(twelveDoc,{game:{home:'TSV Lindau',away:'Gast'},draft:{roster:twelvePlayers}});
+assert.equal(twelveDoc.internal.getNumberOfPages(),1,'Ein Kader mit zwölf Spielern muss auf genau eine A4-Seite passen.');
+
 const longDoc=new PdfStub(),longName='Alexander Maximilian Mustermann mit einem außergewöhnlich langen vollständigen Namen',longRole='Primärer Ballhandler und verantwortlicher Organisator für das gesamte Umschaltspiel';
 pdfModule.buildRosterPdf(longDoc,{game:{home:'TSV Lindau',away:'Gast'},draft:{roster:[{id:'lang',name:longName,gameStatus:'bench',role:longRole}]}});
 const nameEvent=longDoc.events.find(event=>event[0]==='text'&&event[1].includes('Alexander'));
@@ -111,4 +116,33 @@ const realName=renderedText.find(event=>event.lines.join(' ').includes('Alexande
 const realMatchup=renderedText.find(event=>event.lines.join(' ').includes('Basketballabteilung'));
 assert.ok(realName&&realMatchup,'Name und Spielpaarung müssen mit der echten PDF-Engine gerendert werden.');
 for(const event of [realName,realMatchup])for(const lineWidth of event.widths)assert.ok(event.x+lineWidth<=rightEdge+0.1,'Lange Namen und Vereinsbezeichnungen dürfen den rechten Seitenrand nicht überschreiten.');
+const compactRealDoc=new RealJsPdf({unit:'pt',format:'a4',orientation:'portrait'});
+const compactRoster=['pg','pg','sg','sg','sf','sf','pf','pf','c','c',null,null].map((gamePosition,index)=>({
+  id:'compact-'+index,
+  name:`Alexander Maximilian Spielername ${String(index+1).padStart(2,'0')} mit langem Familiennamen`,
+  gameStatus:'bench',gamePosition,
+  role:'Primäre taktische Rolle mit zusätzlicher Verantwortung im Umschaltspiel'
+}));
+pdfModule.buildRosterPdf(compactRealDoc,{game:{home:veryLongHome,away:veryLongAway,date:'2026-10-04',time:'17:00'},draft:{roster:compactRoster}});
+assert.equal(compactRealDoc.internal.getNumberOfPages(),1,'Auch zwölf Spieler mit langen Namen und Rollen müssen in der echten PDF auf einer Seite bleiben.');
+const boundaryDoc=new RealJsPdf({unit:'pt',format:'a4',orientation:'portrait'}),boundaryCards=[],boundaryText=[];
+const boundaryRoundedRect=boundaryDoc.roundedRect.bind(boundaryDoc),boundaryTextMethod=boundaryDoc.text.bind(boundaryDoc);
+boundaryDoc.roundedRect=(x,y,w,h,...args)=>{if(w>200&&w<300)boundaryCards.push({x,y,w,h});return boundaryRoundedRect(x,y,w,h,...args);};
+boundaryDoc.text=(value,x,y,options)=>{boundaryText.push(Array.isArray(value)?value.join(''):String(value));return boundaryTextMethod(value,x,y,options);};
+const boundaryPositions=['pg','pg','pg','pg','pg','pg','pg','sg','sf','pf','c',null];
+const boundaryRoster=boundaryPositions.map((gamePosition,index)=>({
+  id:'boundary-'+index,
+  name:(`Spieler ${String(index+1).padStart(2,'0')} `+'N'.repeat(100)).slice(0,100),
+  gameStatus:'bench',gamePosition,
+  role:(`Rolle ${String(index+1).padStart(2,'0')} `+'R'.repeat(120)).slice(0,120)
+}));
+pdfModule.buildRosterPdf(boundaryDoc,{game:{home:veryLongHome,away:veryLongAway,date:'2026-10-04',time:'17:00'},draft:{roster:boundaryRoster}});
+assert.equal(boundaryDoc.internal.getNumberOfPages(),1,'Auch der ungünstigste zulässige Zwölf-Spieler-Kader muss auf einer Seite bleiben.');
+assert.equal(boundaryCards.length,12,'Alle zwölf Spielerkarten müssen vollständig gerendert werden.');
+assert.ok(boundaryCards.every(card=>card.y+card.h<=boundaryDoc.internal.pageSize.getHeight()-66+0.1),'Keine Spielerkarte darf in den Fußbereich ragen oder abgeschnitten werden.');
+for(const player of boundaryRoster){assert.ok(boundaryText.some(value=>value===player.name),`Der vollständige Name von ${player.id} fehlt.`);assert.ok(boundaryText.some(value=>value===player.role),`Die vollständige Rolle von ${player.id} fehlt.`);}
+const thirteenDoc=new RealJsPdf({unit:'pt',format:'a4',orientation:'portrait'}),thirteenCards=[],thirteenRoundedRect=thirteenDoc.roundedRect.bind(thirteenDoc);
+thirteenDoc.roundedRect=(x,y,w,h,...args)=>{if(w>400&&h<100&&y>240)thirteenCards.push({x,y,w,h});return thirteenRoundedRect(x,y,w,h,...args);};
+pdfModule.buildRosterPdf(thirteenDoc,{game:{home:'Lindau',away:'Gast'},draft:{roster:Array.from({length:13},(_,index)=>({id:'thirteen-'+index,name:`Spieler ${index+1}`,gameStatus:'bench',gamePosition:'pg',role:''}))}});
+assert.equal(thirteenCards.length,13,'Ab 13 Spielern muss weiterhin der vollbreite, mehrseitenfähige Exportpfad verwendet werden.');
 console.log('Matchday Kader-PDF: nur nominierte Namen ohne Starting Five, Bank und Trikotnummern.');
