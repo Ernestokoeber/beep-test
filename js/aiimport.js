@@ -161,47 +161,5 @@ BT.aiimport = (function() {
     return { text: response.text, model: response.model, requestId: response.requestId };
   }
 
-  const TACTIC_PROMPT = `Du bist Basketball-Co-Trainer. Erkläre den folgenden Spielzug für U14-U18-Spieler in 5-8 knappen, konkreten Sätzen auf Deutsch.
-
-Nenne:
-- Ziel des Plays (Wurf, freier Schütze, Mismatch, o.ä.)
-- Rolle jedes beteiligten Spielers (mit seiner Nummer 1-5)
-- 1-2 Coaching-Points (Timing, Winkel, Fußarbeit)
-- Typische Defense-Reaktion und was man dann tun sollte
-
-Das Halbfeld hat Koordinaten 10-490 (horizontal) × 10-460 (vertikal, niedriger Wert = Korb oben).
-Korb bei (250, 50), Freiwurflinie bei y≈200, 3er-Bogen etwa bei y=135 (Ecken bei x=50/450).
-Spieler-Label 1-5 entspricht 1=Point Guard, 2=Shooting Guard, 3=Small Forward, 4=Power Forward, 5=Center.
-
-Pfeile mit Stil 'run' = Laufweg, Stil 'pass' = Passweg.
-
-Gib NUR den fertigen Erklärungstext zurück — keine Markdown-Überschriften, keine Codeblöcke, keine Anführungszeichen drumherum.`;
-
-  function describeTactic(board) {
-    const lines = [];
-    (board.steps || []).forEach((s, i) => {
-      lines.push('[Schritt ' + (i + 1) + ' — Dauer ' + (s.duration || 1.5) + 's]');
-      (s.players || []).forEach(p => {
-        lines.push('  Spieler ' + p.label + ' bei (' + Math.round(p.x) + ', ' + Math.round(p.y) + ')');
-      });
-      if (s.ball) lines.push('  Ball bei (' + Math.round(s.ball.x) + ', ' + Math.round(s.ball.y) + ')');
-      (s.arrows || []).forEach(a => {
-        lines.push('  ' + (a.style === 'pass' ? 'Pass' : 'Laufweg') + ': (' + Math.round(a.x1) + ',' + Math.round(a.y1) + ') → (' + Math.round(a.x2) + ',' + Math.round(a.y2) + ')');
-      });
-      (s.texts || []).forEach(t => {
-        lines.push('  Text bei (' + Math.round(t.x) + ',' + Math.round(t.y) + '): "' + t.text + '"');
-      });
-    });
-    return lines.join('\n');
-  }
-
-  async function explainTactic(board, _legacyApiKey, onProgress) {
-    if (!BT.api.getToken()) throw new Error('Bitte zuerst unter „Konto & Sync“ anmelden.');
-    const description = describeTactic(board);
-    if (onProgress) onProgress('Spielzug wird geschützt analysiert …');
-    const response = await BT.api.ai('explainTactic', { description });
-    return response.text;
-  }
-
-  return { parseWithGemini, applyPlanToTrainings, summarizeTraining, explainTactic };
+  return { parseWithGemini, applyPlanToTrainings, summarizeTraining };
 })();

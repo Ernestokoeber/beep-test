@@ -21,6 +21,7 @@ const scripts = [
   'js/play-designer/action-timeline.js', 'js/play-designer/phase-instructions.js',
   'js/play-designer/play-preview.js', 'js/play-designer/animation-player.js',
   'js/play-designer/export-dialog.js', 'js/play-designer/play-library.js',
+  'js/play-designer/ai-explanation.js',
   'js/play-designer/quick-workflow.js',
   'js/play-designer/quick-reorder.js', 'js/play-designer/tactic-trash.js',
   'js/play-designer/gif-encoder.js', 'js/play-designer/pdf-writer.js',

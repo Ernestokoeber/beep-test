@@ -6,6 +6,7 @@ import {
   removeRecordedAction
 } from './phase-recorder-core.js';
 import { createPlayLibrary } from './play-library.js';
+import { openAIExplanation } from './ai-explanation.js';
 
 const core = window.BT.tactics.__core;
 const DRAFT_KEY = 'tacticsBoardDraft';
@@ -538,7 +539,7 @@ export function enhanceQuickEditor(root, target, options = {}) {
   const more = root.querySelector('.chq-header-more');
   const moreMenu = more?.querySelector('.chq-header-menu');
   if (moreMenu) {
-    moreMenu.insertAdjacentHTML('beforeend', `<button type="button" data-more="pdf">PDF exportieren</button><button type="button" data-more="gif">GIF exportieren</button><button type="button" data-more="publish">Veröffentlichen</button><button type="button" data-more="duplicate">Duplizieren</button><a href="#/tactics/player">Spieleransicht</a>`);
+    moreMenu.insertAdjacentHTML('beforeend', `<button type="button" data-more="ai-explain">Mit KI erklären</button><button type="button" data-more="pdf">PDF exportieren</button><button type="button" data-more="gif">GIF exportieren</button><button type="button" data-more="publish">Veröffentlichen</button><button type="button" data-more="duplicate">Duplizieren</button><a href="#/tactics/player">Spieleransicht</a>`);
   }
 
   const fields = root.querySelector('.chq-fields');
@@ -581,6 +582,10 @@ export function enhanceQuickEditor(root, target, options = {}) {
   more?.querySelector('[data-more="gif"]')?.addEventListener('click', () => { more.open = false; exportGif(currentBoard()); });
   more?.querySelector('[data-more="publish"]')?.addEventListener('click', () => { more.open = false; togglePublish(reload); });
   more?.querySelector('[data-more="duplicate"]')?.addEventListener('click', () => { more.open = false; duplicateCurrent(reload); });
+  more?.querySelector('[data-more="ai-explain"]')?.addEventListener('click', () => {
+    more.open = false;
+    openAIExplanation({ board: currentBoard(), core, saveDescription: saveDraft, toast });
+  });
 
   root.addEventListener('click', event => {
     const trigger = event.target.closest('[data-quick-edit-step]');

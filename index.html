@@ -1150,7 +1150,6 @@
       <div class="section-head">
         <div><span class="section-kicker">Teamtaktik</span><h2>Taktikboard</h2></div>
         <div class="head-actions">
-          <button class="btn small" data-action="ai-explain">🤖 Erklären</button>
           <button class="btn small" data-action="share-gif">📤 GIF teilen</button>
           <button class="btn small" data-action="export-pdf">PDF</button>
           <a class="btn small" href="#/tactics/player">Spieleransicht</a>
@@ -1240,25 +1239,6 @@
 
       <div class="tactics-legend muted">O Angriff · X Verteidigung · ● Ball · Grün Laufweg · Orange Pass · Gestrichelt Dribbling</div>
     </section>
-  </template>
-
-  <template id="tpl-tactics-ai-modal">
-    <div class="modal-backdrop">
-      <div class="modal" role="dialog" aria-label="KI-Erklärung">
-        <div class="modal-head">
-          <h3>🤖 KI-Erklärung</h3>
-          <button type="button" class="btn small" data-action="close" aria-label="Schließen">✕</button>
-        </div>
-        <div class="modal-body">
-          <p class="muted" data-role="status">Erklärung wird erzeugt …</p>
-          <div class="tactics-ai-text" data-role="text" hidden></div>
-          <div class="modal-foot">
-            <button type="button" class="btn" data-action="close">Schließen</button>
-            <button type="button" class="btn primary" data-action="save-note" disabled>Als Notiz speichern</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </template>
 
   <template id="tpl-tactics-gif-modal">
