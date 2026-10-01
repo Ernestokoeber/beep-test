@@ -1,8 +1,17 @@
 # CourtHub KI-Zuverlässigkeit und Gemini-3.8-Migration
 
-Datum: 01.10.2026  
-Status: Vom Nutzer im Chat freigegebener Architekturentwurf; noch nicht implementiert.  
-Basis: lokaler `main`, Commit `9ae5dc4`.
+Datum: 01.10.2026
+Status: Implementiert, noch nicht veröffentlicht.
+Basis: lokaler `main`, Commit `11c16fa`.
+Implementierung: `0f29768`, `f21eb7d`, `a09714f`, `9db5476`, `79ce18c` auf `feat/courthub-ai-reliability`.
+
+Lokale Abnahme am 01.10.2026:
+
+- `npm run test:ai`: fünf KI-Vertragssuiten erfolgreich;
+- `npm run smoke`: UI- und Trainingstimer-Smoke erfolgreich;
+- `node scripts/check.mjs`: Syntax- und Service-Worker-Prüfung erfolgreich;
+- `npm test`: vollständige CourtHub-Suite einschließlich Live-Spiel, Spieltag, Offline, Play Designer und Video-Import erfolgreich;
+- Veröffentlichung/Produktionsabnahme steht noch aus.
 
 ## Ziel und Erfolgskriterien
 

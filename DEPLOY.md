@@ -21,7 +21,6 @@ Für Production, Preview und Development setzen:
 | `REGISTRATION_INVITE_CODE` | privater Einladungscode für weitere Trainer |
 | `TEAM_NAME` | `TSV Lindau Basketball` |
 | `TEAM_SLUG` | `tsv-lindau-basketball` |
-| `AI_RATE_LIMIT` | KI-Anfragen pro Nutzer und Stunde, Standard `30` |
 | `TSV_WEBSITE_API_URL` | vorhandener TSV-Worker für Spielplan und Kalender |
 | `ATLAS_API_URL` | Basis-URL der separaten Project-Atlas-Plattform |
 | `ATLAS_API_TOKEN` | optionales Bearer-Token für Atlas; aktuell nur als Reserve |
@@ -41,7 +40,41 @@ Nach dem ersten Produktions-Deployment sofort mit der in `BOOTSTRAP_ADMIN_EMAIL`
 
 Im Vercel-Projekt unter „Domains“ `coach.tsv-lindau.de` hinzufügen. Beim DNS-Anbieter der Domain den von Vercel angezeigten CNAME-Eintrag setzen und die Prüfung abwarten. Erst wenn Vercel die Domain als gültig markiert, den Link auf der TSV-Webseite von der Übergangsadresse auf `https://coach.tsv-lindau.de` umstellen.
 
-## 6. Abnahme
+## 6. KI-Betrieb und kontrollierte Abnahme
+
+- KI-Modell: `gemini-3.8-flash`
+- Pflichtvariable: `GEMINI_API_KEY`
+- Schnellprüfung: `npm run test:ai`
+- Limits: Saisonplanung 60 Wochenblöcke pro Nutzer und Stunde; alle übrigen KI-Aktionen 30 Anfragen pro Nutzer und Stunde
+
+CourtHub meldet KI-Probleme mit einem stabilen Code und einer `requestId`. Die
+wichtigsten Codes sind:
+
+| Code | Bedeutung | Erneuter Versuch |
+|---|---|---|
+| `AI_TIMEOUT` | Gemini wurde vor dem Vercel-Limit kontrolliert abgebrochen | ja |
+| `AI_RATE_LIMIT` | CourtHub- oder Provider-Limit erreicht | später |
+| `AI_PROVIDER` | Gemini vorübergehend nicht erreichbar | ja |
+| `AI_EMPTY_RESPONSE` | keine verwertbare Kandidatenantwort | ja |
+| `AI_TRUNCATED_RESPONSE` | Antwort wurde unvollständig beendet | ja |
+| `AI_INVALID_RESPONSE` | JSON, Schema oder Inhalt ist ungültig | nach Prüfung der Eingabe |
+| `AI_INPUT_INVALID` | CourtHub hat unvollständige/zu große Eingaben abgewiesen | nein, Eingabe korrigieren |
+| `AI_NOT_CONFIGURED` | `GEMINI_API_KEY` fehlt | nein, Vercel-Konfiguration korrigieren |
+
+Bei einer Fehlermeldung die angezeigte `requestId` kopieren und in Vercel unter
+„Logs“ danach suchen. Logs dürfen keine vollständigen Prompts, PDF-Inhalte,
+Provider-Rohantworten oder Schlüssel enthalten.
+
+Die Produktionsabnahme erfolgt bewusst mit kleinen Datenmengen in dieser
+Reihenfolge:
+
+1. Trainingszusammenfassung erzeugen
+2. Taktikerklärung im aktuellen Quick Editor erzeugen
+3. kleines PDF importieren und die Schutzvorschau prüfen
+4. zwei Saisonwochen planen und eine Fortsetzung nach Neuladen prüfen
+5. erst danach eine vollständige Saison planen
+
+## 7. Allgemeine Abnahme
 
 ```bash
 npm ci
@@ -53,7 +86,7 @@ Danach in einem privaten Browserfenster prüfen:
 1. reserviertes Admin-Konto registrieren und anmelden
 2. vorhandene lokale Trainingsdaten synchronisieren
 3. zweites Konto mit Einladungscode anlegen und Rolle ändern
-4. PDF-KI-Import und Taktikerklärung testen
+4. die KI-Abnahme aus Abschnitt 6 in der dort beschriebenen Reihenfolge durchführen
 5. TSV-Spielplan synchronisieren und ein Atlas-Paket importieren
 6. QR-Code erzeugen, auf einem zweiten Gerät einchecken und Meldung übernehmen
 7. Offline-Modus sowie PWA-Installation auf iOS/Android prüfen
