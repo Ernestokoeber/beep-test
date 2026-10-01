@@ -1,4 +1,5 @@
 import { validateTimeline } from './clock.mjs';
+import {GAME_POSITION_VALUES} from '../basketball-positions.mjs';
 export class LiveValidationError extends Error {
   constructor(code, message, eventIds = []) { super(message); this.code = code; this.eventIds = eventIds; }
 }
@@ -16,6 +17,7 @@ export const actions = Object.freeze({
   block:'Block',turnover:'Ballverlust',foul:'Foul'
 });
 const kinds = ['stat','substitution','clock-start','clock-pause','clock-correction','period-start','finish','amend','void','roster','opponent-score','score-coverage'];
+const gamePositions=new Set(GAME_POSITION_VALUES);
 export const duration = (s,p) => p <= s.config.periods ? s.config.periodMs : s.config.overtimeMs;
 const idOK = id => typeof id === 'string' && id.length > 0 && id.length <= 120 && !['__proto__','constructor','prototype'].includes(id);
 function validateJerseys(roster) {
@@ -30,7 +32,8 @@ function validateJerseys(roster) {
 }
 function validateRosterFields(roster) {
   ensure(roster.every(p=>(p.gameStatus===undefined||['starter','bench','dnp'].includes(p.gameStatus))&&
-    (p.role===undefined||typeof p.role==='string'&&p.role.length<=120)),'roster','Ungültiger Spielerstatus oder ungültige Spielerrolle.');
+    (p.gamePosition===undefined||p.gamePosition===null||gamePositions.has(p.gamePosition))&&
+    (p.role===undefined||typeof p.role==='string'&&p.role.length<=120)),'roster','Ungültiger Spielerstatus, ungültige Spielposition oder ungültige Spielerrolle.');
 }
 function validateGameplan(gameplan) {
   if(gameplan===undefined)return;

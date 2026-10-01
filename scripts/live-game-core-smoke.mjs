@@ -29,6 +29,8 @@ assert.throws(()=>createSession({...fixture(),startingFive:['p1','p1','p2','p3',
 assert.throws(()=>createSession({...fixture(),config:{periods:0,periodMs:NaN,overtimeMs:1}}));
 assert.throws(()=>createSession({...fixture(),roster:fixture().roster.map((p,index)=>index? p:{...p,gameStatus:'reserve'})}));
 assert.throws(()=>createSession({...fixture(),roster:fixture().roster.map((p,index)=>index? p:{...p,role:'x'.repeat(121)})}));
+assert.equal(createSession({...fixture(),roster:fixture().roster.map((p,index)=>index? p:{...p,gamePosition:'pg'})}).roster[0].gamePosition,'pg');
+assert.throws(()=>createSession({...fixture(),roster:fixture().roster.map((p,index)=>index? p:{...p,gamePosition:'coach'})}),/Spielposition/);
 assert.throws(()=>createSession({...fixture(),roster:fixture().roster.map((p,index)=>({...p,gameStatus:index===0?'dnp':index<5?'starter':'bench'}))}));
 assert.equal(fixture().roster[0].name,'Spieler 1');
 console.log('Live core: scoring, corrections, idempotence and validation passed.');

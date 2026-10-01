@@ -1,3 +1,5 @@
+import {gamePositionLabel,sortRosterByGamePosition} from '../basketball-positions.mjs';
+
 const GREEN=[0,92,57],ORANGE=[242,158,65],INK=[24,39,32],MUTED=[94,109,101],PAPER=[247,249,247],LINE=[214,222,217];
 let jsPdfPromise=null;
 
@@ -6,7 +8,7 @@ function formatDate(value){
   const date=new Date(`${value}T12:00:00`);
   return Number.isNaN(date.getTime())?String(value):new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
 }
-function nominatedPlayers(draft){return (draft?.roster||[]).filter(player=>player.gameStatus!=='dnp');}
+function nominatedPlayers(draft){return sortRosterByGamePosition((draft?.roster||[]).filter(player=>player.gameStatus!=='dnp'));}
 function loadJsPdf(){
   if(globalThis.window?.jspdf?.jsPDF)return Promise.resolve(window.jspdf.jsPDF);
   if(jsPdfPromise)return jsPdfPromise;
@@ -59,13 +61,20 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
     doc.text(`Seite ${page}`,width-margin,height-27,{align:'right'});
   };
   drawHeader(false);
+  let renderedPosition;
+  const drawPositionHeader=position=>{
+    doc.setTextColor(...GREEN).setFont('helvetica','bold').setFontSize(10).text(gamePositionLabel(position),margin,y+13);
+    doc.setDrawColor(...LINE).line(margin,y+19,width-margin,y+19);y+=27;renderedPosition=position??null;
+  };
   roster.forEach((player,index)=>{
     doc.setFont('helvetica','bold').setFontSize(11);
     const nameLines=doc.splitTextToSize(String(player.name||'Spieler'),contentWidth);
     doc.setFont('helvetica','normal').setFontSize(9);
     const roleLines=player.role?doc.splitTextToSize(String(player.role),contentWidth):[];
     const itemHeight=14+nameLines.length*13+(roleLines.length?3+roleLines.length*10.5:0);
-    if(y+itemHeight>height-66){drawFooter();doc.addPage();page++;drawHeader(true);}
+    const position=player.gamePosition??null,needsHeader=renderedPosition!==position;
+    if(y+itemHeight+(needsHeader?27:0)>height-66){drawFooter();doc.addPage();page++;drawHeader(true);renderedPosition=undefined;}
+    if(renderedPosition!==(position??null))drawPositionHeader(position);
     doc.setFillColor(index%2?255:247,index%2?255:249,index%2?255:247).roundedRect(margin,y,width-margin*2,itemHeight,6,6,'F');
     doc.setFillColor(...ORANGE).roundedRect(margin+11,y+8,4,Math.max(14,itemHeight-16),2,2,'F');
     doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(11).text(nameLines,margin+27,y+18,{lineHeightFactor:1.18});

@@ -43,9 +43,9 @@ const doc=new PdfStub();
 pdfModule.buildRosterPdf(doc,{
   game:{home:'TSV Lindau',away:'TSV Ottobeuren',date:'2026-10-04',time:'17:00'},
   draft:{ownSide:'home',roster:[
-    {id:'p1',name:'Anna Beispiel',jerseyNumber:'77',gameStatus:'starter',role:'Ballhandling'},
-    {id:'p2',name:'Berta Muster',jerseyNumber:'88',gameStatus:'bench',role:''},
-    {id:'p3',name:'Carla Nichtdabei',jerseyNumber:'99',gameStatus:'dnp',role:'Center'}
+    {id:'p1',name:'Anna Beispiel',jerseyNumber:'77',gameStatus:'starter',gamePosition:'c',role:'Ballhandling'},
+    {id:'p2',name:'Berta Muster',jerseyNumber:'88',gameStatus:'bench',gamePosition:'pg',role:''},
+    {id:'p3',name:'Carla Nichtdabei',jerseyNumber:'99',gameStatus:'dnp',gamePosition:'sg',role:'Center'}
   ]}
 });
 const text=doc.events.filter(event=>event[0]==='text').map(event=>event[1]).join('\n');
@@ -58,6 +58,27 @@ assert.doesNotMatch(text,/Starting Five|Bank/,'Die PDF darf keine Starting-Five-
 assert.doesNotMatch(text,/77|88|99/,'Trikotnummern dürfen nicht in der PDF erscheinen.');
 assert.equal(textValues.filter(value=>/^\d+$/.test(value)).length,0,'Auch laufende Nummern würden wie Trikotnummern wirken und müssen entfallen.');
 assert.match(text,/2 Spieler/,'Die PDF muss die Größe des nominierten Kaders nennen.');
+assert.match(text,/Point Guard/,'Die PDF muss die spielbezogene Position sichtbar gruppieren.');
+assert.match(text,/Center/,'Die PDF muss alle belegten Positionsgruppen anzeigen.');
+assert.ok(text.indexOf('Point Guard')<text.indexOf('Berta Muster')&&text.indexOf('Berta Muster')<text.indexOf('Center')&&text.indexOf('Center')<text.indexOf('Anna Beispiel'),'Der Kader muss als PG, SG, SF, PF, C und danach ohne Position sortiert werden.');
+
+const groupedDoc=new PdfStub();
+pdfModule.buildRosterPdf(groupedDoc,{game:{home:'Lindau',away:'Gast'},draft:{roster:[
+  {id:'none-z',name:'Zeta ohne Position',gameStatus:'bench',gamePosition:null},{id:'c-z',name:'Zeta C',gameStatus:'bench',gamePosition:'c'},
+  {id:'pf-z',name:'Zeta PF',gameStatus:'bench',gamePosition:'pf'},{id:'sf-z',name:'Zeta SF',gameStatus:'bench',gamePosition:'sf'},
+  {id:'sg-z',name:'Zeta SG',gameStatus:'bench',gamePosition:'sg'},{id:'pg-z',name:'Zeta PG',gameStatus:'bench',gamePosition:'pg'},
+  {id:'none-a',name:'Alpha ohne Position',gameStatus:'bench',gamePosition:null},{id:'c-a',name:'Alpha C',gameStatus:'bench',gamePosition:'c'},
+  {id:'pf-a',name:'Alpha PF',gameStatus:'bench',gamePosition:'pf'},{id:'sf-a',name:'Alpha SF',gameStatus:'bench',gamePosition:'sf'},
+  {id:'sg-a',name:'Alpha SG',gameStatus:'bench',gamePosition:'sg'},{id:'pg-a',name:'Alpha PG',gameStatus:'bench',gamePosition:'pg'}
+]}});
+const groupedText=groupedDoc.events.filter(event=>event[0]==='text').map(event=>event[1]).join('\n');
+let previous=-1;for(const value of ['Point Guard','Alpha PG','Zeta PG','Shooting Guard','Alpha SG','Zeta SG','Small Forward','Alpha SF','Zeta SF','Power Forward','Alpha PF','Zeta PF','Center','Alpha C','Zeta C','Ohne Position','Alpha ohne Position','Zeta ohne Position']){const index=groupedText.indexOf(value);assert.ok(index>previous,`PDF-Reihenfolge ist bei ${value} falsch.`);previous=index;}
+
+const pagedDoc=new PdfStub();
+pdfModule.buildRosterPdf(pagedDoc,{game:{home:'Lindau',away:'Gast'},draft:{roster:Array.from({length:40},(_,index)=>({id:'pg-'+index,name:`Point Guard ${String(index).padStart(2,'0')}`,gameStatus:'bench',gamePosition:'pg'}))}});
+const pageBreaks=pagedDoc.events.filter(event=>event[0]==='addPage').length,pointGuardHeaders=pagedDoc.events.filter(event=>event[0]==='text'&&event[1]==='Point Guard').length;
+assert.ok(pageBreaks>0,'Der Mehrseiten-Test muss tatsächlich einen Seitenwechsel erzeugen.');
+assert.equal(pointGuardHeaders,pageBreaks+1,'Eine Positionsgruppe muss auf jeder Folgeseite erneut beschriftet werden.');
 
 const longDoc=new PdfStub(),longName='Alexander Maximilian Mustermann mit einem außergewöhnlich langen vollständigen Namen',longRole='Primärer Ballhandler und verantwortlicher Organisator für das gesamte Umschaltspiel';
 pdfModule.buildRosterPdf(longDoc,{game:{home:'TSV Lindau',away:'Gast'},draft:{roster:[{id:'lang',name:longName,gameStatus:'bench',role:longRole}]}});
