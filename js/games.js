@@ -431,16 +431,18 @@ BT.games = (function() {
       const game=BT.storage.getGame(gameId),state=BT.sync.getState(),user=state.user;
       if(!game)throw Error('Spiel nicht gefunden. Unter Spiele auswählen.');
       if(!user?.organization?.id)throw Error('Für den Spieltag zuerst unter Konto & Sync anmelden.');
-      const [{openMatchday},{mountMatchdayView}]=await Promise.all([import('./matchday/controller.mjs'),import('./matchday/view.mjs')]);
+      const [{openMatchday},{mountMatchdayView,prepareMatchdayEntry}]=await Promise.all([import('./matchday/controller.mjs'),import('./matchday/view.mjs')]);
       if(generation!==liveGeneration)return;
       const c=await openMatchday({gameId:game.id,scope:{organizationId:user.organization.id,actorId:user.id,sessionEpoch:state.sessionEpoch}});
       if(generation!==liveGeneration){await c.close();return;}
       if(training&&!game.matchday&&!c.getState().liveState.hasLiveData)await c.saveDraft({...c.getState().draft,kind:'training'});
+      const lindauHome=/\blindau\b/i.test(game.home||''),lindauAway=/\blindau\b/i.test(game.away||'');
+      await prepareMatchdayEntry(c,lindauHome!==lindauAway?(lindauHome?'home':'away'):null);
+      if(generation!==liveGeneration){await c.close();return;}
       host.replaceChildren();const heading=document.createElement('h1');heading.textContent=game.home+' – '+game.away;host.append(heading);
       const meta=document.createElement('p');meta.textContent=formatDate(game.date)+(game.time?' · '+game.time:'');host.append(meta);
       const content=document.createElement('div');host.append(content);
-      const lindauHome=/\blindau\b/i.test(game.home||''),lindauAway=/\blindau\b/i.test(game.away||'');
-      matchdayView=mountMatchdayView(content,c,{players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics(),defaultOwnSide:lindauHome!==lindauAway?(lindauHome?'home':'away'):null});
+      matchdayView=mountMatchdayView(content,c,{players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics()});
       const view=matchdayView;liveCleanup=()=>{view();c.close().catch(()=>{});};
     }catch(e){if(generation===liveGeneration)host.textContent=e.message;}
   }

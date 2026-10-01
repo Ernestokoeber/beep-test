@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {fixture} from './matchday-fixture.mjs';
-import {mountMatchdayView} from '../js/matchday/view.mjs';
+import * as matchdayView from '../js/matchday/view.mjs';
+const {mountMatchdayView,prepareMatchdayEntry}=matchdayView;
 const dom=new JSDOM('<main></main>',{url:'https://ui.test'});globalThis.document=dom.window.document;globalThis.window=dom.window;
 const f=await fixture(),c=await f.open(),root=document.querySelector('main');
+assert.equal(typeof prepareMatchdayEntry,'function','Der Direkteinstieg braucht eine abwartbare Vorbereitung vor dem View-Mount.');
 const availableTactics=[
   {id:'horns',title:'Horns',category:'Offense'},
   {id:'zone-attack',title:'Zone Overload',category:'Zone Offense'},
@@ -22,6 +24,7 @@ assert.ok(root.querySelector('[data-action="show-lineup"]'),'Die Starting Five b
 let release;const append=f.deps.journal.append;
 f.deps.journal.append=async(...args)=>{await new Promise(r=>{release=r;});return append(...args);};
 const first=root.querySelector('[data-player-roster="p0"][data-status="bench"]');assert.ok(first,'Jeder Spieler braucht eine große Kaderauswahl.');first.click();
+assert.match(first.getAttribute('aria-label')||'',/Spieler 0.*Dabei/,'Die Kaderaktion braucht Spielername und Status im zugänglichen Namen.');
 root.querySelector('form').dispatchEvent(new window.FocusEvent('focusout',{bubbles:true}));
 await new Promise(r=>setTimeout(r,10));
 assert.equal(root.querySelector('fieldset').disabled,false,'Autosave must not disable the next tap');
@@ -50,8 +53,14 @@ await click('start');assert.equal(c.getState().stage,'live');assert.equal(c.live
 await cleanup.flush();cleanup();await c.close();dom.window.close();
 const directDom=new JSDOM('<main></main>',{url:'https://direct.test'});globalThis.document=directDom.window.document;globalThis.window=directDom.window;
 const directFixture=await fixture(),directController=await directFixture.open(),directRoot=document.querySelector('main');
-const directCleanup=mountMatchdayView(directRoot,directController,{players:()=>directFixture.roster,defaultOwnSide:'home'});
-await directController.idle();await new Promise(r=>setTimeout(r,20));
+let releaseDirect;const directAppend=directFixture.deps.journal.append;
+directFixture.deps.journal.append=async(...args)=>{await new Promise(r=>{releaseDirect=r;});return directAppend(...args);};
+const preparing=prepareMatchdayEntry(directController,'home');
+await new Promise(r=>setTimeout(r,10));
+assert.equal(directController.getState().stage,'game','Während des blockierten Speicherns darf noch kein bedienbarer Kader-Draft entstehen.');
+assert.equal(directRoot.children.length,0,'Vor dem abgeschlossenen Direkteinstieg darf keine alte Spielansicht gemountet werden.');
+releaseDirect();await preparing;
+const directCleanup=mountMatchdayView(directRoot,directController,{players:()=>directFixture.roster});
 assert.equal(directController.getState().stage,'roster','Ein bekanntes Heimspiel muss direkt Kader und Starting Five öffnen.');
 assert.ok(directRoot.querySelector('[data-role="selection-summary"]'));
 directCleanup();await directController.close();directDom.window.close();
