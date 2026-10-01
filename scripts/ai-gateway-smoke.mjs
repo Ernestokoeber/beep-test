@@ -1,0 +1,201 @@
+import { AI_MODEL_ID, AIError, buildAIRequest } from '../api/_lib/ai-contracts.js';
+import { generateWithGemini } from '../api/_lib/gemini-client.js';
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+async function expectAIError(run, code, message) {
+  try {
+    await run();
+  } catch (error) {
+    assert(error instanceof AIError, `${message}: kein AIError`);
+    assert(error.code === code, `${message}: ${error.code} statt ${code}`);
+    assert(!String(error.message).includes('GEHEIM'), `${message}: Rohdaten im Fehler`);
+    return error;
+  }
+  throw new Error(`${message}: Anfrage blieb erfolgreich`);
+}
+
+function response(status, body) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async json() { return body; }
+  };
+}
+
+function candidate(text, finishReason = 'STOP') {
+  return response(200, {
+    candidates: [{ finishReason, content: { parts: [{ text }] } }]
+  });
+}
+
+const validSeasonPayload = {
+  data: {
+    durationMinutes: 90,
+    slots: [{ date: '2026-10-06', weekday: 'tue', intensity: 'high' }]
+  }
+};
+const validSeasonResult = JSON.stringify({
+  trainings: [{
+    date: '2026-10-06',
+    summary: 'Defense und Entscheidungen',
+    freethrows: { attempted: 20 },
+    shots: [{ category: 'Abschluss am Ring', attempted: 20 }],
+    drills: [{ name: 'Shell Drill', minutes: 90, intensity: 'high', description: 'Kommunikation und Rotation' }]
+  }]
+});
+
+assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
+const season = buildAIRequest('planSeason', validSeasonPayload);
+assert(season.generationConfig.responseMimeType === 'application/json', 'JSON-MIME fehlt');
+assert(season.generationConfig.thinkingConfig.thinkingLevel === 'medium', 'Saison-Thinking-Level falsch');
+assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema fehlt');
+assert(season.timeoutMs === 48_000, 'Saison-Timeout ist nicht begrenzt');
+
+const summary = buildAIRequest('summarizeTraining', {
+  facts: [
+    { id: 'team-ft', text: 'Das Team traf 71 % seiner Freiwürfe.', names: [], numbers: ['71'] },
+    { id: 'player-max', text: 'Max traf 8 von 10 Würfen.', names: ['Max'], numbers: ['8', '10'] }
+  ]
+});
+assert(summary.generationConfig.thinkingConfig.thinkingLevel === 'low', 'Zusammenfassungs-Thinking-Level falsch');
+const summaryValue = summary.parse(JSON.stringify({ sentences: [
+  { text: 'Wir trafen 71 % unserer Freiwürfe.', factIds: ['team-ft'] },
+  { text: 'Max traf 8 von 10 Würfen.', factIds: ['player-max'] },
+  { text: 'Daran knüpfen wir im nächsten Training an.', factIds: ['team-ft'] }
+] }));
+assert(summaryValue.text.includes('Max traf 8 von 10 Würfen.'), 'Gültige Zusammenfassung wurde nicht verbunden');
+
+await expectAIError(
+  () => Promise.resolve(summary.parse(JSON.stringify({ sentences: [
+    { text: 'Max erzielte 99 %.', factIds: ['team-ft'] },
+    { text: 'Wir trainieren weiter.', factIds: ['team-ft'] },
+    { text: 'Das Team bleibt konzentriert.', factIds: ['team-ft'] }
+  ] }))),
+  'AI_INVALID_RESPONSE',
+  'Erfundener Name oder Wert wurde akzeptiert'
+);
+
+await expectAIError(
+  () => Promise.resolve(buildAIRequest('planSeason', { data: { slots: [
+    { date: '2026-10-06', weekday: 'tue' },
+    { date: '2026-10-09', weekday: 'fri' },
+    { date: '2026-10-13', weekday: 'tue' }
+  ] } })),
+  'AI_INPUT_INVALID',
+  'Zu großer Saisonblock wurde akzeptiert'
+);
+
+let now = 1_000;
+let calls = 0;
+let requestBody = null;
+const success = await generateWithGemini({
+  action: 'planSeason',
+  payload: validSeasonPayload,
+  apiKey: 'GEHEIM',
+  requestId: 'ai_success',
+  now: () => now,
+  fetchImpl: async (url, options) => {
+    calls += 1;
+    requestBody = JSON.parse(options.body);
+    now = 1_123;
+    assert(url.endsWith('/gemini-3.8-flash:generateContent'), 'Falscher Gemini-Endpunkt');
+    assert(options.headers['x-goog-api-key'] === 'GEHEIM', 'API-Schlüssel fehlt im Header');
+    return candidate(validSeasonResult);
+  }
+});
+assert(calls === 1, 'Erfolgreiche Anfrage wurde wiederholt');
+assert(success.model === 'gemini-3.8-flash', 'Erfolg enthält falsches Modell');
+assert(success.requestId === 'ai_success', 'Request-ID ging verloren');
+assert(success.durationMs === 123, 'Dauer wurde nicht gemessen');
+assert(success.value.trainings[0].date === '2026-10-06', 'Saisonantwort wurde nicht validiert');
+assert(requestBody.generationConfig.responseSchema.type === 'object', 'Schema wurde nicht an Gemini übertragen');
+
+const validText = await generateWithGemini({
+  action: 'explainTactic',
+  payload: { tactic: { title: 'Horns', phases: [{ number: 1, offense: [], defense: [], actions: [] }] } },
+  apiKey: 'GEHEIM',
+  requestId: 'ai_tactic',
+  fetchImpl: async () => candidate(JSON.stringify({
+    explanation: 'Der Spielzug öffnet die Mitte und schafft klare Passfenster.',
+    coachingPoints: ['Abstände halten', 'Nach dem Pass schneiden']
+  }))
+});
+assert(validText.value.coachingPoints.length === 2, 'Strukturierte Taktikerklärung fehlt');
+
+for (const [label, reply, code] of [
+  ['MAX_TOKENS', candidate('{"trainings": [', 'MAX_TOKENS'), 'AI_TRUNCATED_RESPONSE'],
+  ['leer', response(200, { candidates: [] }), 'AI_EMPTY_RESPONSE'],
+  ['ungültiges JSON', candidate('{GEHEIM'), 'AI_INVALID_RESPONSE'],
+  ['Schemafehler', candidate('{"trainings":[]}'), 'AI_INVALID_RESPONSE']
+]) {
+  let errorAttempts = 0;
+  await expectAIError(
+    () => generateWithGemini({
+      action: 'planSeason',
+      payload: validSeasonPayload,
+      apiKey: 'GEHEIM',
+      requestId: `ai_${label}`,
+      fetchImpl: async () => { errorAttempts += 1; return reply; }
+    }),
+    code,
+    label
+  );
+  assert(errorAttempts === 1, `${label} wurde fälschlich wiederholt`);
+}
+
+let lateAttempts = 0;
+const lateClock = [0, 29_000];
+await expectAIError(
+  () => generateWithGemini({
+    action: 'summarizeTraining',
+    payload: { facts: [{ id: 'f1', text: 'Das Team trainierte.', names: [], numbers: [] }] },
+    apiKey: 'GEHEIM',
+    requestId: 'ai_late_503',
+    now: () => lateClock.shift() ?? 29_000,
+    fetchImpl: async () => { lateAttempts += 1; return response(503, { error: { message: 'GEHEIM' } }); }
+  }),
+  'AI_PROVIDER',
+  'Später Providerfehler'
+);
+assert(lateAttempts === 1, 'Später Providerfehler wurde trotz knapper Restzeit wiederholt');
+
+for (const status of [429, 500, 503]) {
+  let attempts = 0;
+  const retried = await generateWithGemini({
+    action: 'planSeason',
+    payload: validSeasonPayload,
+    apiKey: 'GEHEIM',
+    requestId: `ai_retry_${status}`,
+    now: () => 0,
+    fetchImpl: async () => {
+      attempts += 1;
+      return attempts === 1 ? response(status, { error: { message: 'GEHEIM' } }) : candidate(validSeasonResult);
+    }
+  });
+  assert(attempts === 2, `HTTP ${status} wurde nicht genau einmal wiederholt`);
+  assert(retried.value.trainings.length === 1, `HTTP ${status} konnte sich nicht erholen`);
+}
+
+let timeoutCleared = false;
+await expectAIError(
+  () => generateWithGemini({
+    action: 'summarizeTraining',
+    payload: { facts: [{ id: 'f1', text: 'Das Team trainierte.', names: [], numbers: [] }] },
+    apiKey: 'GEHEIM',
+    requestId: 'ai_timeout',
+    now: () => 0,
+    setTimer: (fn) => { queueMicrotask(fn); return 7; },
+    clearTimer: (id) => { timeoutCleared = id === 7; },
+    fetchImpl: async (_url, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted GEHEIM'), { name: 'AbortError' })));
+    })
+  }),
+  'AI_TIMEOUT',
+  'Provider-Timeout'
+);
+assert(timeoutCleared, 'Deadline-Timer wurde nicht entfernt');
+
+console.log('CourtHub KI-Gateway: Modell, Schema, Timeout und Fehlerverträge erfolgreich.');
