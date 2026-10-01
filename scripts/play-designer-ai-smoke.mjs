@@ -18,6 +18,10 @@ globalThis.MutationObserver = window.MutationObserver;
 globalThis.Element = window.Element;
 globalThis.HTMLElement = window.HTMLElement;
 globalThis.Node = window.Node;
+window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+window.ResizeObserver = class { observe() {} disconnect() {} };
+globalThis.requestAnimationFrame = callback => window.setTimeout(() => callback(Date.now()), 0);
+globalThis.cancelAnimationFrame = id => window.clearTimeout(id);
 
 const settings = new Map();
 window.BT = {
@@ -87,17 +91,11 @@ assert(payload.phases.some((phase) => phase.actions.some((action) => action.type
 assert(payload.phases[0].instruction.includes('rollt'), 'Phasenanweisung fehlt');
 
 settings.set('tacticsBoardDraft', structuredClone(board));
-const root = window.document.createElement('section');
-root.innerHTML = `
-  <div class="chq-actions"></div>
-  <div class="chq-toolbar-history"></div>
-  <details class="chq-header-more"><summary>Mehr</summary><div class="chq-header-menu"></div></details>
-  <div class="chq-fields"></div>
-  <div data-role="flow"></div>
-  <div class="chq-stage-copy"></div>
-`;
-window.document.body.append(root);
+const target = window.document.createElement('main');
+window.document.body.append(target);
+const { mountQuickEditor } = await import('../js/play-designer/quick-editor.js');
 const { enhanceQuickEditor } = await import('../js/play-designer/quick-workflow.js');
+const root = mountQuickEditor(target);
 enhanceQuickEditor(root, null, { reload: () => {} });
 const explainButton = root.querySelector('[data-more="ai-explain"]');
 assert(explainButton, 'KI-Erklärung fehlt im Mehr-Menü');
@@ -115,6 +113,11 @@ window.confirm = () => true;
 dialog.querySelector('[data-ai-apply]').click();
 await new Promise((resolve) => window.setTimeout(resolve, 0));
 assert(settings.get('tacticsBoardDraft').description.includes('Screenwinkel'), 'Coaching Points wurden nicht gespeichert');
+
+const instruction = root.querySelector('[data-role="phase-instruction"]');
+instruction.value = 'Neue Traineranweisung nach der KI-Übernahme.';
+instruction.dispatchEvent(new window.Event('input', { bubbles: true }));
+assert(settings.get('tacticsBoardDraft').description.includes('Screenwinkel'), 'Nächste Editoränderung überschreibt die KI-Coaching-Points');
 
 dialog.querySelector('[data-ai-close]').click();
 const readonlyCore = { ...core, canEdit: () => false };

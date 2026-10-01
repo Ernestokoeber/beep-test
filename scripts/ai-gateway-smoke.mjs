@@ -52,6 +52,7 @@ const season = buildAIRequest('planSeason', validSeasonPayload);
 assert(season.generationConfig.responseMimeType === 'application/json', 'JSON-MIME fehlt');
 assert(season.generationConfig.thinkingConfig.thinkingLevel === 'medium', 'Saison-Thinking-Level falsch');
 assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema fehlt');
+assert(season.generationConfig.responseSchema.properties.trainings.items.properties.drills.items.required.includes('intensity'), 'Saison-Schema verlangt die validierte Drillintensität nicht');
 assert(season.timeoutMs === 48_000, 'Saison-Timeout ist nicht begrenzt');
 
 const summary = buildAIRequest('summarizeTraining', {
@@ -62,9 +63,9 @@ const summary = buildAIRequest('summarizeTraining', {
 });
 assert(summary.generationConfig.thinkingConfig.thinkingLevel === 'low', 'Zusammenfassungs-Thinking-Level falsch');
 const summaryValue = summary.parse(JSON.stringify({ sentences: [
-  { text: 'Wir trafen 71 % unserer Freiwürfe.', factIds: ['team-ft'] },
+  { text: 'Das Team traf 71 % seiner Freiwürfe.', factIds: ['team-ft'] },
   { text: 'Max traf 8 von 10 Würfen.', factIds: ['player-max'] },
-  { text: 'Daran knüpfen wir im nächsten Training an.', factIds: ['team-ft'] }
+  { text: 'Das Team traf 71 % seiner Freiwürfe.', factIds: ['team-ft'] }
 ] }));
 assert(summaryValue.text.includes('Max traf 8 von 10 Würfen.'), 'Gültige Zusammenfassung wurde nicht verbunden');
 
@@ -77,6 +78,73 @@ await expectAIError(
   'AI_INVALID_RESPONSE',
   'Erfundener Name oder Wert wurde akzeptiert'
 );
+
+await expectAIError(
+  () => Promise.resolve(summary.parse(JSON.stringify({ sentences: [
+    { text: 'LeBron erzielte 71 %.', factIds: ['team-ft'] },
+    { text: 'Michael erzielte 71 %.', factIds: ['team-ft'] },
+    { text: 'Dirk erzielte 71 %.', factIds: ['team-ft'] }
+  ] }))),
+  'AI_INVALID_RESPONSE',
+  'Unbekannte Spielernamen wurden trotz erlaubter Zahl akzeptiert'
+);
+
+await expectAIError(
+  () => Promise.resolve(summary.parse(JSON.stringify({ sentences: [
+    { text: 'LeBron war heute besonders konzentriert.', factIds: ['team-ft'] },
+    { text: 'Das Team traf 71 % seiner Freiwürfe.', factIds: ['team-ft'] },
+    { text: 'Das Team traf 71 % seiner Freiwürfe.', factIds: ['team-ft'] }
+  ] }))),
+  'AI_INVALID_RESPONSE',
+  'Unbekannter Spielername ohne Zahl wurde akzeptiert'
+);
+
+const threePlayersSummary = buildAIRequest('summarizeTraining', {
+  facts: [
+    { id: 'p1', text: 'Max verteidigte konzentriert.', names: ['Max'], numbers: [] },
+    { id: 'p2', text: 'Alex reboundete sicher.', names: ['Alex'], numbers: [] },
+    { id: 'p3', text: 'Sam traf gute Entscheidungen.', names: ['Sam'], numbers: [] }
+  ]
+});
+await expectAIError(
+  () => Promise.resolve(threePlayersSummary.parse(JSON.stringify({ sentences: [
+    { text: 'Max verteidigte konzentriert.', factIds: ['p1'] },
+    { text: 'Alex reboundete sicher.', factIds: ['p2'] },
+    { text: 'Sam traf gute Entscheidungen.', factIds: ['p3'] }
+  ] }))),
+  'AI_INVALID_RESPONSE',
+  'Mehr als zwei Spielernamen wurden akzeptiert'
+);
+
+const pdfRequest = buildAIRequest('parsePlan', {
+  fileBase64: 'cGRm',
+  mimeType: 'application/pdf',
+  schedule: { days: ['tue', 'fri'], time: '20:15', durationMinutes: 90 }
+});
+const validPdfPlan = {
+  phase: { name: 'Defense', focus: 'Kommunikation', start: '2026-10-01', end: '2026-10-31', goals: ['Rotation'] },
+  trainings: [{
+    date: '2026-10-06', weekday: 'tue', summary: 'Shell Drill',
+    freethrows: { attempted: 20 }, shots: [],
+    drills: [{ name: 'Shell', minutes: 90, description: 'Rotieren' }]
+  }]
+};
+assert(pdfRequest.parse(JSON.stringify(validPdfPlan)).trainings[0].date === '2026-10-06', 'Gültiger PDF-Termin wird abgelehnt');
+for (const [label, mutate] of [
+  ['unmöglicher Kalendertag', value => { value.trainings[0].date = '2026-02-30'; }],
+  ['falscher Wochentag', value => { value.trainings[0].weekday = 'fri'; }],
+  ['umgekehrter Phasenzeitraum', value => { value.phase.start = '2026-11-01'; value.phase.end = '2026-10-01'; }]
+]) {
+  await expectAIError(
+    () => {
+      const value = structuredClone(validPdfPlan);
+      mutate(value);
+      return Promise.resolve(pdfRequest.parse(JSON.stringify(value)));
+    },
+    'AI_INVALID_RESPONSE',
+    `PDF-Validierung: ${label}`
+  );
+}
 
 await expectAIError(
   () => Promise.resolve(buildAIRequest('planSeason', { data: { slots: [
@@ -197,5 +265,28 @@ await expectAIError(
   'Provider-Timeout'
 );
 assert(timeoutCleared, 'Deadline-Timer wurde nicht entfernt');
+
+let bodyDeadline;
+await expectAIError(
+  () => generateWithGemini({
+    action: 'summarizeTraining',
+    payload: { facts: [{ id: 'f1', text: 'Das Team trainierte.', names: [], numbers: [] }] },
+    apiKey: 'GEHEIM',
+    requestId: 'ai_body_timeout',
+    now: () => 0,
+    setTimer: (fn) => { bodyDeadline = fn; return 8; },
+    clearTimer: () => {},
+    fetchImpl: async (_url, options) => ({
+      ok: true,
+      status: 200,
+      async json() {
+        bodyDeadline();
+        throw Object.assign(new Error('body aborted'), { name: 'AbortError', signal: options.signal });
+      }
+    })
+  }),
+  'AI_TIMEOUT',
+  'Provider-Timeout beim Lesen des Antwortkörpers'
+);
 
 console.log('CourtHub KI-Gateway: Modell, Schema, Timeout und Fehlerverträge erfolgreich.');

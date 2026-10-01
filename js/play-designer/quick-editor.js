@@ -651,6 +651,13 @@ export function mountQuickEditor(target, options = {}) {
     persist('Traineranweisung lokal gesichert.');
   };
 
+  root.addEventListener('courthub:replace-board', event => {
+    board = normalizeRecordedBoard(event.detail?.board, core);
+    time = core.stepStartTime(board, board.currentStep);
+    persist(event.detail?.message || 'Entwurf aktualisiert.');
+    refresh();
+  });
+
   qa('[data-defense-mode]').forEach(button => {
     button.onclick = () => {
       const selected = core.elementById(step(), selectedElementId);

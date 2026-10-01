@@ -350,6 +350,13 @@ assert(retryProgress.some(item => item.attempt === 2), 'Retry-Fortschritt wird n
 assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 1 }) === 'KI plant Wochenblock 2 von 5 …', 'Erster Blockstatus ist falsch');
 assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 2 }) === 'KI versucht Wochenblock 2 von 5 erneut …', 'Retry-Blockstatus ist falsch');
 assert(window.BT.schedule.seasonPlanningProgressText({ block: 1, total: 5, attempt: 0, resumed: true }) === 'Wochenblock 1 von 5 aus dem Entwurf übernommen …', 'Fortsetzungsstatus ist falsch');
+let finalConfirmationText = '';
+assert(window.BT.schedule.confirmSeasonPlanResult(
+  { trainings: firstBatchPayload.slots.map(slot => ({ date: slot.date })) },
+  firstBatchPayload.slots,
+  text => { finalConfirmationText = text; return false; }
+) === false, 'Abgelehnter KI-Gesamtplan wird zur Übernahme freigegeben');
+assert(finalConfirmationText.includes('2') && finalConfirmationText.includes('noch nicht gespeichert'), 'Abschlussbestätigung zeigt keine prüfbare Ergebnisvorschau');
 
 const invalidResponses = [
   { data: { trainings: [

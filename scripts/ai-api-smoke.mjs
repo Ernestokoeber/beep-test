@@ -136,4 +136,25 @@ try {
   assert(error.status === 0 && error.code === 'CLIENT_TIMEOUT' && error.retryable === true, 'Browser-Timeout-Vertrag fehlt');
 }
 
+const bodyTimeoutWindow = browser();
+let bodyTimer = null;
+let bodyTimerCleared = false;
+bodyTimeoutWindow.setTimeout = (fn) => { bodyTimer = fn; return 23; };
+bodyTimeoutWindow.clearTimeout = () => { bodyTimerCleared = true; };
+bodyTimeoutWindow.fetch = async () => ({
+  ok: true,
+  status: 200,
+  json: async () => {
+    if (bodyTimerCleared) throw new Error('Antwortkörper ist nicht mehr durch die Deadline geschützt');
+    bodyTimer();
+    throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+  }
+});
+try {
+  await bodyTimeoutWindow.BT.api.ai('summarizeTraining', summaryPayload);
+  throw new Error('Browser-Body-Timeout wurde verschluckt');
+} catch (error) {
+  assert(error.code === 'CLIENT_TIMEOUT' && error.retryable === true, 'Antwortkörper wird nicht als Browser-Timeout klassifiziert');
+}
+
 console.log('CourtHub KI-API: Auth, Limits, Fehler und Browser-Timeout erfolgreich.');

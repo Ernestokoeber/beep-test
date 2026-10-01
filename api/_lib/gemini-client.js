@@ -72,7 +72,10 @@ export async function generateWithGemini({
       let data;
       try {
         data = await response.json();
-      } catch {
+      } catch (error) {
+        if (controller.signal.aborted || error?.name === 'AbortError') {
+          throw new AIError('AI_TIMEOUT', 'Die KI-Anfrage hat zu lange gedauert.', { status: 504, retryable: true });
+        }
         throw new AIError('AI_INVALID_RESPONSE', 'Gemini hat eine unlesbare Antwort geliefert.', { retryable: true });
       }
       const text = readCandidate(data);
@@ -89,4 +92,3 @@ export async function generateWithGemini({
     clearTimer(timer);
   }
 }
-

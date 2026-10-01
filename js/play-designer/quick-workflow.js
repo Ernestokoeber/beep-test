@@ -584,7 +584,19 @@ export function enhanceQuickEditor(root, target, options = {}) {
   more?.querySelector('[data-more="duplicate"]')?.addEventListener('click', () => { more.open = false; duplicateCurrent(reload); });
   more?.querySelector('[data-more="ai-explain"]')?.addEventListener('click', () => {
     more.open = false;
-    openAIExplanation({ board: currentBoard(), core, saveDescription: saveDraft, toast });
+    openAIExplanation({
+      board: currentBoard(),
+      core,
+      saveDescription: board => {
+        saveDraft(board);
+        const description = root.querySelector('[data-role="quick-description"]');
+        if (description) description.value = board.description || '';
+        root.dispatchEvent(new root.ownerDocument.defaultView.CustomEvent('courthub:replace-board', {
+          detail: { board, message: 'Coaching Points übernommen.' }
+        }));
+      },
+      toast
+    });
   });
 
   root.addEventListener('click', event => {

@@ -56,6 +56,25 @@ const TRAINING_SCHEMA = {
     }
   }
 };
+const SEASON_DRILL_SCHEMA = {
+  ...DRILL_SCHEMA,
+  required: ['name', 'minutes', 'intensity', 'description']
+};
+const SEASON_TRAINING_SCHEMA = {
+  ...TRAINING_SCHEMA,
+  properties: {
+    ...TRAINING_SCHEMA.properties,
+    drills: { type: 'array', items: SEASON_DRILL_SCHEMA },
+    fridayVariants: {
+      type: 'object',
+      required: ['over8', 'eightOrLess'],
+      properties: {
+        over8: { type: 'array', items: SEASON_DRILL_SCHEMA },
+        eightOrLess: { type: 'array', items: SEASON_DRILL_SCHEMA }
+      }
+    }
+  }
+};
 
 export const PARSE_PLAN_SCHEMA = {
   type: 'object',
@@ -108,12 +127,12 @@ export const TACTIC_SCHEMA = {
 export const SEASON_SCHEMA = {
   type: 'object',
   required: ['trainings'],
-  properties: { trainings: { type: 'array', items: TRAINING_SCHEMA } }
+  properties: { trainings: { type: 'array', items: SEASON_TRAINING_SCHEMA } }
 };
 
 const PROMPTS = {
   parsePlan: `Du überträgst einen Basketball-Trainingsplan aus einem PDF in strukturierte CourtHub-Daten. Nutze ausschließlich Inhalte des Dokuments und die mitgesendeten tatsächlichen Trainingstage, Uhrzeit und Dauer. Erfinde keine Termine. Gib nur das angeforderte JSON aus.`,
-  summarizeTraining: `Du formulierst aus verifizierten Basketball-Trainingsfakten drei bis vier kurze deutsche Sätze. Jeder Satz muss seine Fakten-IDs nennen. Verwende ausschließlich Namen und Zahlen aus den referenzierten Fakten und nenne höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`,
+  summarizeTraining: `Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze keine Namen oder Zahlen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`,
   explainTactic: `Du erklärst einen strukturierten Basketball-Spielzug auf Deutsch. Beschreibe Ziel, Phasen, tatsächlich beteiligte Rollen, Defense-Read und Offense-Antwort. Erfinde keine Rollen oder Aktionen. Liefere zwei bis vier konkrete Coaching-Punkte und nur das angeforderte JSON.`,
   planSeason: `Du planst einen Wochenblock einer Basketball-Saison. Liefere für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Die Drill-Minuten entsprechen der Trainingsdauer. Freitage benötigen vollständige Varianten für mehr als acht sowie höchstens acht Spieler. Gib nur das angeforderte JSON aus.`
 };
@@ -143,10 +162,26 @@ function integer(value, min, max, label) {
 
 function date(value, label) {
   const normalized = String(value || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized) || Number.isNaN(Date.parse(`${normalized}T00:00:00Z`))) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  const parsed = match ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))) : null;
+  if (!match || parsed.getUTCFullYear() !== Number(match[1]) || parsed.getUTCMonth() !== Number(match[2]) - 1 || parsed.getUTCDate() !== Number(match[3])) {
     fail(`${label} ist ungültig.`);
   }
   return normalized;
+}
+
+const WEEKDAYS = {
+  sun: 0, sunday: 0, sonntag: 0,
+  mon: 1, monday: 1, montag: 1,
+  tue: 2, tuesday: 2, dienstag: 2,
+  wed: 3, wednesday: 3, mittwoch: 3,
+  thu: 4, thursday: 4, donnerstag: 4,
+  fri: 5, friday: 5, freitag: 5,
+  sat: 6, saturday: 6, samstag: 6
+};
+
+function weekdayNumber(value) {
+  return WEEKDAYS[String(value || '').trim().toLowerCase()];
 }
 
 function validateDrills(input, { requireIntensity = false, durationMinutes = null } = {}) {
@@ -241,8 +276,16 @@ function buildParsePlan(payload) {
       end: date(value.phase.end, 'Phasenende'),
       goals: Array.isArray(value.phase.goals) ? value.phase.goals.map((goal) => string(goal, 200, 'Phasenziel')).slice(0, 20) : fail('Phasenziele fehlen.')
     };
+    if (phase.start > phase.end) fail('Der Phasenzeitraum ist ungültig.');
     const trainings = value.trainings.map((training) => normalizeTraining(training));
     if (new Set(trainings.map((training) => training.date)).size !== trainings.length) fail('Trainingstermine sind doppelt.');
+    const allowedDays = new Set(days.map(weekdayNumber).filter((day) => day !== undefined));
+    for (const training of trainings) {
+      const actualDay = new Date(`${training.date}T12:00:00Z`).getUTCDay();
+      if (training.date < phase.start || training.date > phase.end) fail('Ein Training liegt außerhalb der Phase.');
+      if (allowedDays.size && !allowedDays.has(actualDay)) fail('Ein Training liegt nicht auf einem tatsächlichen Trainingstag.');
+      if (training.weekday && weekdayNumber(training.weekday) !== actualDay) fail('Wochentag und Trainingsdatum stimmen nicht überein.');
+    }
     return { phase, trainings };
   });
 }
@@ -270,7 +313,6 @@ function buildSummary(payload) {
   ], SUMMARY_SCHEMA, 'low', 30_000, (text) => {
     const value = parseJson(text);
     if (!Array.isArray(value?.sentences) || value.sentences.length < 3 || value.sentences.length > 4) fail('Die Zusammenfassung benötigt drei bis vier Sätze.');
-    const allKnownNames = new Set([...byId.values()].flatMap((fact) => fact.names));
     const usedNames = new Set();
     const sentences = value.sentences.map((sentence) => {
       const sentenceText = string(sentence?.text, 320, 'Zusammenfassungssatz');
@@ -278,25 +320,13 @@ function buildSummary(payload) {
       if (!factIds.length || factIds.some((id) => !byId.has(id))) fail('Ein Satz verweist auf unbekannte Fakten.');
       const referenced = factIds.map((id) => byId.get(id));
       const allowedNames = new Set(referenced.flatMap((fact) => fact.names));
-      const allowedNumbers = new Set(referenced.flatMap((fact) => fact.numbers));
-      for (const name of allKnownNames) {
-        if (new RegExp(`(^|[^\\p{L}])${escapeRegExp(name)}([^\\p{L}]|$)`, 'iu').test(sentenceText)) {
-          if (!allowedNames.has(name)) fail('Ein Satz verwendet einen Namen aus einem anderen Fakt.');
-          usedNames.add(name);
-        }
-      }
-      for (const match of sentenceText.matchAll(/\d+(?:[.,]\d+)?/g)) {
-        if (!allowedNumbers.has(normalizedNumber(match[0]))) fail('Ein Satz enthält eine nicht belegte Zahl.');
-      }
+      if (!referenced.some((fact) => fact.text === sentenceText)) fail('Ein Satz wurde nicht wortgetreu aus den Fakten übernommen.');
+      allowedNames.forEach((name) => usedNames.add(name));
       return { text: sentenceText, factIds };
     });
     if (usedNames.size > 2) fail('Die Zusammenfassung nennt mehr als zwei Spieler.');
     return { sentences, text: sentences.map((sentence) => sentence.text).join(' ') };
   });
-}
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function buildTactic(payload) {
@@ -360,4 +390,3 @@ export function buildAIRequest(action, payload = {}) {
   if (!build) throw new AIError('AI_INPUT_INVALID', 'Unbekannte KI-Aktion.', { status: 400 });
   return build(payload);
 }
-

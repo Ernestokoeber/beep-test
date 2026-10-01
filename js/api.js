@@ -24,53 +24,58 @@ BT.api = (function() {
     const controller = Number.isFinite(timeoutMs) && timeoutMs > 0 ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
 
-    let response;
     try {
-      response = await fetch('/api' + path, {
-        method: config.method || 'GET',
-        headers,
-        body: config.body === undefined ? undefined : JSON.stringify(config.body),
-        signal: controller ? controller.signal : undefined
-      });
-    } catch (cause) {
-      if (controller?.signal.aborted || cause?.name === 'AbortError') {
-        const error = new Error('KI-Anfrage hat zu lange gedauert.');
+      let response;
+      try {
+        response = await fetch('/api' + path, {
+          method: config.method || 'GET',
+          headers,
+          body: config.body === undefined ? undefined : JSON.stringify(config.body),
+          signal: controller ? controller.signal : undefined
+        });
+      } catch (cause) {
+        if (controller?.signal.aborted || cause?.name === 'AbortError') throw timeoutError();
+        const error = new Error('Server nicht erreichbar. Offline-Daten bleiben erhalten.');
         error.status = 0;
-        error.code = 'CLIENT_TIMEOUT';
-        error.retryable = true;
+        throw error;
+      }
+
+      let data = {};
+      try { data = await response.json(); }
+      catch (cause) {
+        if (controller?.signal.aborted || cause?.name === 'AbortError') throw timeoutError();
+        const serverTimedOut = path === '/ai/gemini' && response.status === 504;
+        const error = new Error(serverTimedOut
+          ? 'KI-Server hat die Anfrage vorzeitig beendet.'
+          : 'Die Serverfunktion ist auf dieser Adresse nicht verfügbar.');
+        error.status = response.status;
+        error.code = serverTimedOut ? 'AI_SERVER_TIMEOUT' : null;
+        error.retryable = serverTimedOut;
         error.requestId = null;
         throw error;
       }
-      const error = new Error('Server nicht erreichbar. Offline-Daten bleiben erhalten.');
-      error.status = 0;
-      throw error;
+      if (!response.ok) {
+        const error = new Error(data.error || 'Serverfehler ' + response.status);
+        error.status = response.status;
+        error.code = data.code || null;
+        error.retryable = data.retryable === true;
+        error.requestId = data.requestId || null;
+        error.data = data;
+        throw error;
+      }
+      return data;
     } finally {
       if (timeoutId !== null) clearTimeout(timeoutId);
     }
+  }
 
-    let data = {};
-    try { data = await response.json(); }
-    catch {
-      const serverTimedOut = path === '/ai/gemini' && response.status === 504;
-      const error = new Error(serverTimedOut
-        ? 'KI-Server hat die Anfrage vorzeitig beendet.'
-        : 'Die Serverfunktion ist auf dieser Adresse nicht verfügbar.');
-      error.status = response.status;
-      error.code = serverTimedOut ? 'AI_SERVER_TIMEOUT' : null;
-      error.retryable = serverTimedOut;
-      error.requestId = null;
-      throw error;
-    }
-    if (!response.ok) {
-      const error = new Error(data.error || 'Serverfehler ' + response.status);
-      error.status = response.status;
-      error.code = data.code || null;
-      error.retryable = data.retryable === true;
-      error.requestId = data.requestId || null;
-      error.data = data;
-      throw error;
-    }
-    return data;
+  function timeoutError() {
+    const error = new Error('KI-Anfrage hat zu lange gedauert.');
+    error.status = 0;
+    error.code = 'CLIENT_TIMEOUT';
+    error.retryable = true;
+    error.requestId = null;
+    return error;
   }
 
   return {

@@ -20,6 +20,21 @@ BT.schedule = (function() {
       : 'KI plant Wochenblock ' + block + ' von ' + total + ' …';
   }
 
+  function confirmSeasonPlanResult(result, slots, confirmResult = confirm) {
+    const entries = Array.isArray(result?.trainings) ? result.trainings : [];
+    const byDate = new Map(entries.map(entry => [entry.date, entry]));
+    const preview = slots.slice(0, 10).map(slot => {
+      const entry = byDate.get(slot.date);
+      return '• ' + formatDate(slot.date) + ' – ' + (entry?.summary || 'kein KI-Entwurf');
+    });
+    if (slots.length > preview.length) preview.push('• … und ' + (slots.length - preview.length) + ' weitere Termine');
+    return confirmResult(
+      'Der KI-Gesamtplan ist fertig und noch nicht gespeichert.\n\n' +
+      entries.length + ' von ' + slots.length + ' Trainingsterminen wurden geplant:\n' + preview.join('\n') +
+      '\n\nJetzt übernehmen? Manuelle und absolvierte Einheiten bleiben geschützt. Bei Abbruch bleibt der KI-Entwurf auf diesem Gerät erhalten.'
+    );
+  }
+
   function seasonDraftScope() {
     const config = BT.seasonplanner.scheduleConfig();
     if (config.leagueId && config.teamId) return String(config.leagueId) + ':' + String(config.teamId);
@@ -185,6 +200,10 @@ BT.schedule = (function() {
           progress => { status.textContent = seasonPlanningProgressText(progress); },
           { scope, store: BT.seasonDraft }
         );
+        if (!confirmSeasonPlanResult(result, slots)) {
+          status.textContent = 'KI-Gesamtplan wurde nicht übernommen. Der vollständige Entwurf bleibt auf diesem Gerät erhalten.';
+          return;
+        }
         const applied = BT.seasonplanner.applyAIPlan(result, slots);
         BT.seasonDraft.clear(scope);
         renderSeasonSummary(root);
@@ -379,5 +398,5 @@ BT.schedule = (function() {
     BT.util.toast(dates.length + ' Termine als Kalender exportiert.');
   }
 
-  return { render, seasonPlanningProgressText };
+  return { render, seasonPlanningProgressText, confirmSeasonPlanResult };
 })();

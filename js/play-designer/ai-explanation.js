@@ -204,4 +204,3 @@ export async function openAIExplanation({ board, core, saveDescription, toast })
   }
   return dialog;
 }
-
