@@ -6,6 +6,7 @@ const {mountMatchdayView,prepareMatchdayEntry}=matchdayView;
 const dom=new JSDOM('<main></main>',{url:'https://ui.test'});globalThis.document=dom.window.document;globalThis.window=dom.window;
 const f=await fixture(),c=await f.open(),root=document.querySelector('main');
 let rosterPdfPayload=null;
+let releasePdfEngine;const pdfEngineReady=new Promise(resolve=>{releasePdfEngine=resolve;});
 assert.equal(typeof prepareMatchdayEntry,'function','Der Direkteinstieg braucht eine abwartbare Vorbereitung vor dem View-Mount.');
 const availableTactics=[
   {id:'horns',title:'Horns',category:'Offense'},
@@ -14,10 +15,14 @@ const availableTactics=[
   {id:'baseline',title:'Baseline Box',category:'Einwurf'},
   {id:'pressbreak',title:'1–4 Pressbreak',category:'Pressbreak'}
 ];
-const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>availableTactics,game:{id:'g',home:'Lindau',away:'Gast',date:'2026-10-04',time:'17:00'},onRosterPdf:async payload=>{rosterPdfPayload=payload;}});
+const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>availableTactics,game:{id:'g',home:'Lindau',away:'Gast',date:'2026-10-04',time:'17:00'},prepareRosterPdf:()=>pdfEngineReady,onRosterPdf:async payload=>{rosterPdfPayload=payload;return {delivery:'cancelled'};}});
 const input=(key,value)=>{const n=root.querySelector('[data-field="'+key+'"]');n.value=value;n.dispatchEvent(new window.Event('input',{bubbles:true}));return n;};
 const click=async key=>{root.querySelector('[data-action="'+key+'"]').click();await new Promise(r=>setTimeout(r,20));await c.idle();};
 input('ownSide','home');await click('next');assert.equal(c.getState().stage,'roster');
+const pdfButton=root.querySelector('[data-action="export-roster-pdf"]');
+assert.equal(pdfButton.disabled,true,'Der PDF-Button muss bis zum geladenen lokalen PDF-Modul gesperrt bleiben.');
+releasePdfEngine();await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(pdfButton.disabled,false,'Der PDF-Button muss nach dem Vorladen verfügbar sein.');
 assert.match(root.querySelector('[data-role="selection-summary"]')?.textContent||'',/Kader\s+0.*Starting Five\s+0\/5/,'Kader und Starting Five müssen sofort sichtbar zusammengefasst werden.');
 assert.ok(root.querySelector('[data-action="show-roster"]'),'Der Kader braucht einen direkt sichtbaren Reiter.');
 assert.ok(root.querySelector('[data-action="show-lineup"]'),'Die Starting Five braucht einen direkt sichtbaren Reiter.');
@@ -34,6 +39,7 @@ assert.ok(root.querySelector('[data-action="export-roster-pdf"]'),'Im Kader-Reit
 await click('export-roster-pdf');
 assert.equal(rosterPdfPayload?.game?.away,'Gast','Der Kader-PDF-Export braucht die Spieldaten.');
 assert.equal(rosterPdfPayload?.draft?.roster?.find(player=>player.id==='p0')?.gameStatus,'bench','Der Export muss die aktuelle, noch nicht gespeicherte Kaderauswahl verwenden.');
+assert.match(root.querySelector('[role="status"]').textContent,/abgebrochen/i,'Ein abgebrochenes Teilen darf nicht als erfolgreicher Export gemeldet werden.');
 for(const id of ['p1','p2','p3','p4'])root.querySelector(`[data-player-roster="${id}"][data-status="bench"]`).click();
 root.querySelector('[data-action="show-lineup"]').click();
 for(const id of ['p0','p1','p2','p3','p4'])root.querySelector(`[data-player-lineup="${id}"][data-status="starter"]`).click();
@@ -65,7 +71,7 @@ await new Promise(r=>setTimeout(r,10));
 assert.equal(directController.getState().stage,'game','Während des blockierten Speicherns darf noch kein bedienbarer Kader-Draft entstehen.');
 assert.equal(directRoot.children.length,0,'Vor dem abgeschlossenen Direkteinstieg darf keine alte Spielansicht gemountet werden.');
 releaseDirect();await preparing;
-const directCleanup=mountMatchdayView(directRoot,directController,{players:()=>directFixture.roster});
+const directCleanup=mountMatchdayView(directRoot,directController,{players:()=>directFixture.roster,prepareRosterPdf:async()=>{}});
 assert.equal(directController.getState().stage,'roster','Ein bekanntes Heimspiel muss direkt Kader und Starting Five öffnen.');
 assert.ok(directRoot.querySelector('[data-role="selection-summary"]'));
 directCleanup();await directController.close();directDom.window.close();

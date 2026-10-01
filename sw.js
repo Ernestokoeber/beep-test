@@ -8,6 +8,7 @@ const ASSETS = [
   './training-timer.css',
   './live-game.css',
   './matchday.css',
+  './vendor/jspdf.umd.min.js',
   './js/matchday/model.mjs',
   './js/matchday/flow.mjs',
   './js/matchday/journal.mjs',

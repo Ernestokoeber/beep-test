@@ -12,7 +12,7 @@ export async function prepareMatchdayEntry(controller,defaultOwnSide){
   if(!result.ok)throw Error(result.error||controller.getState().error||'Spielvorbereitung konnte nicht geöffnet werden.');
   return true;
 }
-export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,onRosterPdf=payload=>import('./roster-pdf.mjs').then(module=>module.exportRosterPdf(payload)),onLive=(host,c)=>mountMatchdayLive(host,c,{tactics})}={}){
+export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,prepareRosterPdf=()=>import('./roster-pdf.mjs').then(module=>module.prepareRosterPdf()),onRosterPdf=payload=>import('./roster-pdf.mjs').then(module=>module.exportRosterPdf(payload)),onLive=(host,c)=>mountMatchdayLive(host,c,{tactics})}={}){
   container.classList.add('matchday');let stage='',draft,parents,read=()=>draft,dirty=false,saving=false,revision=0,liveCleanup=null,dead=false,pending=Promise.resolve(true),selectionPane='roster';
   const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div'),conflicts=el('section');let conflictKey='';status.setAttribute('role','status');container.append(title,steps,status,body,conflicts);
   const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;container.append(discard);
@@ -62,10 +62,12 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       rosterPanel.append(el('h4','Wer ist dabei?'),el('p','Tippe pro Spieler auf Dabei oder Nicht dabei.'));
       const exportButton=button(rosterPanel,'Kader als PDF','export-roster-pdf',async()=>{
         exportButton.disabled=true;status.textContent='Kader-PDF wird erstellt …';
-        try{await onRosterPdf({game,draft:read()});status.textContent='Kader-PDF erstellt.';}
+        try{const result=await onRosterPdf({game,draft:read()});status.textContent=result?.delivery==='cancelled'?'PDF-Export abgebrochen.':'Kader-PDF erstellt.';}
         catch(error){status.textContent='Kader-PDF fehlgeschlagen: '+error.message;}
         finally{exportButton.disabled=false;}
       });exportButton.className='matchday-roster-export';
+      exportButton.disabled=true;exportButton.textContent='PDF wird vorbereitet …';
+      Promise.resolve().then(()=>prepareRosterPdf()).then(()=>{if(dead)return;exportButton.disabled=false;exportButton.textContent='Kader als PDF';}).catch(error=>{if(dead)return;exportButton.textContent='Kader-PDF nicht verfügbar';status.textContent='Kader-PDF fehlgeschlagen: '+error.message;});
       lineupPanel.append(el('h4','Wer startet?'),el('p','Wähle aus dem nominierten Kader genau fünf Starter.'));
       const lineupEmpty=el('p','Noch niemand im Kader. Wähle zuerst Spieler unter Kader aus.');lineupEmpty.className='matchday-empty-hint';lineupPanel.append(lineupEmpty);
       group.append(rosterPanel,lineupPanel);

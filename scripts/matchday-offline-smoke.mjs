@@ -6,4 +6,5 @@ vm.runInNewContext(readFileSync(new URL('../sw.js',import.meta.url),'utf8'),{sel
 handlers.install({waitUntil:p=>{pending=p;}});await pending;
 for(const name of ['model','flow','journal','bridge','controller','view','live-shell'])assert.ok(cached.some(url=>url.endsWith('/js/matchday/'+name+'.mjs')),name+' must be offline');
 assert.ok(cached.some(url=>url.endsWith('/matchday.css')));
+assert.ok(cached.some(url=>url.endsWith('/vendor/jspdf.umd.min.js')),'Die lokale PDF-Engine muss für einen kalten Offline-Export vorab gecacht werden.');
 console.log('Matchday offline install: all new modules and styles precached.');

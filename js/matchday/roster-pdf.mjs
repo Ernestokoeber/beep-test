@@ -11,30 +11,31 @@ function loadJsPdf(){
   if(globalThis.window?.jspdf?.jsPDF)return Promise.resolve(window.jspdf.jsPDF);
   if(jsPdfPromise)return jsPdfPromise;
   jsPdfPromise=new Promise((resolve,reject)=>{
-    const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+    const script=document.createElement('script');script.src='./vendor/jspdf.umd.min.js';
     script.onload=()=>window.jspdf?.jsPDF?resolve(window.jspdf.jsPDF):reject(Error('PDF-Modul konnte nicht gestartet werden.'));
     script.onerror=()=>{jsPdfPromise=null;reject(Error('PDF-Modul konnte nicht geladen werden. Bitte Internetverbindung prüfen.'));};
     document.head.append(script);
   });
   return jsPdfPromise;
 }
+export function prepareRosterPdf(){return loadJsPdf();}
 function safeFilename(game){
   const opponent=String(game?.away||game?.home||'spiel').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
   return `courthub-kader-${game?.date||'spiel'}-${opponent||'spiel'}.pdf`;
 }
-function download(blob,filename){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-async function shareOrDownload(blob,filename){
-  if(typeof File==='function'&&navigator.share){
-    const file=new File([blob],filename,{type:'application/pdf'});
-    if(!navigator.canShare||navigator.canShare({files:[file]})){try{await navigator.share({title:'CourtHub Spielkader',files:[file]});return;}catch(error){if(error?.name==='AbortError')return;}}
+function download(blob,filename,{documentApi,urlApi,timer}){const url=urlApi.createObjectURL(blob),link=documentApi.createElement('a');link.href=url;link.download=filename;link.click();timer(()=>urlApi.revokeObjectURL(url),1000);}
+export async function deliverRosterPdf(blob,filename,{navigatorApi=globalThis.navigator,FileCtor=globalThis.File,documentApi=globalThis.document,urlApi=globalThis.URL,timer=globalThis.setTimeout}={}){
+  if(typeof FileCtor==='function'&&navigatorApi?.share){
+    const file=new FileCtor([blob],filename,{type:'application/pdf'});
+    if(!navigatorApi.canShare||navigatorApi.canShare({files:[file]})){try{await navigatorApi.share({title:'CourtHub Spielkader',files:[file]});return'shared';}catch(error){if(error?.name==='AbortError')return'cancelled';}}
   }
-  download(blob,filename);
+  download(blob,filename,{documentApi,urlApi,timer});return'downloaded';
 }
 
 export function buildRosterPdf(doc,{game={},draft={}}={}){
   const roster=nominatedPlayers(draft);
   if(!roster.length)throw Error('Für den PDF-Export ist noch kein Spieler nominiert.');
-  const width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight(),margin=42,rowHeight=34;
+  const width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight(),margin=42,contentWidth=width-margin*2-39;
   let page=1,y=0;
   const drawHeader=continued=>{
     doc.setFillColor(...GREEN).rect(0,0,width,118,'F');
@@ -47,7 +48,7 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
     doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...MUTED).text(meta,margin+18,192);
     doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(17).text('Nominierter Kader',margin,254);
     doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...MUTED).text(`${roster.length} ${roster.length===1?'Spieler':'Spieler'}`,width-margin,254,{align:'right'});
-    y=278;
+    y=267;
   };
   const drawFooter=()=>{
     doc.setDrawColor(...LINE).line(margin,height-45,width-margin,height-45);
@@ -56,12 +57,14 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
   };
   drawHeader(false);
   roster.forEach((player,index)=>{
-    if(y+rowHeight>height-66){drawFooter();doc.addPage();page++;drawHeader(true);}
-    doc.setFillColor(index%2?255:247,index%2?255:249,index%2?255:247).roundedRect(margin,y-17,width-margin*2,rowHeight-3,6,6,'F');
-    doc.setFillColor(...ORANGE).roundedRect(margin+11,y-9,4,18,2,2,'F');
-    doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(11).text(String(player.name||'Spieler'),margin+27,y);
-    if(player.role)doc.setTextColor(...MUTED).setFont('helvetica','normal').setFontSize(9).text(String(player.role),width-margin-12,y,{align:'right'});
-    y+=rowHeight;
+    const nameLines=doc.splitTextToSize(String(player.name||'Spieler'),contentWidth),roleLines=player.role?doc.splitTextToSize(String(player.role),contentWidth):[];
+    const itemHeight=14+nameLines.length*13+(roleLines.length?3+roleLines.length*10.5:0);
+    if(y+itemHeight>height-66){drawFooter();doc.addPage();page++;drawHeader(true);}
+    doc.setFillColor(index%2?255:247,index%2?255:249,index%2?255:247).roundedRect(margin,y,width-margin*2,itemHeight,6,6,'F');
+    doc.setFillColor(...ORANGE).roundedRect(margin+11,y+8,4,Math.max(14,itemHeight-16),2,2,'F');
+    doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(11).text(nameLines,margin+27,y+18,{lineHeightFactor:1.18});
+    if(roleLines.length)doc.setTextColor(...MUTED).setFont('helvetica','normal').setFontSize(9).text(roleLines,margin+27,y+21+nameLines.length*13,{lineHeightFactor:1.15});
+    y+=itemHeight+4;
   });
   drawFooter();
   return doc;
@@ -71,6 +74,6 @@ export async function exportRosterPdf(payload){
   const JsPdf=await loadJsPdf(),doc=new JsPdf({unit:'pt',format:'a4',orientation:'portrait'});
   buildRosterPdf(doc,payload);
   const blob=doc.output('blob'),filename=safeFilename(payload?.game);
-  await shareOrDownload(blob,filename);
-  return {blob,filename};
+  const delivery=await deliverRosterPdf(blob,filename);
+  return {blob,filename,delivery};
 }
