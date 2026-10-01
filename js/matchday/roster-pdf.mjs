@@ -38,17 +38,20 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
   const width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight(),margin=42,contentWidth=width-margin*2-39;
   let page=1,y=0;
   const drawHeader=continued=>{
+    const matchup=`${game.home||'Heim'} - ${game.away||'Gast'}`;
+    doc.setFont('helvetica','bold').setFontSize(16);
+    const matchupLines=doc.splitTextToSize(matchup,width-margin*2-36),headerExtra=Math.max(0,matchupLines.length-1)*18;
     doc.setFillColor(...GREEN).rect(0,0,width,118,'F');
     doc.setFillColor(...ORANGE).rect(margin,92,126,5,'F');
     doc.setTextColor(255,255,255).setFont('helvetica','bold').setFontSize(12).text('TSV LINDAU BASKETBALL',margin,38);
     doc.setFontSize(27).text(continued?'Spielkader - Fortsetzung':'Spielkader',margin,73);
-    doc.setTextColor(...INK).setFillColor(...PAPER).setDrawColor(...LINE).roundedRect(margin,142,width-margin*2,72,10,10,'FD');
-    doc.setFont('helvetica','bold').setFontSize(16).text(`${game.home||'Heim'} - ${game.away||'Gast'}`,margin+18,169);
+    doc.setTextColor(...INK).setFillColor(...PAPER).setDrawColor(...LINE).roundedRect(margin,142,width-margin*2,72+headerExtra,10,10,'FD');
+    doc.setFont('helvetica','bold').setFontSize(16).text(matchupLines,margin+18,169,{lineHeightFactor:1.12});
     const meta=[formatDate(game.date),game.time?`${game.time} Uhr`:null,draft.ownSide==='home'?'Heimspiel':draft.ownSide==='away'?'Auswärtsspiel':null].filter(Boolean).join('  |  ');
-    doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...MUTED).text(meta,margin+18,192);
-    doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(17).text('Nominierter Kader',margin,254);
-    doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...MUTED).text(`${roster.length} ${roster.length===1?'Spieler':'Spieler'}`,width-margin,254,{align:'right'});
-    y=267;
+    doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...MUTED).text(meta,margin+18,192+headerExtra);
+    doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(17).text('Nominierter Kader',margin,254+headerExtra);
+    doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...MUTED).text(`${roster.length} ${roster.length===1?'Spieler':'Spieler'}`,width-margin,254+headerExtra,{align:'right'});
+    y=267+headerExtra;
   };
   const drawFooter=()=>{
     doc.setDrawColor(...LINE).line(margin,height-45,width-margin,height-45);
@@ -57,7 +60,10 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
   };
   drawHeader(false);
   roster.forEach((player,index)=>{
-    const nameLines=doc.splitTextToSize(String(player.name||'Spieler'),contentWidth),roleLines=player.role?doc.splitTextToSize(String(player.role),contentWidth):[];
+    doc.setFont('helvetica','bold').setFontSize(11);
+    const nameLines=doc.splitTextToSize(String(player.name||'Spieler'),contentWidth);
+    doc.setFont('helvetica','normal').setFontSize(9);
+    const roleLines=player.role?doc.splitTextToSize(String(player.role),contentWidth):[];
     const itemHeight=14+nameLines.length*13+(roleLines.length?3+roleLines.length*10.5:0);
     if(y+itemHeight>height-66){drawFooter();doc.addPage();page++;drawHeader(true);}
     doc.setFillColor(index%2?255:247,index%2?255:249,index%2?255:247).roundedRect(margin,y,width-margin*2,itemHeight,6,6,'F');

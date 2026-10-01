@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
 
 let pdfModule;
 try{pdfModule=await import('../js/matchday/roster-pdf.mjs');}catch{}
@@ -63,4 +65,29 @@ const nameEvent=longDoc.events.find(event=>event[0]==='text'&&event[1].includes(
 const roleEvent=longDoc.events.find(event=>event[0]==='text'&&event[1].includes('Primärer'));
 assert.ok(nameEvent&&roleEvent,'Langer Name und lange Rolle müssen vollständig gesetzt werden.');
 assert.notEqual(nameEvent[3],roleEvent[3],'Name und Rolle dürfen nicht auf derselben Zeile kollidieren.');
+
+function loadVendoredJsPdf(){
+  const source=fs.readFileSync(new URL('../vendor/jspdf.umd.min.js',import.meta.url),'utf8');
+  const sandbox={console,atob,btoa,Blob,TextEncoder,TextDecoder,ArrayBuffer,Uint8Array,Uint8ClampedArray,Int8Array,Int16Array,Int32Array,Uint16Array,Uint32Array,Float32Array,Float64Array,DataView,setTimeout,clearTimeout,navigator:{},document:{createElement:()=>({getContext:()=>({})})}};
+  sandbox.globalThis=sandbox;sandbox.global=sandbox;sandbox.self=sandbox;sandbox.window=sandbox;
+  vm.runInNewContext(source,sandbox);
+  return sandbox.jspdf.jsPDF;
+}
+
+const RealJsPdf=loadVendoredJsPdf(),realDoc=new RealJsPdf({unit:'pt',format:'a4',orientation:'portrait'}),renderedText=[];
+const realText=realDoc.text.bind(realDoc);
+realDoc.text=(value,x,y,options)=>{
+  const lines=Array.isArray(value)?value:[String(value)];
+  renderedText.push({lines,x,widths:lines.map(line=>realDoc.getTextWidth(String(line)))});
+  return realText(value,x,y,options);
+};
+const veryLongName='Alexander Maximilian Mustermann-von-Beispielhausen mit einem außergewöhnlich langen vollständigen Namen';
+const veryLongHome='TSV Lindau Basketballabteilung mit außergewöhnlich langem Vereinsnamen';
+const veryLongAway='Basketballgemeinschaft Ottobeuren und Umgebung mit langem Vereinsnamen';
+pdfModule.buildRosterPdf(realDoc,{game:{home:veryLongHome,away:veryLongAway,date:'2026-10-04',time:'17:00'},draft:{roster:[{id:'lang',name:veryLongName,gameStatus:'bench',role:longRole}]}});
+const pageWidth=realDoc.internal.pageSize.getWidth(),rightEdge=pageWidth-42;
+const realName=renderedText.find(event=>event.lines.join(' ').includes('Alexander Maximilian'));
+const realMatchup=renderedText.find(event=>event.lines.join(' ').includes('Basketballabteilung'));
+assert.ok(realName&&realMatchup,'Name und Spielpaarung müssen mit der echten PDF-Engine gerendert werden.');
+for(const event of [realName,realMatchup])for(const lineWidth of event.widths)assert.ok(event.x+lineWidth<=rightEdge+0.1,'Lange Namen und Vereinsbezeichnungen dürfen den rechten Seitenrand nicht überschreiten.');
 console.log('Matchday Kader-PDF: nur nominierte Namen ohne Starting Five, Bank und Trikotnummern.');
