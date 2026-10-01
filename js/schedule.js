@@ -201,29 +201,38 @@ BT.schedule = (function() {
         const parsed = await BT.aiimport.parseWithGemini(file, null, (msg) => {
           status.textContent = '⏳ ' + msg;
         });
-        const summary = parsed.trainings.map((t, i) => {
-          const parts = [(i + 1) + '. ' + (t.weekday || '?') + (t.date ? ' (' + t.date + ')' : '')];
-          if (t.summary) parts.push('   → ' + t.summary);
-          if (t.freethrows && t.freethrows.attempted) parts.push('   FT: ' + t.freethrows.attempted + ' pro Spieler');
-          if (t.shots && t.shots.length) parts.push('   Würfe: ' + t.shots.map(s => s.category + ' ' + s.attempted).join(', '));
-          if (t.drills && t.drills.length) parts.push('   Drills: ' + t.drills.length);
-          return parts.join('\n');
-        }).join('\n\n');
+        const preview = BT.aicore.classifyPdfImport(parsed, BT.storage.getTrainings());
+        const applicable = preview.counts.new + preview.counts.fillable;
+        if (!applicable) {
+          status.textContent = 'Alle ' + preview.counts.protected + ' erkannten Einheiten sind bereits manuell bearbeitet oder abgeschlossen und bleiben unverändert.';
+          return;
+        }
+        const labels = {
+          new: 'Neu anzulegen',
+          fillable: 'Leere Termine werden befüllt',
+          protected: 'Geschützt und übersprungen'
+        };
+        const sections = ['new', 'fillable', 'protected'].map(action => {
+          const rows = preview.items.filter(item => item.action === action);
+          if (!rows.length) return '';
+          return labels[action] + ' (' + rows.length + '):\n' + rows.map(item => '• ' + formatDate(item.date) + ' – ' + (item.planEntry.summary || item.reason)).join('\n');
+        }).filter(Boolean).join('\n\n');
 
-        if (!confirm('Gemini hat ' + parsed.trainings.length + ' Training(s) erkannt:\n\n' + summary + '\n\nAuf die nächsten Termine anwenden?')) {
+        if (!confirm('Gemini hat ' + parsed.trainings.length + ' Training(s) erkannt:\n\n' + sections + '\n\n' + applicable + ' Einheiten anwenden?')) {
           status.textContent = 'Abgebrochen.';
           return;
         }
 
-        const results = BT.aiimport.applyPlanToTrainings(parsed);
+        const results = BT.aiimport.applyPlanToTrainings(parsed, preview);
         const created = results.filter(r => r.action === 'created').length;
         const updated = results.filter(r => r.action === 'updated').length;
+        const protectedCount = results.filter(r => r.action === 'protected').length;
         const meta = parsed._meta || {};
-        status.innerHTML = '✓ Fertig (' + (meta.model || '?') + ', ' + (meta.elapsedSec || '?') + 's): ' + created + ' angelegt, ' + updated + ' aktualisiert.';
+        status.textContent = '✓ Fertig (' + (meta.model || '?') + ', ' + (meta.elapsedSec || '?') + 's): ' + created + ' angelegt, ' + updated + ' befüllt, ' + protectedCount + ' geschützt/übersprungen.' + (meta.requestId ? ' Request-ID: ' + meta.requestId : '');
         renderUpcoming(root);
       } catch (e) {
         console.error(e);
-        status.textContent = '✗ Fehler: ' + e.message;
+        status.textContent = '✗ Fehler: ' + e.message + (e.requestId ? ' · Request-ID: ' + e.requestId : '');
       } finally {
         BT.wake.release('schedule-pdf');
       }

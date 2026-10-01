@@ -8,7 +8,7 @@
   },
   "scripts": {
     "check": "node scripts/check.mjs && npm run test:live && npm run test:matchday",
-    "test:ai": "node scripts/ai-gateway-smoke.mjs && node scripts/ai-api-smoke.mjs",
+    "test:ai": "node scripts/ai-gateway-smoke.mjs && node scripts/ai-api-smoke.mjs && node scripts/ai-flows-smoke.mjs",
     "test:matchday": "node scripts/matchday-model-smoke.mjs && node scripts/matchday-journal-smoke.mjs && node scripts/matchday-sync-smoke.mjs && node scripts/matchday-controller-smoke.mjs && node scripts/matchday-ui-smoke.mjs && node scripts/matchday-live-smoke.mjs && node scripts/matchday-offline-smoke.mjs && node scripts/matchday-review-smoke.mjs",
     "test:live": "node scripts/live-game-boxscore-smoke.mjs && node scripts/live-game-core-smoke.mjs && node scripts/live-game-clock-smoke.mjs && node scripts/live-game-sync-smoke.mjs && node scripts/live-game-integration-smoke.mjs && node scripts/live-game-api-smoke.mjs && node scripts/live-game-ui-smoke.mjs && node scripts/live-game-report-smoke.mjs && node scripts/live-game-review-smoke.mjs",
     "smoke": "node scripts/smoke.mjs && node scripts/training-timer-smoke.mjs",

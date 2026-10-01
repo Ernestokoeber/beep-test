@@ -22,10 +22,19 @@ BT.aiimport = (function() {
     const sizeKB = Math.round(base64.length * 0.75 / 1024);
     if (onProgress) onProgress('PDF (' + sizeKB + ' KB) wird geschützt analysiert …');
     const startedAt = Date.now();
-    const response = await BT.api.ai('parsePlan', { fileBase64: base64, mimeType: mime });
+    const response = await BT.api.ai('parsePlan', {
+      fileBase64: base64,
+      mimeType: mime,
+      schedule: {
+        days: BT.storage.getSetting('regularDays', ['tue', 'fri']),
+        time: BT.storage.getSetting('regularTime', '20:15'),
+        durationMinutes: Number(BT.storage.getSetting('trainingDurationMinutes', 105)) || 105
+      }
+    });
     const parsed = response.data;
     parsed._meta = {
       model: response.model,
+      requestId: response.requestId,
       elapsedSec: Number(((Date.now() - startedAt) / 1000).toFixed(1)),
       trainingsFound: parsed.trainings.length
     };
@@ -71,30 +80,21 @@ BT.aiimport = (function() {
     });
   }
 
-  function applyPlanToTrainings(parsed) {
+  function applyPlanToTrainings(parsed, preview) {
     applyPhase(parsed);
     const time = BT.storage.getSetting('regularTime', '20:15');
     const trainings = BT.storage.getTrainings();
-    const usedDates = new Set();
     const results = [];
-    let cursor = new Date();
+    const approvedItems = Array.isArray(preview?.items) ? preview.items : [];
 
-    for (const planEntry of parsed.trainings) {
-      let targetDate;
-      if (planEntry.date) targetDate = planEntry.date;
-      else {
-        const d = nextDateForWeekday(planEntry.weekday, cursor);
-        if (!d) continue;
-        targetDate = isoDate(d);
-        cursor = new Date(d);
-        cursor.setDate(cursor.getDate() + 1);
+    for (const item of approvedItems) {
+      const planEntry = item.planEntry;
+      const targetDate = item.date;
+      if (item.action === 'protected') {
+        results.push({ date: targetDate, action: 'protected', id: item.existingId });
+        continue;
       }
-      while (usedDates.has(targetDate)) {
-        const d = new Date(targetDate);
-        d.setDate(d.getDate() + 7);
-        targetDate = isoDate(d);
-      }
-      usedDates.add(targetDate);
+      if (item.action !== 'new' && item.action !== 'fillable') continue;
 
       const shots = (planEntry.shots || []).filter(s => s.category && (s.attempted || 0) > 0);
       const ftAtt = planEntry.freethrows && planEntry.freethrows.attempted ? planEntry.freethrows.attempted : 0;
@@ -107,10 +107,16 @@ BT.aiimport = (function() {
         drills: drills.map(d => ({ name: d.name, minutes: d.minutes || null, description: d.description || '' }))
       };
 
-      let existing = trainings.find(t => t.date === targetDate);
-      if (existing) {
+      const planning = { source: 'ai-pdf', coachEdited: false };
+      let existing = item.existingId
+        ? trainings.find(t => t.id === item.existingId)
+        : trainings.find(t => t.date === targetDate);
+      if (item.action === 'fillable' && existing) {
         existing.plan = planObj;
         if (!existing.note && planObj.summary) existing.note = planObj.summary;
+        existing.planning = planning;
+        existing.status = 'draft';
+        existing.coachEdited = false;
         existing.shots = existing.shots || [];
         for (const s of planObj.shots) {
           if (!existing.shots.find(x => x.category === s.category)) {
@@ -125,6 +131,9 @@ BT.aiimport = (function() {
           startTime: time,
           note: planObj.summary || '',
           plan: planObj,
+          planning,
+          status: 'draft',
+          coachEdited: false,
           attendance: BT.storage.attendanceForActivePlayers(targetDate),
           freethrows: [],
           shots: planObj.shots.map(s => ({ category: s.category, entries: [] }))
@@ -143,75 +152,13 @@ BT.aiimport = (function() {
     return results;
   }
 
-  const SUMMARY_PROMPT = `Du bist Basketball-Co-Trainer und schreibst eine kurze, eltern- und spielertaugliche Trainingszusammenfassung.
-
-Stil: 3–4 Sätze, freundlich, konkret, auf Deutsch, in 2. Person Plural („wir" / „ihr"). Keine Floskeln, keine Einleitung („Hier ist …"). Nenne Namen nur bei herausragenden Leistungen (Top 1–2). Wenn Vergleichsdaten vom vorherigen Training vorhanden sind, erwähne 1 Trend (z.B. „Freiwurfquote von 62 % auf 71 %").
-
-Daten (JSON) über das aktuelle und — falls vorhanden — das vorige Training folgen. Gib NUR den fertigen Text zurück, ohne Markdown, ohne Anführungszeichen.`;
-
-  function buildSummaryData(training, previous, playerLookup) {
-    function summarizeAttendance(t) {
-      const a = { present: 0, absent: 0, excused: 0, injured: 0, late: 0, open: 0 };
-      for (const x of (t.attendance || [])) {
-        if (!x.status) { a.open++; continue; }
-        if (a[x.status] !== undefined) a[x.status]++;
-        if (x.late) a.late++;
-      }
-      return a;
-    }
-    function teamFT(t) {
-      let made = 0, att = 0;
-      for (const e of (t.freethrows || [])) { made += e.made || 0; att += e.attempted || 0; }
-      return { made, attempted: att, pct: att ? Math.round((made / att) * 100) : null };
-    }
-    function teamShots(t) {
-      const out = [];
-      for (const c of (t.shots || [])) {
-        let m = 0, a = 0;
-        for (const e of (c.entries || [])) { m += e.made || 0; a += e.attempted || 0; }
-        if (a > 0) out.push({ category: c.category, made: m, attempted: a, pct: Math.round((m / a) * 100) });
-      }
-      return out;
-    }
-    function topFTPlayers(t, n) {
-      const rows = (t.freethrows || [])
-        .filter(e => (e.attempted || 0) >= 3)
-        .map(e => ({
-          name: (playerLookup(e.playerId) || {}).name || '?',
-          made: e.made || 0, attempted: e.attempted || 0,
-          pct: e.attempted ? Math.round((e.made / e.attempted) * 100) : 0
-        }))
-        .sort((a, b) => b.pct - a.pct || b.attempted - a.attempted);
-      return rows.slice(0, n || 2);
-    }
-
-    const pack = (t) => {
-      if (!t) return null;
-      return {
-        date: t.date,
-        note: t.note || null,
-        attendance: summarizeAttendance(t),
-        freethrows: teamFT(t),
-        topFT: topFTPlayers(t, 2),
-        shotsByCategory: teamShots(t),
-        drills: (t.plan && t.plan.drills ? t.plan.drills.map(d => d.name) : []).slice(0, 6)
-      };
-    };
-
-    return {
-      current: pack(training),
-      previous: pack(previous)
-    };
-  }
-
-  async function summarizeTraining(training, previous, _legacyApiKey, onProgress) {
+  async function summarizeTraining(training, previous, onProgress) {
     if (!BT.api.getToken()) throw new Error('Bitte zuerst unter „Konto & Sync“ anmelden.');
     const players = BT.storage.getPlayers();
-    const lookup = (id) => players.find(p => p.id === id);
-    const data = buildSummaryData(training, previous, lookup);
+    const data = BT.aicore.buildSummaryFacts(training, previous, players);
     if (onProgress) onProgress('Trainingsdaten werden geschützt ausgewertet …');
-    const response = await BT.api.ai('summarizeTraining', { data });
-    return response.text;
+    const response = await BT.api.ai('summarizeTraining', data);
+    return { text: response.text, model: response.model, requestId: response.requestId };
   }
 
   const TACTIC_PROMPT = `Du bist Basketball-Co-Trainer. Erkläre den folgenden Spielzug für U14-U18-Spieler in 5-8 knappen, konkreten Sätzen auf Deutsch.

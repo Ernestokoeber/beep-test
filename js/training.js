@@ -2623,23 +2623,23 @@ BT.training = (function() {
           const sec = Math.floor((Date.now() - t0) / 1000);
           statusEl.textContent = '⏳ Gemini arbeitet … ' + sec + 's';
         }, 500);
-        let text;
+        let summaryResult;
         try {
-          text = await BT.aiimport.summarizeTraining(training, prev, null, msg => {
+          summaryResult = await BT.aiimport.summarizeTraining(training, prev, msg => {
             statusEl.textContent = '⏳ ' + msg;
           });
         } finally {
           clearInterval(ticker);
         }
-        outEl.value = text;
+        outEl.value = summaryResult.text;
         const sec = ((Date.now() - t0) / 1000).toFixed(1);
-        statusEl.textContent = '✓ Fertig (' + sec + 's)' + (prev ? ' · Vergleich mit ' + formatDate(prev.date) : ' · ohne Vergleichstraining');
+        statusEl.textContent = '✓ Fertig mit ' + (summaryResult.model || 'KI') + ' (' + sec + 's)' + (prev ? ' · Vergleich mit ' + formatDate(prev.date) : ' · ohne Vergleichstraining') + (summaryResult.requestId ? ' · Request-ID: ' + summaryResult.requestId : '');
         copyBtn.disabled = false;
         shareBtn.disabled = false;
         regenBtn.disabled = false;
       } catch (e) {
         console.error(e);
-        statusEl.textContent = '✗ Fehler: ' + e.message;
+        statusEl.textContent = '✗ Fehler: ' + e.message + (e.requestId ? ' · Request-ID: ' + e.requestId : '');
         regenBtn.disabled = false;
         fallbackBox.classList.remove('hidden');
       } finally {
