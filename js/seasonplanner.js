@@ -19,7 +19,6 @@ BT.seasonplanner = (function() {
   ]);
 
   const DAY_NUMBERS = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
-  const SEASON_BATCH_SIZE = 4;
 
   function dateAtNoon(iso) {
     return new Date(String(iso || '') + 'T12:00:00');
@@ -156,12 +155,30 @@ BT.seasonplanner = (function() {
     };
   }
 
-  function splitAIPayload(payload, batchSize = SEASON_BATCH_SIZE) {
-    const slots = Array.isArray(payload?.slots) ? payload.slots : [];
-    const size = Math.max(1, Number(batchSize) || SEASON_BATCH_SIZE);
-    return Array.from({ length: Math.ceil(slots.length / size) }, (_, index) =>
-      Object.assign({}, payload, { slots: slots.slice(index * size, (index + 1) * size) })
-    );
+  function weekMonday(dateValue) {
+    const date = dateAtNoon(dateValue);
+    const daysSinceMonday = (date.getDay() + 6) % 7;
+    date.setDate(date.getDate() - daysSinceMonday);
+    return isoDate(date);
+  }
+
+  function splitAIPayload(payload) {
+    const slots = (Array.isArray(payload?.slots) ? payload.slots : [])
+      .slice()
+      .sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')));
+    const weeks = new Map();
+    slots.forEach((slot) => {
+      const key = weekMonday(slot.date);
+      if (!weeks.has(key)) weeks.set(key, []);
+      weeks.get(key).push(slot);
+    });
+    const batches = [];
+    for (const weekSlots of weeks.values()) {
+      for (let index = 0; index < weekSlots.length; index += 2) {
+        batches.push(Object.assign({}, payload, { slots: weekSlots.slice(index, index + 2) }));
+      }
+    }
+    return batches;
   }
 
   function validateBatchResponse(response, slots) {
@@ -177,16 +194,52 @@ BT.seasonplanner = (function() {
     return trainings;
   }
 
-  async function planInBatches(payload, requestBatch, onProgress) {
+  async function planInBatches(payload, requestBatch, onProgress, draftStore) {
     const batches = splitAIPayload(payload);
+    const store = draftStore?.store || BT.seasonDraft;
+    const scope = draftStore?.scope || null;
+    const fingerprint = store?.fingerprint ? store.fingerprint(payload) : null;
+    const saved = scope && store?.load ? store.load(scope, fingerprint) : null;
+    let activeDraft = saved;
+    const completedByIndex = new Map((saved?.completed || []).map((block) => [Number(block.index), block]));
+    const completed = (saved?.completed || []).slice();
     const trainings = [];
+    const models = new Set();
+    const requestIds = [];
+    let resumedBlocks = 0;
+
     for (let index = 0; index < batches.length; index++) {
+      const resumed = completedByIndex.get(index);
+      if (resumed) {
+        trainings.push(...resumed.trainings);
+        resumedBlocks += 1;
+        if (onProgress) onProgress({ block: index + 1, total: batches.length, attempt: 0, resumed: true });
+        continue;
+      }
       let lastError = null;
       for (let attempt = 1; attempt <= 2; attempt++) {
-        if (onProgress) onProgress({ block: index + 1, total: batches.length, attempt });
+        if (onProgress) onProgress({ block: index + 1, total: batches.length, attempt, resumed: false });
         try {
           const response = await requestBatch(batches[index]);
-          trainings.push(...validateBatchResponse(response, batches[index].slots));
+          const blockTrainings = validateBatchResponse(response, batches[index].slots);
+          trainings.push(...blockTrainings);
+          if (response.model) models.add(response.model);
+          if (response.requestId) requestIds.push(response.requestId);
+          const block = {
+            index,
+            dates: batches[index].slots.map(slot => slot.date),
+            trainings: blockTrainings
+          };
+          completed.push(block);
+          completedByIndex.set(index, block);
+          if (scope && store?.save) {
+            activeDraft = store.save(scope, {
+              fingerprint,
+              completed: completed.slice().sort((left, right) => left.index - right.index),
+              nextIndex: index + 1,
+              createdAt: activeDraft?.createdAt
+            });
+          }
           lastError = null;
           break;
         } catch (error) {
@@ -194,10 +247,15 @@ BT.seasonplanner = (function() {
         }
       }
       if (lastError) {
-        throw new Error('KI-Block ' + (index + 1) + ' von ' + batches.length + ' fehlgeschlagen: ' + lastError.message);
+        const error = new Error('KI-Block ' + (index + 1) + ' von ' + batches.length + ' fehlgeschlagen: ' + lastError.message);
+        error.code = lastError.code || null;
+        error.retryable = lastError.retryable === true;
+        error.requestId = lastError.requestId || null;
+        error.block = index + 1;
+        throw error;
       }
     }
-    return { trainings };
+    return { trainings, resumedBlocks, models: [...models], requestIds };
   }
 
   function normalizeDrills(input, fallbackIntensity, durationMinutes) {

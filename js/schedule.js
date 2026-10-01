@@ -13,10 +13,17 @@ BT.schedule = (function() {
     { key: 'sun', label: 'So', num: 0 }
   ];
 
-  function seasonPlanningProgressText({ block, total, attempt }) {
+  function seasonPlanningProgressText({ block, total, attempt, resumed }) {
+    if (resumed) return 'Wochenblock ' + block + ' von ' + total + ' aus dem Entwurf übernommen …';
     return attempt === 2
-      ? 'KI versucht Block ' + block + ' von ' + total + ' erneut …'
-      : 'KI plant Block ' + block + ' von ' + total + ' …';
+      ? 'KI versucht Wochenblock ' + block + ' von ' + total + ' erneut …'
+      : 'KI plant Wochenblock ' + block + ' von ' + total + ' …';
+  }
+
+  function seasonDraftScope() {
+    const config = BT.seasonplanner.scheduleConfig();
+    if (config.leagueId && config.teamId) return String(config.leagueId) + ':' + String(config.teamId);
+    return String(config.teamName || 'team').trim().toLowerCase().replace(/[^a-z0-9äöüß]+/g, '-').replace(/^-|-$/g, '') || 'team';
   }
 
   function render(target) {
@@ -159,26 +166,37 @@ BT.schedule = (function() {
         BT.seasonplanner.saveScheduleConfig({ teamId: synced.team.id, teamName: synced.team.name });
         const slots = plannerSlots();
         if (!slots.length) throw new Error('Keine regulären Trainingstermine bis zum letzten Saisonspiel gefunden.');
-        if (!confirm(slots.length + ' Trainings bis ' + formatDate(slots.at(-1).date) + ' durch die KI planen?\n\nManuelle und absolvierte Einheiten bleiben unverändert.')) {
+        const payload = BT.seasonplanner.buildAIPayload(slots, preferences);
+        const scope = seasonDraftScope();
+        const fingerprint = BT.seasonDraft.fingerprint(payload);
+        const existingDraft = BT.seasonDraft.load(scope, fingerprint);
+        const resumedCount = existingDraft?.completed?.length || 0;
+        if (resumedCount) button.textContent = 'Saisonplanung fortsetzen';
+        const resumeText = resumedCount
+          ? '\n\n' + resumedCount + ' bereits bestätigte Wochenblöcke werden vom Gerät übernommen.'
+          : '';
+        if (!confirm(slots.length + ' Trainings bis ' + formatDate(slots.at(-1).date) + ' durch die KI planen?' + resumeText + '\n\nManuelle und absolvierte Einheiten bleiben unverändert.')) {
           status.textContent = 'Saisonplanung abgebrochen.';
           return;
         }
-        const payload = BT.seasonplanner.buildAIPayload(slots, preferences);
         const result = await BT.seasonplanner.planInBatches(
           payload,
           data => BT.api.ai('planSeason', { data }),
-          progress => { status.textContent = seasonPlanningProgressText(progress); }
+          progress => { status.textContent = seasonPlanningProgressText(progress); },
+          { scope, store: BT.seasonDraft }
         );
         const applied = BT.seasonplanner.applyAIPlan(result, slots);
+        BT.seasonDraft.clear(scope);
         renderSeasonSummary(root);
         renderUpcoming(root);
-        status.textContent = 'Saisonplanung erstellt: ' + applied.created + ' neu, ' + applied.updated + ' aktualisiert, ' + applied.protected + ' geschützt' + (applied.missing ? ', ' + applied.missing + ' KI-Antworten fehlten' : '') + '.';
+        status.textContent = 'Saisonplanung mit gemini-3.8-flash erstellt: ' + applied.created + ' neu, ' + applied.updated + ' aktualisiert, ' + applied.protected + ' geschützt' + (result.resumedBlocks ? ', ' + result.resumedBlocks + ' Wochenblöcke fortgesetzt' : '') + (applied.missing ? ', ' + applied.missing + ' KI-Antworten fehlten' : '') + '.';
       } catch (error) {
         console.error(error);
-        status.textContent = 'KI-Saisonplanung fehlgeschlagen: ' + error.message;
+        status.textContent = 'KI-Saisonplanung fehlgeschlagen: ' + error.message + (error.requestId ? ' · Request-ID: ' + error.requestId : '') + ' Der bestätigte Fortschritt bleibt auf diesem Gerät erhalten.';
       } finally {
         BT.wake.release('season-ai-plan');
         button.disabled = false;
+        button.textContent = 'Mit KI Saison planen';
       }
     });
   }

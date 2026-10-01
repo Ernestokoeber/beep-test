@@ -8,7 +8,7 @@ const scripts = [
   ...['bootstrap.js','core.mjs','clock.mjs','journal.mjs','merge.mjs','bridge.mjs','controller.mjs','view.mjs','report.mjs'].map(file=>'js/live-game/'+file),
   'js/training-timer.js',
   'js/util.js', 'js/storage.js', 'js/api.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',
-  'js/schedule.js', 'js/seasonplanner.js', 'js/training.js', 'js/tactics.js',
+  'js/schedule.js', 'js/season-ai-draft.js', 'js/seasonplanner.js', 'js/training.js', 'js/tactics.js',
   'js/play-designer/main.js', 'js/play-designer/styles.js', 'js/play-designer/rendering.js',
   'js/play-designer/court-enhancements.js', 'js/play-designer/layout-fix.js',
   'js/play-designer/timing-core.js', 'js/play-designer/timing-fix.js',

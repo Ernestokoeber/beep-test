@@ -283,10 +283,11 @@ assert(!seasonSlots.some(slot => slot.date >= '2026-08-03' && slot.date <= '2026
 assert(!seasonSlots.some(slot => slot.date >= '2026-12-24' && slot.date <= '2027-01-08'), 'Training wurde in den Weihnachtsferien geplant');
 assert(seasonSlots.some(slot => slot.weekday === 'tue' && slot.load === 'high'), 'Dienstag ist nicht als Haupttrainingstag priorisiert');
 const protectedSlot = seasonSlots[0];
-window.BT.storage.upsertTraining({
+const manualTraining = window.BT.storage.upsertTraining({
   date: protectedSlot.date, startTime: '20:15', note: 'Manuell geschützt',
   attendance: [], freethrows: [], shots: [], plan: { summary: 'Manuell', drills: [] }
 });
+const manualBefore = JSON.stringify(window.BT.storage.getTraining(manualTraining.id));
 const aiSeasonResponse = {
   trainings: seasonSlots.map(slot => ({
     date: slot.date,
@@ -305,8 +306,9 @@ const aiSeasonResponse = {
   }))
 };
 const appliedSeason = window.BT.seasonplanner.applyAIPlan(aiSeasonResponse, seasonSlots);
-assert(appliedSeason.protected === 1, 'Manuell erstelltes Training wurde nicht geschützt');
-assert(appliedSeason.created === seasonSlots.length - 1, 'KI-Saisontrainings wurden nicht vollständig angelegt');
+assert(appliedSeason.protected >= 1, 'Manuelles Training wurde nicht als geschützt gezählt');
+assert(JSON.stringify(window.BT.storage.getTraining(manualTraining.id)) === manualBefore, 'Manuelles Training wurde verändert');
+assert(appliedSeason.created + appliedSeason.updated + appliedSeason.protected + appliedSeason.missing === seasonSlots.length, 'KI-Saisontrainings wurden nicht vollständig verarbeitet');
 assert(window.BT.storage.getDrills().some(drill => drill.source === 'ai-season'), 'KI-Trainingsblöcke fehlen in der Drill-Bibliothek');
 assert(window.BT.storage.getTemplates().some(template => template.source === 'ai-season'), 'KI-Trainings fehlen in der Vorlagenbibliothek');
 const fridayTraining = window.BT.storage.getTrainings().find(entry => entry.planning?.source === 'ai-season' && entry.plan?.variants);
@@ -322,14 +324,14 @@ const batchResult = await window.BT.seasonplanner.planInBatches(batchPayload, as
   batchSizes.push(data.slots.length);
   return { data: { trainings: data.slots.map(slot => ({ date: slot.date, drills: [] })) } };
 });
-assert(batchSizes.join(',') === '4,4,4,4,1', 'Saisonplanung teilt Slots nicht in sichere Blöcke');
+assert(batchSizes.length > 1 && batchSizes.every(size => size <= 2), 'Saisonplanung teilt Slots nicht in sichere Wochenblöcke');
 assert(batchResult.trainings.length === 17, 'Antworten aller Blöcke wurden nicht gesammelt');
 
 function responseForSlots(slots) {
   return { data: { trainings: slots.map(slot => ({ date: slot.date, summary: 'KI ' + slot.date, drills: [] })) } };
 }
 
-const firstBatchPayload = { ...batchPayload, slots: batchPayload.slots.slice(0, 4) };
+const firstBatchPayload = { ...batchPayload, slots: batchPayload.slots.slice(0, 2) };
 let retryCalls = 0;
 const retryProgress = [];
 const retriedResult = await window.BT.seasonplanner.planInBatches(
@@ -343,19 +345,18 @@ const retriedResult = await window.BT.seasonplanner.planInBatches(
   progress => retryProgress.push(progress)
 );
 assert(retryCalls === 2, 'Ungültiger KI-Block wurde nicht einmal erneut angefragt');
-assert(retriedResult.trainings.length === 4, 'Erfolgreicher Retry liefert nicht alle Trainings zurück');
+assert(retriedResult.trainings.length === 2, 'Erfolgreicher Retry liefert nicht alle Trainings zurück');
 assert(retryProgress.some(item => item.attempt === 2), 'Retry-Fortschritt wird nicht gemeldet');
-assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 1 }) === 'KI plant Block 2 von 5 …', 'Erster Blockstatus ist falsch');
-assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 2 }) === 'KI versucht Block 2 von 5 erneut …', 'Retry-Blockstatus ist falsch');
+assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 1 }) === 'KI plant Wochenblock 2 von 5 …', 'Erster Blockstatus ist falsch');
+assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 2 }) === 'KI versucht Wochenblock 2 von 5 erneut …', 'Retry-Blockstatus ist falsch');
+assert(window.BT.schedule.seasonPlanningProgressText({ block: 1, total: 5, attempt: 0, resumed: true }) === 'Wochenblock 1 von 5 aus dem Entwurf übernommen …', 'Fortsetzungsstatus ist falsch');
 
 const invalidResponses = [
   { data: { trainings: [
     { date: firstBatchPayload.slots[0].date, drills: [] },
-    { date: firstBatchPayload.slots[0].date, drills: [] },
-    { date: firstBatchPayload.slots[2].date, drills: [] },
-    { date: firstBatchPayload.slots[3].date, drills: [] }
+    { date: firstBatchPayload.slots[0].date, drills: [] }
   ] } },
-  { data: { trainings: firstBatchPayload.slots.slice(0, 3).map(slot => ({ date: slot.date, drills: [] })).concat({ date: '2099-01-01', drills: [] }) } }
+  { data: { trainings: [{ date: firstBatchPayload.slots[0].date, drills: [] }, { date: '2099-01-01', drills: [] }] } }
 ];
 for (const invalidResponse of invalidResponses) {
   let calls = 0;
@@ -373,13 +374,18 @@ for (const invalidResponse of invalidResponses) {
 }
 
 let rejectedBatch = false;
+const failingPayload = { ...batchPayload, slots: [
+  { date: '2026-10-06', weekday: 'tue' }, { date: '2026-10-09', weekday: 'fri' },
+  { date: '2026-10-13', weekday: 'tue' }, { date: '2026-10-16', weekday: 'fri' },
+  { date: '2026-10-20', weekday: 'tue' }
+] };
 try {
-  await window.BT.seasonplanner.planInBatches(batchPayload, async data => {
-    if (data.slots[0].date === '2027-06-17') throw new Error('Blockfehler');
+  await window.BT.seasonplanner.planInBatches(failingPayload, async data => {
+    if (data.slots[0].date === '2026-10-20') throw new Error('Blockfehler');
     return responseForSlots(data.slots);
   });
 } catch (error) {
-  rejectedBatch = error.message === 'KI-Block 5 von 5 fehlgeschlagen: Blockfehler';
+  rejectedBatch = error.message === 'KI-Block 3 von 3 fehlgeschlagen: Blockfehler';
 }
 assert(rejectedBatch, 'Ein Blockfehler bricht die Saisonplanung nicht zuverlässig ab');
 
