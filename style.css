@@ -3477,6 +3477,11 @@ table.results tr:last-child td { border-bottom: none; }
 .game-observation-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
 .game-observation-grid label { font-size: .8rem; font-weight: 700; }
 .game-observation-grid textarea { width: 100%; margin-top: 6px; }
+.game-preparation-card { border-top: 4px solid var(--primary); }
+.game-preparation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+.game-preparation-summary span { display: flex; flex-direction: column; gap: 3px; min-height: 74px; justify-content: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: .78rem; font-weight: 800; }
+.game-preparation-summary strong { color: var(--text); font-size: 1.35rem; line-height: 1; }
+.game-preparation-card > .btn { margin: 4px 6px 4px 0; }
 .atlas-panel { background: linear-gradient(145deg, var(--surface), var(--surface-2)); }
 .atlas-connect { display: flex; align-items: end; gap: 8px; margin-top: 14px; }
 .atlas-connect input { width: 100%; margin-top: 5px; }
@@ -3838,6 +3843,7 @@ table.results tr:last-child td { border-bottom: none; }
   .development-head,
   .atlas-head,
   .game-detail-head { flex-direction: column; }
+  .game-preparation-card > .btn { width: 100%; margin: 5px 0; }
   .checkin-card { grid-template-columns: 1fr; }
   .checkin-qr { grid-column: 1; }
   .goal-feedback-form,

@@ -118,6 +118,17 @@ BT.games = (function() {
 
   function saveGame(game) { BT.storage.upsertGame(game); }
 
+  function preparationState(game) {
+    const selectedSession = game.liveStats?.sessions?.find(session => session.id === game.liveStats.selectedSessionId);
+    if (selectedSession) return { roster: selectedSession.roster || [], startingFive: selectedSession.startingFive || [] };
+    const revisions = game.matchday?.revisions;
+    if (!Array.isArray(revisions) || !revisions.length) return { roster: [], startingFive: [] };
+    const parentIds = new Set(revisions.flatMap(revision => Array.isArray(revision.parents) ? revision.parents : []));
+    const heads = revisions.filter(revision => !parentIds.has(revision.id));
+    const draft = heads.length === 1 ? heads[0].value : null;
+    return { roster: draft?.roster || [], startingFive: draft?.startingFive || [] };
+  }
+
   function drawDetail() {
     cleanup();
     const wrap = $('[data-role="game-detail"]', root);
@@ -129,13 +140,19 @@ BT.games = (function() {
     const lindauHome = /lindau/i.test(game.home || '');
     const result = scoreParts ? ((lindauHome ? Number(scoreParts[1]) > Number(scoreParts[2]) : Number(scoreParts[2]) > Number(scoreParts[1])) ? 'Sieg' : 'Niederlage') : 'Anstehend';
     const players = BT.storage.getPlayers().filter(player => !player.archived).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    const preparation = preparationState(game);
+    const nominatedCount = preparation.roster.filter(player => player.gameStatus !== 'dnp').length;
+    const starterCount = preparation.startingFive.length;
+    const selectedSession = game.liveStats?.sessions?.find(session => session.id === game.liveStats.selectedSessionId);
+    const gameFinished = selectedSession?.events?.some(event => event.kind === 'finish');
+    const preparationLabel = gameFinished ? 'Spieltag ansehen' : game.liveStats ? 'Spieltag fortsetzen' : game.matchday ? 'Vorbereitung fortsetzen' : 'Kader & Starting Five festlegen';
 
     wrap.innerHTML = `<div class="game-detail-head">
       <div><span class="section-kicker">${escapeHTML(game.team === 'u18' ? 'U18' : 'Herren')} · ${escapeHTML(result)}</span><h3>${escapeHTML(game.home)} <span>${escapeHTML(game.score || '–:–')}</span> ${escapeHTML(game.away)}</h3><p class="muted">${formatDate(game.date)}${game.time ? ' · ' + escapeHTML(game.time) + ' Uhr' : ''} · Quelle: ${game.source === 'basketball-bund' ? 'DBB TeamSL' : game.source === 'tsv-website' ? 'TSV-Webseite' : 'manuell'}${game.matchNo ? ' · Spiel ' + escapeHTML(game.matchNo) : ''}</p></div>
       <div class="head-actions"><button class="btn small" data-action="edit-selected">Bearbeiten</button><button class="btn small" data-action="share-game">Bericht teilen</button></div>
     </div>
 
-    <section class="boxscore-panel"><h3>Spieltag</h3><p>Geführte Vorbereitung, freie Live-Erfassung und Auswertung.</p><button class="btn primary" data-action="open-matchday">${game.liveStats?.sessions?.find(s=>s.id===game.liveStats.selectedSessionId)?.events.some(e=>e.kind==='finish')?'Spieltag ansehen':game.matchday||game.liveStats?'Spieltag fortsetzen':'Spieltag starten'}</button><button class="btn" data-action="open-live">Live erfassen</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
+    <section class="boxscore-panel game-preparation-card"><h3>Spielvorbereitung</h3><p>Kader nominieren, Starting Five festlegen und danach in die freie Live-Erfassung wechseln.</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live">Live erfassen</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
     <div class="game-observation-grid">
       <label>Was hat funktioniert?<textarea data-game-field="strengths" rows="4" placeholder="Stärken, erfolgreiche Lineups, gute Entscheidungen …">${escapeHTML(game.strengths || '')}</textarea></label>
       <label>Was müssen wir verbessern?<textarea data-game-field="improvements" rows="4" placeholder="Konkrete Spielsituationen und Trainingsbedarf …">${escapeHTML(game.improvements || '')}</textarea></label>
@@ -422,7 +439,8 @@ BT.games = (function() {
       host.replaceChildren();const heading=document.createElement('h1');heading.textContent=game.home+' – '+game.away;host.append(heading);
       const meta=document.createElement('p');meta.textContent=formatDate(game.date)+(game.time?' · '+game.time:'');host.append(meta);
       const content=document.createElement('div');host.append(content);
-      matchdayView=mountMatchdayView(content,c,{players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics()});
+      const lindauHome=/\blindau\b/i.test(game.home||''),lindauAway=/\blindau\b/i.test(game.away||'');
+      matchdayView=mountMatchdayView(content,c,{players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics(),defaultOwnSide:lindauHome!==lindauAway?(lindauHome?'home':'away'):null});
       const view=matchdayView;liveCleanup=()=>{view();c.close().catch(()=>{});};
     }catch(e){if(generation===liveGeneration)host.textContent=e.message;}
   }

@@ -113,6 +113,8 @@ assert(gameButton, 'Spiel wurde nicht gerendert');
 gameButton.click();
 assert(window.document.querySelector('.atlas-panel'), 'Atlas-Bereich fehlt');
 assert(window.document.querySelector('.game-boxscore'), 'Spieler-Boxscore fehlt');
+assert(window.document.querySelector('[data-action="open-matchday"]')?.textContent === 'Kader & Starting Five festlegen', 'Der sichtbare Einstieg zur Mannschaftsplanung fehlt');
+assert(/Kader\s+0.*Starting Five\s+0\/5/.test(window.document.querySelector('[data-role="game-preparation-summary"]')?.textContent || ''), 'Der Spielkarte fehlt der sichtbare Stand von Kader und Starting Five');
 window.BT.api.getAtlasAnalysis = async () => ({
   importedAt: new Date().toISOString(),
   package: {

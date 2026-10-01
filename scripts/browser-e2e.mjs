@@ -607,22 +607,23 @@ async function testMatchday(browser, name, options) {
     await page.locator('#app > *').first().waitFor();
     const gameId = await page.evaluate(() => {
       for (let i = 1; i <= 6; i++) window.BT.storage.upsertPlayer({ name: `E2E Spieler ${i}`, jerseyNumber: String(i) });
-      return window.BT.storage.upsertGame({ date: '2026-09-30', home: 'E2E Heim', away: 'E2E Gast', source: 'manual' }).id;
+      return window.BT.storage.upsertGame({ date: '2026-09-30', home: 'TSV Lindau', away: 'E2E Gast', source: 'manual' }).id;
     });
     await page.goto(baseUrl + '/#/games', { waitUntil: 'domcontentloaded' });
     await page.locator(`[data-game-id="${gameId}"]`).tap();
-    await page.getByRole('button', { name: 'Spieltag starten', exact: true }).tap();
-    await page.locator('[data-field="ownSide"]').selectOption('home');
-    await noOverflow('Spiel prüfen');
-    await page.getByRole('button', { name: 'Weiter zur Mannschaft' }).tap();
-    await page.locator('[data-player-status]').first().waitFor();
-    const playerStatuses = page.locator('[data-player-status]');
-    assert(await playerStatuses.count() === 6, `${name}: synthetischer Kader fehlt`);
-    for (let i = 0; i < 5; i++) await playerStatuses.nth(i).selectOption('starter');
-    await playerStatuses.nth(5).selectOption('dnp');
+    await page.getByRole('button', { name: 'Kader & Starting Five festlegen', exact: true }).tap();
+    await page.locator('[data-player-roster][data-status="bench"]').first().waitFor();
+    const rosterButtons = page.locator('[data-player-roster][data-status="bench"]');
+    assert(await rosterButtons.count() === 6, `${name}: synthetischer Kader fehlt`);
+    for (let i = 0; i < 5; i++) await rosterButtons.nth(i).tap();
+    await page.getByRole('button', { name: 'Starting Five', exact: true }).tap();
+    const starterButtons = page.locator('[data-player-lineup][data-status="starter"]:visible');
+    for (let i = 0; i < 5; i++) await starterButtons.nth(i).tap();
+    await page.getByRole('button', { name: 'Kader', exact: true }).tap();
+    await page.locator('.matchday-player-details > summary').first().tap();
     await page.locator('[data-player-role]').first().fill('Ballhandler');
     await noOverflow('Kader');
-    await page.getByRole('button', { name: 'Weiter zum Gameplan' }).tap();
+    await page.getByRole('button', { name: 'Gameplan', exact: true }).tap();
     await page.locator('[data-field="goals"]').fill('Rebounds sichern');
     await noOverflow('Vorbereitung');
     await page.getByRole('button', { name: 'Optionale Angaben überspringen' }).tap();
@@ -676,7 +677,7 @@ async function testMatchday(browser, name, options) {
   }
 }
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, ...(process.env.E2E_BROWSER_PATH ? { executablePath: process.env.E2E_BROWSER_PATH } : {}) });
 try {
   if (!process.env.E2E_MATCHDAY_ONLY) {
     await testDesktop(browser);
