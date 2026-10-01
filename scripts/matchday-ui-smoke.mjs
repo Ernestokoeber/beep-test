@@ -5,6 +5,7 @@ import * as matchdayView from '../js/matchday/view.mjs';
 const {mountMatchdayView,prepareMatchdayEntry}=matchdayView;
 const dom=new JSDOM('<main></main>',{url:'https://ui.test'});globalThis.document=dom.window.document;globalThis.window=dom.window;
 const f=await fixture(),c=await f.open(),root=document.querySelector('main');
+let rosterPdfPayload=null;
 assert.equal(typeof prepareMatchdayEntry,'function','Der Direkteinstieg braucht eine abwartbare Vorbereitung vor dem View-Mount.');
 const availableTactics=[
   {id:'horns',title:'Horns',category:'Offense'},
@@ -13,7 +14,7 @@ const availableTactics=[
   {id:'baseline',title:'Baseline Box',category:'Einwurf'},
   {id:'pressbreak',title:'1–4 Pressbreak',category:'Pressbreak'}
 ];
-const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>availableTactics});
+const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>availableTactics,game:{id:'g',home:'Lindau',away:'Gast',date:'2026-10-04',time:'17:00'},onRosterPdf:async payload=>{rosterPdfPayload=payload;}});
 const input=(key,value)=>{const n=root.querySelector('[data-field="'+key+'"]');n.value=value;n.dispatchEvent(new window.Event('input',{bubbles:true}));return n;};
 const click=async key=>{root.querySelector('[data-action="'+key+'"]').click();await new Promise(r=>setTimeout(r,20));await c.idle();};
 input('ownSide','home');await click('next');assert.equal(c.getState().stage,'roster');
@@ -29,6 +30,10 @@ root.querySelector('form').dispatchEvent(new window.FocusEvent('focusout',{bubbl
 await new Promise(r=>setTimeout(r,10));
 assert.equal(root.querySelector('fieldset').disabled,false,'Autosave must not disable the next tap');
 release();await c.idle();f.deps.journal.append=append;
+assert.ok(root.querySelector('[data-action="export-roster-pdf"]'),'Im Kader-Reiter fehlt der Button „Kader als PDF“.');
+await click('export-roster-pdf');
+assert.equal(rosterPdfPayload?.game?.away,'Gast','Der Kader-PDF-Export braucht die Spieldaten.');
+assert.equal(rosterPdfPayload?.draft?.roster?.find(player=>player.id==='p0')?.gameStatus,'bench','Der Export muss die aktuelle, noch nicht gespeicherte Kaderauswahl verwenden.');
 for(const id of ['p1','p2','p3','p4'])root.querySelector(`[data-player-roster="${id}"][data-status="bench"]`).click();
 root.querySelector('[data-action="show-lineup"]').click();
 for(const id of ['p0','p1','p2','p3','p4'])root.querySelector(`[data-player-lineup="${id}"][data-status="starter"]`).click();

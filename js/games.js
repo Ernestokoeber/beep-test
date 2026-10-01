@@ -442,7 +442,7 @@ BT.games = (function() {
       host.replaceChildren();const heading=document.createElement('h1');heading.textContent=game.home+' – '+game.away;host.append(heading);
       const meta=document.createElement('p');meta.textContent=formatDate(game.date)+(game.time?' · '+game.time:'');host.append(meta);
       const content=document.createElement('div');host.append(content);
-      matchdayView=mountMatchdayView(content,c,{players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics()});
+      matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics()});
       const view=matchdayView;liveCleanup=()=>{view();c.close().catch(()=>{});};
     }catch(e){if(generation===liveGeneration)host.textContent=e.message;}
   }
