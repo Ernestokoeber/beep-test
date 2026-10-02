@@ -67,6 +67,8 @@ assert(/^courthub-v\d+$/.test(installedCacheName), 'Service Worker legt keinen v
 assert(installedAssets.every(asset => !asset.includes('?v=')), 'Service Worker cachet lokal unterschiedliche Asset-Versionen');
 assert(installedAssets.includes('./js/play-designer/phase-recorder-core.js'), 'Phasenrekorder fehlt im Offline-Cache');
 assert(installedAssets.includes('./js/play-designer/phase-spacing.js'), 'Abstandsprüfung fehlt im Offline-Cache');
+assert(installedAssets.includes('./js/training-live.js'), 'Training Live fehlt im Offline-Cache');
+assert(installedAssets.includes('./training-live.css'), 'Training-Live-Layout fehlt im Offline-Cache');
 assert(![...window.document.querySelectorAll('link[href], script[src]')].some(node => new URL(node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src'), 'https://coach.tsv-lindau.de').origin === 'https://coach.tsv-lindau.de' && node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src').includes('?v=')), 'HTML lädt lokal unterschiedliche Asset-Versionen');
 let activateWork;
 serviceWorkerEvents.get('activate')({ waitUntil(work) { activateWork = work; } });
@@ -155,6 +157,12 @@ assert(window.document.querySelector('[data-role="plan-duration"]').value === '9
 assert(window.document.querySelector('.intensity-high'), 'Belastungsstufe fehlt');
 assert(window.document.querySelector('[data-role="checkin-card"]'), 'QR-Check-in fehlt');
 assert(!window.document.querySelector('[data-action="export-pdf"]'), 'Einzelner Trainings-PDF-Export darf nicht mehr angeboten werden');
+assert(window.document.querySelector('[data-action="training-live"]')?.textContent.includes('Training durchführen'), 'Sichtbarer Einstieg in Training Live fehlt');
+window.document.querySelector('[data-action="training-live"]').click();
+assert(window.document.querySelector('.training-live'), 'Training Live wird nicht geöffnet');
+assert(window.document.querySelector('[data-live="block-name"]')?.textContent === 'Defense', 'Training Live übernimmt den geplanten Drill nicht');
+window.document.querySelector('[data-live-action="close"]').click();
+assert(!window.document.querySelector('.training-live'), 'Training Live wird nicht sauber geschlossen');
 window.document.querySelector('[data-action="end-training"]').click();
 await new Promise(resolveWait => window.setTimeout(resolveWait, 20));
 const endedTraining = window.BT.storage.getTraining(training.id);

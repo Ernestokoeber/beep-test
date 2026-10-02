@@ -20,6 +20,7 @@
   <link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/inter-latin.woff2">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="training-timer.css">
+  <link rel="stylesheet" href="training-live.css">
   <link rel="stylesheet" href="live-game.css">
   <link rel="stylesheet" href="matchday.css">
 </head>
@@ -619,8 +620,9 @@
           <h2 data-role="title">Training</h2>
         </div>
         <div class="head-actions">
+          <button class="btn small primary" data-action="training-live">▶ Training durchführen</button>
           <button class="btn small" data-action="training-timer">Timer &amp; Punkte</button>
-          <button class="btn small primary" data-action="end-training">🏁 Training beenden</button>
+          <button class="btn small" data-action="end-training">🏁 Training beenden</button>
           <details class="head-menu">
             <summary class="btn small head-menu-toggle" aria-label="Weitere Aktionen">⋯ Mehr</summary>
             <div class="head-menu-panel">
@@ -1477,6 +1479,7 @@
   <script defer src="js/players.js"></script>
   <script defer src="js/test.js"></script>
   <script defer src="js/training-timer.js"></script>
+  <script defer src="js/training-live.js"></script>
   <script defer src="js/training.js"></script>
   <script defer src="js/games.js"></script>
   <script defer src="js/tablecrew.js"></script>

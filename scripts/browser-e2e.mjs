@@ -549,6 +549,114 @@ async function testTablet(browser) {
   await context.close();
 }
 
+async function testTrainingLive(browser, name, options) {
+  const context = await browser.newContext({ ...options, locale: 'de-DE', serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => {
+    const metaCspWarning = "The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element.";
+    if (message.type() === 'error' && message.text() !== metaCspWarning) errors.push(message.text());
+  });
+  await context.addInitScript(() => {
+    window.BT = {};
+    let sync;
+    Object.defineProperty(window.BT, 'sync', {
+      configurable: true,
+      get: () => sync,
+      set(value) {
+        sync = value;
+        const original = value.getState.bind(value);
+        value.getState = () => ({
+          ...original(), user: { id: 'training-live-coach', role: 'coach', organization: { id: 'training-live-e2e' } }
+        });
+      }
+    });
+  });
+
+  async function noOverflow(stage) {
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      overlay: document.querySelector('.training-live')?.scrollWidth || 0,
+      overlayClient: document.querySelector('.training-live')?.clientWidth || 0,
+      main: document.querySelector('.training-live-main')?.scrollWidth || 0,
+      mainClient: document.querySelector('.training-live-main')?.clientWidth || 0
+    }));
+    assert(dimensions.overlay <= dimensions.overlayClient + 1 && dimensions.main <= dimensions.mainClient + 1,
+      `${name} · Training Live · ${stage}: horizontaler Überlauf ${JSON.stringify(dimensions)}`);
+    assert(errors.length === 0, `${name} · Training Live · ${stage}: Browserfehler ${errors.join(' | ')}`);
+  }
+
+  try {
+    await page.goto(baseUrl + '/#/dashboard', { waitUntil: 'domcontentloaded' });
+    await page.locator('#app > *').first().waitFor();
+    const trainingId = await page.evaluate(() => {
+      const players = Array.from({ length: 9 }, (_, index) =>
+        window.BT.storage.upsertPlayer({ name: `Live Spieler ${index + 1}`, jerseyNumber: String(index + 1) }));
+      return window.BT.storage.upsertTraining({
+        date: '2026-10-02',
+        startTime: '20:20',
+        attendance: players.map(player => ({ playerId: player.id, status: 'present', late: false, note: '' })),
+        freethrows: [],
+        shots: [],
+        plan: {
+          durationMinutes: 100,
+          drills: [
+            { name: 'Dual-Ball Warm-up', minutes: 10, intensity: 'medium', description: 'Kopf oben und beide Hände aktiv.' },
+            { name: 'Flex live 5v5', minutes: 20, intensity: 'high', description: 'Nur eingreifen, wenn der freie Spielfluss stockt.' },
+            { name: 'Horns / 5-Out Decision Game', minutes: 20, intensity: 'high', description: 'Reads gegen No Middle.' },
+            { name: 'Continuous Decision Game', minutes: 20, intensity: 'high', description: 'Rebound und sofortiger Umschaltmoment.' },
+            { name: '5v5 – 2 × 10 Minuten', minutes: 30, intensity: 'high', description: 'Spielnaher Abschluss.' }
+          ]
+        }
+      }).id;
+    });
+
+    await page.goto(baseUrl + `/#/training/${trainingId}`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Training durchführen/ }).tap();
+    await page.getByRole('heading', { name: 'Training Live', exact: true }).waitFor();
+    assert(await page.locator('[data-live="block-name"]').innerText() === 'Dual-Ball Warm-up', `${name}: erster Trainingsblock fehlt`);
+    assert((await page.locator('[data-live="presence"]').innerText()).includes('9 Spieler'), `${name}: Anwesenheit fehlt`);
+    await noOverflow('Start');
+
+    await page.getByRole('button', { name: '▶ Start', exact: true }).tap();
+    await page.waitForTimeout(1100);
+    await page.getByRole('button', { name: '+1 min', exact: true }).tap();
+    await page.getByRole('button', { name: /Funktioniert/ }).tap();
+    await page.locator('[data-live="note"]').fill('Ballkontrolle stabil, Blick früher heben.');
+    await page.getByRole('button', { name: /Block beenden/ }).tap();
+    assert(await page.locator('[data-live="block-name"]').innerText() === 'Flex live 5v5', `${name}: nächster Trainingsblock fehlt`);
+    const firstSaved = await page.evaluate(id => window.BT.storage.getTraining(id).liveSession.blocks[0], trainingId);
+    assert(firstSaved.status === 'completed' && firstSaved.rating === 'worked', `${name}: Blockbewertung wurde nicht gespeichert`);
+    assert(firstSaved.note.includes('Blick früher'), `${name}: Trainernotiz wurde nicht gespeichert`);
+
+    await page.getByRole('button', { name: '▶ Start', exact: true }).tap();
+    await page.waitForTimeout(1100);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Training fortsetzen/ }).tap();
+    await page.getByRole('heading', { name: 'Training Live', exact: true }).waitFor();
+    assert(await page.locator('[data-live="block-name"]').innerText() === 'Flex live 5v5', `${name}: Reload verliert den aktuellen Block`);
+    assert((await page.locator('[data-live="clock-state"]').innerText()) === 'Läuft', `${name}: Reload verliert die laufende Uhr`);
+    await noOverflow('Wiederaufnahme');
+
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: /Training beenden & speichern/ }).tap();
+    await page.getByRole('heading', { name: 'Trainingsauswertung', exact: true }).waitFor();
+    const finished = await page.evaluate(id => window.BT.storage.getTraining(id), trainingId);
+    assert(finished.status === 'completed' && finished.endedAt, `${name}: Training wurde nicht abgeschlossen`);
+    assert(finished.liveSession.report.completedBlocks === 2, `${name}: Abschlussbericht zählt die Blöcke falsch`);
+    assert(finished.liveSession.report.skippedBlocks === 3, `${name}: offene Blöcke werden nicht als übersprungen dokumentiert`);
+    assert(await page.locator('.training-live-report-item').count() === 5, `${name}: Trainingsauswertung ist unvollständig`);
+    await noOverflow('Auswertung');
+    console.log(`Training-Live Browser-E2E erfolgreich: ${name}, Timer, Bewertung, Notiz, Reload und Auswertung.`);
+  } catch (error) {
+    console.error(`${name} Training-Live-Diagnose:`, page.url(), await page.locator('body').innerText(), errors);
+    throw error;
+  } finally {
+    await context.close();
+  }
+}
+
 async function testMatchday(browser, name, options) {
   // Fresh storage per viewport; only identity is synthetic. Routes, UI,
   // controllers, localStorage and IndexedDB use the production app.
@@ -683,12 +791,14 @@ try {
     await testDesktop(browser);
     await testTablet(browser);
     await testIPhone(browser);
+    await testTrainingLive(browser, 'iPhone 15', devices['iPhone 15']);
+    await testTrainingLive(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
   }
   await testMatchday(browser, 'iPhone 15', devices['iPhone 15']);
   await testMatchday(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
   console.log(process.env.E2E_MATCHDAY_ONLY
     ? 'CourtHub Matchday Browser-E2E erfolgreich: iPhone und 320 px.'
-    : 'CourtHub Browser-E2E erfolgreich: Play Editor 2.0, Desktop, Tablet, iPhone, zehn Spieler, Drag-and-drop, Videoimport und Matchday (iPhone/320 px).');
+    : 'CourtHub Browser-E2E erfolgreich: Play Editor 2.0, Desktop, Tablet, iPhone, Training Live (iPhone/320 px), zehn Spieler, Drag-and-drop, Videoimport und Matchday (iPhone/320 px).');
 } finally {
   await browser.close();
 }

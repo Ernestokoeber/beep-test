@@ -16,6 +16,7 @@ Installierbare Basketball-Plattform für das Trainerteam des TSV Lindau. CourtHu
 - QR-Selbst-Check-in mit Trainerfreigabe
 - Spielerziele, Verfügbarkeit, Trainerfeedback und Einsatzbriefing
 - Drag-and-drop-Trainingsplan mit Zeit- und Belastungsübersicht sowie iCal-Export
+- mobiler Coach-Modus „Training Live“ mit aktuellem/nächstem Drill, persistenter Uhr, Schnellbewertung und Trainingsauswertung
 
 ## Datenfluss
 

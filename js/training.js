@@ -232,6 +232,8 @@ BT.training = (function() {
     });
 
     $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
+    $('[data-action="training-live"]', detailRoot).addEventListener('click', () => BT.trainingLive.open(training.id));
+    BT.trainingLive.syncLauncher(currentTraining);
     $('[data-action="training-timer"]', detailRoot).addEventListener('click', () => BT.trainingTimer.open(training.id));
     $('[data-action="ai-summary"]', detailRoot).addEventListener('click', () => openAISummary(currentTraining));
     $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTraining(currentTraining));
@@ -3252,6 +3254,7 @@ BT.training = (function() {
   }
 
   function cleanup() {
+    if (BT.trainingLive && BT.trainingLive.close) BT.trainingLive.close();
     if (detailAbort) detailAbort.abort();
     detailAbort = null;
     if (timerRaf) cancelAnimationFrame(timerRaf);
