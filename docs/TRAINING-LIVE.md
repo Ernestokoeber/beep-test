@@ -7,7 +7,7 @@
 1. Training mit mindestens einem Drill planen.
 2. `Training durchführen` öffnen.
 3. Pro Block Uhr starten, bei Bedarf Zeit anpassen, bewerten und eine kurze Notiz hinterlegen.
-4. Mit `Block beenden` zum nächsten Drill wechseln oder einen Block überspringen.
+4. Mit `Nächster Block` jederzeit zum nächsten Drill wechseln oder einen Block überspringen. Die Uhr muss dafür weder gestartet noch abgelaufen sein.
 5. `Training beenden & speichern` erzeugt die Trainingsauswertung.
 
 Während der Durchführung zeigt die Ansicht immer den aktuellen und den nächsten Drill. Passende Coaching-Points werden aus der Drillbeschreibung und bekannten CourtHub-Schwerpunkten abgeleitet. Für Horns, 5-Out, No Middle und Zoneninhalte kann eine vorhandene oder integrierte Taktik direkt geöffnet werden.

@@ -320,6 +320,7 @@ BT.trainingLive = (() => {
             <button type="button" data-live-action="plus-one">+1 min</button>
             <button type="button" data-live-action="plus-five">+5 min</button>
           </div>
+          <p class="training-live-skip-hint">Die Uhr ist nur eine Hilfe: Du kannst jederzeit zum nächsten Block wechseln.</p>
           <div class="training-live-columns">
             <section class="training-live-card">
               <div class="training-live-card-head"><h3>Coaching-Points</h3><button type="button" class="training-live-tactic" data-live-action="tactic" hidden>Taktik anzeigen</button></div>
@@ -336,11 +337,6 @@ BT.trainingLive = (() => {
             </section>
           </div>
           <section class="training-live-next" data-live="next-card"><span>Als Nächstes</span><strong data-live="next-name">—</strong><small data-live="next-meta"></small></section>
-          <nav class="training-live-nav" aria-label="Trainingsblöcke steuern">
-            <button type="button" data-live-action="previous">← Vorheriger</button>
-            <button type="button" data-live-action="skip">Überspringen</button>
-            <button type="button" class="primary" data-live-action="next">Block beenden →</button>
-          </nav>
         </section>
         <section class="training-live-summary" data-live="summary-view" hidden>
           <span class="training-live-kicker">Einheit abgeschlossen</span>
@@ -349,13 +345,18 @@ BT.trainingLive = (() => {
           <ol class="training-live-report" data-live="report"></ol>
           <div class="training-live-summary-actions">
             <button type="button" data-live-action="reset">Neue Durchführung starten</button>
+            <button type="button" data-live-action="load-management" hidden>Belastung &amp; RPE eintragen</button>
             <button type="button" class="primary" data-live-action="close">Zur Trainingsübersicht</button>
           </div>
         </section>
       </main>
       <footer class="training-live-footer">
-        <button type="button" data-live-action="overview">Alle Blöcke</button>
-        <button type="button" class="finish" data-live-action="finish">Training beenden &amp; speichern</button>
+        <nav class="training-live-nav" aria-label="Trainingsblöcke steuern">
+          <button type="button" data-live-action="previous">← Vorheriger</button>
+          <button type="button" data-live-action="skip">Überspringen</button>
+          <button type="button" class="primary" data-live-action="next">Nächster Block →</button>
+        </nav>
+        <div class="training-live-footer-secondary"><button type="button" data-live-action="overview">Alle Blöcke</button><button type="button" class="finish" data-live-action="finish">Training beenden &amp; speichern</button></div>
       </footer>
       <aside class="training-live-sheet" data-live="sheet" hidden aria-label="Alle Trainingsblöcke">
         <div class="training-live-sheet-head"><h2>Trainingsablauf</h2><button type="button" data-live-action="overview-close">Schließen</button></div>
@@ -466,6 +467,11 @@ BT.trainingLive = (() => {
     }
     if (action === 'tactic') { openTactic(); return; }
     if (action === 'finish') { finish(); return; }
+    if (action === 'load-management') {
+      close();
+      document.querySelector('.subnav-btn[data-pane="load"]')?.click();
+      return;
+    }
     if (action === 'reset') {
       if (!window.confirm('Die gespeicherte Live-Durchführung zurücksetzen und neu beginnen?')) return;
       delete active.training.liveSession;
@@ -567,6 +573,7 @@ BT.trainingLive = (() => {
     root.querySelector('.training-live-footer').hidden = completed;
     root.querySelector('[data-live="session-state"]').textContent = completed ? 'Training abgeschlossen' : 'Training läuft';
     root.querySelector('[data-live="presence"]').textContent = `${session.presentCount} Spieler anwesend`;
+    root.querySelector('[data-live-action="load-management"]').hidden = !completed || !training.stationTraining;
     renderProgress();
     if (completed) { renderSummary(); tick(); return; }
 
@@ -599,7 +606,7 @@ BT.trainingLive = (() => {
       root.querySelector('[data-live="next-meta"]').textContent = `${formatClock(next.durationSeconds * 1000)} · ${next.intensity === 'high' ? 'intensiv' : next.intensity === 'low' ? 'locker' : 'mittel'}`;
     }
     root.querySelector('[data-live-action="previous"]').disabled = session.activeIndex === 0;
-    root.querySelector('[data-live-action="next"]').textContent = next ? 'Block beenden →' : 'Training abschließen →';
+    root.querySelector('[data-live-action="next"]').textContent = next ? 'Nächster Block →' : 'Training abschließen →';
     tick();
   }
 

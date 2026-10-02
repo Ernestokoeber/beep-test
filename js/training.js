@@ -45,6 +45,17 @@ BT.training = (function() {
         });
         return;
       }
+      const stationButton = e.target.closest('[data-action="create-friday-stations"]');
+      if (stationButton) {
+        const friday = stationButton.dataset.friday;
+        const game = BT.storage.getGame(stationButton.dataset.gameId);
+        const existing = BT.storage.getTrainings().find(training => training.date === friday && !training.endedAt && training.status !== 'completed') || null;
+        if (!game) { BT.util.toast('Das zugehörige Wochenendspiel wurde nicht gefunden.'); return; }
+        if (existing && !existing.stationTraining && existing.plan?.drills?.length && !confirm('Den bestehenden Trainingsplan durch das 105-Minuten-Stationstraining ersetzen?')) return;
+        const training = BT.stationTraining.createOrUpdate(friday, game, existing);
+        location.hash = '#/training/' + training.id;
+        return;
+      }
       if (e.target.closest('[data-action="new-training"]')) {
         const t = BT.storage.upsertTraining({
           date: todayISO(),
@@ -64,6 +75,7 @@ BT.training = (function() {
     const completedEmpty = $('[data-role="completed-list-empty"]', root);
     const empty = $('[data-role="empty"]', root);
     const trainings = BT.storage.getTrainings();
+    renderFridayStationSuggestion(root, trainings);
 
     if (trainings.length === 0) {
       empty.classList.remove('hidden');
@@ -87,6 +99,20 @@ BT.training = (function() {
     for (const t of completed) completedList.appendChild(buildTrainingItem(t, true));
   }
 
+  function renderFridayStationSuggestion(root, trainings) {
+    const host = $('[data-role="friday-station-suggestion"]', root);
+    if (!host || !BT.stationTraining) return;
+    const suggestion = BT.stationTraining.nextSuggestion(todayISO(), BT.storage.getGames(), trainings);
+    if (!suggestion) { host.classList.add('hidden'); host.replaceChildren(); return; }
+    const game = suggestion.game;
+    const gameOpponent = /lindau/i.test(game.home || '') ? game.away : game.home;
+    const ready = Boolean(suggestion.existing?.stationTraining);
+    host.classList.remove('hidden');
+    host.innerHTML = `<div><span class="section-kicker">Spielwochen-Freitag</span><h3>${escapeHTML(formatDate(suggestion.friday))} · 105 Minuten individuell</h3><p>Vor dem Spiel gegen ${escapeHTML(gameOpponent || 'den nächsten Gegner')}: fünf Stationen, neue Wochenrotation und Belastungsampel pro Spieler.</p></div>${ready
+      ? `<a class="btn primary" href="#/training/${encodeURIComponent(suggestion.existing.id)}">Stationstraining öffnen</a>`
+      : `<button class="btn primary" type="button" data-action="create-friday-stations" data-friday="${escapeHTML(suggestion.friday)}" data-game-id="${escapeHTML(game.id)}">${suggestion.existing ? 'Auf Training anwenden' : 'Stationstraining anlegen'}</button>`}`;
+  }
+
   function buildTrainingItem(t, isPast) {
     const summary = summarize(t);
     const li = document.createElement('li');
@@ -96,11 +122,12 @@ BT.training = (function() {
     const endedBadge = t.endedAt ? '<span class="att-chip ok">🏁 Beendet</span> ' : '';
     const badge = isPast && !t.endedAt ? '<span class="att-chip muted-chip">✓ Absolviert</span> ' : '';
     const trendBadge = isPast ? renderTrendBadge(t) : '';
+    const stationBadge = t.stationTraining ? '<span class="att-chip">◇ Stationen &amp; Lastampel</span> ' : '';
     a.innerHTML = `
       <div class="info">
         <div class="name">${formatDate(t.date)}${t.startTime ? ' · ' + escapeHTML(t.startTime) : ''}${t.note ? ' – ' + escapeHTML(t.note) : ''}</div>
         <div class="meta">
-          ${endedBadge}${badge}
+          ${endedBadge}${badge}${stationBadge}
           ${summary.pending === summary.total && summary.total > 0
             ? '<span class="att-chip muted-chip">○ Anwesenheit offen</span>'
             : `<span class="att-chip ok">✓ ${summary.present}</span>
@@ -218,6 +245,7 @@ BT.training = (function() {
       markPlanEdited();
       save();
       $('[data-role="title"]', detailRoot).textContent = 'Training vom ' + formatDate(currentTraining.date);
+      syncStationTrainingUI();
     });
     $('[data-role="time"]', detailRoot).addEventListener('change', e => {
       currentTraining.startTime = e.target.value;
@@ -234,6 +262,17 @@ BT.training = (function() {
     $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
     $('[data-action="training-live"]', detailRoot).addEventListener('click', () => BT.trainingLive.open(training.id));
     BT.trainingLive.syncLauncher(currentTraining);
+    $('[data-action="station-training"]', detailRoot).addEventListener('click', () => {
+      const game = BT.stationTraining.weekendGameForFriday(currentTraining.date);
+      if (!game) { BT.util.toast('Für diesen Freitag wurde kein Spiel am folgenden Wochenende gefunden.'); return; }
+      if (!currentTraining.stationTraining && currentTraining.plan?.drills?.length && !confirm('Den bestehenden Trainingsplan durch das 105-Minuten-Stationstraining ersetzen?')) return;
+      BT.stationTraining.apply(currentTraining, game);
+      save();
+      renderPlanBox();
+      syncStationTrainingUI();
+      $('[data-pane="load"].subnav-btn', detailRoot)?.click();
+      BT.util.toast('Freitags-Stationstraining mit Belastungssteuerung ist bereit.');
+    });
     $('[data-action="training-timer"]', detailRoot).addEventListener('click', () => BT.trainingTimer.open(training.id));
     $('[data-action="ai-summary"]', detailRoot).addEventListener('click', () => openAISummary(currentTraining));
     $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTraining(currentTraining));
@@ -266,6 +305,7 @@ BT.training = (function() {
     setupSprintStopwatch();
     renderPlanBox();
     setupSubnav();
+    syncStationTrainingUI();
     setupShotMap();
 
     const resetBtn = $('[data-action="reset-attendance"]', detailRoot);
@@ -326,6 +366,19 @@ BT.training = (function() {
         if (btn) btn.click();
       });
     }
+  }
+
+  function syncStationTrainingUI() {
+    if (!detailRoot || !BT.stationTraining) return;
+    const game = BT.stationTraining.weekendGameForFriday(currentTraining.date);
+    const action = $('[data-action="station-training"]', detailRoot);
+    action.hidden = !game;
+    action.textContent = currentTraining.stationTraining ? '◇ Stationen aktualisieren' : '◇ Freitags-Stationen';
+    const tab = $('.subnav-btn[data-pane="load"]', detailRoot);
+    if (tab) tab.hidden = !currentTraining.stationTraining;
+    const host = $('[data-role="station-training"]', detailRoot);
+    if (currentTraining.stationTraining) BT.stationTraining.render(host, currentTraining, save);
+    else host?.replaceChildren();
   }
 
   function syncAttendanceWithPlayers() {

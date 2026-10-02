@@ -590,9 +590,41 @@ async function testTrainingLive(browser, name, options) {
   try {
     await page.goto(baseUrl + '/#/dashboard', { waitUntil: 'domcontentloaded' });
     await page.locator('#app > *').first().waitFor();
-    const trainingId = await page.evaluate(() => {
+    const stationSetup = await page.evaluate(() => {
+      const start = new Date(`${window.BT.util.todayISO()}T12:00:00`);
+      while (start.getDay() !== 5) start.setDate(start.getDate() + 1);
+      const friday = start.toISOString().slice(0, 10);
+      start.setDate(start.getDate() + 1);
+      const gameDate = start.toISOString().slice(0, 10);
       const players = Array.from({ length: 9 }, (_, index) =>
-        window.BT.storage.upsertPlayer({ name: `Live Spieler ${index + 1}`, jerseyNumber: String(index + 1) }));
+        window.BT.storage.upsertPlayer({ name: `Stationsspieler ${index + 1}`, jerseyNumber: String(index + 1) }));
+      const game = window.BT.storage.upsertGame({ team: 'herren', date: gameDate, time: '18:00', home: 'TSV Lindau', away: 'Stations-Gegner', source: 'manual', playerStats: [] });
+      return { friday, gameId: game.id, playerId: players[0].id };
+    });
+    await page.goto(baseUrl + '/#/training', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Stationstraining anlegen', exact: true }).tap();
+    await page.getByRole('button', { name: 'Belastung', exact: true }).tap();
+    assert(await page.locator('.station-card').count() === 5, `${name}: fünf Freitagstationen fehlen`);
+    assert(await page.locator('.station-player-card').count() === 9, `${name}: Belastungssteuerung enthält nicht alle Spieler`);
+    const firstLoadCard = page.locator('.station-player-card').first();
+    await firstLoadCard.locator('[data-station-field="pain"]').fill('6');
+    await firstLoadCard.locator('[data-station-field="pain"]').press('Tab');
+    await firstLoadCard.locator('.station-light-red').waitFor();
+    const stationTraining = await page.evaluate(date => window.BT.storage.getTrainings().find(training => training.date === date), stationSetup.friday);
+    assert(stationTraining.plan.durationMinutes === 105, `${name}: Freitagsplan hat nicht 105 Minuten`);
+    assert(stationTraining.stationTraining.players[stationSetup.playerId].targetRpe === 2, `${name}: Schmerz erzeugt keine rote Laststeuerung`);
+    const stationDimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+    assert(Math.max(stationDimensions.document, stationDimensions.body) <= stationDimensions.viewport + 1, `${name}: Belastungsansicht erzeugt horizontalen Überlauf ${JSON.stringify(stationDimensions)}`);
+    await page.getByRole('button', { name: /Training durchführen/ }).tap();
+    await page.getByRole('heading', { name: 'Training Live', exact: true }).waitFor();
+    assert(await page.locator('[data-live="block-name"]').innerText() === 'Readiness-Check & Tagesziel', `${name}: Stationstraining startet im falschen Block`);
+    await page.getByRole('button', { name: /Nächster Block/ }).tap();
+    assert(await page.locator('[data-live="block-name"]').innerText() === 'Individuelle Aktivierung', `${name}: Blockwechsel ohne gestartete Uhr ist nicht möglich`);
+    await noOverflow('Freitagsstationen im Live-Modus');
+    await page.getByRole('button', { name: 'Training Live schließen', exact: true }).tap();
+
+    const trainingId = await page.evaluate(() => {
+      const players = window.BT.storage.getPlayers().filter(player => !player.archived).slice(0, 9);
       return window.BT.storage.upsertTraining({
         date: '2026-10-02',
         startTime: '20:20',
@@ -624,7 +656,7 @@ async function testTrainingLive(browser, name, options) {
     await page.getByRole('button', { name: '+1 min', exact: true }).tap();
     await page.getByRole('button', { name: /Funktioniert/ }).tap();
     await page.locator('[data-live="note"]').fill('Ballkontrolle stabil, Blick früher heben.');
-    await page.getByRole('button', { name: /Block beenden/ }).tap();
+    await page.getByRole('button', { name: /Nächster Block/ }).tap();
     assert(await page.locator('[data-live="block-name"]').innerText() === 'Flex live 5v5', `${name}: nächster Trainingsblock fehlt`);
     const firstSaved = await page.evaluate(id => window.BT.storage.getTraining(id).liveSession.blocks[0], trainingId);
     assert(firstSaved.status === 'completed' && firstSaved.rating === 'worked', `${name}: Blockbewertung wurde nicht gespeichert`);
@@ -798,7 +830,7 @@ try {
   await testMatchday(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
   console.log(process.env.E2E_MATCHDAY_ONLY
     ? 'CourtHub Matchday Browser-E2E erfolgreich: iPhone und 320 px.'
-    : 'CourtHub Browser-E2E erfolgreich: Play Editor 2.0, Desktop, Tablet, iPhone, Training Live (iPhone/320 px), zehn Spieler, Drag-and-drop, Videoimport und Matchday (iPhone/320 px).');
+    : 'CourtHub Browser-E2E erfolgreich: Play Editor 2.0, Desktop, Tablet, iPhone, Freitagstationen und Training Live (iPhone/320 px), zehn Spieler, Drag-and-drop, Videoimport und Matchday (iPhone/320 px).');
 } finally {
   await browser.close();
 }

@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="training-timer.css">
   <link rel="stylesheet" href="training-live.css">
+  <link rel="stylesheet" href="station-training.css">
   <link rel="stylesheet" href="live-game.css">
   <link rel="stylesheet" href="matchday.css">
 </head>
@@ -471,6 +472,7 @@
         <h2>Training</h2>
         <button class="btn primary" data-action="new-training">+ Neues Training</button>
       </div>
+      <section class="friday-station-suggestion hidden" data-role="friday-station-suggestion"></section>
       <div class="training-list-sections">
         <section class="training-list-section training-list-section--upcoming">
           <div class="training-list-section-head">
@@ -621,6 +623,7 @@
         </div>
         <div class="head-actions">
           <button class="btn small primary" data-action="training-live">▶ Training durchführen</button>
+          <button class="btn small" data-action="station-training" hidden>◇ Freitags-Stationen</button>
           <button class="btn small" data-action="training-timer">Timer &amp; Punkte</button>
           <button class="btn small" data-action="end-training">🏁 Training beenden</button>
           <details class="head-menu">
@@ -645,6 +648,7 @@
         <button class="subnav-btn" type="button" data-pane="shots">Würfe</button>
         <button class="subnav-btn" type="button" data-pane="fitness">Fitness</button>
         <button class="subnav-btn" type="button" data-pane="sprints">Sprints</button>
+        <button class="subnav-btn" type="button" data-pane="load" hidden>Belastung</button>
         <button class="subnav-btn" type="button" data-pane="map">Karte</button>
         <button class="subnav-btn" type="button" data-pane="notes">Notizen</button>
       </div>
@@ -709,6 +713,10 @@
             <p class="empty-body">Keine Wurfpositionen erfasst. Öffne den <a href="#" data-action="goto-map">Karte-Tab</a>.</p>
           </div>
         </div>
+      </div>
+
+      <div class="pane hidden" data-pane="load">
+        <div data-role="station-training"></div>
       </div>
 
       <div class="pane hidden" data-pane="attendance">
@@ -1480,6 +1488,7 @@
   <script defer src="js/test.js"></script>
   <script defer src="js/training-timer.js"></script>
   <script defer src="js/training-live.js"></script>
+  <script defer src="js/station-training.js"></script>
   <script defer src="js/training.js"></script>
   <script defer src="js/games.js"></script>
   <script defer src="js/tablecrew.js"></script>

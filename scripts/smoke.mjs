@@ -69,6 +69,8 @@ assert(installedAssets.includes('./js/play-designer/phase-recorder-core.js'), 'P
 assert(installedAssets.includes('./js/play-designer/phase-spacing.js'), 'Abstandsprüfung fehlt im Offline-Cache');
 assert(installedAssets.includes('./js/training-live.js'), 'Training Live fehlt im Offline-Cache');
 assert(installedAssets.includes('./training-live.css'), 'Training-Live-Layout fehlt im Offline-Cache');
+assert(installedAssets.includes('./js/station-training.js'), 'Freitags-Stationstraining fehlt im Offline-Cache');
+assert(installedAssets.includes('./station-training.css'), 'Stations- und Belastungslayout fehlt im Offline-Cache');
 assert(![...window.document.querySelectorAll('link[href], script[src]')].some(node => new URL(node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src'), 'https://coach.tsv-lindau.de').origin === 'https://coach.tsv-lindau.de' && node.getAttribute(node.tagName === 'LINK' ? 'href' : 'src').includes('?v=')), 'HTML lädt lokal unterschiedliche Asset-Versionen');
 let activateWork;
 serviceWorkerEvents.get('activate')({ waitUntil(work) { activateWork = work; } });
@@ -292,6 +294,7 @@ assert(seasonSlots.length > 20, 'Saisontermine bis zum letzten Spiel fehlen');
 assert(!seasonSlots.some(slot => slot.date >= '2026-08-03' && slot.date <= '2026-09-14'), 'Training wurde in den Sommerferien geplant');
 assert(!seasonSlots.some(slot => slot.date >= '2026-12-24' && slot.date <= '2027-01-08'), 'Training wurde in den Weihnachtsferien geplant');
 assert(seasonSlots.some(slot => slot.weekday === 'tue' && slot.load === 'high'), 'Dienstag ist nicht als Haupttrainingstag priorisiert');
+assert(seasonSlots.some(slot => slot.date === '2026-10-09' && slot.fridayStationMode && slot.weekendGame?.date === '2026-10-11'), 'Freitag vor einem Wochenendspiel wird nicht als Stationstraining markiert');
 const protectedSlot = seasonSlots[0];
 // Earlier timer fixtures use today + 1/+2 days and can fall on these season
 // slots. Isolate this scenario so exactly one manual training is protected.
@@ -324,6 +327,8 @@ assert(JSON.stringify(window.BT.storage.getTraining(manualTraining.id)) === manu
 assert(appliedSeason.created + appliedSeason.updated + appliedSeason.protected + appliedSeason.missing === seasonSlots.length, 'KI-Saisontrainings wurden nicht vollständig verarbeitet');
 assert(window.BT.storage.getDrills().some(drill => drill.source === 'ai-season'), 'KI-Trainingsblöcke fehlen in der Drill-Bibliothek');
 assert(window.BT.storage.getTemplates().some(template => template.source === 'ai-season'), 'KI-Trainings fehlen in der Vorlagenbibliothek');
+const stationFriday = window.BT.storage.getTrainings().find(entry => entry.date === '2026-10-09');
+assert(stationFriday?.planning?.source === 'friday-stations' && stationFriday.plan.durationMinutes === 105, 'Saisonplanung übernimmt das 105-Minuten-Stationstraining nicht automatisch');
 const fridayTraining = window.BT.storage.getTrainings().find(entry => entry.planning?.source === 'ai-season' && entry.plan?.variants);
 assert(fridayTraining && fridayTraining.plan.variants.over8.length && fridayTraining.plan.variants.eightOrLess.length, 'Freitagsvarianten für die Spielerzahl fehlen');
 const batchPayload = window.BT.seasonplanner.buildAIPayload(

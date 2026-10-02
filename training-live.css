@@ -239,6 +239,13 @@ html.training-live-open body {
   margin-bottom: 1rem;
 }
 
+.training-live-skip-hint {
+  margin: -.45rem 0 .9rem;
+  color: var(--tl-muted);
+  font-size: .72rem;
+  text-align: center;
+}
+
 .training-live .training-live-start,
 .training-live .primary {
   border-color: var(--tl-green);
@@ -378,17 +385,22 @@ html.training-live-open body {
   display: grid;
   grid-template-columns: 1fr 1fr 1.45fr;
   gap: .55rem;
-  margin-top: .85rem;
+  margin: 0;
 }
 
 .training-live-footer {
   display: grid;
-  grid-template-columns: 1fr 1.65fr;
-  gap: .65rem;
-  padding: .65rem max(1rem, env(safe-area-inset-right)) max(.65rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  gap: .5rem;
+  padding: .55rem max(1rem, env(safe-area-inset-right)) max(.55rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
   border-top: 1px solid var(--tl-line);
   background: rgb(255 255 255 / 94%);
   backdrop-filter: blur(.75rem);
+}
+
+.training-live-footer-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1.65fr;
+  gap: .65rem;
 }
 
 .training-live .finish {

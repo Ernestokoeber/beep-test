@@ -111,8 +111,11 @@ BT.seasonplanner = (function() {
       const nextGame = allGames.find(game => game.date > date) || null;
       const weekday = cursor.getDay() === 2 ? 'tue' : cursor.getDay() === 5 ? 'fri' : days.find(day => DAY_NUMBERS[day] === cursor.getDay());
       const load = loadTarget(date, previousGame, nextGame, weekday);
+      const weekendGame = weekday === 'fri' && nextGame && (daysBetween(date, nextGame.date) === 1 || daysBetween(date, nextGame.date) === 2)
+        ? nextGame : null;
       slots.push({
         date, weekday, time, load: load.level, loadReason: load.reason,
+        fridayStationMode: Boolean(weekendGame), weekendGame: gameSummary(weekendGame),
         daysAfterPreviousGame: previousGame ? daysBetween(previousGame.date, date) : null,
         daysBeforeNextGame: nextGame ? daysBetween(date, nextGame.date) : null,
         previousGame: gameSummary(previousGame), nextGame: gameSummary(nextGame)
@@ -145,8 +148,8 @@ BT.seasonplanner = (function() {
       },
       weeklyStructure: {
         tuesday: 'Haupttrainingstag: höchste Wochenbelastung, neue Systeme und alle wichtigen Lerninhalte.',
-        fridayOver8: 'Festigung und Spielvorbereitung mit Teamtaktik, Transition, 4-gegen-4/5-gegen-5 und Situation Play.',
-        fridayEightOrLess: 'Individualtechnik, Würfe und Entscheidungen in 1-gegen-1, 2-gegen-2 und 3-gegen-3; kein erzwungenes 5-gegen-5.'
+        fridayGameWeek: '105 Minuten ausschließlich individuelles Stationstraining mit Readiness, Belastungsampel und Session-RPE.',
+        fridayWithoutWeekendGame: 'Technik, Entscheidungen und Small-Sided Games passend zur Spielerzahl.'
       },
       coachInput: preferences || {},
       slots,
@@ -348,13 +351,27 @@ BT.seasonplanner = (function() {
     const result = { created: 0, updated: 0, protected: 0, missing: 0 };
     slots.forEach(slot => {
       const entry = byDate.get(slot.date);
-      if (!entry) { result.missing++; return; }
       const current = existing.find(training => training.date === slot.date);
       const protectedTraining = current && (
         current.status === 'completed' || current.endedAt ||
         current.planning?.coachEdited || current.planning?.source !== 'ai-season'
       );
       if (protectedTraining) { result.protected++; return; }
+      if (slot.fridayStationMode && BT.stationTraining) {
+        const game = BT.storage.getGame(slot.weekendGame?.id) || slot.weekendGame || slot.nextGame;
+        const base = current || {
+          date: slot.date, startTime: slot.time,
+          attendance: BT.storage.attendanceForActivePlayers(slot.date),
+          freethrows: [], shots: []
+        };
+        base.startTime = slot.time;
+        BT.stationTraining.apply(base, game);
+        BT.storage.upsertTraining(base);
+        if (current) result.updated++;
+        else result.created++;
+        return;
+      }
+      if (!entry) { result.missing++; return; }
       const plan = normalizePlan(entry, slot, duration);
       const base = current || {
         date: slot.date, startTime: slot.time,
