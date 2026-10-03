@@ -155,7 +155,9 @@ BT.seasonplanner = (function() {
       .sort((left, right) => String(left.date).localeCompare(String(right.date)))
       .slice(-6)
       .map(game => {
-        const rows = (game.playerStats || []).filter(row => row && row.playerId && Object.keys(row).some(key => key !== 'playerId' && row[key] !== null && row[key] !== ''));
+        const selectedSession=game.liveStats?.sessions?.find(session=>session.id===game.liveStats.selectedSessionId);
+        const releasedIds=selectedSession?new Set((selectedSession.roster||[]).filter(player=>player.gameStatus!=='dnp').map(player=>String(player.id))):null;
+        const rows = (game.playerStats || []).filter(row => row && row.playerId && (!releasedIds||releasedIds.has(String(row.playerId))) && Object.keys(row).some(key => key !== 'playerId' && row[key] !== null && row[key] !== ''));
         const fieldGoalsMade = sumStats(rows, 'fieldGoalsMade');
         const fieldGoalsAttempted = sumStats(rows, 'fieldGoalsAttempted');
         const freeThrowsMade = sumStats(rows, 'freeThrowsMade');
@@ -246,6 +248,8 @@ BT.seasonplanner = (function() {
     const station = BT.stationTraining;
     return BT.storage.getPlayers().filter(player => !player.archived).map(player => ({
       player: player.name,
+      availability: !player.availabilityUntil||player.availabilityUntil>=cutoffDate?(player.availability||'ready'):'ready',
+      availabilityNote: String(player.availabilityNote || '').slice(0, 200),
       gameMinutesLast7Days: station?.gameMinutes ? station.gameMinutes(player.id, cutoffDate) : 0,
       trainingLoadLast7Days: station?.trainingLoad ? station.trainingLoad(player.id, cutoffDate) : 0
     }));
@@ -308,7 +312,8 @@ BT.seasonplanner = (function() {
         inputs: ['Tagesform 1–5', 'Schmerzen 0–10', 'Spielminuten der letzten sieben Tage', 'Session-RPE und Wochenbelastung'],
         green: 'volles geplantes Volumen bis zum Ziel-RPE',
         yellow: 'etwa 70 Prozent Volumen, längere Pausen, keine Zusatzbelastung',
-        red: 'nur schmerzfreie Technik, Wurf und Prehab; keine Sprünge oder harten Richtungswechsel'
+        red: 'nur schmerzfreie Technik, Wurf und Prehab; keine Sprünge oder harten Richtungswechsel',
+        injured: 'keine normale Stationsbelastung; nur ausdrücklich medizinisch freigegebene, schmerzfreie Reha/Prehab, sonst Pause'
       },
       balancePolicy: {
         problemInputRole: 'diagnostischer Hinweis, nicht Hauptschwerpunkt',

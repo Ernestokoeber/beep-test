@@ -12,6 +12,7 @@ await c.saveDraft({...c.getState().draft,opponentPlan});
 let aiCalls=0;
 const aiPlan={lockerRoom:['Kabine 1','Kabine 2','Kabine 3'],gameGoals:['Ziel 1','Ziel 2','Ziel 3'],offenseKeys:['Offense 1','Offense 2','Offense 3'],defenseKeys:['Defense 1','Defense 2','Defense 3'],warmupFocus:['Warmup 1','Warmup 2','Warmup 3'],halftimeChecks:['Check 1','Check 2','Check 3']};
 let rosterPdfPayload=null;
+let injuredPlayer=null;
 let releasePdfEngine;const pdfEngineReady=new Promise(resolve=>{releasePdfEngine=resolve;});
 assert.equal(typeof prepareMatchdayEntry,'function','Der Direkteinstieg braucht eine abwartbare Vorbereitung vor dem View-Mount.');
 const availableTactics=[
@@ -21,7 +22,7 @@ const availableTactics=[
   {id:'baseline',title:'Baseline Box',category:'Einwurf'},
   {id:'pressbreak',title:'1–4 Pressbreak',category:'Pressbreak'}
 ];
-const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>availableTactics,game:{id:'g',home:'Lindau',away:'Gast',date:'2026-10-04',time:'17:00'},getOpponentPlan:()=>opponentPlan,requestGamePlan:async()=>{aiCalls++;return aiPlan;},prepareRosterPdf:()=>pdfEngineReady,onRosterPdf:async payload=>{rosterPdfPayload=payload;return {delivery:'cancelled'};}});
+const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>availableTactics,game:{id:'g',home:'Lindau',away:'Gast',date:'2026-10-04',time:'17:00'},getOpponentPlan:()=>opponentPlan,onPlayerInjury:player=>{injuredPlayer=player;},requestGamePlan:async()=>{aiCalls++;return aiPlan;},prepareRosterPdf:()=>pdfEngineReady,onRosterPdf:async payload=>{rosterPdfPayload=payload;return {delivery:'cancelled'};}});
 const input=(key,value)=>{const n=root.querySelector('[data-field="'+key+'"]');n.value=value;n.dispatchEvent(new window.Event('input',{bubbles:true}));return n;};
 const click=async key=>{root.querySelector('[data-action="'+key+'"]').click();await new Promise(r=>setTimeout(r,20));await c.idle();};
 input('ownSide','home');await click('next');assert.equal(c.getState().stage,'roster');
@@ -53,6 +54,8 @@ assert.equal(rosterPdfPayload?.draft?.roster?.find(player=>player.id==='p0')?.ga
 assert.equal(rosterPdfPayload?.draft?.roster?.find(player=>player.id==='p0')?.gamePosition,'pg','Der Export muss die korrigierte Spieltagsposition verwenden.');
 assert.match(root.querySelector('[role="status"]').textContent,/abgebrochen/i,'Ein abgebrochenes Teilen darf nicht als erfolgreicher Export gemeldet werden.');
 for(const id of ['p1','p2','p3','p4'])root.querySelector(`[data-player-roster="${id}"][data-status="bench"]`).click();
+root.querySelector('[data-player-roster="p5"][data-status="injured"]').click();
+assert.equal(injuredPlayer?.id,'p5','Eine Aufwärmverletzung muss den Spielerstatus weitergeben.');
 root.querySelector('[data-action="show-lineup"]').click();
 for(const id of ['p0','p1','p2','p3','p4'])root.querySelector(`[data-player-lineup="${id}"][data-status="starter"]`).click();
 assert.match(root.querySelector('[data-role="selection-summary"]').textContent,/Kader\s+5.*Starting Five\s+5\/5/);
@@ -66,6 +69,7 @@ await click('show-gameplan');assert.equal(c.getState().stage,'preparation');
 assert.equal(c.getState().draft.roster[0].gameStatus,'starter');assert.equal(c.getState().draft.roster[0].role,'Ballhandler');
 assert.equal(c.getState().draft.roster[0].gamePosition,'pg','Die Spieltagsposition muss unabhängig vom Spielerprofil gespeichert werden.');
 assert.equal(c.getState().draft.roster[5].gameStatus,'dnp');
+assert.equal(c.getState().draft.roster[5].absenceReason,'injured');
 assert.match(root.querySelector('[data-role="opponent-plan"]').textContent,/Gast.*Mannverteidigung.*2-1-2/s,'Die bestätigte Gegneranalyse fehlt im Gameplan.');
 await click('generate-game-plan');assert.equal(aiCalls,1);assert.deepEqual(c.getState().draft.opponentPlan.aiPlan.lockerRoom,aiPlan.lockerRoom);assert.match(root.querySelector('[data-field="goals"]').value,/Ziel 1/,'KI-Spielziele werden nicht in den editierbaren Gameplan übernommen.');
 const goals=input('goals','<img src=x> Rebounds');goals.focus();f.emit();await new Promise(r=>setTimeout(r,10));assert.equal(document.activeElement,goals);assert.equal(goals.value,'<img src=x> Rebounds');
@@ -74,9 +78,10 @@ assert.match(root.querySelector('[data-tactic-group="offense"]').textContent,/Zo
 const horns=root.querySelector('[data-tactic-id="horns"]');horns.checked=true;horns.dispatchEvent(new window.Event('change',{bubbles:true}));
 f.fail(true);await click('skip-preparation');assert.equal(c.getState().stage,'preparation');f.fail(false);
 await click('skip-preparation');assert.equal(c.getState().stage,'review');assert.equal(c.getState().draft.goals,'<img src=x> Rebounds');assert.deepEqual(c.getState().draft.tactics,[{id:'horns',title:'Horns',usage:'offense'}]);assert.equal(root.querySelectorAll('img').length,0);
-assert.match(root.textContent,/Starting Five/);assert.match(root.textContent,/Bank/);assert.match(root.textContent,/DNP/);assert.match(root.textContent,/Ballhandler/);
+assert.match(root.textContent,/Starting Five/);assert.match(root.textContent,/Bank/);assert.match(root.textContent,/Nicht im Spieltagskader/);assert.match(root.textContent,/Verletzt \/ Aufwärmen/);assert.match(root.textContent,/Ballhandler/);
+assert.ok(root.querySelector('[data-action="edit-roster"]'),'Vor der Freigabe muss der Kader direkt erreichbar bleiben.');
 assert.match(root.textContent,/Point Guard/,'Die korrigierte Spieltagsposition muss in der Bestätigung sichtbar sein.');
-await click('start');assert.equal(c.getState().stage,'live');assert.equal(c.live.getState().clock.running,false);assert.match(root.textContent,/Point Guard/,'Die eingefrorene Spieltagsposition muss im Live-Gameplan sichtbar bleiben.');
+await click('start');assert.equal(c.getState().stage,'live');assert.equal(c.live.getState().clock.running,false);assert.match(root.textContent,/Point Guard/,'Die eingefrorene Spieltagsposition muss im Live-Gameplan sichtbar bleiben.');assert.equal(c.live.getState().roster.some(player=>player.id==='p5'),false,'Verletzte Spieler dürfen im Live-Kader nicht angelegt werden.');
 await cleanup.flush();cleanup();await c.close();dom.window.close();
 const directDom=new JSDOM('<main></main>',{url:'https://direct.test'});globalThis.document=directDom.window.document;globalThis.window=directDom.window;
 const directFixture=await fixture(),directController=await directFixture.open(),directRoot=document.querySelector('main');

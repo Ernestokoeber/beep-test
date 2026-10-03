@@ -449,6 +449,7 @@ BT.training = (function() {
           renderShots();
           renderFitness();
           renderSprints();
+          syncStationTrainingUI();
         });
       });
 

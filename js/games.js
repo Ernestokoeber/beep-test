@@ -145,11 +145,12 @@ BT.games = (function() {
     const scoreParts = String(game.score || '').match(/(\d+)\s*:\s*(\d+)/);
     const lindauHome = /lindau/i.test(game.home || '');
     const result = scoreParts ? ((lindauHome ? Number(scoreParts[1]) > Number(scoreParts[2]) : Number(scoreParts[2]) > Number(scoreParts[1])) ? 'Sieg' : 'Niederlage') : 'Anstehend';
-    const players = BT.storage.getPlayers().filter(player => !player.archived).sort((a, b) => a.name.localeCompare(b.name, 'de'));
     const preparation = preparationState(game);
     const nominatedCount = preparation.roster.filter(player => player.gameStatus !== 'dnp').length;
     const starterCount = preparation.startingFive.length;
     const selectedSession = game.liveStats?.sessions?.find(session => session.id === game.liveStats.selectedSessionId);
+    const releasedIds=selectedSession?new Set((selectedSession.roster||[]).filter(player=>player.gameStatus!=='dnp').map(player=>player.id)):null;
+    const players = BT.storage.getPlayers().filter(player => !player.archived&&(!releasedIds||releasedIds.has(player.id))).sort((a, b) => a.name.localeCompare(b.name, 'de'));
     const gameFinished = selectedSession?.events?.some(event => event.kind === 'finish');
     const preparationLabel = gameFinished ? 'Spieltag ansehen' : game.liveStats ? 'Spieltag fortsetzen' : game.matchday ? 'Vorbereitung fortsetzen' : 'Kader & Starting Five festlegen';
 
@@ -440,7 +441,10 @@ BT.games = (function() {
       host.replaceChildren();const heading=document.createElement('h1');heading.textContent=game.home+' – '+game.away;host.append(heading);
       const meta=document.createElement('p');meta.textContent=formatDate(game.date)+(game.time?' · '+game.time:'');host.append(meta);
       const content=document.createElement('div');host.append(content);
-      matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.tactics?.availableTactics?.()||BT.storage.getTactics(),getOpponentPlan:currentOpponentPlan});
+      matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.tactics?.availableTactics?.()||BT.storage.getTactics(),getOpponentPlan:currentOpponentPlan,onPlayerInjury:(player,match)=>{
+        if(!BT.storage.getPlayer(player.id))return;
+        BT.storage.upsertPlayer({id:player.id,availability:'injured',availabilityUntil:null,availabilityNote:`Am Spieltag ${BT.util.formatDate(match?.date||BT.util.todayISO())} verletzt / beim Aufwärmen`});
+      }});
       const view=matchdayView;liveCleanup=()=>{view();c.close().catch(()=>{});};
     }catch(e){if(generation===liveGeneration)host.textContent=e.message;}
   }

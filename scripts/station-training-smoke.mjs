@@ -8,7 +8,7 @@ const dom = new JSDOM('<!doctype html><html><body><main id="host"></main></body>
 });
 const { window } = dom;
 const escapeHTML = value => String(value == null ? '' : value).replace(/[&<>"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character]));
-const players = Array.from({ length: 9 }, (_, index) => ({ id: `p${index + 1}`, name: index === 0 ? '<img src=x onerror=alert(1)> Guard' : `Spieler ${index + 1}`, archived: false }));
+const players = Array.from({ length: 9 }, (_, index) => ({ id: `p${index + 1}`, name: index === 0 ? '<img src=x onerror=alert(1)> Guard' : `Spieler ${index + 1}`, archived: false, ...(index===2?{availability:'injured',availabilityNote:'Knie'}:{}) }));
 const games = [
   { id: 'previous', team: 'herren', date: '2026-10-04', home: 'TSV Lindau', away: 'Alt', playerStats: [{ playerId: 'p1', minutes: 20 }] },
   { id: 'weekend', team: 'herren', date: '2026-10-10', time: '18:00', home: 'TSV Lindau', away: 'Testgegner', playerStats: [] },
@@ -22,6 +22,7 @@ window.BT = {
   util: { todayISO: () => '2026-10-03', escapeHTML },
   storage: {
     getPlayers: () => players,
+    getPlayer: id => players.find(player=>player.id===id),
     getGames: () => games,
     getTrainings: () => trainings,
     getSetting: (_key, fallback) => fallback,
@@ -47,6 +48,9 @@ assert.equal(friday.stationTraining.players.p1.baseTrainingLoad, 735, 'Dienstags
 assert.equal(friday.stationTraining.players.p1.weeklyLoad, 935);
 assert.equal(friday.stationTraining.players.p1.light, 'red', 'Hohe Wochenlast führt nicht zu Rot');
 assert.equal(friday.stationTraining.players.p2.light, 'green');
+assert.equal(friday.stationTraining.players.p3.light, 'red','Verletztenstatus muss die Belastungsampel übersteuern.');
+assert.equal(friday.stationTraining.players.p3.targetRpe,1,'Verletzte Spieler dürfen keine normale Zielbelastung erhalten.');
+assert.match(friday.stationTraining.players.p3.message,/keine normale Stationsbelastung/i);
 
 const aiEntry = {
   summary: 'KI erstellt jede Spielwoche einen neuen individuellen Schwerpunkt.',
@@ -74,6 +78,7 @@ const host = window.document.querySelector('#host');
 stations.render(host, friday, () => { saves += 1; });
 assert.equal(host.querySelectorAll('.station-card').length, 5);
 assert.equal(host.querySelectorAll('.station-player-card').length, 9);
+assert.match(host.querySelector('[data-station-player="p3"]').textContent,/Verletzt · Schonung/);
 assert.equal(host.querySelector('img'), null, 'Spielername wird in der Belastungsansicht als HTML ausgeführt');
 const second = host.querySelector('[data-station-player="p2"]');
 const pain = second.querySelector('[data-station-field="pain"]');

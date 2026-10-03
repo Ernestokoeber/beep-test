@@ -26,7 +26,8 @@ const roster=Array.from({length:6},(_,i)=>({id:'p'+i,name:'Player '+i,jerseyNumb
 const plannedRoster=roster.map((player,index)=>({...player,gameStatus:index<5?'starter':'dnp',gamePosition:['pg','sg','sf','pf','c',null][index],role:index===0?'Ballhandler':''}));
 const good={...emptyDraft(),ownSide:'home',roster:plannedRoster,startingFive:plannedRoster.slice(0,5).map(p=>p.id),tactics:[{id:'horns',title:'Horns',usage:'offense'}]};
 assert.equal(buildSetup(good).roster[1].jerseyNumber,'00');
-assert.equal(buildSetup(good).roster[5].gameStatus,'dnp');
+assert.equal(buildSetup(good).roster.length,5,'Nicht nominierte oder verletzte Spieler dürfen nicht in die Live-Statistik gelangen.');
+assert.equal(buildSetup(good).roster.some(player=>player.id==='p5'),false);
 assert.equal(buildSetup(good).roster[0].gamePosition,'pg');
 assert.equal(buildSetup(good).gameplan.ownSide,'home');
 assert.deepEqual(buildSetup(good).gameplan.tactics,good.tactics);
@@ -44,6 +45,9 @@ assert.doesNotThrow(()=>reviseMatchday(undefined,{...make('bad',[]),value:bad}))
 assert.throws(()=>buildSetup(bad));
 assert.throws(()=>buildSetup({...good,roster:roster.map(p=>({...p,jerseyNumber:'1'}))}));
 assert.equal(buildSetup({...good,roster:roster.map(p=>({...p,archived:true}))}).roster.length,6);
+const injured={...good,roster:plannedRoster.map((player,index)=>index===5?{...player,absenceReason:'injured'}:player)};
+assert.doesNotThrow(()=>reviseMatchday(undefined,{...make('injured',[]),value:injured}));
+assert.equal(buildSetup(injured).roster.some(player=>player.id==='p5'),false);
 for(const [input,want] of [
  [{},'game'],[{draft:{...good,step:'review'}},'review'],[{draftConflict:true},'conflict'],
  [{liveState:{hasLiveData:true,session:null}},'conflict'],

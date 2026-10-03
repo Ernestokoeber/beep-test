@@ -165,6 +165,10 @@ BT.stationTraining = (() => {
     const readiness = clamp(entry.readiness || 4, 1, 5);
     const pain = clamp(entry.pain, 0, 10);
     const nextDay = gameDate === addDays(friday, 1);
+    if (entry.injured) return {
+      light: 'red', targetRpe: 1, weeklyLoad: load,
+      message: 'Keine normale Stationsbelastung. Nur ausdrücklich medizinisch freigegebene, schmerzfreie Reha/Prehab; sonst pausieren.'
+    };
     let light = 'green';
     if (pain >= 5 || readiness <= 2 || load >= 800) light = 'red';
     else if (pain >= 2 || readiness === 3 || load >= 500 || minutes >= 25) light = 'yellow';
@@ -181,7 +185,10 @@ BT.stationTraining = (() => {
     const players = {};
     BT.storage.getPlayers().filter(player => !player.archived).forEach(player => {
       const minutes = gameMinutes(player.id, training.date);
+      const attendance=(training.attendance||[]).find(item=>item.playerId===player.id);
+      const availabilityActive=!player.availabilityUntil||player.availabilityUntil>=training.date;
       const entry = {
+        injured: attendance?.status==='injured'||availabilityActive&&player.availability==='injured',
         readiness: 4,
         pain: 0,
         gameMinutes: minutes,
@@ -311,6 +318,9 @@ BT.stationTraining = (() => {
     const state = training.stationTraining;
     const entry = state?.players?.[playerId];
     if (!entry) return null;
+    const player=BT.storage.getPlayer(playerId),attendance=(training.attendance||[]).find(item=>item.playerId===playerId);
+    const availabilityActive=player&&(!player.availabilityUntil||player.availabilityUntil>=training.date);
+    entry.injured=attendance?.status==='injured'||Boolean(availabilityActive&&player?.availability==='injured');
     Object.assign(entry, recommendation(entry, state.gameDate, training.date));
     return entry;
   }
@@ -341,7 +351,7 @@ BT.stationTraining = (() => {
       result[state.players[player.id]?.light || 'green'] += 1; return result;
     }, { green: 0, yellow: 0, red: 0 });
     const groups = Array.from({ length: Math.min(5, Math.max(1, players.length)) }, () => []);
-    players.forEach((player, index) => groups[index % groups.length].push(player.name));
+    players.filter(player=>!state.players[player.id]?.injured).forEach((player, index) => groups[index % groups.length].push(player.name));
     target.innerHTML = `
       <section class="station-overview">
         <div><span class="section-kicker">Freitag · 105 Minuten</span><h3>Individuelle Stationen & Belastungssteuerung</h3><p>Die Ampel wird aus Tagesform, Schmerzen, Spielminuten und der Belastung der letzten sieben Tage berechnet.</p></div>
@@ -351,7 +361,7 @@ BT.stationTraining = (() => {
       <section class="station-load-section"><div class="section-head compact"><div><span class="section-kicker">Session-RPE</span><h3>Belastung pro Spieler</h3></div></div><div class="station-player-list">${players.map(player => {
         const entry = state.players[player.id];
         return `<article class="station-player-card" data-station-player="${escapeHTML(player.id)}">
-          <header><strong>${escapeHTML(player.name)}</strong><span class="station-light station-light-${entry.light}">${entry.light === 'green' ? 'Grün' : entry.light === 'yellow' ? 'Gelb' : 'Rot'}</span><span>Ziel-RPE <b data-station-output="target">${entry.targetRpe}</b></span></header>
+          <header><strong>${escapeHTML(player.name)}</strong>${entry.injured?'<span class="att-chip bad">Verletzt · Schonung</span>':''}<span class="station-light station-light-${entry.light}">${entry.light === 'green' ? 'Grün' : entry.light === 'yellow' ? 'Gelb' : 'Rot'}</span><span>Ziel-RPE <b data-station-output="target">${entry.targetRpe}</b></span></header>
           <div class="station-player-fields">
             <label>Tagesform <select data-station-field="readiness"><option value="5" ${entry.readiness === 5 ? 'selected' : ''}>5 · sehr gut</option><option value="4" ${entry.readiness === 4 ? 'selected' : ''}>4 · gut</option><option value="3" ${entry.readiness === 3 ? 'selected' : ''}>3 · mittel</option><option value="2" ${entry.readiness === 2 ? 'selected' : ''}>2 · schwach</option><option value="1" ${entry.readiness === 1 ? 'selected' : ''}>1 · sehr schwach</option></select></label>
             <label>Schmerz 0–10 <input type="number" min="0" max="10" inputmode="numeric" data-station-field="pain" value="${entry.pain}"></label>

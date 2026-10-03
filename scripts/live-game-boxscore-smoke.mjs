@@ -62,6 +62,8 @@ add('score-coverage',{complete:true});assert.equal(report().plusMinusComplete,tr
 add('score-coverage',{complete:false});assert.equal(report().plusMinusComplete,false);
 assert.equal(projectBoxscore(fresh(1),0).players[0].plusMinus,null);
 assert.equal(projectBoxscore(fresh(1),0).opponentPoints,null);
+const legacyDnp=createSession({...fresh(),roster:fresh().roster.map((player,index)=>({...player,gameStatus:index<5?'starter':index===5?'bench':'dnp'}))});
+assert.equal(projectBoxscore(legacyDnp,0).players.some(player=>player.id==='p7'),false,'Explizite DNP-Spieler dürfen auch in alten Sitzungen nicht im Boxscore erscheinen.');
 sample=fresh();
 const sw=add('substitution',{out:['p1'],in:['p6']});
 assert.equal(p('p6').played,true);add('void',{targetId:sw});assert.equal(p('p6').played,false);

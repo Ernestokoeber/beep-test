@@ -3,6 +3,7 @@ import {GAME_POSITION_VALUES} from '../basketball-positions.mjs';
 const idOK=x=>typeof x==='string'&&x.length>0&&x.length<=120&&!['__proto__','prototype','constructor'].includes(x);
 const text=(x,max)=>typeof x==='string'&&x.length<=max;
 const playerStatuses=new Set(['starter','bench','dnp']);
+const absenceReasons=new Set(['not-selected','injured','ill','unavailable']);
 const gamePositions=new Set(GAME_POSITION_VALUES);
 const tacticUsages=new Set(['offense','defense','inbound','pressbreak']);
 const defenses=new Set(['man','zone212','zone23','zone32']);
@@ -26,7 +27,8 @@ function validateDraft(v){
   ensure(v&&[null,'home','away'].includes(v.ownSide)&&['match','training'].includes(v.kind)&&['game','roster','preparation','review'].includes(v.step),'schema','Ungültige Spieltagsvorbereitung.');
   ensure(['goals','warmup','coachingNote','closingNote'].every(k=>text(v[k],4000)),'schema','Notizen dürfen höchstens 4000 Zeichen enthalten.');
   ensure(Array.isArray(v.roster)&&v.roster.length<=40&&v.roster.every(p=>p&&idOK(p.id)&&text(p.name,100)&&(p.jerseyNumber===null||text(p.jerseyNumber,100))&&
-    (p.gameStatus===undefined||playerStatuses.has(p.gameStatus))&&(p.gamePosition===undefined||p.gamePosition===null||gamePositions.has(p.gamePosition))&&(p.role===undefined||text(p.role,120))),'schema','Ungültiger Kaderentwurf.');
+    (p.gameStatus===undefined||playerStatuses.has(p.gameStatus))&&(p.absenceReason===undefined||p.gameStatus==='dnp'&&absenceReasons.has(p.absenceReason))&&
+    (p.gamePosition===undefined||p.gamePosition===null||gamePositions.has(p.gamePosition))&&(p.role===undefined||text(p.role,120))),'schema','Ungültiger Kaderentwurf.');
   ensure(new Set(v.roster.map(p=>p.id)).size===v.roster.length,'schema','Spieler doppelt im Entwurf.');
   ensure(Array.isArray(v.startingFive)&&v.startingFive.length<=5&&v.startingFive.every(idOK)&&new Set(v.startingFive).size===v.startingFive.length,'schema','Ungültige Starterauswahl.');
   ensure(v.config&&Number.isInteger(v.config.periods)&&v.config.periods>=1&&v.config.periods<=12&&['periodMs','overtimeMs'].every(k=>Number.isInteger(v.config[k])&&v.config[k]>=1000&&v.config[k]<=3600000),'schema','Ungültige Uhr-Einstellungen.');

@@ -4,7 +4,8 @@ import {mountMatchdayLive} from './live-shell.mjs';
 import {GAME_POSITIONS,gamePositionLabel,normalizeGamePosition} from '../basketball-positions.mjs';
 import {activeGamePlan,mergeAIPlan} from './opponent-plan.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
-const playerStatusLabels={starter:'Starting Five',bench:'Bank',dnp:'DNP – nicht eingesetzt'};
+const playerStatusLabels={starter:'Starting Five',bench:'Bank',dnp:'Nicht im Spieltagskader'};
+const absenceReasonLabels={injured:'Verletzt / Aufwärmen',ill:'Krank',unavailable:'Verhindert','not-selected':'Nicht nominiert'};
 const tacticGroups=[['offense','Offense'],['defense','Defense'],['inbound','Einwurf'],['pressbreak','Pressbreak']];
 const tacticUsage=t=>{const value=String(t.usage||t.category||'').toLowerCase();if(/defen|no-middle/.test(value))return'defense';if(/einwurf|inbound|baseline|sideline|blob|slob/.test(value))return'inbound';if(/press/.test(value))return'pressbreak';return'offense';};
 export async function prepareMatchdayEntry(controller,defaultOwnSide,opponentPlan=null){
@@ -18,7 +19,7 @@ export async function prepareMatchdayEntry(controller,defaultOwnSide,opponentPla
   if(!result.ok)throw Error(result.error||controller.getState().error||'Spielvorbereitung konnte nicht geöffnet werden.');
   return true;
 }
-export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,getOpponentPlan=()=>null,requestGamePlan=async({game,opponentPlan,selectedTactics})=>{
+export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,getOpponentPlan=()=>null,onPlayerInjury=()=>{},requestGamePlan=async({game,opponentPlan,selectedTactics})=>{
   const response=await window.BT.api.ai('planGame',{game,opponentPlan,selectedTactics});return response.data;
 },onOpponentFeedback=payload=>window.BT?.opponents?.recordMatchdayFeedback?.(payload),prepareRosterPdf=()=>import('./roster-pdf.mjs').then(module=>module.prepareRosterPdf()),onRosterPdf=payload=>import('./roster-pdf.mjs').then(module=>module.exportRosterPdf(payload)),onLive=(host,c)=>mountMatchdayLive(host,c,{tactics,game,onOpponentFeedback})}={}){
   container.classList.add('matchday');let stage='',draft,parents,read=()=>draft,dirty=false,saving=false,revision=0,liveCleanup=null,dead=false,pending=Promise.resolve(true),selectionPane='roster';
@@ -104,14 +105,14 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       read=()=>({...draft,ownSide:side.value||null,kind:kind.value});
       button(actions,'Weiter zur Mannschaft','next',()=>{if(!side.value){status.textContent='Heim oder Gast auswählen.';return;}save('roster');});
     }else if(stage==='roster'){
-      group.append(el('h3','Kader & Starting Five'),el('p','Lege zuerst den Spieltagskader fest und wähle danach genau fünf Starter.'));
+      group.append(el('h3','Kader & Starting Five'),el('p','Lege zuerst den Spieltagskader fest und wähle danach genau fünf Starter. Bis zur Kaderfreigabe kannst du hier jederzeit reagieren – auch auf eine Verletzung beim Aufwärmen.'));
       const summary=el('div');summary.className='matchday-selection-summary';summary.dataset.role='selection-summary';group.append(summary);
       const nav=el('nav');nav.className='matchday-plan-nav';nav.setAttribute('aria-label','Spielvorbereitung');group.append(nav);
       const rosterTab=button(nav,'Kader','show-roster',()=>showPane('roster'));
       const lineupTab=button(nav,'Starting Five','show-lineup',()=>showPane('lineup'));
       button(nav,'Gameplan','show-gameplan',()=>{try{buildSetup(read());save('preparation');}catch(e){status.textContent=e.message;}});
       const rosterPanel=el('section'),lineupPanel=el('section');rosterPanel.dataset.role='roster-panel';lineupPanel.dataset.role='lineup-panel';
-      rosterPanel.append(el('h4','Wer ist dabei?'),el('p','Tippe pro Spieler auf Dabei oder Nicht dabei.'));
+      rosterPanel.append(el('h4','Wer ist dabei?'),el('p','Tippe pro Spieler auf Dabei, Nicht dabei oder Verletzt. Nur nominierte Spieler werden ins Live Game und in die Statistik übernommen.'));
       const exportButton=button(rosterPanel,'Kader als PDF','export-roster-pdf',async()=>{
         exportButton.disabled=true;status.textContent='Kader-PDF wird erstellt …';
         try{const result=await onRosterPdf({game,draft:read()});status.textContent=result?.delivery==='cancelled'?'PDF-Export abgebrochen.':'Kader-PDF erstellt.';}
@@ -128,30 +129,30 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       const choice=(parent,label,player,value,kind)=>{const n=button(parent,label,kind==='roster'?'choose-roster':'choose-lineup',()=>setStatus(player.id,value,kind));n.dataset[kind==='roster'?'playerRoster':'playerLineup']=player.id;n.dataset.status=value;n.setAttribute('aria-label',`${player.name}: ${label}`);n.setAttribute('aria-pressed','false');return n;};
       for(const p of all.values()){
         const saved=draft.roster.find(x=>x.id===p.id),row=el('section'),lineupRow=el('section');row.className='matchday-player matchday-player-plan';lineupRow.className='matchday-player matchday-player-plan matchday-lineup-choice';
-        const initialStatus=saved?.gameStatus||(draft.startingFive.includes(p.id)?'starter':saved?'bench':'dnp');
+        const initialStatus=saved?.gameStatus||(draft.startingFive.includes(p.id)?'starter':saved?'bench':'dnp'),initialReason=saved?.absenceReason||(initialStatus==='dnp'?'not-selected':null);
         const head=el('div');head.className='matchday-player-head';head.append(el('h4',p.name+(p.archived?' (archiviert – Status prüfen)':'')),el('span',p.jerseyNumber?'#'+p.jerseyNumber:'Ohne Nummer'));row.append(head);
-        const rosterChoices=el('div');rosterChoices.className='matchday-choice-row';const inButton=choice(rosterChoices,'Dabei',p,'bench','roster'),outButton=choice(rosterChoices,'Nicht dabei',p,'dnp','roster');row.append(rosterChoices);
+        const rosterChoices=el('div');rosterChoices.className='matchday-choice-row matchday-roster-choices';const inButton=choice(rosterChoices,'Dabei',p,'bench','roster'),outButton=choice(rosterChoices,'Nicht dabei',p,'dnp','roster'),injuredButton=choice(rosterChoices,'Verletzt',p,'injured','roster');row.append(rosterChoices);
         const position=field(row,'Position für dieses Spiel','gamePosition','select');position.parentElement.className='matchday-player-position';for(const optionValue of [{value:'',label:'Ohne Position'},...GAME_POSITIONS]){const option=el('option',optionValue.label);option.value=optionValue.value;position.append(option);}position.value=Object.prototype.hasOwnProperty.call(saved||{},'gamePosition')?(saved.gamePosition||''):(normalizeGamePosition(p.position)||'');position.dataset.playerPosition=p.id;
         const details=el('details');details.className='matchday-player-details';details.append(el('summary','Nummer & optionale Rolle'));
         const detailBody=el('div');const jersey=field(detailBody,'Trikotnummer','jersey','text',p.jerseyNumber);jersey.inputMode='numeric';jersey.maxLength=2;jersey.dataset.jersey=p.id;
         const role=field(detailBody,'Rolle im Gameplan (optional)','role','text',saved?.role||'');role.maxLength=120;role.placeholder='z. B. Ballhandler, Shooter, Big';role.dataset.playerRole=p.id;details.append(detailBody);row.append(details);rosterPanel.append(row);
         const lineupHead=el('div');lineupHead.className='matchday-player-head';lineupHead.append(el('h4',p.name),el('span',p.jerseyNumber?'#'+p.jerseyNumber:'Ohne Nummer'));lineupRow.append(lineupHead);
         const lineupChoices=el('div');lineupChoices.className='matchday-choice-row';const starterButton=choice(lineupChoices,'Starting Five',p,'starter','lineup'),benchButton=choice(lineupChoices,'Bank',p,'bench','lineup');lineupRow.append(lineupChoices);lineupPanel.append(lineupRow);
-        rows.push({p,row,lineupRow,jersey,position,role,status:initialStatus,inButton,outButton,starterButton,benchButton});
+        rows.push({p,row,lineupRow,jersey,position,role,status:initialStatus,absenceReason:initialReason,inButton,outButton,injuredButton,starterButton,benchButton});
       }
-      function setStatus(playerId,value,kind){const row=rows.find(item=>item.p.id===playerId);if(!row)return;const next=kind==='roster'&&value==='bench'&&row.status==='starter'?'starter':value;if(next===row.status)return;row.status=next;mark();updateSelection();}
+      function setStatus(playerId,value,kind){const row=rows.find(item=>item.p.id===playerId);if(!row)return;const injured=kind==='roster'&&value==='injured',next=injured?'dnp':kind==='roster'&&value==='bench'&&row.status==='starter'?'starter':value,nextReason=next==='dnp'?(injured?'injured':'not-selected'):null;if(next===row.status&&nextReason===row.absenceReason)return;row.status=next;row.absenceReason=nextReason;if(injured){onPlayerInjury(row.p,game);status.textContent=`${row.p.name} wird als verletzt geführt und im Training geschont.`;}mark();updateSelection();}
       function updateSelection(){
         const nominated=rows.filter(row=>row.status!=='dnp'),starters=rows.filter(row=>row.status==='starter');
         const rosterStat=el('span');rosterStat.append(el('small','Kader '),el('strong',`${nominated.length} Spieler`));
         const lineupStat=el('span');lineupStat.append(el('small','Starting Five '),el('strong',`${starters.length}/5`));summary.replaceChildren(rosterStat,lineupStat);
         lineupEmpty.hidden=nominated.length>0;
         for(const item of rows){const included=item.status!=='dnp';item.row.dataset.status=item.status;item.lineupRow.dataset.status=item.status;item.lineupRow.hidden=!included;item.position.disabled=!included;item.role.disabled=!included;
-          item.inButton.classList.toggle('active',included);item.outButton.classList.toggle('active',!included);item.starterButton.classList.toggle('active',item.status==='starter');item.benchButton.classList.toggle('active',item.status==='bench');
-          item.inButton.setAttribute('aria-pressed',String(included));item.outButton.setAttribute('aria-pressed',String(!included));item.starterButton.setAttribute('aria-pressed',String(item.status==='starter'));item.benchButton.setAttribute('aria-pressed',String(item.status==='bench'));
+          item.inButton.classList.toggle('active',included);item.outButton.classList.toggle('active',!included&&item.absenceReason!=='injured');item.injuredButton.classList.toggle('active',!included&&item.absenceReason==='injured');item.starterButton.classList.toggle('active',item.status==='starter');item.benchButton.classList.toggle('active',item.status==='bench');
+          item.inButton.setAttribute('aria-pressed',String(included));item.outButton.setAttribute('aria-pressed',String(!included&&item.absenceReason!=='injured'));item.injuredButton.setAttribute('aria-pressed',String(!included&&item.absenceReason==='injured'));item.starterButton.setAttribute('aria-pressed',String(item.status==='starter'));item.benchButton.setAttribute('aria-pressed',String(item.status==='bench'));
         }
       }
       function showPane(pane){selectionPane=pane;const lineup=pane==='lineup';rosterPanel.hidden=lineup;lineupPanel.hidden=!lineup;rosterTab.classList.toggle('active',!lineup);lineupTab.classList.toggle('active',lineup);}
-      read=()=>{const roster=rows.map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null,gameStatus:r.status,gamePosition:r.position.value||null,role:r.status==='dnp'?'':r.role.value.trim()}));return {...draft,roster,startingFive:roster.filter(player=>player.gameStatus==='starter').map(player=>player.id)};};
+      read=()=>{const roster=rows.map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null,gameStatus:r.status,...(r.status==='dnp'?{absenceReason:r.absenceReason||'not-selected'}:{}),gamePosition:r.position.value||null,role:r.status==='dnp'?'':r.role.value.trim()}));return {...draft,roster,startingFive:roster.filter(player=>player.gameStatus==='starter').map(player=>player.id)};};
       updateSelection();showPane(selectionPane);
       button(actions,'Zurück','back',()=>save('game'));
       button(actions,'Weiter zum Gameplan','next',()=>{try{buildSetup(read());save('preparation');}catch(e){status.textContent=e.message;}});
@@ -173,12 +174,12 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       button(actions,'Optionale Angaben überspringen','skip-preparation',()=>save('review'));
       button(actions,'Gameplan prüfen','next',()=>save('review'));
     }else{
-      group.append(el('h3','Gameplan bestätigen'),el('p',`${draft.kind==='training'?'Trainingsspiel':'Spiel'} · ${draft.ownSide==='home'?'Heim':'Gast'} · ${draft.config.periods} × ${draft.config.periodMs/60000} Minuten`),el('p','Mit dem Start wird dieser Gameplan eingefroren. Während des Spiels bleibt er nur lesbar.'));
+      group.append(el('h3','Gameplan bestätigen'),el('p',`${draft.kind==='training'?'Trainingsspiel':'Spiel'} · ${draft.ownSide==='home'?'Heim':'Gast'} · ${draft.config.periods} × ${draft.config.periodMs/60000} Minuten`),el('p','Mit der Kaderfreigabe wird dieser Gameplan eingefroren. Bis dahin kannst du Kader und Starting Five jederzeit ändern.'));
       group.append(opponentSection(draft.opponentPlan,{review:true}));
-      const lineup=el('div');lineup.className='matchday-lineup-board';for(const [key,label]of Object.entries(playerStatusLabels)){const section=el('section');section.dataset.status=key;section.append(el('h4',label));const list=el('ul');for(const p of draft.roster.filter(player=>(player.gameStatus||(draft.startingFive.includes(player.id)?'starter':'bench'))===key))list.append(el('li',`${p.jerseyNumber===null?'Ohne Nummer':'#'+p.jerseyNumber} ${p.name} · ${gamePositionLabel(p.gamePosition)}${p.role?' · '+p.role:''}`));if(!list.children.length)list.append(el('li','Keine Spieler'));section.append(list);lineup.append(section);}group.append(lineup);
+      const lineup=el('div');lineup.className='matchday-lineup-board';for(const [key,label]of Object.entries(playerStatusLabels)){const section=el('section');section.dataset.status=key;section.append(el('h4',label));const list=el('ul');for(const p of draft.roster.filter(player=>(player.gameStatus||(draft.startingFive.includes(player.id)?'starter':'bench'))===key))list.append(el('li',`${p.jerseyNumber===null?'Ohne Nummer':'#'+p.jerseyNumber} ${p.name} · ${key==='dnp'?(absenceReasonLabels[p.absenceReason]||absenceReasonLabels['not-selected']):gamePositionLabel(p.gamePosition)+(p.role?' · '+p.role:'')}`));if(!list.children.length)list.append(el('li','Keine Spieler'));section.append(list);lineup.append(section);}group.append(lineup);
       const plan=el('section');plan.className='matchday-plan-summary';plan.append(el('h4','Schwerpunkte'),el('p',draft.goals||'Keine Spielziele eingetragen.'),el('p',draft.warmup?'Aufwärmen: '+draft.warmup:'Kein Aufwärmplan eingetragen.'),el('p',draft.coachingNote?'Coaching: '+draft.coachingNote:'Keine Coaching-Notiz eingetragen.'));group.append(plan);
       const tacticsSummary=el('section');tacticsSummary.className='matchday-plan-summary';tacticsSummary.append(el('h4','Geplante Taktiken'));for(const [usage,label]of tacticGroups){const chosen=draft.tactics.filter(t=>(t.usage||'offense')===usage);if(chosen.length)tacticsSummary.append(el('p',label+': '+chosen.map(t=>t.title).join(', ')));}if(!draft.tactics.length)tacticsSummary.append(el('p','Keine Taktik ausgewählt.'));group.append(tacticsSummary,el('p','Die Spieluhr startest du anschließend selbst.'));
-      read=()=>clone(draft);button(actions,'Zurück','back',()=>save('preparation'));button(actions,'Zur Live-Ansicht','start',async()=>{if(await save())await controller.start();});
+      read=()=>clone(draft);button(actions,'Kader & Starting Five ändern','edit-roster',()=>{selectionPane='roster';save('roster');});button(actions,'Gameplan ändern','back',()=>save('preparation'));button(actions,'Kader freigeben & Live öffnen','start',async()=>{if(await save())await controller.start();});
     }
     button(actions,'Vorbereitung speichern','save',()=>{dirty=true;save();});group.append(actions);
   }

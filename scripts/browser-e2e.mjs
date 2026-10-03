@@ -844,8 +844,9 @@ async function testMatchday(browser, name, options) {
     assert(metrics.PTS === '2' && metrics['+/−'] === '-1', `${name}: Spielerwerte falsch ${JSON.stringify(metrics)}`);
     await player.getByText('Würfe und weitere Werte', { exact: true }).tap();
     assert((await player.innerText()).includes('1/1'), `${name}: Wurfstatistik fehlt`);
-    await page.locator('.live-report-dnp > summary').tap();
-    assert((await page.locator('.live-report-dnp').innerText()).includes('E2E Spieler 7 · DNP'), `${name}: DNP-Spieler fehlt`);
+    const dnp=page.locator('.live-report-dnp');
+    if(await dnp.count())await dnp.locator('> summary').tap();
+    assert((await page.locator('[data-role="report"]').innerText()).includes('E2E Spieler 7') === false, `${name}: verletzter Spieler erscheint in der Auswertung`);
     await noOverflow('Auswertung mit aufgeklappten Details');
   }
   try {
@@ -868,6 +869,8 @@ async function testMatchday(browser, name, options) {
     const rosterButtons = page.locator('[data-player-roster][data-status="bench"]');
     assert(await rosterButtons.count() === 7, `${name}: synthetischer Kader fehlt`);
     for (let i = 0; i < 6; i++) await rosterButtons.nth(i).tap();
+    await page.locator('[data-player-roster][data-status="injured"]').nth(6).tap();
+    assert(await page.evaluate(() => window.BT.storage.getPlayers().find(player => player.name === 'E2E Spieler 7')?.availability) === 'injured', `${name}: Verletzung wird nicht ins Spielerprofil übernommen`);
     await page.getByRole('button', { name: 'Starting Five', exact: true }).tap();
     const starterButtons = page.locator('[data-player-lineup][data-status="starter"]:visible');
     for (let i = 0; i < 5; i++) await starterButtons.nth(i).tap();
@@ -881,10 +884,10 @@ async function testMatchday(browser, name, options) {
     await page.locator('[data-field="goals"]').fill('Rebounds sichern');
     await noOverflow('Vorbereitung');
     await page.getByRole('button', { name: 'Optionale Angaben überspringen' }).tap();
-    await page.getByRole('button', { name: 'Zur Live-Ansicht' }).waitFor();
+    await page.getByRole('button', { name: 'Kader freigeben & Live öffnen' }).waitFor();
     assert((await page.locator('.matchday').innerText()).includes('Rebounds sichern'), `${name}: Überspringen verwirft Ziele`);
     await noOverflow('Übersicht');
-    await page.getByRole('button', { name: 'Zur Live-Ansicht' }).tap();
+    await page.getByRole('button', { name: 'Kader freigeben & Live öffnen' }).tap();
     await page.getByRole('button', { name: 'Uhr starten', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Starting Five ändern', exact: true }).tap();
     await page.locator('[data-starting-five-player]').nth(4).uncheck();
