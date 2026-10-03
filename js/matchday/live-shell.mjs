@@ -1,7 +1,7 @@
 import {canonical,clone} from '../live-game/core.mjs';
 import {mountLiveView} from '../live-game/view.mjs';
 import {renderLiveReport} from '../live-game/report.mjs';
-import {gamePositionLabel} from '../basketball-positions.mjs';
+import {GAME_POSITIONS,gamePositionLabel,normalizeGamePosition} from '../basketball-positions.mjs';
 import {activeGamePlan,buildOpponentFeedback,DEFENSES,OBSERVATIONS,projectOpponentLive} from './opponent-plan.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const playerStatusLabels={starter:'Starting Five',bench:'Bank',dnp:'DNP – nicht eingesetzt'};
@@ -18,10 +18,11 @@ function renderOpponentAnalysis(live,title='Defense-Vergleich'){
   if(live.playerScoring.length){section.append(el('h5','Zugeordnete gegnerische Werfer'));const list=el('ul');for(const player of live.playerScoring)list.append(el('li',`${player.name}: ${player.points} Punkte · 1er ${player.one} · 2er ${player.two} · 3er ${player.three}`));section.append(list);}
   const note=el('small','P/10 basiert auf manuell erfassten Punkten und Spielzeit, nicht auf Ballbesitzen. Nicht zugeordnete Treffer bleiben in der Team- und Defense-Auswertung enthalten.');note.className='matchday-analysis-note';section.append(note);return section;
 }
-export function mountMatchdayLive(container,controller,{tactics=()=>[],game=null,onOpponentFeedback=()=>{}}={}){
+export function mountMatchdayLive(container,controller,{tactics=()=>[],players=()=>[],game=null,onPlayerInjury=()=>{},onOpponentFeedback=()=>{}}={}){
   let dirty=false,revision=0,parents=controller.getState().heads,base=clone(controller.getState().draft),saving=false,pending=Promise.resolve(true),dead=false,reportKey='',conflictKey='';
-  let scoutingKey='',feedbackKey='';
-  const hint=el('p'),scouting=el('details'),pause=el('section'),liveTools=el('details'),liveHost=el('section'),details=el('details'),report=el('section'),conflicts=el('section');
+  let scoutingKey='',feedbackKey='',rosterEditorKey='';
+  const hint=el('p'),pregameRoster=el('section'),scouting=el('details'),pause=el('section'),liveTools=el('details'),liveHost=el('section'),details=el('details'),report=el('section'),conflicts=el('section');
+  pregameRoster.dataset.role='pregame-roster';pregameRoster.className='matchday-pregame-roster';
   scouting.dataset.role='live-scouting';scouting.className='matchday-live-scouting';scouting.open=true;
   pause.dataset.role='pause';report.dataset.role='report';liveTools.dataset.role='live-tools';liveTools.open=true;liveTools.append(el('summary','Details und Korrekturen'),liveHost);details.className='matchday-frozen-plan';details.append(el('summary','Gameplan & Abschluss'));
   const overview=el('div'),form=el('form'),status=el('p');status.setAttribute('role','status');details.append(overview,form,status);
@@ -29,7 +30,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],game=null
   const save=el('button','Abschlussnotiz speichern');save.type='submit';form.append(save);
   const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;details.append(discard);
   discard.addEventListener('click',()=>{dirty=false;update(controller.getState());});
-  container.append(hint,scouting,pause,report,liveTools,details,conflicts);
+  container.append(hint,pregameRoster,scouting,pause,report,liveTools,details,conflicts);
   // Base and parents belong to the displayed fields, including a focused field
   // whose remote update was deliberately held back.
   function mark(){dirty=true;revision++;status.textContent='Abschlussnotiz ungespeichert';}
@@ -41,6 +42,34 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],game=null
   }
   form.addEventListener('submit',e=>{e.preventDefault();flush();});
   form.addEventListener('focusout',()=>queueMicrotask(()=>{if(!dead&&dirty&&!form.contains(document.activeElement))flush();}));
+  function renderPregameRoster(s){
+    const session=s.liveState.session,events=session?.events||[],canEdit=Boolean(session&&!events.some(event=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(event.kind))&&!s.liveState.clock?.running&&!s.liveState.clock?.ended);
+    pregameRoster.hidden=!canEdit;if(!canEdit){pregameRoster.replaceChildren();rosterEditorKey='';return;}
+    const current=s.liveState.roster||[],onCourt=s.liveState.lineups?.onCourt||[],key=canonical([current,onCourt,s.readOnly,s.busy]);if(key===rosterEditorKey)return;rosterEditorKey=key;pregameRoster.replaceChildren();
+    const head=el('div');head.className='matchday-pregame-head';const title=el('div');title.append(el('small','VOR DEM ERSTEN UHRSTART'),el('h3','Live-Kader anpassen'));const toggle=el('button','Kader ändern');toggle.type='button';toggle.dataset.action='edit-live-roster';toggle.disabled=s.readOnly||s.busy;head.append(title,toggle);pregameRoster.append(head,el('p','Verletzungen oder kurzfristige Ausfälle kannst du hier noch ändern. Mit dem ersten Uhrstart wird der Kader gesperrt.'));
+    const editor=el('form');editor.className='matchday-pregame-editor';editor.hidden=true;const message=el('p');message.setAttribute('role','status');
+    const all=new Map(players().filter(player=>!player.archived).map(player=>[player.id,player]));for(const player of current)all.set(player.id,{...all.get(player.id),...player});
+    const currentIds=new Set(current.map(player=>player.id)),rows=[];
+    for(const player of [...all.values()].sort((left,right)=>left.name.localeCompare(right.name,'de'))){
+      const currentPlayer=current.find(item=>item.id===player.id),card=el('div');card.className='matchday-pregame-player';
+      const name=el('strong',player.name),statusSelect=el('select'),starterLabel=el('label',' Starting Five'),starter=el('input');starter.type='checkbox';starter.dataset.liveRosterStarter=player.id;starter.checked=onCourt.includes(player.id);starterLabel.prepend(starter);
+      for(const [value,label]of [['bench','Im Kader'],['out','Nicht im Kader'],['injured','Verletzt']]){const option=el('option',label);option.value=value;statusSelect.append(option);}
+      statusSelect.dataset.liveRosterStatus=player.id;statusSelect.value=currentPlayer?.gameStatus==='dnp'?(currentPlayer.absenceReason==='injured'?'injured':'out'):currentPlayer?'bench':'out';
+      const jerseyLabel=el('label','Trikotnummer'),jersey=el('input');jersey.type='text';jersey.inputMode='numeric';jersey.maxLength=2;jersey.pattern='[0-9]{1,2}';jersey.value=currentPlayer?.jerseyNumber??player.jerseyNumber??'';jersey.dataset.liveRosterJersey=player.id;jerseyLabel.append(jersey);
+      const more=el('details'),moreTitle=el('summary','Position & Rolle');more.append(moreTitle);const positionLabel=el('label','Position'),position=el('select');for(const item of [{value:'',label:'Ohne Position'},...GAME_POSITIONS]){const option=el('option',item.label);option.value=item.value;position.append(option);}position.value=normalizeGamePosition(currentPlayer?.gamePosition||player.position)||'';positionLabel.append(position);const roleLabel=el('label','Rolle'),role=el('input');role.type='text';role.maxLength=120;role.value=currentPlayer?.role||'';roleLabel.append(role);more.append(positionLabel,roleLabel);
+      card.append(name,statusSelect,starterLabel,jerseyLabel,more);editor.append(card);rows.push({player,currentPlayer,statusSelect,starter,jersey,position,role});
+      const sync=()=>{const included=statusSelect.value==='bench';starter.disabled=!included;jersey.disabled=!included;position.disabled=!included;role.disabled=!included;if(!included)starter.checked=false;};statusSelect.addEventListener('change',sync);sync();
+    }
+    const actions=el('div');actions.className='matchday-actions';const cancel=el('button','Abbrechen'),submit=el('button','Kader übernehmen');cancel.type='button';submit.type='submit';submit.dataset.action='save-live-roster';actions.append(cancel,submit);editor.append(message,actions);pregameRoster.append(editor);
+    toggle.addEventListener('click',()=>{editor.hidden=false;toggle.hidden=true;});cancel.addEventListener('click',()=>{editor.hidden=true;toggle.hidden=false;message.textContent='';});
+    editor.addEventListener('submit',async event=>{
+      event.preventDefault();const included=rows.filter(row=>row.statusSelect.value==='bench'),starters=rows.filter(row=>row.statusSelect.value==='bench'&&row.starter.checked);
+      if(included.length<5){message.textContent='Mindestens fünf Spieler im Kader auswählen.';return;}if(starters.length!==5){message.textContent='Genau fünf Spieler als Starting Five auswählen.';return;}
+      const roster=rows.filter(row=>currentIds.has(row.player.id)||row.statusSelect.value!=='out').map(row=>({id:row.player.id,name:row.player.name,jerseyNumber:row.statusSelect.value==='bench'?(row.jersey.value.trim()||null):null,gameStatus:row.starter.checked?'starter':row.statusSelect.value==='bench'?'bench':'dnp',...(row.statusSelect.value==='injured'?{absenceReason:'injured'}:row.statusSelect.value==='out'?{absenceReason:'not-selected'}:{}),gamePosition:row.statusSelect.value==='bench'?(row.position.value||null):null,role:row.statusSelect.value==='bench'?row.role.value.trim():''}));
+      submit.disabled=true;const result=await controller.live.dispatch({kind:'pregame-roster',payload:{players:roster,startingFive:starters.map(row=>row.player.id)}});submit.disabled=false;if(!result.ok){message.textContent=result.error;return;}
+      for(const row of rows.filter(item=>item.statusSelect.value==='injured'))onPlayerInjury(row.player,game);
+    });
+  }
   function renderScouting(s){
     const plan=s.draft.opponentPlan,session=s.liveState.session;
     if(!plan||!session){scouting.hidden=true;scouting.replaceChildren();return null;}
@@ -63,6 +92,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],game=null
   function update(s){
     if(dead)return;
     hint.textContent=s.liveState.clock?.running?'Die Uhr läuft beim Verlassen weiter.':'Die Spieluhr startest und stoppst du selbst.';
+    renderPregameRoster(s);
     pause.hidden=s.stage!=='pause';
     const opponentLive=renderScouting(s);
     if(!pause.hidden){const half=s.liveState.session.config.periods%2===0&&s.liveState.clock.period===s.liveState.session.config.periods/2;

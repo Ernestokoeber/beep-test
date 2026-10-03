@@ -67,11 +67,24 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     ensure(s.deviceId===deps.deviceId,'device','Dieses Gerät muss die Erfassung zuerst ausdrücklich übernehmen.');
     if(s.events.some(e=>e.id===command.id))return;
     let c=clockAt(s,deps.now());
+    if(command.kind==='pregame-roster'){
+      ensure(!c.ended&&!c.running&&c.period===1&&c.remainingMs===duration(s,1)&&!s.events.some(e=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(e.kind)),'roster','Der Live-Kader kann nur vor dem ersten Spielstart geändert werden.');
+      const players=command.payload?.players,startingFive=command.payload?.startingFive;
+      ensure(Array.isArray(players)&&players.length>=5&&players.length<=40&&players.filter(player=>player.gameStatus!=='dnp').length>=5&&Array.isArray(startingFive)&&startingFive.length===5,'roster','Mindestens fünf nominierte Spieler und genau fünf Starter auswählen.');
+      const base={sessionId:s.id,period:1,remainingMs:c.remainingMs,recordedAt:new Date(deps.now()).toISOString()};
+      s=appendEvent(s,{...base,id:command.id,seq:s.events.length+1,kind:'roster',payload:{players}});
+      s=appendEvent(s,{...base,id:command.id+':lineup',seq:s.events.length+1,kind:'starting-five',payload:{playerIds:startingFive}});
+      await write({...live,sessions:live.sessions.map(x=>x.id===s.id?s:x)});return;
+    }
+    const gameStarted=s.events.some(event=>event.kind==='clock-start');
+    ensure(gameStarted||!['stat','opponent-score','substitution','period-start','finish'].includes(command.kind),'start','Das Spiel zuerst über „Uhr starten“ verbindlich beginnen.');
+    ensure(command.kind!=='roster'||s.schemaVersion<3||!gameStarted,'roster','Der Spieltagskader ist seit dem ersten Uhrstart gesperrt.');
     ensure(!c.ended||['amend','void','roster','score-coverage','opponent-observation','defense-change'].includes(command.kind),'finished','Spiel beendet. Nur explizite Korrekturen sind möglich.');
     const confirmScore=command.kind==='finish'&&Object.hasOwn(command.payload||{},'scoreComplete');
     if(confirmScore)ensure(s.schemaVersion>=2&&typeof command.payload.scoreComplete==='boolean'&&command.id.length<=111,'event','Ungültige Abschlussbestätigung.');
     if(command.kind==='undo-last'){
-      const target=effectiveEvents(s).filter(e=>['stat','opponent-score','substitution','starting-five','roster','opponent-observation','defense-change'].includes(e.kind)).at(-1);
+      const undoKinds=gameStarted?['stat','opponent-score','substitution','opponent-observation','defense-change']:['stat','opponent-score','substitution','starting-five','roster','opponent-observation','defense-change'];
+      const target=effectiveEvents(s).filter(e=>undoKinds.includes(e.kind)).at(-1);
       ensure(target,'undo','Keine rückgängig machbare Aktion.');
       command={...command,kind:'void',payload:{targetId:target.id}};
     }

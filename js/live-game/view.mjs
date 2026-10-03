@@ -21,7 +21,7 @@ export function mountLiveView(container,controller){
   let chosen=null,opponentChosen=null,mode=null,signature='',current,correctionMode=false,inFlight=false;
   const status=el('p','','live-status');status.setAttribute('role','status');
   const header=el('header',undefined,'live-clock'),clockText=el('strong',''),periodText=el('span','');
-  const start=button('Uhr starten',()=>send({kind:current.clock.running?'clock-pause':'clock-start'}));
+  const start=button('Uhr starten',()=>toggleClock());
   header.append(periodText,clockText,start);
   const body=el('div'),panel=el('section',undefined,'live-panel');container.append(header,status,body,panel);
   function showError(e){status.textContent=e.message;status.setAttribute('role','alert');}
@@ -29,6 +29,13 @@ export function mountLiveView(container,controller){
   function form(title){mode=title;panel.replaceChildren(el('h3',title));const f=el('form');panel.append(f);f.append(button('Abbrechen',()=>{mode=null;panel.replaceChildren();}));return f;}
   function submit(f,text,fn){const b=el('button',text);b.type='submit';f.append(b);f.addEventListener('submit',async e=>{e.preventDefault();if(b.disabled)return;b.disabled=true;try{await fn();}catch(error){showError(error);}finally{b.disabled=false;}});queueMicrotask(()=>f.querySelector('input,select,button')?.focus());}
   function checks(f,title,players,selected=[]){const group=el('fieldset');group.append(el('legend',title));f.append(group);const fields=players.map(p=>{const i=field(group,playerLabel(p),'checkbox',p.id);i.checked=selected.includes(p.id);return i;});return ()=>fields.filter(i=>i.checked).map(i=>i.value);}
+  function toggleClock(){
+    if(current.clock.running)return send({kind:'clock-pause'});
+    const firstStart=!effectiveEvents(current.session).some(event=>event.kind==='clock-start');
+    if(!firstStart)return send({kind:'clock-start'});
+    const f=form('Spiel wirklich starten?');f.append(el('p','Mit dem ersten Start wird das Spiel verbindlich begonnen. Kader und Starting Five können danach nicht mehr verändert werden. Prüfe Verletzungen, Ausfälle und Aufstellung jetzt noch einmal.'));
+    submit(f,'Spiel verbindlich starten',()=>send({kind:'clock-start'}));
+  }
   function setup(s){
     body.replaceChildren(el('h2','Spieltagskader'),el('p','Eigene Mannschaft auswählen, anschließend genau fünf Starter markieren.'),el('p','Für Plus/Minus alle Treffer beider Teams erfassen. Die Trikotnummer gilt nur für dieses Spiel.'));
     const f=el('form');body.append(f);const rows=[];
@@ -122,6 +129,8 @@ export function mountLiveView(container,controller){
       s.live.sessions.forEach((x,i)=>body.append(button('Erfassung '+(i+1)+' · '+x.events.length+' Aktionen',()=>confirmCommand('Diese Erfassung auswählen','Diese Auswahl bestimmt die Live-Auswertung.','select-session',{id:x.id}))));return;}
     if(s.readOnly){body.append(el('p','Lesender Zugriff. Keine Eingabe möglich.'));return;}
     if(s.needsTakeover){body.append(button('Erfassung auf diesem Gerät übernehmen',()=>confirmCommand('Erfassung übernehmen','Am bisherigen Gerät zuerst synchronisieren und die Erfassung schließen. Es wird eine fortsetzbare Kopie angelegt; die alte Sitzung bleibt erhalten.','takeover')));return;}
+    const gameplayStarted=effectiveEvents(s.session).some(event=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(event.kind));
+    if(!s.clock.ended&&!gameplayStarted){body.append(el('h2','Spiel noch nicht gestartet'),el('p','Prüfe Live-Kader, Trikotnummern und Starting Five. Erst der bestätigte erste Uhrstart schaltet Statistik, Gegnerpunkte und Wechsel frei.'));if(s.session.schemaVersion===1)body.append(el('p','Alte Erfassung: Gegnerpunkte und Plus/Minus sind hier nicht verfügbar. Neue Spiele unterstützen den vollständigen Punkteverlauf.','live-warning'));if(s.session.schemaVersion>=3)body.append(button('Starting Five ändern',startingFiveChange));return;}
     if(s.clock.ended){body.append(el('h2','Spiel abgeschlossen'));body.append(button(correctionMode?'Korrekturmodus schließen':'Korrekturmodus öffnen',()=>{correctionMode=!correctionMode;signature='';render(current);}));if(!correctionMode)return;}
     if(!s.clock.ended){
       const startingFiveOpen=s.session.schemaVersion>=3&&!effectiveEvents(s.session).some(e=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(e.kind));
@@ -144,7 +153,8 @@ export function mountLiveView(container,controller){
       if(Object.values(s.stats.players).some(p=>p.fouls>=5))body.append(el('p','Foulgrenze erreicht: Aufstellung prüfen. Kein automatischer Wechsel.','live-warning'));
       const controls=el('div',undefined,'live-controls');controls.append(button(startingFiveOpen?'Starting Five ändern':s.clock.running?'Uhr anhalten und wechseln':'Wechsel erfassen',startingFiveOpen?startingFiveChange:substitutions),button('Letzte Aktion rückgängig',()=>send({kind:'undo-last'})),button('Uhr korrigieren',clockCorrection),button('Nächster Abschnitt',()=>confirmCommand('Nächsten Abschnitt vorbereiten',s.clock.period>=s.session.config.periods?'Eine Verlängerung vorbereiten? Uhr muss bei 0:00 stehen.':'Uhr muss bei 0:00 stehen. Der nächste Abschnitt startet pausiert.','period-start')),button('Spiel abschließen',()=>s.session.schemaVersion>=2?confirmScore(true):confirmCommand('Spiel abschließen','Die Uhr wird angehalten. Danach sind nur noch ausdrückliche Korrekturen möglich.','finish')));body.append(controls);
     }
-    body.append(button('Kader korrigieren',rosterCorrection),button('Protokoll korrigieren',corrections));
+    if(s.session.schemaVersion<3)body.append(button('Kader korrigieren',rosterCorrection));
+    body.append(button('Protokoll korrigieren',corrections));
     if(s.clock.ended&&s.session.schemaVersion>=2){body.append(el('p',s.boxscore.plusMinusComplete?'Punkteverlauf vom Coach bestätigt.':'Plus/Minus ist vorläufig: Punkteverlauf prüfen.'),button('Punkteverlauf bestätigen',()=>confirmScore(false)));}
     const history=el('details');history.append(el('summary','Aktionsprotokoll'));const list=el('ol');
     for(const e of effectiveEvents(s.session).slice().reverse()){const item=el('li','#'+e.seq+' · '+e.period+'/'+formatTime(e.remainingMs)+' · '+(s.roster.find(p=>p.id===e.payload.playerId)?.name||'')+' '+eventLabel(e));item.title=e.id;list.append(item);}history.append(list);body.append(history);

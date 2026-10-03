@@ -14,6 +14,8 @@ assert.equal((await c.saveDraft({...c.getState().draft,goals:'Nach Spielbeginn g
 assert.equal((await c.saveDraft({...c.getState().draft,tactics:[{id:'horns',title:'Horns',usage:'offense'}]})).ok,false);
 assert.equal((await c.saveDraft({...c.getState().draft,roster:c.getState().draft.roster.map((player,index)=>index?player:{...player,role:'Neue Rolle'})})).ok,false);
 assert.equal((await c.saveDraft({...c.getState().draft,closingNote:'Gut gespielt'})).ok,true);
+assert.equal((await c.live.dispatch({kind:'finish',payload:{scoreComplete:false}})).ok,false,'Ein Spiel darf vor dem bestätigten Uhrstart nicht abgeschlossen werden.');
+await c.live.dispatch({kind:'clock-start'});await c.live.dispatch({kind:'clock-pause'});
 const count=c.live.getState().session.events.length;
 await c.live.dispatch({kind:'finish',payload:{scoreComplete:false}});
 assert.equal(c.getState().stage,'finished');
