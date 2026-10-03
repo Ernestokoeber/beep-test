@@ -366,7 +366,7 @@ BT.seasonplanner = (function() {
     slots.forEach(slot => {
       const entry = byDate.get(slot.date);
       const current = existing.find(training => training.date === slot.date);
-      const aiManaged = ['ai-season', 'ai-friday-stations'].includes(current?.planning?.source);
+      const aiManaged = ['ai-season', 'ai-friday-stations', 'friday-stations'].includes(current?.planning?.source);
       const protectedTraining = current && (
         current.status === 'completed' || current.endedAt ||
         current.planning?.coachEdited || !aiManaged

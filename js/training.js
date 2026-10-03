@@ -116,7 +116,7 @@ BT.training = (function() {
     if (!suggestion) { host.classList.add('hidden'); host.replaceChildren(); return; }
     const game = suggestion.game;
     const gameOpponent = /lindau/i.test(game.home || '') ? game.away : game.home;
-    const ready = Boolean(suggestion.existing?.stationTraining);
+    const ready = suggestion.existing?.planning?.source === 'ai-friday-stations';
     host.classList.remove('hidden');
     host.innerHTML = `<div><span class="section-kicker">Spielwochen-Freitag</span><h3>${escapeHTML(formatDate(suggestion.friday))} · 105 Minuten individuell</h3><p>Die KI erstellt vor dem Spiel gegen ${escapeHTML(gameOpponent || 'den nächsten Gegner')} ein neues Training mit fünf individuellen Stationen. Die Belastungsampel passt das Volumen pro Spieler an.</p></div>${ready
       ? `<a class="btn primary" href="#/training/${encodeURIComponent(suggestion.existing.id)}">Stationstraining öffnen</a>`
