@@ -589,6 +589,39 @@ async function testTablet(browser) {
   await context.close();
 }
 
+async function testScreenAcademy(browser, name, options) {
+  const context = await browser.newContext({ ...options, locale: 'de-DE', serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  try {
+    await waitForApp(page);
+    await page.goto(baseUrl + '/#/tactics/screens', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.screen-academy');
+    assert(await page.locator('.screen-card-core').count() >= 12, `${name}: Kernaktionen für Dienstag fehlen.`);
+    assert(await page.locator('.screen-reference-grid .screen-card').count() >= 40, `${name}: Screen-Nachschlagewerk ist unvollständig.`);
+    assert((await page.locator('.screen-lesson').innerText()).includes('35-Minuten-Lehrpfad'), `${name}: Lehrpfad für Dienstag fehlt.`);
+    await page.locator('[data-role="screen-search"]').fill('Floppy');
+    assert(await page.locator('.screen-reference-grid .screen-card').count() === 1, `${name}: Screen-Suche filtert Floppy nicht eindeutig.`);
+    await page.locator('[data-role="screen-search"]').fill('');
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth
+    }));
+    assert(Math.max(dimensions.document, dimensions.body) <= dimensions.viewport + 1, `${name}: Screen-Akademie erzeugt horizontalen Überlauf ${JSON.stringify(dimensions)}`);
+    const pickAndRoll = page.locator('.screen-card-core').filter({ hasText: 'Pick & Roll' }).first();
+    await pickAndRoll.getByRole('button', { name: /Im Taktikboard zeigen/ }).click();
+    await page.waitForSelector('[data-role="tactics-quick"]');
+    assert((await page.locator('[data-role="title"]').inputValue()).includes('Pick & Roll'), `${name}: Pick-&-Roll-Demo wird nicht ins Taktikboard übernommen.`);
+    assert(await page.locator('.chq-timeline-action').count() > 0, `${name}: Pick-&-Roll-Demo enthält keine sichtbaren Aktionen.`);
+    assert(errors.length === 0, `${name}: Browserfehler ${errors.join(' | ')}`);
+    console.log(`Screen-Akademie Browser-E2E erfolgreich: ${name}, Katalog, Suche, mobile Breite und Taktikboard-Demo.`);
+  } finally {
+    await context.close();
+  }
+}
+
 async function testTrainingLive(browser, name, options) {
   const context = await browser.newContext({ ...options, locale: 'de-DE', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -911,16 +944,25 @@ async function testMatchday(browser, name, options) {
 
 const browser = await chromium.launch({ headless: true, ...(process.env.E2E_BROWSER_PATH ? { executablePath: process.env.E2E_BROWSER_PATH } : {}) });
 try {
-  if (!process.env.E2E_MATCHDAY_ONLY) {
+  if (process.env.E2E_SCREEN_ONLY) {
+    await testScreenAcademy(browser, 'iPhone 15', devices['iPhone 15']);
+    await testScreenAcademy(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
+  } else if (!process.env.E2E_MATCHDAY_ONLY) {
     await testDesktop(browser);
     await testTablet(browser);
     await testIPhone(browser);
+    await testScreenAcademy(browser, 'iPhone 15', devices['iPhone 15']);
+    await testScreenAcademy(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
     await testTrainingLive(browser, 'iPhone 15', devices['iPhone 15']);
     await testTrainingLive(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
   }
-  await testMatchday(browser, 'iPhone 15', devices['iPhone 15']);
-  await testMatchday(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
-  console.log(process.env.E2E_MATCHDAY_ONLY
+  if (!process.env.E2E_SCREEN_ONLY) {
+    await testMatchday(browser, 'iPhone 15', devices['iPhone 15']);
+    await testMatchday(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
+  }
+  console.log(process.env.E2E_SCREEN_ONLY
+    ? 'CourtHub Screen-Akademie Browser-E2E erfolgreich: iPhone und 320 px.'
+    : process.env.E2E_MATCHDAY_ONLY
     ? 'CourtHub Matchday Browser-E2E erfolgreich: iPhone und 320 px.'
     : 'CourtHub Browser-E2E erfolgreich: Play Editor 2.0, Desktop, Tablet, iPhone, Freitagstationen und Training Live (iPhone/320 px), zehn Spieler, Drag-and-drop, Videoimport und Matchday (iPhone/320 px).');
 } finally {

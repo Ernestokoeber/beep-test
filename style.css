@@ -5035,6 +5035,154 @@ table.results tr:last-child td { border-bottom: none; }
 
 @media (max-width: 740px) { .tactics-library { grid-template-columns: 1fr 1fr; } }
 
+/* Screen-Akademie: mobile Lehr- und Nachschlageansicht für das Taktikboard. */
+.screen-academy {
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1100px;
+  margin-inline: auto;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.screen-academy > *,
+.screen-core-grid,
+.screen-reference-grid,
+.screen-card { min-width: 0; box-sizing: border-box; }
+.screen-academy-hero {
+  display: grid;
+  gap: .55rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 92%, #000), color-mix(in srgb, var(--primary) 72%, #142a20));
+  color: #fff;
+}
+.screen-academy-hero .btn { justify-self: start; }
+.screen-academy-hero .section-kicker { color: #f7b955; }
+.screen-academy-hero h2 { margin: 0; font-size: clamp(1.65rem, 5vw, 2.6rem); }
+.screen-academy-hero p { max-width: 760px; margin: 0; color: rgba(255,255,255,.82); }
+.screen-lesson,
+.screen-core,
+.screen-reference {
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.screen-lesson { border-left: 5px solid var(--cta); }
+.screen-lesson h3,
+.screen-core h3,
+.screen-reference h3 { margin: .15rem 0 0; }
+.screen-lesson ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .65rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+.screen-lesson li {
+  display: grid;
+  gap: .35rem;
+  min-width: 0;
+  padding: .8rem;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.screen-lesson li strong { color: var(--cta); }
+.screen-lesson li span { color: var(--muted); font-size: .88rem; line-height: 1.45; }
+.screen-lesson-rule {
+  margin: 0;
+  padding: .8rem 1rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+.screen-core-grid,
+.screen-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+}
+.screen-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.screen-card-core { border-top: 4px solid var(--cta); }
+.screen-card-category {
+  color: var(--cta);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.screen-card h4 { margin: .35rem 0 .25rem; font-size: 1.05rem; }
+.screen-card-short { min-height: 2.5em; margin: 0 0 .65rem; color: var(--muted); line-height: 1.45; }
+.screen-card details { margin-bottom: .75rem; }
+.screen-card summary { color: var(--text); font-weight: 750; cursor: pointer; }
+.screen-card-description { color: var(--muted); line-height: 1.5; }
+.screen-card-lists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.screen-card-lists strong { font-size: .78rem; }
+.screen-card-lists ul { margin: .25rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: .8rem; }
+.screen-card .btn { width: 100%; min-height: 44px; margin-top: auto; }
+.screen-search { display: block; margin: .75rem 0; }
+.screen-search input {
+  width: 100%;
+  min-height: 46px;
+  padding: .7rem .85rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+}
+.screen-filters {
+  display: flex;
+  gap: .45rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: .35rem;
+  scrollbar-width: thin;
+}
+.screen-filters button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: .5rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 750;
+}
+.screen-filters button.active { border-color: var(--primary); background: var(--primary); color: #fff; }
+.screen-result { margin: .45rem 0 .75rem; }
+@media (max-width: 880px) {
+  .screen-lesson ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .screen-core-grid,
+  .screen-reference-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .screen-academy { gap: .8rem; }
+  .screen-academy-hero,
+  .screen-lesson,
+  .screen-core,
+  .screen-reference { border-radius: 14px; }
+  .screen-lesson ol,
+  .screen-core-grid,
+  .screen-reference-grid { grid-template-columns: 1fr; }
+  .screen-card-short { min-height: 0; }
+  .screen-card-lists { grid-template-columns: 1fr; }
+}
+
 .ai-summary-text {
   width: 100%;
   min-height: 160px;

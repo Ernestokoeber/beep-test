@@ -54,6 +54,7 @@ export function editorToolbarMarkup() {
           <div class="chq-header-menu">
             <button type="button" data-action="save">Speichern &amp; synchronisieren</button>
             <button type="button" data-action="new">Neues Play</button>
+            <a href="#/tactics/screens">Screen-Akademie</a>
             <button type="button" data-action="video-import">Video → Play</button>
             <button class="danger" type="button" data-action="delete">Play löschen</button>
           </div>

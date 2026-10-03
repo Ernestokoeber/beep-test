@@ -194,6 +194,8 @@
     } else if (hash.startsWith('#/drills/')) {
       const id = hash.slice('#/drills/'.length);
       BT.drills.renderDetail(app, id);
+    } else if (hash === '#/tactics/screens') {
+      BT.screenAcademy.render(app);
     } else if (hash === '#/tactics/player') {
       BT.tactics.renderPlayer(app);
     } else if (hash === '#/tactics') {
