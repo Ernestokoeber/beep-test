@@ -198,8 +198,31 @@
 }
 
 .opponent-screenshot-actions input[type="file"] {
-  flex: 1 1 16rem;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.opponent-file-picker {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.opponent-file-count {
+  flex: 1 0 100%;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .opponent-screenshot-actions .btn,
+  .opponent-file-picker {
+    width: 100%;
+  }
 }
 
 .screenshot-review {
@@ -239,6 +262,22 @@
 
   .opponents-layout {
     grid-template-columns: 1fr;
+  }
+
+  .opponents-view .game-list {
+    max-height: none;
+    display: grid;
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(14rem, 82vw);
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.4rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .opponents-view .game-list > li {
+    scroll-snap-align: start;
   }
 }
 @font-face {

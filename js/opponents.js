@@ -432,6 +432,21 @@ BT.opponents = (function() {
     const top = context.topScorers;
     host.innerHTML = `
       <div class="game-detail-head"><div><span class="section-kicker">Gegner-Scouting · ${BT.util.escapeHTML(profile.seasonId || 'Saison')}</span><h3>${BT.util.escapeHTML(profile.name)}</h3><p class="muted">Quellen: ${BT.util.escapeHTML(context.dataQuality.sources.join(', ') || 'noch keine belastbare Quelle')} · ${qualityLabel(context.dataQuality.confidence)}</p></div></div>
+      <section class="boxscore-panel opponent-screenshot-panel">
+        <div class="section-head compact"><div><span class="section-kicker">DBB.Scores</span><h3>Screenshots auswerten</h3></div></div>
+        <p class="muted">Wähle bis zu sechs Fotos oder Screenshots gemeinsam aus. CourtHub liest sichtbare Spiele, Ergebnisse, Fouls, Wurfwerte und Spielerzeilen aus und speichert die Bilder selbst nicht im Team-Workspace.</p>
+        <div class="opponent-screenshot-actions">
+          <label class="btn opponent-file-picker">
+            <span aria-hidden="true">▣</span>
+            <span data-role="opponent-file-label">Fotos auswählen</span>
+            <input type="file" accept="image/*,.heic,.heif" multiple data-role="opponent-screenshots" aria-label="Fotos oder Screenshots auswählen">
+          </label>
+          <button class="btn primary" type="button" data-action="analyze-screenshots" disabled>Auswertung starten</button>
+          <span class="opponent-file-count" data-role="opponent-file-count">Noch keine Fotos ausgewählt.</span>
+        </div>
+        <p class="auth-status" data-role="screenshot-status" aria-live="polite"></p>
+        <div data-role="screenshot-preview"></div>
+      </section>
       <div class="opponent-kpis">
         <div><span>Bilanz</span><strong>${metrics.games ? `${metrics.wins}:${metrics.losses}` : '–'}</strong></div>
         <div><span>Punkte</span><strong>${valueOrDash(metrics.pointsForPerGame)}</strong></div>
@@ -448,13 +463,6 @@ BT.opponents = (function() {
       </section>
       <section class="boxscore-panel"><div class="section-head compact"><div><span class="section-kicker">Leistungsträger</span><h3>Topscorer aus erfassten Daten</h3></div></div>
         ${top.length ? `<div class="opponent-leaders">${top.map(player => `<div><strong>${BT.util.escapeHTML(player.name)}</strong><span>${valueOrDash(player.pointsPerGame)} PPG · ${valueOrDash(player.foulsPerGame)} Fouls · ${valueOrDash(player.threePointPct, ' % 3P')}</span></div>`).join('')}</div>` : '<p class="muted">Noch keine geprüften Spielerwerte. Punkte sind nicht automatisch eine Wurfquote.</p>'}
-      </section>
-      <section class="boxscore-panel opponent-screenshot-panel">
-        <div class="section-head compact"><div><span class="section-kicker">DBB.Scores</span><h3>Screenshots auswerten</h3></div></div>
-        <p class="muted">Bis zu sechs Screenshots gemeinsam auswählen. CourtHub übernimmt nur sichtbare Werte und speichert die Bilder selbst nicht im Team-Workspace.</p>
-        <div class="opponent-screenshot-actions"><input type="file" accept="image/jpeg,image/png,image/webp" multiple data-role="opponent-screenshots"><button class="btn" type="button" data-action="analyze-screenshots">Mit Basketball-KI prüfen</button></div>
-        <p class="auth-status" data-role="screenshot-status" aria-live="polite"></p>
-        <div data-role="screenshot-preview"></div>
       </section>
       <form class="opponent-form" data-role="opponent-form">
         <section class="boxscore-panel"><div class="section-head compact"><div><span class="section-kicker">Trainerbeobachtung</span><h3>Angriffsprofil</h3></div></div>
@@ -483,7 +491,23 @@ BT.opponents = (function() {
 
     const form = host.querySelector('[data-role="opponent-form"]');
     const rows = host.querySelector('[data-role="scout-players"]');
-    host.querySelector('[data-action="analyze-screenshots"]').addEventListener('click', () => analyzeScreenshots(profile, host));
+    const fileInput = host.querySelector('[data-role="opponent-screenshots"]');
+    const fileLabel = host.querySelector('[data-role="opponent-file-label"]');
+    const fileCount = host.querySelector('[data-role="opponent-file-count"]');
+    const analyzeButton = host.querySelector('[data-action="analyze-screenshots"]');
+    const updateFileSelection = () => {
+      const count = fileInput.files?.length || 0;
+      fileLabel.textContent = count ? 'Auswahl ändern' : 'Fotos auswählen';
+      fileCount.textContent = count === 1
+        ? '1 Foto ausgewählt.'
+        : count > 1
+          ? `${count} Fotos ausgewählt.`
+          : 'Noch keine Fotos ausgewählt.';
+      analyzeButton.disabled = count < 1 || count > 6;
+      if (count > 6) fileCount.textContent = 'Bitte höchstens sechs Fotos auswählen.';
+    };
+    fileInput.addEventListener('change', updateFileSelection);
+    analyzeButton.addEventListener('click', () => analyzeScreenshots(profile, host));
     host.querySelector('[data-action="add-scout-player"]').addEventListener('click', () => rows.insertAdjacentHTML('beforeend', playerRow()));
     rows.addEventListener('click', event => {
       const button = event.target.closest('[data-action="remove-scout-player"]');
@@ -542,7 +566,11 @@ BT.opponents = (function() {
   }
 
   async function compressScreenshot(file) {
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Nur JPG, PNG und WebP werden unterstützt.');
+    const imageType = String(file.type || '').toLowerCase();
+    const imageName = String(file.name || '').toLowerCase();
+    if (!imageType.startsWith('image/') && !/\.(jpe?g|png|webp|heic|heif)$/.test(imageName)) {
+      throw new Error('Bitte nur Fotos oder Screenshots auswählen.');
+    }
     if (file.size > 12_000_000) throw new Error(`${file.name} ist größer als 12 MB.`);
     const image = await loadImage(file);
     const maxSide = 1500;

@@ -5,7 +5,8 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const dom = new JSDOM('', { url: 'https://coach.tsv-lindau.de/', runScripts: 'outside-only' });
+const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const dom = new JSDOM(index, { url: 'https://coach.tsv-lindau.de/', runScripts: 'outside-only' });
 const window = dom.window;
 const opponents = [];
 window.BT = {
@@ -13,7 +14,8 @@ window.BT = {
     uuid: prefix => `${prefix}${opponents.length + 1}`,
     seasonForDate: () => '26/27',
     escapeHTML: value => String(value),
-    renderTemplate: () => window.document.createElement('section')
+    renderTemplate: id => window.document.getElementById(id).content.firstElementChild.cloneNode(true),
+    toast: () => {}
   },
   storage: {
     getOpponents: () => opponents,
@@ -26,7 +28,12 @@ window.BT = {
     },
     getGames: () => []
   },
-  seasonplanner: { scheduleConfig: () => ({ teamName: 'TSV Lindau', teamId: 258298 }) }
+  seasonplanner: { scheduleConfig: () => ({ teamName: 'TSV Lindau', teamId: 258298 }) },
+  api: {
+    getToken: () => 'test-token',
+    syncWebsiteGames: async () => ({ games: [], leagueGames: [], team: { id: 258298, name: 'TSV Lindau' } }),
+    ai: async () => ({ data: { opponentName: 'TSV Ottobeuren', games: [], players: [], warnings: [] } })
+  }
 };
 
 window.eval(readFileSync(new URL('../js/opponents.js', import.meta.url), 'utf8'));
@@ -70,5 +77,24 @@ const inside = {
   playerStats: [{ id: 'c', name: 'Center C', games: 3, points: 45 }, { id: 'd', name: 'Forward D', games: 3, points: 30 }]
 };
 assert(window.BT.opponents.recommendDefense(inside).start === 'zone212', 'Belegtes Inside-Profil führt nicht zur 2-1-2-Zone');
+
+const target = window.document.createElement('main');
+window.document.body.appendChild(target);
+window.BT.opponents.render(target);
+const fileInput = target.querySelector('[data-role="opponent-screenshots"]');
+const analyzeButton = target.querySelector('[data-action="analyze-screenshots"]');
+const fileLabel = target.querySelector('[data-role="opponent-file-label"]');
+const fileCount = target.querySelector('[data-role="opponent-file-count"]');
+assert(fileInput?.accept.includes('image/*'), 'Der Foto-Dialog ist nicht für die iPhone-Fotomediathek geöffnet');
+assert(analyzeButton?.disabled, 'Die Auswertung ist ohne ausgewählte Bilder aktiv');
+Object.defineProperty(fileInput, 'files', {
+  configurable: true,
+  value: [new window.File(['score'], 'dbb-score.png', { type: 'image/png' })]
+});
+fileInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+assert(!analyzeButton.disabled, 'Die Auswertung wird nach der Fotoauswahl nicht freigeschaltet');
+assert(fileLabel.textContent === 'Auswahl ändern', 'Der Foto-Button bestätigt die Auswahl nicht');
+assert(fileCount.textContent === '1 Foto ausgewählt.', 'Die Anzahl ausgewählter Fotos wird nicht angezeigt');
+assert(index.includes('href="#/opponents"') && index.includes('Gegner analysieren'), 'Auf dem Dashboard fehlt der direkte Einstieg zur Gegneranalyse');
 
 console.log('CourtHub Gegner-Scouting: Profile, Kennzahlen und Defense-Auswahl erfolgreich.');
