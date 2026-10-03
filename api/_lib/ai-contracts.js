@@ -1,7 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 4;
+export const AI_CONTRACT_VERSION = 5;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
@@ -175,7 +175,7 @@ const PROMPTS = {
 
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die langfristigen Mannschaftsprinzipien, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster bleiben davon unberührt und haben Vorrang.
 
-Für einen Slot mit fridayStationMode=true erstellst du jedes Mal ein neues individuelles Stationstraining passend zur aktuellen Spielwoche und zum folgenden Wochenendspiel. Nutze die Historie, um Schwerpunkte und Stationskombinationen nicht einfach zu wiederholen. Das Training dauert genau 105 Minuten und besteht in dieser Reihenfolge aus: 10 Minuten Readiness-Check, 10 Minuten individuelle Aktivierung, fünf unterschiedliche Einzelstationen zu je 15 Minuten und 10 Minuten Cooldown mit Session-RPE. Liefere dazu stationTraining mit genau fünf Stationen. Höchstens eine der fünf Stationen darf unmittelbar aus coachInput.problems abgeleitet sein; die vier übrigen Stationen müssen andere Entwicklungsbereiche abdecken. Keine Teamtaktik, keine Spielformen und kein 1-gegen-1 bis 5-gegen-5. Alle Inhalte müssen allein oder mit einfachen Zuspielern ausführbar sein. Plane niedrige Vor-Spiel-Belastung; die individuelle Ampel für Tagesform, Schmerzen, Spielminuten und Wochenbelastung skaliert das Volumen später pro Spieler. fridayVariants wird für diesen Modus nicht benötigt.
+Für einen Slot mit fridayStationMode=true erstellst du jedes Mal ein neues individuelles Stationstraining passend zur aktuellen Spielwoche und zum folgenden Wochenendspiel. Nutze die Historie, um Schwerpunkte und Stationskombinationen nicht einfach zu wiederholen. Das Training dauert genau 105 Minuten und besteht in dieser Reihenfolge aus: 10 Minuten Readiness-Check, 10 Minuten individuelle Aktivierung, fünf unterschiedliche Einzelstationen zu je 15 Minuten und 10 Minuten Cooldown mit Session-RPE. Liefere dazu stationTraining mit genau fünf Stationen. drills soll ebenfalls genau diese acht Blöcke enthalten; CourtHub erzeugt die verbindliche Zeitstruktur zusätzlich selbst aus stationTraining. Höchstens eine der fünf Stationen darf unmittelbar aus coachInput.problems abgeleitet sein; die vier übrigen Stationen müssen andere Entwicklungsbereiche abdecken. Keine Teamtaktik, keine Spielformen und kein 1-gegen-1 bis 5-gegen-5. Alle Inhalte müssen allein oder mit einfachen Zuspielern ausführbar sein. Plane niedrige Vor-Spiel-Belastung; die individuelle Ampel für Tagesform, Schmerzen, Spielminuten und Wochenbelastung skaliert das Volumen später pro Spieler. fridayVariants wird für diesen Modus nicht benötigt.
 
 Für sonstige Freitage werden weiterhin vollständige fridayVariants für mehr als acht sowie höchstens acht Spieler benötigt. Gib nur das angeforderte JSON aus.`)
 };
@@ -234,8 +234,6 @@ function weekdayNumber(value) {
   return WEEKDAYS[String(value || '').trim().toLowerCase()];
 }
 
-const FRIDAY_STATION_MINUTES = [10, 10, 15, 15, 15, 15, 15, 10];
-
 function fitDrillMinutes(drills, durationMinutes) {
   if (durationMinutes === null || drills.reduce((sum, drill) => sum + drill.minutes, 0) === durationMinutes) return drills;
   if (drills.length > durationMinutes) fail('Die Drillliste enthält zu viele Blöcke für die Trainingsdauer.');
@@ -253,7 +251,7 @@ function fitDrillMinutes(drills, durationMinutes) {
   return drills;
 }
 
-function validateDrills(input, { requireIntensity = false, durationMinutes = null, durationPattern = null } = {}) {
+function validateDrills(input, { requireIntensity = false, durationMinutes = null } = {}) {
   if (!Array.isArray(input) || input.length < 1 || input.length > 30) fail('Die Drillliste ist ungültig.');
   const drills = input.map((drill) => {
     if (!drill || typeof drill !== 'object') fail('Ein Drill ist ungültig.');
@@ -270,12 +268,7 @@ function validateDrills(input, { requireIntensity = false, durationMinutes = nul
     }
     return normalized;
   });
-  if (durationPattern) {
-    if (drills.length !== durationPattern.length) fail('Das KI-Stationstraining benötigt acht Trainingsblöcke.');
-    drills.forEach((drill, index) => { drill.minutes = durationPattern[index]; });
-  } else {
-    fitDrillMinutes(drills, durationMinutes);
-  }
+  fitDrillMinutes(drills, durationMinutes);
   return drills;
 }
 
@@ -300,6 +293,35 @@ function validateFridayStations(input) {
   };
 }
 
+function buildFridayStationDrills(stationTraining) {
+  return [
+    {
+      name: 'Readiness-Check & Belastungsampel',
+      minutes: 10,
+      intensity: 'low',
+      description: 'Tagesform (1–5), Schmerzen (0–10), Spielminuten und aktuelle Wochenbelastung erfassen; Ampel Grün, Gelb oder Rot festlegen.'
+    },
+    {
+      name: 'Individuelle Aktivierung',
+      minutes: 10,
+      intensity: 'low',
+      description: 'Mobilität, Ballgefühl und kontrollierte basketballspezifische Bewegungen passend zur persönlichen Belastungsampel.'
+    },
+    ...stationTraining.stations.map((station) => ({
+      name: station.title,
+      minutes: 15,
+      intensity: 'low',
+      description: generatedString(`${station.category}: ${station.description}`, 800, 'Stationsbeschreibung')
+    })),
+    {
+      name: 'Cooldown & Session-RPE',
+      minutes: 10,
+      intensity: 'low',
+      description: 'Belastung kontrolliert senken, Beschwerden erneut prüfen und die wahrgenommene Trainingsbelastung als Session-RPE dokumentieren.'
+    }
+  ];
+}
+
 function validateEvidenceBasis(input) {
   const list = (value, label) => {
     if (!Array.isArray(value) || value.length < 1 || value.length > 4) fail(`${label} ist ungültig.`);
@@ -315,22 +337,21 @@ function validateEvidenceBasis(input) {
 
 function normalizeTraining(input, { durationMinutes = null, requireIntensity = false, friday = false, fridayStationMode = false } = {}) {
   if (!input || typeof input !== 'object') fail('Ein Training ist ungültig.');
+  const stationTraining = fridayStationMode ? validateFridayStations(input.stationTraining) : null;
   const training = {
     date: date(input.date, 'Trainingsdatum'),
     summary: generatedString(input.summary, 240, 'Trainingsschwerpunkt'),
     freethrows: { attempted: integer(input.freethrows?.attempted, 0, 1000, 'Freiwurfversuche') },
     shots: validateShots(input.shots),
-    drills: validateDrills(input.drills, {
-      requireIntensity,
-      durationMinutes,
-      durationPattern: fridayStationMode ? FRIDAY_STATION_MINUTES : null
-    })
+    drills: fridayStationMode
+      ? buildFridayStationDrills(stationTraining)
+      : validateDrills(input.drills, { requireIntensity, durationMinutes })
   };
   if (input.evidenceBasis) training.evidenceBasis = validateEvidenceBasis(input.evidenceBasis);
   if (input.weekday) training.weekday = generatedString(input.weekday, 20, 'Wochentag');
   if (fridayStationMode) {
     if (durationMinutes !== 105) fail('Das KI-Stationstraining muss 105 Minuten dauern.');
-    training.stationTraining = validateFridayStations(input.stationTraining);
+    training.stationTraining = stationTraining;
   } else if (friday) {
     if (!input.fridayVariants || typeof input.fridayVariants !== 'object') fail('Freitagsvarianten fehlen.');
     training.fridayVariants = {

@@ -53,7 +53,7 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 4, 'KI-Vertrag wurde für robuste KI-Dauernormalisierung nicht angehoben');
+assert(AI_CONTRACT_VERSION === 5, 'KI-Vertrag wurde für den deterministischen Freitagsrahmen nicht angehoben');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.1', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -110,14 +110,20 @@ assert(
   normalizedFriday.trainings[0].drills.map(drill => drill.minutes).join(',') === '10,10,15,15,15,15,15,10',
   'KI-Stationstraining wird nicht auf 10 + 10 + fünfmal 15 + 10 Minuten normalisiert'
 );
+const incompleteFridayDrills = structuredClone(fridayResult);
+incompleteFridayDrills.trainings[0].drills = incompleteFridayDrills.trainings[0].drills.slice(0, 5);
+const rebuiltFriday = fridayRequest.parse(JSON.stringify(incompleteFridayDrills));
+assert(rebuiltFriday.trainings[0].drills.length === 8, 'Unvollständige KI-Drillliste wird nicht aus den fünf Stationen aufgebaut');
+assert(rebuiltFriday.trainings[0].drills[2].name === 'KI Station 1', 'Erste KI-Station fehlt im verbindlichen Freitagsrahmen');
+assert(rebuiltFriday.trainings[0].drills[7].name === 'Cooldown & Session-RPE', 'Cooldown fehlt im verbindlichen Freitagsrahmen');
 await expectAIError(
   () => {
     const incomplete = structuredClone(fridayResult);
-    incomplete.trainings[0].drills.pop();
+    incomplete.trainings[0].stationTraining.stations.pop();
     return Promise.resolve(fridayRequest.parse(JSON.stringify(incomplete)));
   },
   'AI_INVALID_RESPONSE',
-  'Unvollständiger Stationsaufbau wurde akzeptiert'
+  'Unvollständige Liste der fünf individuellen Stationen wurde akzeptiert'
 );
 
 const summary = buildAIRequest('summarizeTraining', {
