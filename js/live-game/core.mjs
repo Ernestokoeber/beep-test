@@ -16,7 +16,7 @@ export const actions = Object.freeze({
   oreb:'Offensiv-Rebound',dreb:'Defensiv-Rebound',assist:'Assist',steal:'Steal',
   block:'Block',turnover:'Ballverlust',foul:'Foul'
 });
-const kinds = ['stat','substitution','clock-start','clock-pause','clock-correction','period-start','finish','amend','void','roster','opponent-score','score-coverage','opponent-observation','defense-change'];
+const kinds = ['stat','substitution','starting-five','clock-start','clock-pause','clock-correction','period-start','finish','amend','void','roster','opponent-score','score-coverage','opponent-observation','defense-change'];
 const opponentObservations=new Set(['paint','open-three','oreb','free-throw-pressure']);
 const defenses=new Set(['man','zone212','zone32']);
 const gamePositions=new Set(GAME_POSITION_VALUES);
@@ -78,6 +78,11 @@ function validateEvent(s,e) {
   const known = s.roster.concat(s.events.filter(x=>x.kind==='roster' && x.seq<e.seq).flatMap(x=>x.payload.players||[]));
   if (e.kind === 'roster') ensure(Array.isArray(e.payload.players) && e.payload.players.length>0 && e.payload.players.length<=40 && e.payload.players.every(p=>idOK(p.id)&&typeof p.name==='string'&&p.name.length>0&&p.name.length<=100),'roster','Ungültige Kaderkorrektur.');
   if(e.kind==='roster'){validateJerseys(e.payload.players);validateRosterFields(e.payload.players);}
+  if(e.kind==='starting-five'){
+    const playerIds=e.payload.playerIds;
+    ensure(s.schemaVersion>=3&&Object.keys(e.payload).length===1&&Array.isArray(playerIds)&&playerIds.length===5&&new Set(playerIds).size===5&&
+      playerIds.every(id=>known.some(p=>p.id===id&&p.gameStatus!=='dnp')),'lineup','Genau fünf nominierte Starter auswählen.',[e.id]);
+  }
   if (e.kind === 'stat') ensure(known.some(p=>p.id===e.payload.playerId) && Object.hasOwn(actions,e.payload.action),'stat','Unbekannter Spieler oder Statistikaktion.',[e.id]);
   if (e.kind === 'clock-start') ensure(Number.isSafeInteger(e.payload.startedAtMs) && e.payload.startedAtMs >= 0,'time','Ungültiger Zeitanker.');
   if (e.kind === 'clock-correction') ensure(Number.isInteger(e.payload.toRemainingMs) && e.payload.toRemainingMs >= 0 && e.payload.toRemainingMs <= duration(s,e.period),'time','Ungültige Uhrkorrektur.');

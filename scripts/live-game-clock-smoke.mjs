@@ -32,6 +32,14 @@ assert.throws(()=>add('period-start',300000,{},5));
 s=fresh();add('clock-start',600000,{startedAtMs:100000});add('clock-pause',500000);
 add('clock-correction',500000,{toRemainingMs:510000});
 assert.equal(projectLineups(s,999999).minutesMs.p1,90000);
+// The selected starters remain editable until the first clock start.
+s=createSession({...fresh(),schemaVersion:3});
+add('starting-five',600000,{playerIds:['p1','p2','p3','p4','p6']});
+let pregame=projectLineups(s,0);
+assert.deepEqual(pregame.onCourt.sort(),['p1','p2','p3','p4','p6']);
+assert.equal(pregame.playedIds.includes('p5'),false,'Ein vor Spielbeginn ersetzter Starter gilt nicht als eingesetzt.');
+add('clock-start',600000,{startedAtMs:100000});
+assert.throws(()=>add('starting-five',600000,{playerIds:['p1','p2','p3','p4','p5']}),/vor dem ersten Spielstart/);
 // Replacing an early switch must reject a later event for the now benched player.
 s=fresh();add('clock-start',600000,{startedAtMs:100000});add('clock-pause',500000);
 add('substitution',500000,{out:['p1'],in:['p6']});add('stat',500000,{playerId:'p6',action:'two-made'});

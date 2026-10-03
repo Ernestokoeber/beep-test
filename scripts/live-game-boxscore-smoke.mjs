@@ -22,6 +22,8 @@ assert.throws(()=>validateSession({...fresh(),schemaVersion:undefined}));
 assert.throws(()=>createSession({...fresh(),roster:fresh().roster.map(p=>({...p,jerseyNumber:'4'}))}));
 assert.throws(()=>appendEvent(fresh(1),event(fresh(1),'opponent-score',{points:2})));
 assert.throws(()=>appendEvent(fresh(2),event(fresh(2),'opponent-observation',{type:'paint'})));
+assert.throws(()=>appendEvent(fresh(2),event(fresh(2),'starting-five',{playerIds:['p1','p2','p3','p4','p6']})));
+assert.throws(()=>appendEvent(fresh(3),event(fresh(3),'starting-five',{playerIds:['p1','p2','p3','p4','p4']})));
 for(const payload of [{points:0},{points:4},{points:1.5},{points:'2'},{points:2,playerId:'p1'}])assert.throws(()=>appendEvent(s,event(s,'opponent-score',payload)));
 for(const payload of [{complete:1},{complete:'true'},{complete:true,playerId:'p1'}])assert.throws(()=>appendEvent(s,event(s,'score-coverage',payload)));
 console.log('Live boxscore: format and jersey validation passed.');

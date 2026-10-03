@@ -10,22 +10,29 @@ export function lineupAtEvent(boundaries,s,e) {
 function replay(s) {
   const events=effectiveEvents(s);
   let c={period:1,remainingMs:duration(s,1),running:false,ended:false,startedAtMs:null};
-  let onCourt=[...s.startingFive];
+  let onCourt=[...s.startingFive],gameplayStarted=false;
   const boundaries=[{at:0,onCourt:[...onCourt],seq:0,eventId:null}];
   const stats=[];
   const known=new Set(s.roster.map(p=>p.id));
   for(const e of events) {
     const at=position(s,e.period,e.remainingMs);
     if(e.kind==='roster'){for(const p of e.payload.players)known.add(p.id);ensure(known.size<=40,'roster','Höchstens 40 Spieler.');continue;}
-    if(e.kind==='stat'){ensure(known.has(e.payload.playerId),'roster','Spieler fehlt im Kader.',[e.id]);stats.push(e);continue;}
-    if(['opponent-score','score-coverage','opponent-observation','defense-change'].includes(e.kind)){stats.push(e);continue;}
+    if(e.kind==='starting-five'){
+      ensure(!gameplayStarted&&c.period===1&&!c.running&&c.remainingMs===duration(s,1),'lineup','Die Starting Five kann nur vor dem ersten Spielstart geändert werden.',[e.id]);
+      onCourt=[...e.payload.playerIds];boundaries[0]={at:0,onCourt:[...onCourt],seq:e.seq,eventId:e.id};continue;
+    }
+    if(e.kind==='stat'){gameplayStarted=true;ensure(known.has(e.payload.playerId),'roster','Spieler fehlt im Kader.',[e.id]);stats.push(e);continue;}
+    if(e.kind==='opponent-score'){gameplayStarted=true;stats.push(e);continue;}
+    if(['score-coverage','opponent-observation','defense-change'].includes(e.kind)){stats.push(e);continue;}
     ensure(!c.ended,'finished','Das Spiel wurde bereits beendet.',[e.id]);
     if(e.kind==='period-start') {
+      gameplayStarted=true;
       ensure(e.period===c.period+1 && c.remainingMs===0 && !c.running && e.remainingMs===duration(s,e.period),'period','Vorherigen Abschnitt zuerst bei 0:00 anhalten.',[e.id]);
       c={period:e.period,remainingMs:e.remainingMs,running:false,ended:false,startedAtMs:null};continue;
     }
     ensure(e.period===c.period,'period','Aktion gehört nicht zum aktuellen Abschnitt.',[e.id]);
     if(e.kind==='substitution') {
+      gameplayStarted=true;
       const out=e.payload.out, incoming=e.payload.in;
       ensure(incoming.every(id=>known.has(id)),'roster','Spieler fehlt im Kader.',[e.id]);
       ensure(!c.running && e.remainingMs===c.remainingMs,'running','Zum Wechsel die Spieluhr anhalten.',[e.id]);
@@ -42,11 +49,13 @@ function replay(s) {
       c.remainingMs=e.payload.toRemainingMs;c.needsCorrection=false;continue;
     }
     if(e.kind==='clock-start') {
+      gameplayStarted=true;
       ensure(!c.needsCorrection,'clock-skew','Gerätezeit geändert. Restzeit vor dem Start ausdrücklich korrigieren.',[e.id]);
       ensure(!c.running && e.remainingMs===c.remainingMs && e.remainingMs>0,'running','Spieluhr kann hier nicht gestartet werden.',[e.id]);
       c.running=true;c.startedAtMs=e.payload.startedAtMs;continue;
     }
     if(e.kind==='clock-pause' || e.kind==='finish') {
+      if(e.kind==='finish')gameplayStarted=true;
       ensure(e.remainingMs<=c.remainingMs && (c.running || e.remainingMs===c.remainingMs),'time','Ungültiger Zeitpunkt zum Anhalten.',[e.id]);
       ensure(at>=boundaries.at(-1).at,'time','Zeit liegt vor einem Wechsel.',[e.id]);
       c.remainingMs=e.remainingMs;c.running=false;c.startedAtMs=null;c.ended=e.kind==='finish';if(e.payload.clockSkew)c.needsCorrection=true;continue;

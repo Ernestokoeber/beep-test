@@ -766,14 +766,14 @@ async function testMatchday(browser, name, options) {
     await player.getByText('Würfe und weitere Werte', { exact: true }).tap();
     assert((await player.innerText()).includes('1/1'), `${name}: Wurfstatistik fehlt`);
     await page.locator('.live-report-dnp > summary').tap();
-    assert((await page.locator('.live-report-dnp').innerText()).includes('E2E Spieler 6 · DNP'), `${name}: Bankspieler fehlt`);
+    assert((await page.locator('.live-report-dnp').innerText()).includes('E2E Spieler 7 · DNP'), `${name}: DNP-Spieler fehlt`);
     await noOverflow('Auswertung mit aufgeklappten Details');
   }
   try {
     await page.goto(baseUrl + '/#/dashboard', { waitUntil: 'domcontentloaded' });
     await page.locator('#app > *').first().waitFor();
     const gameId = await page.evaluate(() => {
-      for (let i = 1; i <= 6; i++) window.BT.storage.upsertPlayer({ name: `E2E Spieler ${i}`, jerseyNumber: String(i) });
+      for (let i = 1; i <= 7; i++) window.BT.storage.upsertPlayer({ name: `E2E Spieler ${i}`, jerseyNumber: String(i) });
       const game = window.BT.storage.upsertGame({ date: '2026-09-30', home: 'TSV Lindau', away: 'E2E Gast', source: 'manual' });
       window.BT.storage.upsertOpponent({
         key: 'e2e-gast', name: 'E2E Gast', source: 'manual', games: [game],
@@ -787,8 +787,8 @@ async function testMatchday(browser, name, options) {
     await page.getByRole('button', { name: 'Kader & Starting Five festlegen', exact: true }).tap();
     await page.locator('[data-player-roster][data-status="bench"]').first().waitFor();
     const rosterButtons = page.locator('[data-player-roster][data-status="bench"]');
-    assert(await rosterButtons.count() === 6, `${name}: synthetischer Kader fehlt`);
-    for (let i = 0; i < 5; i++) await rosterButtons.nth(i).tap();
+    assert(await rosterButtons.count() === 7, `${name}: synthetischer Kader fehlt`);
+    for (let i = 0; i < 6; i++) await rosterButtons.nth(i).tap();
     await page.getByRole('button', { name: 'Starting Five', exact: true }).tap();
     const starterButtons = page.locator('[data-player-lineup][data-status="starter"]:visible');
     for (let i = 0; i < 5; i++) await starterButtons.nth(i).tap();
@@ -807,6 +807,13 @@ async function testMatchday(browser, name, options) {
     await noOverflow('Übersicht');
     await page.getByRole('button', { name: 'Zur Live-Ansicht' }).tap();
     await page.getByRole('button', { name: 'Uhr starten', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Starting Five ändern', exact: true }).tap();
+    await page.locator('[data-starting-five-player]').nth(4).uncheck();
+    await page.locator('[data-starting-five-player]').nth(5).check();
+    await page.getByRole('button', { name: 'Starting Five übernehmen', exact: true }).tap();
+    await page.locator('[data-player]').filter({ hasText: 'E2E Spieler 6' }).waitFor();
+    assert(await page.locator('[data-player]').filter({ hasText: 'E2E Spieler 5' }).count() === 0, `${name}: alter Starter bleibt vor Spielstart auf dem Feld`);
+    await noOverflow('Starting Five vor Spielstart geändert');
     await page.getByText(/Gegnerplan ·/).waitFor();
     await page.getByRole('button', { name: 'Paint / Drive +1', exact: true }).tap();
     await page.getByRole('button', { name: 'Paint / Drive +1', exact: true }).tap();

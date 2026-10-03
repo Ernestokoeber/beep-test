@@ -23,6 +23,8 @@ wird durch die lokale Browserabnahme nicht bestätigt.
    überspringen** behält bereits eingetragene Texte.
 4. Den vollständigen Gameplan prüfen und **Zur Live-Ansicht** öffnen. Das legt
    eine Erfassung an, friert den Gameplan ein und startet noch nicht die Spieluhr.
+   Die Starting Five kann in der Live-Ansicht bis zum ersten Start der Spieluhr
+   noch geändert werden. Danach ist sie für Einsatzzeit und Plus/Minus gesperrt.
 
 ## Während des Spiels
 

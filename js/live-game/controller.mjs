@@ -71,7 +71,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     const confirmScore=command.kind==='finish'&&Object.hasOwn(command.payload||{},'scoreComplete');
     if(confirmScore)ensure(s.schemaVersion>=2&&typeof command.payload.scoreComplete==='boolean'&&command.id.length<=111,'event','Ungültige Abschlussbestätigung.');
     if(command.kind==='undo-last'){
-      const target=effectiveEvents(s).filter(e=>['stat','opponent-score','substitution','roster','opponent-observation','defense-change'].includes(e.kind)).at(-1);
+      const target=effectiveEvents(s).filter(e=>['stat','opponent-score','substitution','starting-five','roster','opponent-observation','defense-change'].includes(e.kind)).at(-1);
       ensure(target,'undo','Keine rückgängig machbare Aktion.');
       command={...command,kind:'void',payload:{targetId:target.id}};
     }

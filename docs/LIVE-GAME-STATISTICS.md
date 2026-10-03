@@ -17,7 +17,9 @@ Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
    Nummern dürfen leer bleiben. Profiländerungen verändern diesen Spieltagskader
    nicht rückwirkend. Doppelte Nummern sind nicht zulässig.
 4. **Erfassung starten** legt das lokale Protokoll an; **Uhr starten** beginnt
-   erst danach die Spielzeit. Die Hallenuhr wird nicht ferngesteuert.
+   erst danach die Spielzeit. Über **Starting Five ändern** kann die Auswahl bis
+   zum ersten Uhrstart korrigiert werden. Danach sind Änderungen normale Wechsel.
+   Die Hallenuhr wird nicht ferngesteuert.
 
 ## Während des Spiels
 

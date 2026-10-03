@@ -8,7 +8,7 @@ const parseTime=value=>{const m=/^(\d{1,2}):([0-5]\d)$/.exec(value.trim());if(!m
 const playerLabel=p=>(p.jerseyNumber==null?'Ohne Nummer':'#'+p.jerseyNumber)+' · '+p.name;
 const observationLabels={paint:'Paint / Drive','open-three':'Offener Dreier',oreb:'Offensiv-Rebound','free-throw-pressure':'Freiwurfdruck'};
 const defenseLabels={man:'Mannverteidigung · No-Middle',zone212:'Zone 2-1-2',zone32:'Zone 3-2'};
-const eventLabel=e=>e.kind==='opponent-score'?'Gegner +'+e.payload.points:e.kind==='score-coverage'?(e.payload.complete?'Punkteverlauf bestätigt':'Punkteverlauf unvollständig'):e.kind==='opponent-observation'?'Gegner: '+(observationLabels[e.payload.type]||e.payload.type):e.kind==='defense-change'?'Defense: '+(defenseLabels[e.payload.defense]||e.payload.defense):(actions[e.payload.action]||e.kind);
+const eventLabel=e=>e.kind==='opponent-score'?'Gegner +'+e.payload.points:e.kind==='score-coverage'?(e.payload.complete?'Punkteverlauf bestätigt':'Punkteverlauf unvollständig'):e.kind==='starting-five'?'Starting Five geändert':e.kind==='opponent-observation'?'Gegner: '+(observationLabels[e.payload.type]||e.payload.type):e.kind==='defense-change'?'Defense: '+(defenseLabels[e.payload.defense]||e.payload.defense):(actions[e.payload.action]||e.kind);
 function jerseyField(parent,player){const n=field(parent,'Trikotnummer für dieses Spiel','text',player?.jerseyNumber??'');n.inputMode='numeric';n.maxLength=2;n.pattern='[0-9]{1,2}';return n;}
 
 export function mountLiveView(container,controller){
@@ -42,6 +42,13 @@ export function mountLiveView(container,controller){
     const short=field(f,'Unterzahl ausdrücklich bestätigen','checkbox','yes');
     submit(f,'Wechsel bestätigen',()=>send({kind:'substitution',payload:{out:out(),in:incoming(),allowShortHanded:short.checked}}));
   }
+  function startingFiveChange(){
+    const f=form('Starting Five ändern');
+    f.append(el('p','Bis zum ersten Start der Spieluhr kannst du genau fünf nominierte Spieler auswählen. Danach wird die Aufstellung für Einsatzzeit und Plus/Minus gesperrt.'));
+    const selected=checks(f,'Starting Five',current.roster.filter(p=>p.gameStatus!=='dnp'),current.lineups.onCourt);
+    for(const input of f.querySelectorAll('input[type="checkbox"]'))input.dataset.startingFivePlayer=input.value;
+    submit(f,'Starting Five übernehmen',()=>send({kind:'starting-five',payload:{playerIds:selected()}}));
+  }
   function clockCorrection(){const f=form('Uhr korrigieren');f.append(el('p','Uhr zuerst anhalten. Bei betroffenen Wechseln die Zeiten im Korrekturprotokoll gemeinsam ändern.'));
     const t=field(f,'Restzeit (MM:SS)','text',formatTime(current.clock.remainingMs));
     submit(f,'Restzeit übernehmen',()=>send({kind:'clock-correction',payload:{toRemainingMs:parseTime(t.value)}}));}
@@ -63,7 +70,7 @@ export function mountLiveView(container,controller){
     const f=form('Protokoll korrigieren');f.append(el('p','Nur geänderte Zeilen werden gemeinsam gespeichert. Ungültige Folgeaktionen werden nicht automatisch umgebucht.'));
     const changes=[];
     for(const e of effectiveEvents(current.session)){
-      if(['roster','period-start'].includes(e.kind))continue;
+      if(['roster','period-start','starting-five'].includes(e.kind))continue;
       const row=el('fieldset');row.id='live-event-'+e.id;row.append(el('legend','#'+e.seq+' · '+eventLabel(e)+' · Abschnitt '+e.period));
       const t=field(row,'Restzeit (MM:SS)','text',formatTime(e.remainingMs));
       const remove=field(row,'Aktion rückgängig machen','checkbox','yes');let payload=()=>e.payload;
@@ -108,6 +115,7 @@ export function mountLiveView(container,controller){
     if(s.needsTakeover){body.append(button('Erfassung auf diesem Gerät übernehmen',()=>confirmCommand('Erfassung übernehmen','Am bisherigen Gerät zuerst synchronisieren und die Erfassung schließen. Es wird eine fortsetzbare Kopie angelegt; die alte Sitzung bleibt erhalten.','takeover')));return;}
     if(s.clock.ended){body.append(el('h2','Spiel abgeschlossen'));body.append(button(correctionMode?'Korrekturmodus schließen':'Korrekturmodus öffnen',()=>{correctionMode=!correctionMode;signature='';render(current);}));if(!correctionMode)return;}
     if(!s.clock.ended){
+      const startingFiveOpen=s.session.schemaVersion>=3&&!effectiveEvents(s.session).some(e=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(e.kind));
       if(s.session.schemaVersion===1)body.append(el('p','Alte Erfassung: Gegnerpunkte und Plus/Minus sind hier nicht verfügbar. Neue Spiele unterstützen den vollständigen Punkteverlauf.','live-warning'));
       else {
         const opponent=el('section',undefined,'live-opponent');opponent.append(el('h2','Gegnerpunkte'));
@@ -120,7 +128,7 @@ export function mountLiveView(container,controller){
       for(const id of s.lineups.onCourt){const p=s.stats.players[id];const b=button(playerLabel(p)+' · '+p.points+' P · '+p.fouls+' F',()=>{chosen=id;signature='';render(current);});b.dataset.player=id;b.setAttribute('aria-pressed',String(chosen===id));players.append(b);}body.append(players);
       const actionGrid=el('div',undefined,'live-actions');for(const [id,label]of Object.entries(actions)){const b=button(label,async()=>{if(!chosen)return;const r=await send({kind:'stat',payload:{playerId:chosen,action:id}});if(r.ok){chosen=null;signature='';render(current);}});b.dataset.liveAction='stat';b.disabled=!chosen||s.busy;actionGrid.append(b);}body.append(actionGrid);
       if(Object.values(s.stats.players).some(p=>p.fouls>=5))body.append(el('p','Foulgrenze erreicht: Aufstellung prüfen. Kein automatischer Wechsel.','live-warning'));
-      const controls=el('div',undefined,'live-controls');controls.append(button(s.clock.running?'Uhr anhalten und wechseln':'Wechsel erfassen',substitutions),button('Letzte Aktion rückgängig',()=>send({kind:'undo-last'})),button('Uhr korrigieren',clockCorrection),button('Nächster Abschnitt',()=>confirmCommand('Nächsten Abschnitt vorbereiten',s.clock.period>=s.session.config.periods?'Eine Verlängerung vorbereiten? Uhr muss bei 0:00 stehen.':'Uhr muss bei 0:00 stehen. Der nächste Abschnitt startet pausiert.','period-start')),button('Spiel abschließen',()=>s.session.schemaVersion>=2?confirmScore(true):confirmCommand('Spiel abschließen','Die Uhr wird angehalten. Danach sind nur noch ausdrückliche Korrekturen möglich.','finish')));body.append(controls);
+      const controls=el('div',undefined,'live-controls');controls.append(button(startingFiveOpen?'Starting Five ändern':s.clock.running?'Uhr anhalten und wechseln':'Wechsel erfassen',startingFiveOpen?startingFiveChange:substitutions),button('Letzte Aktion rückgängig',()=>send({kind:'undo-last'})),button('Uhr korrigieren',clockCorrection),button('Nächster Abschnitt',()=>confirmCommand('Nächsten Abschnitt vorbereiten',s.clock.period>=s.session.config.periods?'Eine Verlängerung vorbereiten? Uhr muss bei 0:00 stehen.':'Uhr muss bei 0:00 stehen. Der nächste Abschnitt startet pausiert.','period-start')),button('Spiel abschließen',()=>s.session.schemaVersion>=2?confirmScore(true):confirmCommand('Spiel abschließen','Die Uhr wird angehalten. Danach sind nur noch ausdrückliche Korrekturen möglich.','finish')));body.append(controls);
     }
     body.append(button('Kader korrigieren',rosterCorrection),button('Protokoll korrigieren',corrections));
     if(s.clock.ended&&s.session.schemaVersion>=2){body.append(el('p',s.boxscore.plusMinusComplete?'Punkteverlauf vom Coach bestätigt.':'Plus/Minus ist vorläufig: Punkteverlauf prüfen.'),button('Punkteverlauf bestätigen',()=>confirmScore(false)));}

@@ -19,11 +19,11 @@ export async function openMatchday({gameId,scope,deps=browserDependencies(gameId
   let closed=false,chain=Promise.resolve(),busy=false,error=null,localStatus='empty';const listeners=new Set();
   const identityOK=()=>{const i=deps.getIdentity();return !closed&&i.actorId===scope.actorId&&i.organizationId===scope.organizationId&&i.sessionEpoch===scope.sessionEpoch;};
   const writable=()=>identityOK()&&['admin','coach','assistant'].includes(deps.getIdentity().role);
-  function draftFallback(legacyDraft=null){const s=live.getState().session;return s?{...emptyDraft(),...(!s.gameplan&&legacyDraft?clone(legacyDraft):{}),...(s.gameplan?clone(s.gameplan):{}),step:'review',roster:clone(s.roster),startingFive:clone(s.startingFive),config:clone(s.config)}:emptyDraft();}
+  function draftFallback(legacyDraft=null,liveState=live.getState()){const s=liveState.session;if(!s)return emptyDraft();const startingFive=clone(liveState.lineups?.boundaries?.[0]?.onCourt||s.startingFive),starterIds=new Set(startingFive);const roster=clone(liveState.roster||s.roster).map(player=>({...player,gameStatus:player.gameStatus==='dnp'?'dnp':starterIds.has(player.id)?'starter':'bench'}));return {...emptyDraft(),...(!s.gameplan&&legacyDraft?clone(legacyDraft):{}),...(s.gameplan?clone(s.gameplan):{}),step:'review',roster,startingFive,config:clone(s.config)};}
   function displayedDraft(selection,liveState){
     if(!liveState.session)return selection.draft||emptyDraft();
     const legacyDraft=selection.draft||envelope?.revisions.find(r=>selection.heads.includes(r.id))?.value;
-    const frozen=draftFallback(legacyDraft),closingNote=selection.draft?.closingNote||'';
+    const frozen=draftFallback(legacyDraft,liveState),closingNote=selection.draft?.closingNote||'';
     return {...frozen,closingNote};
   }
   function getState(){const selection=selectDraft(envelope),liveState=live.getState(),draft=displayedDraft(selection,liveState);return {...selection,draft,choices:clone(envelope?.revisions.filter(r=>selection.heads.includes(r.id))||[]),stage:deriveStage({draft,liveState,draftConflict:selection.conflict}),liveState,localStatus,error,busy,readOnly:!writable()};}
