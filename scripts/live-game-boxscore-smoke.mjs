@@ -25,6 +25,10 @@ assert.throws(()=>appendEvent(fresh(2),event(fresh(2),'opponent-observation',{ty
 assert.throws(()=>appendEvent(fresh(2),event(fresh(2),'starting-five',{playerIds:['p1','p2','p3','p4','p6']})));
 assert.throws(()=>appendEvent(fresh(3),event(fresh(3),'starting-five',{playerIds:['p1','p2','p3','p4','p4']})));
 for(const payload of [{points:0},{points:4},{points:1.5},{points:'2'},{points:2,playerId:'p1'}])assert.throws(()=>appendEvent(s,event(s,'opponent-score',payload)));
+let scorerSession=fresh(3);
+scorerSession=appendEvent(scorerSession,event(scorerSession,'opponent-score',{points:3,opponentPlayerId:'guard-7',opponentPlayerName:'Guard Gast'}));
+assert.equal(scorerSession.events[0].payload.opponentPlayerName,'Guard Gast');
+for(const payload of [{points:2,opponentPlayerId:'guard-7'},{points:2,opponentPlayerName:''},{points:2,opponentPlayerName:'Guard',extra:true}])assert.throws(()=>appendEvent(fresh(3),event(fresh(3),'opponent-score',payload)));
 for(const payload of [{complete:1},{complete:'true'},{complete:true,playerId:'p1'}])assert.throws(()=>appendEvent(s,event(s,'score-coverage',payload)));
 console.log('Live boxscore: format and jersey validation passed.');
 // Same-clock scoring must belong to the lineup on the correct side of a switch.

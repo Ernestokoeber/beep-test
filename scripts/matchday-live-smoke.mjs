@@ -8,7 +8,7 @@ const dom=new JSDOM('<main></main>',{url:'https://live.test'});globalThis.docume
 const f=await fixture(),c=await f.open();
 const plannedRoster=[...f.roster.map((player,index)=>({...player,gameStatus:index<5?'starter':'dnp',role:index===0?'Ballhandler':''})),{id:'bench',name:'Bankspieler',jerseyNumber:'7',gameStatus:'bench',role:''}];
 const game={id:'g',date:'2026-10-04',home:'Lindau',away:'Gast'};
-const opponentPlan=createOpponentPlan({game,context:{opponentId:'guest',opponent:'Gast',results:{games:3},teamStatistics:{gamesWithMadeProfile:3,twoMadeShare:80},topScorers:[],bestShooters:[],scouting:{},defenseRecommendation:{start:'man',alternative:'zone212',reasons:['Paint schützen'],triggers:['Zwei Paint-Touches: 2-1-2 prüfen.'],risk:'Drives',confidence:'medium'},dataQuality:{confidence:'medium',sources:['DBB.Scores-Screenshot']}}});
+const opponentPlan=createOpponentPlan({game,context:{opponentId:'guest',opponent:'Gast',results:{games:3},teamStatistics:{gamesWithMadeProfile:3,twoMadeShare:80},topScorers:[{id:'guard',name:'Guard Gast',games:3,pointsPerGame:15}],bestShooters:[],scouting:{},defenseRecommendation:{start:'man',alternative:'zone212',reasons:['Paint schützen'],triggers:['Zwei Paint-Touches: 2-1-2 prüfen.'],risk:'Drives',confidence:'medium'},dataQuality:{confidence:'medium',sources:['DBB.Scores-Screenshot']}}});
 await c.saveDraft({...emptyDraft(),ownSide:'home',step:'review',roster:plannedRoster,startingFive:plannedRoster.slice(0,5).map(p=>p.id),goals:'Rebounds sichern',tactics:[{id:'deleted',title:'Alte Taktik',usage:'offense'}],opponentPlan});await c.start();
 assert.equal((await c.live.dispatch({kind:'substitution',payload:{out:['p4'],in:['p5']}})).ok,false,'DNP darf auch über den Controller nicht eingewechselt werden.');
 const host=document.querySelector('main'),before=c.live.getState().session.events.length;
@@ -21,6 +21,8 @@ host.querySelector('[data-starting-five-player="p4"]').checked=false;host.queryS
 [...host.querySelectorAll('button')].find(button=>button.textContent==='Starting Five übernehmen').click();await c.idle();
 assert.ok(c.live.getState().lineups.onCourt.includes('bench'));assert.ok(!c.live.getState().lineups.onCourt.includes('p4'));
 assert.ok(c.getState().draft.startingFive.includes('bench'),'Die eingefrorene Anzeige übernimmt die korrigierte Starting Five nicht.');
+host.querySelector('[data-opponent-player="guard"]').click();[...host.querySelectorAll('button')].find(button=>button.textContent==='Gegner +2').click();await c.idle();
+const tagged=c.live.getState().session.events.find(event=>event.kind==='opponent-score');assert.equal(tagged.payload.opponentPlayerName,'Guard Gast');assert.equal(tagged.payload.opponentPlayerId,'guard');
 host.querySelector('[data-observation="paint"]').click();await c.idle();host.querySelector('[data-observation="paint"]').click();await c.idle();
 assert.match(host.querySelector('[data-role="live-scouting"]').textContent,/2-1-2 prüfen/,'Der Paint-Auslöser erzeugt keinen Live-Hinweis.');
 host.querySelector('[data-defense="zone212"]').click();await c.idle();assert.equal(c.live.getState().session.events.filter(event=>event.kind==='defense-change').length,1);assert.match(host.querySelector('[data-role="live-scouting"]').textContent,/Aktuell: Zone 2-1-2/);
@@ -37,6 +39,7 @@ await c.live.dispatch({kind:'period-start'});assert.equal(c.live.getState().cloc
 await c.live.dispatch({kind:'clock-start'});f.advance(600000);await c.refresh();assert.match(host.querySelector('[data-role="pause"]').textContent,/Halbzeit/);
 await c.live.dispatch({kind:'finish',payload:{scoreComplete:false}});assert.equal(c.getState().stage,'finished');assert.equal(note.value,'Nicht verlieren');
 assert.equal(feedback?.observations.paint,2,'Live-Beobachtungen werden nach Spielende nicht ins Gegnerprofil zurückgeführt.');assert.equal(feedback?.finalDefense,'zone212');
+assert.equal(feedback?.playerScoring[0].points,2);assert.match(host.querySelector('[data-role="report"]').textContent,/Gegner & Defense.*Guard Gast: 2 Punkte/s);
 assert.equal(host.firstElementChild.tagName,'P');
 const reportPosition=[...host.children].indexOf(host.querySelector('[data-role="report"]'));
 const toolsPosition=[...host.children].indexOf(host.querySelector('[data-role="live-tools"]'));

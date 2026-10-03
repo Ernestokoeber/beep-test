@@ -1,4 +1,5 @@
 import {effectiveEvents} from '../live-game/core.mjs';
+import {clockAt,position} from '../live-game/clock.mjs';
 
 export const DEFENSES=Object.freeze({
   man:'Mannverteidigung · No-Middle',
@@ -102,22 +103,51 @@ export function mergeAIPlan(plan,aiPlan){
 
 export function activeGamePlan(plan){return plan?.aiPlan||fallbackGamePlan(plan);}
 
-export function projectOpponentLive(session,plan){
+export function projectOpponentLive(session,plan,now=Date.now()){
   const events=session?effectiveEvents(session):[];
   const counts=Object.fromEntries(Object.keys(OBSERVATIONS).map(key=>[key,0]));
   const totalCounts={...counts};
   let currentDefense=plan?.defense?.start||'man',lastChangeSeq=0;
   const changes=[];
+  const byDefense=Object.fromEntries(Object.keys(DEFENSES).map(defense=>[defense,{defense,label:DEFENSES[defense],minutesMs:0,points:0,one:0,two:0,three:0,observations:Object.fromEntries(Object.keys(OBSERVATIONS).map(key=>[key,0]))}]));
+  const playerMap=new Map();
   for(const event of events){
     if(event.kind==='defense-change'){
       currentDefense=event.payload.defense;lastChangeSeq=event.seq;
       changes.push({defense:currentDefense,period:event.period,remainingMs:event.remainingMs,seq:event.seq});
     }
-    if(event.kind==='opponent-observation'&&Object.hasOwn(totalCounts,event.payload.type))totalCounts[event.payload.type]++;
+    if(event.kind==='opponent-observation'&&Object.hasOwn(totalCounts,event.payload.type)){
+      totalCounts[event.payload.type]++;byDefense[currentDefense].observations[event.payload.type]++;
+    }
+    if(event.kind==='opponent-score'){
+      const bucket=event.payload.points===1?'one':event.payload.points===2?'two':'three';
+      byDefense[currentDefense].points+=event.payload.points;byDefense[currentDefense][bucket]++;
+      if(event.payload.opponentPlayerName){
+        const key=event.payload.opponentPlayerId||event.payload.opponentPlayerName.toLocaleLowerCase('de-DE');
+        const player=playerMap.get(key)||{id:event.payload.opponentPlayerId||'',name:event.payload.opponentPlayerName,points:0,one:0,two:0,three:0};
+        player.points+=event.payload.points;player[bucket]++;playerMap.set(key,player);
+      }
+    }
   }
   for(const event of events){if(event.seq>lastChangeSeq&&event.kind==='opponent-observation'&&Object.hasOwn(counts,event.payload.type))counts[event.payload.type]++;}
   const opponentScores=events.filter(event=>event.kind==='opponent-score');
   const made={one:opponentScores.filter(event=>event.payload.points===1).length,two:opponentScores.filter(event=>event.payload.points===2).length,three:opponentScores.filter(event=>event.payload.points===3).length};
+  if(session){
+    const currentClock=clockAt(session,now),end=position(session,currentClock.period,currentClock.remainingMs);
+    let defense=plan?.defense?.start||'man',start=0;
+    for(const event of events.filter(item=>item.kind==='defense-change')){
+      const at=Math.max(start,Math.min(end,position(session,event.period,event.remainingMs)));
+      byDefense[defense].minutesMs+=Math.max(0,at-start);defense=event.payload.defense;start=at;
+    }
+    byDefense[defense].minutesMs+=Math.max(0,end-start);
+  }
+  for(const item of Object.values(byDefense))item.pointsPer10=item.minutesMs?Math.round(item.points*6000000/item.minutesMs)/10:null;
+  const playerScoring=[...playerMap.values()].sort((left,right)=>right.points-left.points||left.name.localeCompare(right.name,'de'));
+  const comparable=Object.values(byDefense).filter(item=>item.minutesMs>=120000).sort((left,right)=>left.pointsPer10-right.pointsPer10);
+  const comparison=comparable.length>=2?{
+    bestDefense:comparable[0].defense,
+    message:`${comparable[0].label} hat bisher mit ${comparable[0].pointsPer10.toLocaleString('de-DE')} Gegnerpunkten pro 10 Spielminuten den niedrigsten Wert. Kleine Stichprobe beachten.`
+  }:null;
   let unanswered=0,maxUnanswered=0;
   for(const event of events){
     if(event.kind==='opponent-score'){unanswered+=event.payload.points;maxUnanswered=Math.max(maxUnanswered,unanswered);}
@@ -131,7 +161,7 @@ export function projectOpponentLive(session,plan){
   if(counts['free-throw-pressure']>=2)add('free-throw-pressure','Wiederholter Freiwurfdruck: No-Middle, vertikale Hilfe und Hände zurück betonen.','man');
   if(made.three>=3&&currentDefense!=='zone32')add('three-made','Mindestens drei gegnerische Dreier erfasst: Perimeter-Abdeckung und 3-2 prüfen.','zone32');
   if(unanswered>=6)add('run',`${unanswered} unbeantwortete Gegnerpunkte: stoppen, Matchups klären und Defense bewusst bestätigen.`,currentDefense);
-  return {currentDefense,currentDefenseLabel:DEFENSES[currentDefense],counts,totalCounts,made,unanswered,maxUnanswered,changes,suggestions};
+  return {currentDefense,currentDefenseLabel:DEFENSES[currentDefense],counts,totalCounts,made,unanswered,maxUnanswered,changes,suggestions,byDefense,playerScoring,comparison};
 }
 
 export function buildOpponentFeedback({game,plan,session,now=Date.now()}={}){
@@ -143,6 +173,8 @@ export function buildOpponentFeedback({game,plan,session,now=Date.now()}={}){
     opponentId:plan.opponentId,opponent:plan.opponent,
     observations:{...live.totalCounts},opponentMakes:{...live.made},
     defenseChanges:live.changes.map(item=>({defense:item.defense,period:item.period,remainingMs:item.remainingMs})),
+    defenseSummary:Object.values(live.byDefense).map(item=>({...item,observations:{...item.observations}})),
+    playerScoring:live.playerScoring.map(item=>({...item})),
     finalDefense:live.currentDefense
   };
 }

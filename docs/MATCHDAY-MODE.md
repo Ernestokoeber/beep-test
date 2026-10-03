@@ -30,7 +30,12 @@ wird durch die lokale Browserabnahme nicht bestätigt.
 
 Die vorhandenen Aktionen für eigene Spieler, Gegnerpunkte, Wechsel, Uhr und
 Korrekturen bleiben frei bedienbar. Es gibt keinen Pflicht-Assistenten zwischen
-Statistikaktionen. Der aufgeklappte **Gegnerplan** zeigt die aktuelle Defense und
+Statistikaktionen. Bekannte gegnerische Topscorer und Schützen können vor **Gegner
++1/+2/+3** optional ausgewählt werden. Ohne Auswahl bleibt die schnelle
+Teamerfassung unverändert; nach einem Treffer wird die Auswahl zurückgesetzt,
+damit der nächste Punkt nicht versehentlich demselben Spieler zugeordnet wird.
+Eine falsche Zuordnung kann im Protokoll korrigiert oder entfernt werden.
+Der aufgeklappte **Gegnerplan** zeigt die aktuelle Defense und
 vier schnelle Beobachtungen: Paint/Drive, offener Dreier, Offensiv-Rebound und
 Freiwurfdruck. Die Buttons für Mannverteidigung, 2-1-2 und 3-2 protokollieren die
 bewusste Trainerentscheidung. CourtHub zeigt bei wiederholten Beobachtungen einen
@@ -44,7 +49,9 @@ Einwechslung angeboten. Nur die Abschlussnotiz bleibt bearbeitbar.
 Bei 0:00 erscheint eine Abschnitts- bzw. Halbzeitübersicht. Der nächste Abschnitt
 wird bewusst vorbereitet und gestartet. Zur Halbzeit stehen dort zusätzlich
 aktueller Gegnerstand, Defense, Beobachtungszähler, KI-Prüffragen und erreichte
-Wechsel-Auslöser. Ein Pausieren mitten im Viertel ist
+Wechsel-Auslöser. Außerdem werden die manuell erfassten Gegnerpunkte je gespielter
+Defense, Trefferart, Spielzeit und Punkte pro zehn Spielminuten verglichen.
+Zugeordnete gegnerische Werfer stehen separat darunter. Ein Pausieren mitten im Viertel ist
 keine Viertelpause. Die Hallenuhr wird nicht ferngesteuert. Auch beim Verlassen
 oder Schließen läuft die gestartete App-Uhr rechnerisch bis 0:00 weiter.
 
@@ -89,7 +96,11 @@ ankreuzen; ohne Bestätigung bleiben Werte vorläufig. Nachträgliche Notizen
 verändern weder Statistik noch Uhr.
 
 Nach dem Abschluss übernimmt CourtHub die protokollierten Beobachtungen,
-gegnerischen Trefferarten und Defense-Wechsel in das passende Gegnerprofil. Ein
+gegnerischen Trefferarten, optional zugeordneten Werfer, Defense-Spielzeiten und
+Defense-Wechsel in das passende Gegnerprofil. Der Abschlussbericht enthält dazu
+den Abschnitt **Gegner & Defense**. „Punkte pro 10 Minuten“ ist keine
+possession-bereinigte Effizienz und wird bei kleinen Stichproben entsprechend
+vorsichtig bezeichnet. Ein
 erneutes Öffnen desselben Spiels erzeugt keinen doppelten Bericht. Diese eigenen
 Live-Beobachtungen fließen damit vorsichtig in spätere Defense-Empfehlungen ein.
 

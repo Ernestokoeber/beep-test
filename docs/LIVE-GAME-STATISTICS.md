@@ -25,8 +25,11 @@ Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
 
 - Spieler antippen, anschließend Treffer, Fehlwurf, Rebound oder andere Aktion.
   Jede Aktion wird vor der Anzeige in IndexedDB gespeichert.
-- Gegnerische Treffer ohne Spielerauswahl über **Gegner +1**, **+2**, **+3** erfassen.
-  Eigene Treffer ausschließlich beim jeweiligen Spieler buchen. Angezeigt wird
+- Gegnerische Treffer über **Gegner +1**, **+2**, **+3** erfassen. Ist ein
+  Gegnerplan mit bekannten Topscorern oder Schützen vorhanden, kann der Werfer
+  vorher optional ausgewählt werden. Ohne Auswahl werden die Punkte weiterhin
+  vollständig als Teampunkte gewertet. Nach jeder Buchung wird die optionale
+  Werferauswahl zurückgesetzt. Eigene Treffer ausschließlich beim jeweiligen Spieler buchen. Angezeigt wird
   der selbst erfasste, nicht der offizielle Spielstand.
 - Spieluhr bei Unterbrechungen selbst stoppen. Nur laufende Spielzeit zählt.
 - **Uhr anhalten und wechseln** stoppt zuerst die Uhr. Aus- und Einwechslungen
@@ -88,6 +91,12 @@ zusätzlicher Bestätigung löschen. Vorher auch andere Geräte synchronisieren.
 im Korrekturmodus. **Live-Auswertung** zeigt Punkte, FT/2P/3P, FG, Quoten,
 OREB/DREB/REB, AST/STL/BLK/TO/PF, Einsatzminuten und Aufstellungsverlauf.
 
+Im Spieltag-Modus ergänzt **Gegner & Defense** die manuell erfassten Gegnerpunkte
+und Beobachtungen je Mannverteidigung, 2-1-2 und 3-2. Angezeigt werden Einsatzzeit,
+Punkte, Trefferarten und Punkte pro zehn Spielminuten sowie optional zugeordnete
+gegnerische Werfer. Diese Rate ist nicht possession-bereinigt und ersetzt keine
+vollständige Video- oder Boxscoreanalyse.
+
 Zusätzlich zeigt der Bericht Spieltagsnummer, **Gespielt** bzw. **DNP – nicht
 eingesetzt** und Plus/Minus. Während des Spiels heißt DNP noch „Noch nicht
 eingesetzt“. Auch eine Einwechslung ohne verstrichene Sekunde zählt als Einsatz;
@@ -108,15 +117,16 @@ Ein passender Endstand allein beweist keine korrekte Zuordnung zu Spielern.
 
 Alte Erfassungen (Format 1) bleiben unverändert nutzbar, ohne Gegnerpunkte und
 ohne geschätztes Plus/Minus. Format 2 ergänzt Gegnerpunkte und Plus/Minus. Neue
-Spieltage verwenden Format 3 für schnelle Gegnerbeobachtungen und bestätigte
-Defense-Wechsel. Vor einem neuen Spiel die App auf allen Geräten online
+Spieltage verwenden Format 3 für schnelle Gegnerbeobachtungen, bestätigte
+Defense-Wechsel und optionale gegnerische Werferzuordnung. Vor einem neuen Spiel die App auf allen Geräten online
 aktualisieren. Bei einer nicht unterstützten Datenversion aktualisieren, niemals
 Browserdaten löschen oder eine neue Erfassung über die alte schreiben.
 
 Live-Auswertung, bestehender manueller Boxscore und Atlas bleiben unabhängige
 Quellen. Keine automatische Addition oder Übertragung zwischen ihnen. Bei
 eindeutiger Lindau-Zuordnung wird eine Differenz zum gepflegten Ergebnis gezeigt.
-Keine individuellen Gegnerstatistiken und keine API zur offiziellen Ergebnis-App.
+Die optionalen Gegnerwerte stammen ausschließlich aus der manuellen
+Live-Zuordnung; es gibt weiterhin keine API zur offiziellen Ergebnis-App.
 
 ## Technische Abnahme
 

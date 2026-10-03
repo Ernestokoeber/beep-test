@@ -759,6 +759,8 @@ async function testMatchday(browser, name, options) {
     assert(await page.locator('.live-report-score [data-team="own"] strong').innerText() === '2', `${name}: eigene Punkte fehlen`);
     assert(await page.locator('.live-report-score [data-team="opponent"] strong').innerText() === '3', `${name}: Gegnerpunkte fehlen`);
     assert(await page.locator('.live-report-status').getAttribute('data-state') === 'confirmed', `${name}: Abschlussbestätigung fehlt`);
+    const opponentAnalysis = await page.locator('.matchday-opponent-analysis').innerText();
+    assert(opponentAnalysis.includes('Gegner & Defense') && opponentAnalysis.includes('E2E Guard: 3 Punkte'), `${name}: Gegner- oder Defense-Auswertung fehlt`);
     const player = page.locator('.live-report-player').filter({ hasText: 'E2E Spieler 1' });
     const metrics = await player.locator('.live-report-player-quick dt').evaluateAll(labels =>
       Object.fromEntries(labels.map(label => [label.textContent, label.nextElementSibling.textContent])));
@@ -778,7 +780,7 @@ async function testMatchday(browser, name, options) {
       window.BT.storage.upsertOpponent({
         key: 'e2e-gast', name: 'E2E Gast', source: 'manual', games: [game],
         scouting: { insideThreat: 'high', perimeterThreat: 'medium', highPostPassing: 'low', offensiveRebounding: 'medium', primaryScorerArea: 'inside', notes: 'E2E: früher Ringdruck.' },
-        manualTotals: {}, playerStats: []
+        manualTotals: {}, playerStats: [{ id: 'e2e-guard', name: 'E2E Guard', games: 3, points: 45, fouls: 6, threeMade: 5, threeAttempted: 14 }]
       });
       return game.id;
     });
@@ -829,6 +831,7 @@ async function testMatchday(browser, name, options) {
     await page.locator('[data-player]').first().tap();
     await page.getByRole('button', { name: 'Zweier getroffen', exact: true }).tap();
     await page.locator('.live-clock').filter({ hasText: 'Eigene 2' }).waitFor();
+    await page.getByRole('button', { name: 'E2E Guard', exact: true }).tap();
     await page.getByRole('button', { name: 'Gegner +3', exact: true }).tap();
     await page.locator('.live-clock').filter({ hasText: 'Gegner 3' }).waitFor();
     await noOverflow('Live-Erfassung');

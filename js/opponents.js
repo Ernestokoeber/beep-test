@@ -399,11 +399,26 @@ BT.opponents = (function() {
     const profile = BT.storage.getOpponents().find(item => item.id === feedback.opponentId || keyFor(item.name) === keyFor(feedback.opponent));
     if (!profile) return null;
     const reports = (Array.isArray(profile.matchdayReports) ? profile.matchdayReports : []).filter(item => item.gameId !== feedback.gameId);
+    const defenseSummary = (Array.isArray(feedback.defenseSummary) ? feedback.defenseSummary : []).slice(0, 3).map(item => {
+      const defense = Object.hasOwn(DEFENSE_LABELS, item?.defense) ? item.defense : 'man';
+      const minutesMs = normalizedNumber(item?.minutesMs), points = normalizedNumber(item?.points);
+      return {
+        defense, label: DEFENSE_LABELS[defense], minutesMs, points,
+        pointsPer10: minutesMs ? Math.round(points * 6000000 / minutesMs) / 10 : null,
+        one: normalizedNumber(item?.one), two: normalizedNumber(item?.two), three: normalizedNumber(item?.three),
+        observations: Object.fromEntries(['paint', 'open-three', 'oreb', 'free-throw-pressure'].map(key => [key, normalizedNumber(item?.observations?.[key])]))
+      };
+    });
+    const playerScoring = (Array.isArray(feedback.playerScoring) ? feedback.playerScoring : []).slice(0, 20).map(item => ({
+      id: String(item?.id || '').slice(0, 120), name: String(item?.name || '').trim().slice(0, 100),
+      points: normalizedNumber(item?.points), one: normalizedNumber(item?.one), two: normalizedNumber(item?.two), three: normalizedNumber(item?.three)
+    })).filter(item => item.name);
     reports.push({
       gameId: String(feedback.gameId), date: String(feedback.date || ''), recordedAt: String(feedback.recordedAt || new Date().toISOString()),
       observations: Object.fromEntries(['paint', 'open-three', 'oreb', 'free-throw-pressure'].map(key => [key, normalizedNumber(feedback.observations?.[key])])),
       opponentMakes: Object.fromEntries(['one', 'two', 'three'].map(key => [key, normalizedNumber(feedback.opponentMakes?.[key])])),
       defenseChanges: (Array.isArray(feedback.defenseChanges) ? feedback.defenseChanges : []).slice(0, 30).map(item => ({ defense: ['man', 'zone212', 'zone32'].includes(item.defense) ? item.defense : 'man', period: normalizedNumber(item.period), remainingMs: normalizedNumber(item.remainingMs) })),
+      defenseSummary, playerScoring,
       finalDefense: ['man', 'zone212', 'zone32'].includes(feedback.finalDefense) ? feedback.finalDefense : 'man'
     });
     reports.sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')));
@@ -614,7 +629,7 @@ BT.opponents = (function() {
         <p><strong>Risiko:</strong> ${BT.util.escapeHTML(defense.risk)}</p>
         <div><strong>Wechsel-Auslöser</strong><ul>${defense.triggers.map(trigger => `<li>${BT.util.escapeHTML(trigger)}</li>`).join('')}</ul></div>
       </section>
-      ${liveReports.length ? `<section class="boxscore-panel opponent-live-history"><div class="section-head compact"><div><span class="section-kicker">Eigene Spiele</span><h3>CourtHub-Livebeobachtungen</h3></div></div>${liveReports.slice().reverse().map(report => `<article><strong>${BT.util.escapeHTML(report.date || 'Spieltag')}</strong><span>Paint ${normalizedNumber(report.observations?.paint)} · offene 3er ${normalizedNumber(report.observations?.['open-three'])} · OREB ${normalizedNumber(report.observations?.oreb)} · FW-Druck ${normalizedNumber(report.observations?.['free-throw-pressure'])}</span></article>`).join('')}</section>` : ''}
+      ${liveReports.length ? `<section class="boxscore-panel opponent-live-history"><div class="section-head compact"><div><span class="section-kicker">Eigene Spiele</span><h3>CourtHub-Livebeobachtungen</h3></div></div>${liveReports.slice().reverse().map(report => `<article><strong>${BT.util.escapeHTML(report.date || 'Spieltag')}</strong><span>Paint ${normalizedNumber(report.observations?.paint)} · offene 3er ${normalizedNumber(report.observations?.['open-three'])} · OREB ${normalizedNumber(report.observations?.oreb)} · FW-Druck ${normalizedNumber(report.observations?.['free-throw-pressure'])}</span>${(report.defenseSummary||[]).filter(item=>item.minutesMs).map(item=>`<span>${BT.util.escapeHTML(item.label||DEFENSE_LABELS[item.defense]||item.defense)}: ${(normalizedNumber(item.minutesMs)/60000).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} Min · ${normalizedNumber(item.points)} P · ${item.pointsPer10===null||item.pointsPer10===undefined?'–':normalizedNumber(item.pointsPer10).toLocaleString('de-DE')} P/10</span>`).join('')}${report.playerScoring?.length?`<span>Werfer: ${report.playerScoring.map(player=>`${BT.util.escapeHTML(player.name)} ${normalizedNumber(player.points)} P`).join(' · ')}</span>`:''}</article>`).join('')}</section>` : ''}
       <section class="boxscore-panel"><div class="section-head compact"><div><span class="section-kicker">Leistungsträger</span><h3>Topscorer aus erfassten Daten</h3></div></div>
         ${top.length ? `<div class="opponent-leaders">${top.map(player => `<div><strong>${BT.util.escapeHTML(player.name)}</strong><span>${valueOrDash(player.pointsPerGame)} PPG · ${valueOrDash(player.foulsPerGame)} Fouls · ${valueOrDash(player.threePointPct, ' % 3P')}</span></div>`).join('')}</div>` : '<p class="muted">Noch keine geprüften Spielerwerte. Punkte sind nicht automatisch eine Wurfquote.</p>'}
       </section>

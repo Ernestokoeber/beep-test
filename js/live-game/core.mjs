@@ -67,7 +67,13 @@ function validateEvent(s,e) {
   if(['opponent-score','score-coverage'].includes(e.kind)){
     ensure(s.schemaVersion>=2,'schema','Gegnerpunkte benötigen eine neue Erfassung mit Format 2.');
     const field=e.kind==='opponent-score'?'points':'complete';
-    ensure(Object.keys(e.payload).length===1 && Object.hasOwn(e.payload,field) &&
+    if(e.kind==='opponent-score'&&s.schemaVersion>=3){
+      const keys=Object.keys(e.payload),hasPlayer=Object.hasOwn(e.payload,'opponentPlayerId')||Object.hasOwn(e.payload,'opponentPlayerName');
+      ensure(keys.every(key=>['points','opponentPlayerId','opponentPlayerName'].includes(key))&&Object.hasOwn(e.payload,'points')&&[1,2,3].includes(e.payload.points)&&
+        (!hasPlayer||(typeof e.payload.opponentPlayerName==='string'&&e.payload.opponentPlayerName.trim().length>0&&e.payload.opponentPlayerName.length<=100&&
+          (!Object.hasOwn(e.payload,'opponentPlayerId')||idOK(e.payload.opponentPlayerId)))),
+        'event','Ungültige Gegnerpunkte oder Spielerzuordnung.');
+    }else ensure(Object.keys(e.payload).length===1 && Object.hasOwn(e.payload,field) &&
       (field==='points'?[1,2,3].includes(e.payload.points):typeof e.payload.complete==='boolean'),
       'event','Ungültige Gegnerpunkte oder Vollständigkeitsangabe.');
   }

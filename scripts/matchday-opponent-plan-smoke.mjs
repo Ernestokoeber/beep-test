@@ -26,4 +26,14 @@ add('opponent-observation',{type:'open-three'});add('opponent-observation',{type
 add('finish',{});const feedback=buildOpponentFeedback({game,plan,session});
 assert.deepEqual(feedback.observations,{paint:2,'open-three':2,oreb:0,'free-throw-pressure':0});assert.equal(feedback.finalDefense,'zone212');assert.equal(feedback.recordedAt,'2026-10-04T15:00:00Z');
 assert.throws(()=>appendEvent(session,{id:'bad',sessionId:'session',seq:session.events.length+1,kind:'opponent-observation',period:1,remainingMs:0,recordedAt:'2026-10-04T15:00:00Z',payload:{type:'erfunden'}}));
-console.log('Matchday Gegnerplan: Snapshot, KI-Plan, Live-Auslöser, Defense-Wechsel und Rückführung erfolgreich.');
+
+let timed=createSession({schemaVersion:3,id:'timed',deviceId:'phone',actorId:'coach',roster,startingFive:roster.map(player=>player.id),config:{periods:4,periodMs:600000,overtimeMs:300000},gameplan:{ownSide:'home',kind:'match',goals:'',warmup:'',coachingNote:'',tactics:[],opponentPlan:plan}});
+const timedAdd=(kind,payload={},remainingMs=600000)=>{timed=appendEvent(timed,{id:'timed-'+(timed.events.length+1),sessionId:'timed',seq:timed.events.length+1,kind,period:1,remainingMs,recordedAt:'2026-10-04T15:00:00Z',payload});};
+timedAdd('clock-start',{startedAtMs:0});timedAdd('opponent-score',{points:2,opponentPlayerId:'luca',opponentPlayerName:'Luca Tillinger'},540000);timedAdd('clock-pause',{},300000);
+timedAdd('defense-change',{defense:'zone212'},300000);timedAdd('clock-start',{startedAtMs:300000},300000);timedAdd('opponent-score',{points:3,opponentPlayerId:'luca',opponentPlayerName:'Luca Tillinger'},180000);timedAdd('clock-pause',{},0);timedAdd('finish',{},0);
+const compared=projectOpponentLive(timed,plan,600000);
+assert.equal(compared.byDefense.man.minutesMs,300000);assert.equal(compared.byDefense.man.pointsPer10,4);
+assert.equal(compared.byDefense.zone212.minutesMs,300000);assert.equal(compared.byDefense.zone212.pointsPer10,6);
+assert.equal(compared.comparison.bestDefense,'man');assert.deepEqual(compared.playerScoring[0],{id:'luca',name:'Luca Tillinger',points:5,one:0,two:1,three:1});
+const timedFeedback=buildOpponentFeedback({game,plan,session:timed});assert.equal(timedFeedback.defenseSummary[0].minutesMs,300000);assert.equal(timedFeedback.playerScoring[0].points,5);
+console.log('Matchday Gegnerplan: Snapshot, KI-Plan, Live-Auslöser, Defense-Vergleich, Werfer und Rückführung erfolgreich.');

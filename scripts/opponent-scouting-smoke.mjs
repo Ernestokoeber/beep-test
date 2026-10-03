@@ -69,10 +69,12 @@ assert(context.topScorers[0].name === 'Guard A' && context.teamStatistics.teamFo
 otto.games[0].opponentTeamStats = { fouls: 17, completeFouls: true };
 window.BT.opponents.syncLeague(leagueGames, { teamName: 'TSV Lindau', teamId: 258298 });
 assert(opponents.find(item => item.teamId === 165633).games.some(game => game.opponentTeamStats?.fouls === 17), 'Bestätigte Screenshot-Daten gehen bei erneutem TeamSL-Sync verloren');
-window.BT.opponents.recordMatchdayFeedback({gameId:'cup',date:'2026-10-04',recordedAt:'2026-10-04T18:30:00Z',opponentId:otto.id,opponent:otto.name,observations:{paint:4,'open-three':1,oreb:2,'free-throw-pressure':1},opponentMakes:{one:10,two:18,three:4},defenseChanges:[{defense:'zone212',period:2,remainingMs:300000}],finalDefense:'zone212'});
-window.BT.opponents.recordMatchdayFeedback({gameId:'cup',date:'2026-10-04',recordedAt:'2026-10-04T18:30:00Z',opponentId:otto.id,opponent:otto.name,observations:{paint:4,'open-three':1,oreb:2,'free-throw-pressure':1},opponentMakes:{one:10,two:18,three:4},defenseChanges:[{defense:'zone212',period:2,remainingMs:300000}],finalDefense:'zone212'});
+const feedback={gameId:'cup',date:'2026-10-04',recordedAt:'2026-10-04T18:30:00Z',opponentId:otto.id,opponent:otto.name,observations:{paint:4,'open-three':1,oreb:2,'free-throw-pressure':1},opponentMakes:{one:10,two:18,three:4},defenseChanges:[{defense:'zone212',period:2,remainingMs:300000}],defenseSummary:[{defense:'man',minutesMs:600000,points:12,one:2,two:2,three:2,observations:{paint:2}},{defense:'zone212',minutesMs:600000,points:8,one:0,two:4,three:0,observations:{paint:1}}],playerScoring:[{id:'a',name:'Guard A',points:9,one:0,two:3,three:1}],finalDefense:'zone212'};
+window.BT.opponents.recordMatchdayFeedback(feedback);
+window.BT.opponents.recordMatchdayFeedback(feedback);
 const liveContext=window.BT.opponents.contextForProfile(opponents.find(item=>item.id===otto.id));
 assert(liveContext.matchdayReports.length===1&&liveContext.dataQuality.sources.includes('CourtHub-Livebeobachtung'),'Live-Beobachtungen werden nicht idempotent ins Gegnerprofil zurückgeführt');
+assert(liveContext.matchdayReports[0].defenseSummary[1].pointsPer10===8&&liveContext.matchdayReports[0].playerScoring[0].points===9,'Defense-Vergleich oder gegnerische Werfer werden nicht gespeichert');
 
 const inside = {
   id: 'inside', key: 'inside-team', name: 'Inside Team', games: leagueGames.slice(1),

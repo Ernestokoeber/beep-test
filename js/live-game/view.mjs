@@ -8,12 +8,17 @@ const parseTime=value=>{const m=/^(\d{1,2}):([0-5]\d)$/.exec(value.trim());if(!m
 const playerLabel=p=>(p.jerseyNumber==null?'Ohne Nummer':'#'+p.jerseyNumber)+' · '+p.name;
 const observationLabels={paint:'Paint / Drive','open-three':'Offener Dreier',oreb:'Offensiv-Rebound','free-throw-pressure':'Freiwurfdruck'};
 const defenseLabels={man:'Mannverteidigung · No-Middle',zone212:'Zone 2-1-2',zone32:'Zone 3-2'};
-const eventLabel=e=>e.kind==='opponent-score'?'Gegner +'+e.payload.points:e.kind==='score-coverage'?(e.payload.complete?'Punkteverlauf bestätigt':'Punkteverlauf unvollständig'):e.kind==='starting-five'?'Starting Five geändert':e.kind==='opponent-observation'?'Gegner: '+(observationLabels[e.payload.type]||e.payload.type):e.kind==='defense-change'?'Defense: '+(defenseLabels[e.payload.defense]||e.payload.defense):(actions[e.payload.action]||e.kind);
+const eventLabel=e=>e.kind==='opponent-score'?`Gegner${e.payload.opponentPlayerName?' · '+e.payload.opponentPlayerName:''} +${e.payload.points}`:e.kind==='score-coverage'?(e.payload.complete?'Punkteverlauf bestätigt':'Punkteverlauf unvollständig'):e.kind==='starting-five'?'Starting Five geändert':e.kind==='opponent-observation'?'Gegner: '+(observationLabels[e.payload.type]||e.payload.type):e.kind==='defense-change'?'Defense: '+(defenseLabels[e.payload.defense]||e.payload.defense):(actions[e.payload.action]||e.kind);
+const opponentCandidates=session=>{
+  const plan=session?.gameplan?.opponentPlan,list=[...(plan?.topScorers||[]),...(plan?.bestShooters||[])],seen=new Set(),result=[];
+  for(const item of list){const name=String(item?.name||'').trim(),id=String(item?.id||'').trim(),key=id||name.toLocaleLowerCase('de-DE');if(!name||seen.has(key))continue;seen.add(key);result.push({id,name,key});if(result.length===6)break;}
+  return result;
+};
 function jerseyField(parent,player){const n=field(parent,'Trikotnummer für dieses Spiel','text',player?.jerseyNumber??'');n.inputMode='numeric';n.maxLength=2;n.pattern='[0-9]{1,2}';return n;}
 
 export function mountLiveView(container,controller){
   container.classList.add('live-game');
-  let chosen=null,mode=null,signature='',current,correctionMode=false,inFlight=false;
+  let chosen=null,opponentChosen=null,mode=null,signature='',current,correctionMode=false,inFlight=false;
   const status=el('p','','live-status');status.setAttribute('role','status');
   const header=el('header',undefined,'live-clock'),clockText=el('strong',''),periodText=el('span','');
   const start=button('Uhr starten',()=>send({kind:current.clock.running?'clock-pause':'clock-start'}));
@@ -79,7 +84,11 @@ export function mountLiveView(container,controller){
         const a=select(row,'Aktion',Object.entries(actions),e.payload.action);
         payload=()=>({playerId:p.value,action:a.value});
       }else if(e.kind==='opponent-score'){
-        const points=select(row,'Gegnerpunkte',[[1,'1 Punkt'],[2,'2 Punkte'],[3,'3 Punkte']],e.payload.points);payload=()=>({points:+points.value});
+        const points=select(row,'Gegnerpunkte',[[1,'1 Punkt'],[2,'2 Punkte'],[3,'3 Punkte']],e.payload.points);
+        const candidates=opponentCandidates(current.session),currentPlayer=e.payload.opponentPlayerName?{id:e.payload.opponentPlayerId||'',name:e.payload.opponentPlayerName,key:e.payload.opponentPlayerId||'event'}:null;
+        if(currentPlayer&&!candidates.some(item=>item.id&&item.id===currentPlayer.id||item.name===currentPlayer.name))candidates.push(currentPlayer);
+        const scorer=select(row,'Gegnerischer Werfer',[['','Nicht zugeordnet'],...candidates.map((item,index)=>[String(index),item.name])],currentPlayer?String(candidates.findIndex(item=>item.id&&item.id===currentPlayer.id||item.name===currentPlayer.name)):'');
+        payload=()=>{const player=candidates[+scorer.value];return {points:+points.value,...(scorer.value!==''&&player?{...(player.id?{opponentPlayerId:player.id}:{}),opponentPlayerName:player.name}:{})};};
       }else if(e.kind==='score-coverage'){
         const complete=field(row,'Punkteverlauf vollständig','checkbox','yes');complete.checked=e.payload.complete;payload=()=>({complete:complete.checked});
       }else if(e.kind==='opponent-observation'){
@@ -119,8 +128,13 @@ export function mountLiveView(container,controller){
       if(s.session.schemaVersion===1)body.append(el('p','Alte Erfassung: Gegnerpunkte und Plus/Minus sind hier nicht verfügbar. Neue Spiele unterstützen den vollständigen Punkteverlauf.','live-warning'));
       else {
         const opponent=el('section',undefined,'live-opponent');opponent.append(el('h2','Gegnerpunkte'));
+        const candidates=opponentCandidates(s.session);
+        if(candidates.length){const title=el('p','Werfer optional zuordnen','live-opponent-player-title'),players=el('div',undefined,'live-opponent-players');
+          const unassigned=button('Ohne Zuordnung',()=>{opponentChosen=null;signature='';render(current);});unassigned.setAttribute('aria-pressed',String(!opponentChosen));players.append(unassigned);
+          for(const player of candidates){const b=button(player.name,()=>{opponentChosen=player.key;signature='';render(current);});b.dataset.opponentPlayer=player.key;b.setAttribute('aria-pressed',String(opponentChosen===player.key));players.append(b);}opponent.append(title,players);
+        }else opponentChosen=null;
         const buttons=el('div',undefined,'live-opponent-buttons');
-        for(const points of [1,2,3]){const b=button('Gegner +'+points,()=>send({kind:'opponent-score',payload:{points}}));b.disabled=s.busy;buttons.append(b);}
+        for(const points of [1,2,3]){const b=button('Gegner +'+points,async()=>{const player=candidates.find(item=>item.key===opponentChosen),payload={points,...(player?{...(player.id?{opponentPlayerId:player.id}:{}),opponentPlayerName:player.name}:{})},result=await send({kind:'opponent-score',payload});if(result.ok){opponentChosen=null;signature='';render(current);}});b.disabled=s.busy;buttons.append(b);}
         opponent.append(buttons);body.append(opponent);
       }
       body.append(el('h2','Spieler wählen'));const players=el('div',undefined,'live-players');

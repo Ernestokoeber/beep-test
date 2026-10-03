@@ -6,6 +6,18 @@ import {activeGamePlan,buildOpponentFeedback,DEFENSES,OBSERVATIONS,projectOppone
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const playerStatusLabels={starter:'Starting Five',bench:'Bank',dnp:'DNP – nicht eingesetzt'};
 const tacticUsageLabels={offense:'Offense',defense:'Defense',inbound:'Einwurf',pressbreak:'Pressbreak'};
+const minutesLabel=milliseconds=>(milliseconds/60000).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});
+function renderOpponentAnalysis(live,title='Defense-Vergleich'){
+  const section=el('section');section.className='matchday-opponent-analysis';section.append(el('h4',title));
+  const grid=el('div');grid.className='matchday-defense-results';
+  const used=Object.values(live.byDefense).filter(item=>item.minutesMs||item.points||Object.values(item.observations).some(Boolean));
+  for(const item of used){const observations=Object.values(item.observations).reduce((sum,value)=>sum+value,0),card=el('article');card.dataset.defense=item.defense;card.append(el('strong',item.label),el('span',`${minutesLabel(item.minutesMs)} Min · ${item.points} Punkte · ${item.pointsPer10===null?'–':item.pointsPer10.toLocaleString('de-DE')} P/10`),el('small',`Treffer: 1er ${item.one} · 2er ${item.two} · 3er ${item.three} · Beobachtungen ${observations}`));grid.append(card);}
+  section.append(grid);
+  if(!used.length)section.append(el('p','Noch keine Spielzeit für den Defense-Vergleich erfasst.'));
+  if(live.comparison)section.append(el('p',live.comparison.message));
+  if(live.playerScoring.length){section.append(el('h5','Zugeordnete gegnerische Werfer'));const list=el('ul');for(const player of live.playerScoring)list.append(el('li',`${player.name}: ${player.points} Punkte · 1er ${player.one} · 2er ${player.two} · 3er ${player.three}`));section.append(list);}
+  const note=el('small','P/10 basiert auf manuell erfassten Punkten und Spielzeit, nicht auf Ballbesitzen. Nicht zugeordnete Treffer bleiben in der Team- und Defense-Auswertung enthalten.');note.className='matchday-analysis-note';section.append(note);return section;
+}
 export function mountMatchdayLive(container,controller,{tactics=()=>[],game=null,onOpponentFeedback=()=>{}}={}){
   let dirty=false,revision=0,parents=controller.getState().heads,base=clone(controller.getState().draft),saving=false,pending=Promise.resolve(true),dead=false,reportKey='',conflictKey='';
   let scoutingKey='',feedbackKey='';
@@ -43,6 +55,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],game=null
     const observations=el('div');observations.className='matchday-observation-buttons';
     for(const [id,label]of Object.entries(OBSERVATIONS)){const action=el('button',`${label} +1`);action.type='button';action.dataset.observation=id;action.disabled=s.readOnly||s.busy;action.addEventListener('click',()=>controller.live.dispatch({kind:'opponent-observation',payload:{type:id}}));observations.append(action);}body.append(el('h4','Schnelle Beobachtung'),observations);
     const count=el('p',`Seit letztem Wechsel: Paint ${live.counts.paint} · offene 3er ${live.counts['open-three']} · OREB ${live.counts.oreb} · FW-Druck ${live.counts['free-throw-pressure']}`);count.className='matchday-scout-count';body.append(count);
+    if(live.comparison){const comparison=el('p',`Live-Vergleich: ${live.comparison.message}`);comparison.className='matchday-scout-comparison';body.append(comparison);}
     if(live.suggestions.length){const alerts=el('div');alerts.className='matchday-scout-alerts';for(const item of live.suggestions)alerts.append(el('p',item.message));body.append(alerts);}
     else{const clear=el('p','Noch kein Wechsel-Auslöser erreicht.');clear.className='matchday-scout-clear';body.append(clear);}
     scouting.append(body);return live;
@@ -55,7 +68,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],game=null
     if(!pause.hidden){const half=s.liveState.session.config.periods%2===0&&s.liveState.clock.period===s.liveState.session.config.periods/2;
       const box=s.liveState.boxscore;pause.replaceChildren(el('h3',half?'Halbzeit':'Abschnittspause'),el('p',`Erfasster Stand: ${box.teamPoints} : ${box.opponentPoints??'–'}`),el('p','Aufstellung und Spielziele prüfen. Nächsten Abschnitt unten bewusst vorbereiten und starten.'),el('p',s.draft.goals));
       const list=el('ul');for(const id of s.liveState.lineups.onCourt){const p=box.players.find(p=>p.id===id);if(p)list.append(el('li',`${p.name} · ${p.fouls} Fouls`));}pause.append(list);
-      if(opponentLive){const scout=el('section');scout.className='matchday-halftime-scout';scout.append(el('h4','Gegnerabgleich'),el('p',`Aktuelle Defense: ${opponentLive.currentDefenseLabel}`),el('p',`Beobachtet: Paint ${opponentLive.totalCounts.paint} · offene 3er ${opponentLive.totalCounts['open-three']} · OREB ${opponentLive.totalCounts.oreb} · FW-Druck ${opponentLive.totalCounts['free-throw-pressure']}`));const checks=activeGamePlan(s.draft.opponentPlan)?.halftimeChecks||[];if(checks.length){const checkList=el('ul');for(const item of checks)checkList.append(el('li',item));scout.append(checkList);}for(const item of opponentLive.suggestions)scout.append(el('p',item.message));pause.append(scout);}
+      if(opponentLive){const scout=el('section');scout.className='matchday-halftime-scout';scout.append(el('h4','Gegnerabgleich'),el('p',`Aktuelle Defense: ${opponentLive.currentDefenseLabel}`),el('p',`Beobachtet: Paint ${opponentLive.totalCounts.paint} · offene 3er ${opponentLive.totalCounts['open-three']} · OREB ${opponentLive.totalCounts.oreb} · FW-Druck ${opponentLive.totalCounts['free-throw-pressure']}`),renderOpponentAnalysis(opponentLive,'Defense bis hierhin'));const checks=activeGamePlan(s.draft.opponentPlan)?.halftimeChecks||[];if(checks.length){const checkList=el('ul');for(const item of checks)checkList.append(el('li',item));scout.append(checkList);}for(const item of opponentLive.suggestions)scout.append(el('p',item.message));pause.append(scout);}
     }
     if(!dirty&&!saving&&!form.contains(document.activeElement)){parents=s.heads;base=clone(s.draft);closingNote.value=base.closingNote;}
     discard.hidden=!(dirty&&(s.readOnly||s.conflict));discard.disabled=saving;
@@ -79,7 +92,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],game=null
       }
     }
     const finished=s.stage==='finished';liveTools.querySelector(':scope > summary').hidden=!finished;if(!finished)liveTools.open=true;
-    if(finished){const next=canonical(s.liveState.boxscore);if(reportKey!==next){reportKey=next;liveTools.open=false;report.replaceChildren(renderLiveReport(s.liveState.boxscore));}
+    if(finished){const next=canonical([s.liveState.boxscore,opponentLive]);if(reportKey!==next){reportKey=next;liveTools.open=false;report.replaceChildren(renderLiveReport(s.liveState.boxscore));if(opponentLive)report.append(renderOpponentAnalysis(opponentLive,'Gegner & Defense'));}
       const feedback=buildOpponentFeedback({game,plan:s.draft.opponentPlan,session:s.liveState.session});const nextFeedback=feedback?canonical(feedback):'';
       if(feedback&&feedbackKey!==nextFeedback){feedbackKey=nextFeedback;try{onOpponentFeedback(feedback);}catch(error){status.textContent='Spiel gespeichert; Gegnerbeobachtungen konnten nicht übernommen werden: '+error.message;}}
     }else{reportKey='';feedbackKey='';report.replaceChildren();}

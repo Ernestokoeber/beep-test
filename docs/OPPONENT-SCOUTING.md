@@ -91,9 +91,14 @@ Im Live Game können Paint-/Drive-Aktionen, offene Dreier, Offensiv-Rebounds und
 Freiwurfdruck mit einem Tipp protokolliert werden. CourtHub vergleicht diese
 Beobachtungen mit messbaren Auslösern und zeigt eine Empfehlung; ein
 Defense-Wechsel wird erst durch den Coach bestätigt und als eigenes Ereignis
-gespeichert. Die Halbzeitansicht bündelt Stand, aktuelle Defense, Zähler und
-Prüffragen. Nach Spielende werden Beobachtungen und Wechsel idempotent in das
-Gegnerprofil zurückgeführt.
+gespeichert. Bekannte Topscorer und Schützen können bei **Gegner +1/+2/+3**
+optional zugeordnet werden; ohne Auswahl bleibt der schnelle Team-Workflow
+erhalten. Die Halbzeitansicht bündelt Stand, aktuelle Defense, Zähler,
+Defense-Spielzeit, erfasste Punkte pro zehn Spielminuten und Prüffragen. Nach
+Spielende werden Beobachtungen, zugeordnete Werfer und Defense-Segmente
+idempotent in das Gegnerprofil zurückgeführt. Diese Auswertung ist manuell und
+nicht possession-bereinigt; CourtHub kennzeichnet kleine Stichproben und leitet
+daraus keinen automatischen Defense-Wechsel ab.
 
 ## Grenzen
 
