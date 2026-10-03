@@ -9,6 +9,8 @@ BT.opponents = (function() {
   const LEVELS = new Set(['unknown', 'low', 'medium', 'high']);
   const MAX_SCREENSHOTS = 24;
   const SCREENSHOT_BATCH_SIZE = 6;
+  const SCREENSHOT_BATCH_NEW_IMAGES = 4;
+  const SCREENSHOT_BATCH_CONTEXT_IMAGES = 2;
   const SCREENSHOT_BATCH_MAX_CHARS = 3_800_000;
   let root = null;
   let selectedId = null;
@@ -106,23 +108,50 @@ BT.opponents = (function() {
   function shootingSummary(profile) {
     const totals = profile?.manualTotals || {};
     const pct = (made, attempted) => attempted > 0 ? Math.round((made / attempted) * 1000) / 10 : null;
+    const round = value => Math.round(value * 10) / 10;
     const screenshotFouls = profileGames(profile).filter(game => game.opponentTeamStats?.completeFouls === true && game.opponentTeamStats.fouls !== null);
     const screenshotShots = profileGames(profile).filter(game => game.opponentTeamStats?.completeShots === true);
+    const screenshotMadeProfiles = profileGames(profile).filter(game => game.opponentTeamStats?.twoMade !== null && game.opponentTeamStats?.twoMade !== undefined && game.opponentTeamStats?.threeMade !== null && game.opponentTeamStats?.threeMade !== undefined);
     const sumScreenshot = (games, key) => games.reduce((sum, game) => sum + normalizedNumber(game.opponentTeamStats?.[key]), 0);
     const shotGames = screenshotShots.length || normalizedNumber(totals.gamesWithShots);
     const foulGames = screenshotFouls.length || normalizedNumber(totals.gamesWithFouls);
     const totalValue = (key, games) => games.length ? sumScreenshot(games, key) : normalizedNumber(totals[key]);
     const threeAttempted = totalValue('threeAttempted', screenshotShots);
     const teamFouls = totalValue('teamFouls', []);
+    const madeProfileGames = screenshotMadeProfiles.length;
+    const twoMade = sumScreenshot(screenshotMadeProfiles, 'twoMade');
+    const threeMade = sumScreenshot(screenshotMadeProfiles, 'threeMade');
+    const freeThrowMadeGames = screenshotMadeProfiles.filter(game => game.opponentTeamStats?.freeThrowsMade !== null && game.opponentTeamStats?.freeThrowsMade !== undefined);
+    const freeThrowsMade = freeThrowMadeGames.length ? sumScreenshot(freeThrowMadeGames, 'freeThrowsMade') : null;
+    const madeFieldGoals = twoMade + threeMade;
+    const twoMadeShare = madeFieldGoals ? round((twoMade / madeFieldGoals) * 100) : null;
+    const threeMadeShare = madeFieldGoals ? round((threeMade / madeFieldGoals) * 100) : null;
+    const freeThrowsMadePerGame = freeThrowMadeGames.length ? round(freeThrowsMade / freeThrowMadeGames.length) : null;
+    let madeShotTendency = 'unknown';
+    if (madeProfileGames >= 2 && freeThrowMadeGames.length >= 2 && twoMadeShare >= 75 && freeThrowsMadePerGame >= 12) madeShotTendency = 'inside-pressure';
+    else if (madeProfileGames >= 2 && twoMadeShare >= 75) madeShotTendency = 'two-heavy';
+    else if (madeProfileGames >= 2 && threeMadeShare >= 30) madeShotTendency = 'perimeter-heavy';
+    else if (madeProfileGames >= 2) madeShotTendency = 'balanced';
     return {
       gamesWithShots: shotGames,
       gamesWithFouls: foulGames,
+      gamesWithMadeProfile: madeProfileGames,
+      gamesWithFreeThrowMakes: freeThrowMadeGames.length,
       teamFoulsPerGame: foulGames ? Math.round(((screenshotFouls.length ? sumScreenshot(screenshotFouls, 'fouls') : teamFouls) / foulGames) * 10) / 10 : null,
       fieldGoalPct: pct(totalValue('fieldGoalsMade', screenshotShots), totalValue('fieldGoalsAttempted', screenshotShots)),
       threePointPct: pct(totalValue('threeMade', screenshotShots), threeAttempted),
       threeAttemptsPerGame: shotGames ? Math.round((threeAttempted / shotGames) * 10) / 10 : null,
       freeThrowPct: pct(totalValue('freeThrowsMade', screenshotShots), totalValue('freeThrowsAttempted', screenshotShots)),
-      source: screenshotFouls.length || screenshotShots.length ? 'dbb-scores-screenshot' : 'manual'
+      twoMade,
+      threeMade,
+      freeThrowsMade,
+      twoMadePerGame: madeProfileGames ? round(twoMade / madeProfileGames) : null,
+      threeMadePerGame: madeProfileGames ? round(threeMade / madeProfileGames) : null,
+      freeThrowsMadePerGame,
+      twoMadeShare,
+      threeMadeShare,
+      madeShotTendency,
+      source: screenshotFouls.length || screenshotShots.length || screenshotMadeProfiles.length ? 'dbb-scores-screenshot' : 'manual'
     };
   }
 
@@ -192,6 +221,7 @@ BT.opponents = (function() {
     if (metrics.games >= 5) points += 1;
     if (shooting.gamesWithFouls >= 3) points += 1;
     if (shooting.gamesWithShots >= 3) points += 2;
+    if (shooting.gamesWithMadeProfile >= 3) points += 1;
     if (observed >= 2) points += 1;
     if (playerSummary(profile).length >= 2) points += 1;
     const confidence = points >= 6 ? 'high' : points >= 3 ? 'medium' : 'low';
@@ -224,6 +254,18 @@ BT.opponents = (function() {
     if (shooting.threeAttemptsPerGame >= 16) { scores.zone32 += 2; reasons.push(`${shooting.threeAttemptsPerGame} Dreier-Versuche pro erfasstem Spiel`); }
     else if (shooting.threeAttemptsPerGame >= 10) scores.zone32 += 1;
     if (shooting.threePointPct >= 34) { scores.zone32 += 1; reasons.push(`${shooting.threePointPct} % Dreierquote in der Datenbasis`); }
+    if (shooting.gamesWithMadeProfile >= 2 && shooting.twoMadeShare >= 75) {
+      scores.zone212 += 1;
+      reasons.push(`${shooting.twoMadeShare} % der sichtbaren Feldtreffer sind Zweier; keine Aussage zur Wurfquote`);
+    }
+    if (shooting.gamesWithMadeProfile >= 2 && shooting.freeThrowsMadePerGame >= 12) {
+      scores.zone212 += 1;
+      reasons.push(`${shooting.freeThrowsMadePerGame} verwandelte Freiwürfe pro erfasstem Spiel stützen die Tendenz zu Ringdruck`);
+    }
+    if (shooting.gamesWithMadeProfile >= 2 && shooting.threeMadeShare >= 30) {
+      scores.zone32 += 1;
+      reasons.push(`${shooting.threeMadeShare} % der sichtbaren Feldtreffer sind Dreier`);
+    }
     if (players.some(player => player.threeAttemptsPerGame >= 4 && player.threePointPct >= 33)) {
       scores.zone32 += 1;
       reasons.push('mindestens ein belegter Volumen-Schütze');
@@ -412,6 +454,30 @@ BT.opponents = (function() {
     return value === null || value === undefined ? '–' : `${value}${suffix}`;
   }
 
+  function madeShotTendencyLabel(value) {
+    return {
+      'inside-pressure': 'Zweierlastig mit deutlichem Freiwurfdruck',
+      'two-heavy': 'Zweierlastiges Trefferprofil',
+      'perimeter-heavy': 'Erhöhte Dreier-Tendenz',
+      balanced: 'Ausgeglichenes Trefferprofil',
+      unknown: 'Noch nicht belastbar'
+    }[value] || 'Noch nicht belastbar';
+  }
+
+  function madeShotTendencyExplanation(shooting) {
+    const base = `${shooting.twoMadeShare} % der sichtbaren Feldtreffer sind Zweier. Das beschreibt die Trefferverteilung, nicht die Wurfquote.`;
+    if (shooting.madeShotTendency === 'inside-pressure') return `${base} Viele Zweier zusammen mit ${shooting.freeThrowsMadePerGame} verwandelten Freiwürfen pro Spiel sprechen vorsichtig für Inside- oder Ringdruck; Mitteldistanzwürfe bleiben möglich.`;
+    if (shooting.madeShotTendency === 'two-heavy') return `${base} Das kann auf Ring- oder Inside-Spiel hindeuten, beweist ohne Wurfzonen aber keine Paint-Dominanz.`;
+    if (shooting.madeShotTendency === 'perimeter-heavy') return `${base} Der erhöhte Anteil getroffener Dreier weist auf mehr Perimeterproduktion hin, sagt aber nichts über Volumen oder Effizienz.`;
+    return `${base} Ohne Wurfversuche und Wurfzonen bleibt die offensive Einordnung vorsichtig.`;
+  }
+
+  function visibleMadeShotLine(stats) {
+    if (stats?.twoMade === null || stats?.twoMade === undefined || stats?.threeMade === null || stats?.threeMade === undefined) return '';
+    const freeThrows = stats.freeThrowsMade === null || stats.freeThrowsMade === undefined ? '' : ` · ${stats.freeThrowsMade} FW`;
+    return `${stats.twoMade}×2 · ${stats.threeMade}×3${freeThrows}`;
+  }
+
   function option(value, label, current) {
     return `<option value="${value}" ${current === value ? 'selected' : ''}>${label}</option>`;
   }
@@ -455,8 +521,13 @@ BT.opponents = (function() {
         <div><span>Punkte</span><strong>${valueOrDash(metrics.pointsForPerGame)}</strong></div>
         <div><span>Zugelassen</span><strong>${valueOrDash(metrics.pointsAgainstPerGame)}</strong></div>
         <div><span>Teamfouls</span><strong>${valueOrDash(shooting.teamFoulsPerGame)}</strong></div>
-        <div><span>Dreierquote</span><strong>${valueOrDash(shooting.threePointPct, ' %')}</strong></div>
+        <div><span>${shooting.threePointPct === null ? 'Dreier-Treffer/Sp.' : 'Dreierquote'}</span><strong>${shooting.threePointPct === null ? valueOrDash(shooting.threeMadePerGame) : valueOrDash(shooting.threePointPct, ' %')}</strong></div>
       </div>
+      ${shooting.gamesWithMadeProfile ? `<section class="opponent-made-shot-profile">
+        <div><span class="section-kicker">Trefferprofil · ${shooting.gamesWithMadeProfile} Spiele</span><strong>${BT.util.escapeHTML(madeShotTendencyLabel(shooting.madeShotTendency))}</strong></div>
+        <div class="opponent-made-shot-values"><span><strong>${shooting.twoMade}</strong> Zweier</span><span><strong>${shooting.threeMade}</strong> Dreier</span><span><strong>${valueOrDash(shooting.freeThrowsMade)}</strong> FW</span></div>
+        <p>${BT.util.escapeHTML(madeShotTendencyExplanation(shooting))}</p>
+      </section>` : ''}
       <section class="opponent-defense-card confidence-${defense.confidence}">
         <div class="section-head compact"><div><span class="section-kicker">CourtHub Defense-Entscheidung</span><h3>${BT.util.escapeHTML(defense.startLabel)}</h3></div><span class="att-chip ${defense.confidence === 'high' ? 'ok' : defense.confidence === 'medium' ? 'warn' : 'bad'}">${qualityLabel(defense.confidence)}</span></div>
         <p><strong>Alternative:</strong> ${BT.util.escapeHTML(defense.alternativeLabel)}</p>
@@ -595,12 +666,12 @@ BT.opponents = (function() {
   }
 
   function buildScreenshotBatches(images) {
-    const batches = [];
+    const groups = [];
     let current = [];
     let currentLength = 0;
     const flush = () => {
       if (!current.length) return;
-      batches.push({ startIndex: current[0].sourceIndex, images: current });
+      groups.push(current);
       current = [];
       currentLength = 0;
     };
@@ -610,12 +681,24 @@ BT.opponents = (function() {
       if (length > SCREENSHOT_BATCH_MAX_CHARS) {
         throw new Error(`${item.name} ist auch nach der Vorbereitung noch zu groß.`);
       }
-      if (current.length >= SCREENSHOT_BATCH_SIZE || (current.length && currentLength + length > SCREENSHOT_BATCH_MAX_CHARS)) flush();
+      if (current.length >= SCREENSHOT_BATCH_NEW_IMAGES || (current.length && currentLength + length > SCREENSHOT_BATCH_MAX_CHARS)) flush();
       current.push(item);
       currentLength += length;
     });
     flush();
-    return batches;
+    return groups.map((group, groupIndex) => {
+      const context = groupIndex > 0 ? groups[groupIndex - 1].slice(-SCREENSHOT_BATCH_CONTEXT_IMAGES) : [];
+      while (context.length && (
+        context.length + group.length > SCREENSHOT_BATCH_SIZE
+        || context.concat(group).reduce((sum, image) => sum + image.data.length, 0) > SCREENSHOT_BATCH_MAX_CHARS
+      )) context.shift();
+      const batchImages = context.concat(group);
+      return {
+        startIndex: batchImages[0].sourceIndex,
+        contextCount: context.length,
+        images: batchImages
+      };
+    });
   }
 
   function mergeVisibleFields(existing, incoming) {
@@ -735,8 +818,8 @@ BT.opponents = (function() {
         </div>
       </div>
       ${opponentMismatch ? '<p class="screenshot-warning"><strong>Achtung:</strong> Der erkannte Teamname weicht vom ausgewählten Gegner ab. Vor der Übernahme genau prüfen.</p>' : ''}
-      ${data.games.length ? `<div class="screenshot-game-list">${data.games.map(game => `<article class="screenshot-game-card"><time>${BT.util.escapeHTML(game.date || 'Datum nicht lesbar')}</time><div><span>${BT.util.escapeHTML(game.home)}</span><strong>${game.homeScore ?? '–'}:${game.awayScore ?? '–'}</strong><span>${BT.util.escapeHTML(game.away)}</span></div></article>`).join('')}</div>` : '<p class="muted">In der Auswahl wurde noch kein vollständiges Spiel erkannt.</p>'}
-      ${data.players.length ? `<details class="screenshot-player-details"><summary><span>Spielerwerte prüfen</span><strong>${data.players.length}</strong></summary><div class="table-scroll"><table class="results screenshot-player-preview"><thead><tr><th>Spiel</th><th>Spieler</th><th>PTS</th><th>PF</th><th>3P</th></tr></thead><tbody>${data.players.map(player => `<tr><td>${BT.util.escapeHTML(player.gameDate)}</td><td>${BT.util.escapeHTML(player.name)}</td><td>${player.points ?? '–'}</td><td>${player.fouls ?? '–'}</td><td>${player.threeMade ?? '–'}/${player.threeAttempted ?? '–'}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
+      ${data.games.length ? `<div class="screenshot-game-list">${data.games.map(game => `<article class="screenshot-game-card"><time>${BT.util.escapeHTML(game.date || 'Datum nicht lesbar')}</time><div><span>${BT.util.escapeHTML(game.home)}</span><strong>${game.homeScore ?? '–'}:${game.awayScore ?? '–'}</strong><span>${BT.util.escapeHTML(game.away)}</span></div>${visibleMadeShotLine(game.opponentTeamStats) ? `<small>Treffer Gegner: ${visibleMadeShotLine(game.opponentTeamStats)}</small>` : ''}</article>`).join('')}</div>` : '<p class="muted">In der Auswahl wurde noch kein vollständiges Spiel erkannt.</p>'}
+      ${data.players.length ? `<details class="screenshot-player-details"><summary><span>Spielerwerte prüfen</span><strong>${data.players.length}</strong></summary><div class="table-scroll"><table class="results screenshot-player-preview"><thead><tr><th>Spiel</th><th>Spieler</th><th>PTS</th><th>PF</th><th>2P</th><th>3P</th></tr></thead><tbody>${data.players.map(player => `<tr><td>${BT.util.escapeHTML(player.gameDate)}</td><td>${BT.util.escapeHTML(player.name)}</td><td>${player.points ?? '–'}</td><td>${player.fouls ?? '–'}</td><td>${player.twoMade ?? '–'}</td><td>${player.threeMade ?? '–'}/${player.threeAttempted ?? '–'}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
       ${data.warnings.length ? `<details class="screenshot-warnings"><summary><span>Prüfhinweise</span><strong>${data.warnings.length}</strong></summary><ul>${data.warnings.map(warning => `<li>${BT.util.escapeHTML(warning)}</li>`).join('')}</ul></details>` : ''}
       <div class="form-actions"><button class="btn primary" type="button" data-action="confirm-screenshot-import">Geprüfte Daten übernehmen</button><button class="btn" type="button" data-action="discard-screenshot-import">Verwerfen</button></div>
     </div>`;

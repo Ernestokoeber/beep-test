@@ -101,7 +101,8 @@ assert(index.includes('href="#/opponents"') && index.includes('Gegner analysiere
 const batches = window.BT.opponents.buildScreenshotBatches(Array.from({ length: 14 }, (_, index) => ({
   name: `bild-${index + 1}.jpg`, mimeType: 'image/jpeg', data: 'x'.repeat(100)
 })));
-assert(batches.length === 3 && batches[0].images.length === 6 && batches[2].images.length === 2, 'Mehrfachimport wird nicht in sichere KI-Pakete aufgeteilt');
+assert(batches.length === 4 && batches[0].images.length === 4 && batches[1].images.length === 6 && batches[3].images.length === 4, 'Mehrfachimport wird nicht in überlappende KI-Pakete aufgeteilt');
+assert(batches[1].startIndex === 2 && batches[1].contextCount === 2 && batches[1].images.at(-1).sourceIndex === 7, 'Spielkontext wird an Paketgrenzen nicht mitgeführt');
 const merged = window.BT.opponents.mergeScreenshotResults([
   {
     batch: { startIndex: 0 },
@@ -131,5 +132,24 @@ const merged = window.BT.opponents.mergeScreenshotResults([
 assert(merged.games.length === 2, 'Doppelte Spiele aus mehreren KI-Paketen werden nicht zusammengeführt');
 assert(merged.players.length === 2 && merged.players.find(player => player.name === 'Guard A')?.fouls === 2, 'Spielerwerte aus mehreren KI-Paketen werden nicht zusammengeführt');
 assert(merged.games.find(game => game.date === '2026-10-17')?.sourceIndex === 8, 'Screenshot-Indizes werden paketübergreifend nicht korrigiert');
+
+const madeProfileOpponent = {
+  id: 'made-profile', name: 'TSV Ottobeuren',
+  games: [
+    { date: '2025-10-19', home: 'Team A', away: 'TSV Ottobeuren', score: '66:58', opponentTeamStats: { twoMade: 17, threeMade: 4, freeThrowsMade: 12 } },
+    { date: '2025-10-25', home: 'TSV Ottobeuren', away: 'Team B', score: '82:54', opponentTeamStats: { twoMade: 24, threeMade: 5, freeThrowsMade: 19 } },
+    { date: '2025-11-15', home: 'Team C', away: 'TSV Ottobeuren', score: '70:64', opponentTeamStats: { twoMade: 23, threeMade: 1, freeThrowsMade: 15 } }
+  ]
+};
+const madeProfile = window.BT.opponents.shootingSummary(madeProfileOpponent);
+assert(madeProfile.gamesWithMadeProfile === 3 && madeProfile.twoMade === 64 && madeProfile.threeMade === 10 && madeProfile.freeThrowsMade === 46, 'Sichtbare Zweier-, Dreier- und Freiwurftreffer werden nicht zusammengefasst');
+assert(madeProfile.twoMadeShare === 86.5 && madeProfile.madeShotTendency === 'inside-pressure', 'Zweierlastiges Trefferprofil mit Freiwurfdruck wird nicht erkannt');
+assert(madeProfile.threePointPct === null && madeProfile.fieldGoalPct === null, 'Aus Trefferzahlen ohne Versuche wird fälschlich eine Wurfquote berechnet');
+assert(window.BT.opponents.recommendDefense(madeProfileOpponent).reasons.some(reason => reason.includes('keine Aussage zur Wurfquote')), 'Trefferprofil fließt nicht vorsichtig in die Defense-Empfehlung ein');
+const noFreeThrowProfile = window.BT.opponents.shootingSummary({ games: [
+  { opponentTeamStats: { twoMade: 20, threeMade: 3 } },
+  { opponentTeamStats: { twoMade: 18, threeMade: 4 } }
+] });
+assert(noFreeThrowProfile.freeThrowsMade === null && noFreeThrowProfile.madeShotTendency === 'two-heavy', 'Fehlende Freiwürfe werden fälschlich als Nullwerte oder Ringdruck behandelt');
 
 console.log('CourtHub Gegner-Scouting: Profile, Kennzahlen und Defense-Auswahl erfolgreich.');

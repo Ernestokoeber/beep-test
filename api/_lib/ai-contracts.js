@@ -1,7 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 6;
+export const AI_CONTRACT_VERSION = 7;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
@@ -188,6 +188,7 @@ export const OPPONENT_SCREENSHOT_SCHEMA = {
             type: 'object',
             properties: {
               fouls: INTEGER,
+              twoMade: INTEGER,
               fieldGoalsMade: INTEGER,
               fieldGoalsAttempted: INTEGER,
               threeMade: INTEGER,
@@ -211,6 +212,7 @@ export const OPPONENT_SCREENSHOT_SCHEMA = {
           gameDate: STRING,
           points: INTEGER,
           fouls: INTEGER,
+          twoMade: INTEGER,
           fieldGoalsMade: INTEGER,
           fieldGoalsAttempted: INTEGER,
           threeMade: INTEGER,
@@ -229,7 +231,7 @@ const PROMPTS = {
   parsePlan: basketballExpertPrompt(`Du überträgst einen Basketball-Trainingsplan aus einem PDF in strukturierte CourtHub-Daten. Nutze ausschließlich Inhalte des Dokuments und die mitgesendeten tatsächlichen Trainingstage, Uhrzeit und Dauer. Fachwissen darf nur Begriffe korrekt zuordnen, aber keine fehlenden Inhalte ergänzen. Erfinde keine Termine. Gib nur das angeforderte JSON aus.`),
   summarizeTraining: basketballExpertPrompt(`Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze trotz deines Fachwissens keine Namen, Zahlen, Ursachen oder Bewertungen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`),
   explainTactic: basketballExpertPrompt(`Du erklärst einen strukturierten Basketball-Spielzug auf Deutsch. Beschreibe Ziel, Spacing, Timing, Phasen, tatsächlich beteiligte Rollen, Defense-Read und Offense-Antwort. Prüfe besonders Screenwinkel, Passfenster, Anschlussaktionen und die Reaktion auf Hilfe oder Switch. Erfinde keine Rollen oder Aktionen. Liefere zwei bis vier konkrete Coaching-Punkte und nur das angeforderte JSON.`),
-  parseOpponentScreenshots: basketballExpertPrompt(`Du extrahierst überprüfbare Basketball-Gegnerdaten aus einem oder mehreren Screenshots der DBB.Scores-App. Verwende ausschließlich klar sichtbare Angaben. Erfinde keine Namen, Daten, Ergebnisse, Fouls, Würfe oder Quoten und leite fehlende Einzelwerte nicht aus Summen ab. sourceIndex ist die nullbasierte Position des Bildes in der Anfrage. Erfasse ein Spiel nur, wenn beide Teams klar erkennbar sind; Ergebnisse nur, wenn beide Punktzahlen sichtbar sind. Das Datum wird als YYYY-MM-DD ausgegeben, andernfalls als leerer String. opponentTeamStats und players beziehen sich ausschließlich auf den als erwarteten Gegner genannten Verein, niemals auf den anderen Verein. Spielerwerte werden ausschließlich als einzelne Spielzeilen mit eindeutigem Spieltag ausgegeben; Saison-Gesamtsummen oder Durchschnittswerte werden nicht als Einzelspielwerte übernommen. Setze completeFouls beziehungsweise completeShots nur dann auf true, wenn die vollständigen Teamwerte dieses Spiels sichtbar sind. Weise in warnings auf unlesbare, abgeschnittene, mehrdeutige oder unvollständige Bereiche hin. Gib nur das angeforderte JSON aus.`),
+  parseOpponentScreenshots: basketballExpertPrompt(`Du extrahierst überprüfbare Basketball-Gegnerdaten aus einem oder mehreren Screenshots der DBB.Scores-App. Verwende ausschließlich klar sichtbare Angaben. Erfinde keine Namen, Daten, Ergebnisse, Fouls, Würfe oder Quoten und leite fehlende Einzelwerte nicht aus Summen ab. sourceIndex ist die nullbasierte Position des Bildes in der Anfrage. Die Bilder stehen in Auswahlreihenfolge; direkt aufeinanderfolgende Ansichten "Kennzahlen", "Spielverlauf" und "Statistiken" können dasselbe Spiel zeigen. Ordne eine Statistikansicht dem vorherigen Spiel nur zu, wenn Team, Farbe, Ergebnis oder die unmittelbare Bildfolge den Zusammenhang eindeutig belegt, und übernimm dann dessen Datum für gameDate. Erfasse ein Spiel nur, wenn beide Teams klar erkennbar sind; Ergebnisse nur, wenn beide Punktzahlen sichtbar sind. Das Datum wird als YYYY-MM-DD ausgegeben, andernfalls als leerer String. opponentTeamStats und players beziehen sich ausschließlich auf den als erwarteten Gegner genannten Verein, niemals auf den anderen Verein. Lies Spielerpunkte vorrangig direkt aus der Spalte "Pkt". In DBB.Scores bedeutet "2Pkt" die Anzahl getroffener Zweier und wird als twoMade gespeichert, "3Pkt" die Anzahl getroffener Dreier und wird als threeMade gespeichert, "FW" die Freiwürfe und "PF" die Fouls. Diese Trefferzahlen sind keine Punktesummen und ohne sichtbare Versuche niemals Wurfquoten. Bei "FW x/y" speicherst du x als freeThrowsMade und y als freeThrowsAttempted; steht im Teamvergleich nur eine FW-Zahl, ist das ausschließlich freeThrowsMade. Spielerwerte werden ausschließlich als einzelne Spielzeilen mit eindeutigem Spieltag ausgegeben; Saison-Gesamtsummen oder Durchschnittswerte werden nicht als Einzelspielwerte übernommen. Setze completeFouls beziehungsweise completeShots nur dann auf true, wenn die vollständigen Teamwerte dieses Spiels sichtbar sind. Weise in warnings auf unlesbare, abgeschnittene, mehrdeutige oder unvollständige Bereiche hin. Gib nur das angeforderte JSON aus.`),
   planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Wiederkehrende Muster aus mehreren Einträgen wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Analysiere zusätzlich den opponentContext des Slots, sofern vorhanden. Verwende ausschließlich dort belegte Gegnerwerte und beachte Datenqualität, Stichprobengröße und Warnungen. Empfehle niemals eine nicht trainierte Verteidigung: erlaubt sind nur Mannverteidigung mit No-Middle, Zone 2-1-2 und Zone 3-2. Bei niedriger Datenqualität bleibt Mannverteidigung mit No-Middle die Basis. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Formuliere summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
 
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die langfristigen Mannschaftsprinzipien, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster bleiben davon unberührt und haben Vorrang.
@@ -582,6 +584,7 @@ function buildOpponentScreenshots(payload) {
         sourceIndex: index,
         opponentTeamStats: {
           fouls: optionalInteger(stats.fouls, 200, 'Teamfouls'),
+          twoMade: optionalInteger(stats.twoMade, 150, 'Zweiertreffer'),
           fieldGoalsMade: optionalInteger(stats.fieldGoalsMade, 200, 'Feldwurftreffer'),
           fieldGoalsAttempted: optionalInteger(stats.fieldGoalsAttempted, 300, 'Feldwurfversuche'),
           threeMade: optionalInteger(stats.threeMade, 100, 'Dreiertreffer'),
@@ -593,19 +596,34 @@ function buildOpponentScreenshots(payload) {
         }
       };
     });
-    const players = value.players.slice(0, 160).map((player) => ({
-      name: generatedString(player?.name, 100, 'Spielername'),
-      gameDate: cleanDate(player?.gameDate),
-      points: optionalInteger(player?.points, 150, 'Spielerpunkte'),
-      fouls: optionalInteger(player?.fouls, 10, 'Spielerfouls'),
-      fieldGoalsMade: optionalInteger(player?.fieldGoalsMade, 80, 'Feldwurftreffer'),
-      fieldGoalsAttempted: optionalInteger(player?.fieldGoalsAttempted, 100, 'Feldwurfversuche'),
-      threeMade: optionalInteger(player?.threeMade, 50, 'Dreiertreffer'),
-      threeAttempted: optionalInteger(player?.threeAttempted, 70, 'Dreierversuche'),
-      freeThrowsMade: optionalInteger(player?.freeThrowsMade, 60, 'Freiwurftreffer'),
-      freeThrowsAttempted: optionalInteger(player?.freeThrowsAttempted, 80, 'Freiwurfversuche'),
-      sourceIndex: sourceIndex(player?.sourceIndex)
-    })).filter(player => player.gameDate);
+    const datedGames = games.filter(game => game.date).sort((a, b) => a.sourceIndex - b.sourceIndex);
+    const inferredSources = new Set();
+    const players = value.players.slice(0, 160).map((player) => {
+      const index = sourceIndex(player?.sourceIndex);
+      let gameDate = cleanDate(player?.gameDate);
+      if (!gameDate) {
+        const previousGame = datedGames.filter(game => game.sourceIndex <= index).at(-1);
+        if (previousGame && index - previousGame.sourceIndex <= 3) {
+          gameDate = previousGame.date;
+          inferredSources.add(index);
+        }
+      }
+      return {
+        name: generatedString(player?.name, 100, 'Spielername'),
+        gameDate,
+        points: optionalInteger(player?.points, 150, 'Spielerpunkte'),
+        fouls: optionalInteger(player?.fouls, 10, 'Spielerfouls'),
+        twoMade: optionalInteger(player?.twoMade, 60, 'Zweiertreffer'),
+        fieldGoalsMade: optionalInteger(player?.fieldGoalsMade, 80, 'Feldwurftreffer'),
+        fieldGoalsAttempted: optionalInteger(player?.fieldGoalsAttempted, 100, 'Feldwurfversuche'),
+        threeMade: optionalInteger(player?.threeMade, 50, 'Dreiertreffer'),
+        threeAttempted: optionalInteger(player?.threeAttempted, 70, 'Dreierversuche'),
+        freeThrowsMade: optionalInteger(player?.freeThrowsMade, 60, 'Freiwurftreffer'),
+        freeThrowsAttempted: optionalInteger(player?.freeThrowsAttempted, 80, 'Freiwurfversuche'),
+        sourceIndex: index
+      };
+    }).filter(player => player.gameDate);
+    inferredSources.forEach(index => warnings.push(`Screenshot ${index + 1}: Spielerwerte wurden dem unmittelbar vorherigen Spieltag zugeordnet.`));
     return {
       opponentName: generatedString(value.opponentName || expectedOpponent || 'Unbekannter Gegner', 100, 'Gegnername'),
       games,

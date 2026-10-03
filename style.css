@@ -147,6 +147,48 @@
   font-size: 1.15rem;
 }
 
+.opponent-made-shot-profile {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--card-soft, var(--card));
+}
+
+.opponent-made-shot-profile > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.opponent-made-shot-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.opponent-made-shot-values span {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem;
+  border-radius: 0.7rem;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.opponent-made-shot-values strong {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.opponent-made-shot-profile p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .opponent-defense-card {
   padding: 1rem;
   border: 1px solid var(--border);
@@ -325,6 +367,12 @@
   text-align: right;
 }
 
+.screenshot-game-card small {
+  grid-column: 2;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .screenshot-player-details,
 .screenshot-warnings {
   min-width: 0;
@@ -472,6 +520,10 @@
   .screenshot-game-card div span:last-child {
     grid-column: 1 / -1;
     text-align: left;
+  }
+
+  .screenshot-game-card small {
+    grid-column: 1;
   }
 
   .screenshot-review > .form-actions {

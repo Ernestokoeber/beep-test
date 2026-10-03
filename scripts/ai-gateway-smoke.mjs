@@ -53,7 +53,7 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 6, 'KI-Vertrag wurde für Gegner-Scouting und Screenshot-Import nicht angehoben');
+assert(AI_CONTRACT_VERSION === 7, 'KI-Vertrag wurde für die verknüpfte DBB.Scores-Auswertung nicht angehoben');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.1', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -266,13 +266,14 @@ const screenshotRequest = buildAIRequest('parseOpponentScreenshots', {
 });
 assert(screenshotRequest.parts.filter(part => part.inlineData).length === 2, 'Mehrere Gegner-Screenshots werden nicht gemeinsam übertragen');
 assert(promptText(screenshotRequest).includes('Erfinde keine Namen') && promptText(screenshotRequest).includes('sourceIndex'), 'Screenshot-Import ist nicht an sichtbare Fakten gebunden');
+assert(promptText(screenshotRequest).includes('Spalte "Pkt"') && promptText(screenshotRequest).includes('keine Punktesummen'), 'DBB.Scores-Punktespalten werden nicht eindeutig unterschieden');
 const screenshotValue = screenshotRequest.parse(JSON.stringify({
   opponentName: 'TSV Ottobeuren',
-  games: [{ date: '2026-09-27', home: 'TSV Ottobeuren', away: 'Team A', homeScore: 71, awayScore: 65, sourceIndex: 0, opponentTeamStats: { fouls: 18, completeFouls: true } }],
-  players: [{ name: 'Spieler A', gameDate: '2026-09-27', points: 17, fouls: 3, sourceIndex: 1 }],
+  games: [{ date: '2026-09-27', home: 'TSV Ottobeuren', away: 'Team A', homeScore: 71, awayScore: 65, sourceIndex: 0, opponentTeamStats: { fouls: 18, twoMade: 22, threeMade: 5, freeThrowsMade: 12, completeFouls: true } }],
+  players: [{ name: 'Spieler A', gameDate: '2026-09-27', points: 17, fouls: 3, twoMade: 4, threeMade: 2, sourceIndex: 1 }],
   warnings: ['Wurfversuche waren nicht vollständig sichtbar.']
 }));
-assert(screenshotValue.games[0].opponentTeamStats.fouls === 18 && screenshotValue.players[0].points === 17, 'Gültige Screenshot-Daten werden nicht übernommen');
+assert(screenshotValue.games[0].opponentTeamStats.fouls === 18 && screenshotValue.games[0].opponentTeamStats.twoMade === 22 && screenshotValue.players[0].points === 17 && screenshotValue.players[0].twoMade === 4, 'Gültige Screenshot-Daten werden nicht übernommen');
 
 const partialScoreValue = screenshotRequest.parse(JSON.stringify({
   opponentName: 'TSV Ottobeuren',
@@ -282,6 +283,15 @@ const partialScoreValue = screenshotRequest.parse(JSON.stringify({
 }));
 assert(partialScoreValue.games[0].homeScore === null && partialScoreValue.games[0].awayScore === null, 'Einseitig erkannte Punktzahl wird nicht sicher verworfen');
 assert(partialScoreValue.warnings.some(warning => warning.includes('Ergebnis ist unvollständig')), 'Unvollständiges Ergebnis erzeugt keinen Prüfhinweis');
+
+const linkedPlayerValue = screenshotRequest.parse(JSON.stringify({
+  opponentName: 'TSV Ottobeuren',
+  games: [{ date: '2025-10-25', home: 'TSV Ottobeuren', away: 'TSV Haunstetten', homeScore: 82, awayScore: 54, sourceIndex: 0 }],
+  players: [{ name: 'Luca Tillinger', gameDate: '', points: 15, fouls: 2, sourceIndex: 1 }],
+  warnings: []
+}));
+assert(linkedPlayerValue.players[0]?.gameDate === '2025-10-25' && linkedPlayerValue.players[0]?.points === 15, 'Punkte aus einer direkt folgenden Statistikansicht verlieren ihren Spieltag');
+assert(linkedPlayerValue.warnings.some(warning => warning.includes('vorherigen Spieltag')), 'Automatische Spieltag-Zuordnung bleibt ohne Prüfhinweis');
 
 const validText = await generateWithGemini({
   action: 'explainTactic',

@@ -9,8 +9,10 @@ zusammen. Fehlende Werte werden nie als Nullwert oder Schwäche interpretiert.
 - **TeamSL:** Saison-Gegner, Spieltermine, Ergebnisse, Form und Punkteschnitte.
 - **DBB.Scores-Screenshots:** bis zu 24 Fotos oder Screenshots pro Durchgang,
   einschließlich HEIC/HEIF vom iPhone. CourtHub verkleinert die Bilder im
-  Browser und verarbeitet sie automatisch in Paketen mit höchstens sechs
-  Bildern. Die Bilder selbst werden nicht im Team-Workspace gespeichert.
+  Browser und verarbeitet sie automatisch in überlappenden Paketen mit
+  höchstens sechs Bildern. So bleiben Spielübersicht und die nachfolgenden
+  DBB.Scores-Statistikansichten auch an Paketgrenzen miteinander verknüpft.
+  Die Bilder selbst werden nicht im Team-Workspace gespeichert.
 - **Trainerteam:** qualitative Angriffsmerkmale sowie vollständig erfasste
   Team- und Spielerstatistiken.
 
@@ -19,6 +21,13 @@ Anzahl der Spielerwerte. Spielerzeilen und Prüfhinweise sind auf Mobilgeräten
 einklappbar. Erst die ausdrückliche Bestätigung speichert die extrahierten Werte.
 Identische Bildpakete und Spiele mit demselben Datum und denselben Teams werden
 nicht doppelt übernommen.
+
+Für Spielerpunkte verwendet die KI die sichtbare Spalte **Pkt**. **2Pkt** und
+**3Pkt** werden als Trefferzahlen behandelt, nicht als Punktesummen. Sind keine
+Wurfversuche sichtbar, berechnet CourtHub ausdrücklich keine Wurfquote. Stattdessen
+zeigt es ein Trefferprofil aus Zweiern, Dreiern und verwandelten Freiwürfen. Eine
+zweierlastige Verteilung mit vielen Freiwürfen wird nur als vorsichtiger Hinweis
+auf Inside- oder Ringdruck verwendet; Mitteldistanzwürfe bleiben möglich.
 
 ## Kennzahlen
 
