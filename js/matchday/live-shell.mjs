@@ -1,4 +1,4 @@
-import {canonical,clone} from '../live-game/core.mjs';
+import {canonical,clone,effectiveEvents} from '../live-game/core.mjs';
 import {mountLiveView} from '../live-game/view.mjs';
 import {renderLiveReport} from '../live-game/report.mjs';
 import {GAME_POSITIONS,gamePositionLabel,normalizeGamePosition} from '../basketball-positions.mjs';
@@ -44,7 +44,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
   form.addEventListener('submit',e=>{e.preventDefault();flush();});
   form.addEventListener('focusout',()=>queueMicrotask(()=>{if(!dead&&dirty&&!form.contains(document.activeElement))flush();}));
   function renderPregameRoster(s){
-    const session=s.liveState.session,events=session?.events||[],canEdit=Boolean(session&&!events.some(event=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(event.kind))&&!s.liveState.clock?.running&&!s.liveState.clock?.ended);
+    const session=s.liveState.session,events=session?effectiveEvents(session):[],canEdit=Boolean(session&&!events.some(event=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(event.kind))&&!s.liveState.clock?.running&&!s.liveState.clock?.ended);
     pregameRoster.hidden=!canEdit;if(!canEdit){pregameRoster.replaceChildren();rosterEditorKey='';return;}
     const current=s.liveState.roster||[],onCourt=s.liveState.lineups?.onCourt||[],key=canonical([current,onCourt,s.readOnly,s.busy]);if(key===rosterEditorKey)return;rosterEditorKey=key;pregameRoster.replaceChildren();
     const head=el('div');head.className='matchday-pregame-head';const title=el('div');title.append(el('small','VOR DEM ERSTEN UHRSTART'),el('h3','Live-Kader anpassen'));const toggle=el('button','Kader ändern');toggle.type='button';toggle.dataset.action='edit-live-roster';toggle.disabled=s.readOnly||s.busy;head.append(title,toggle);pregameRoster.append(head,el('p','Verletzungen oder kurzfristige Ausfälle kannst du hier noch ändern. Mit dem ersten Uhrstart wird der Kader gesperrt.'));
@@ -72,8 +72,8 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
     });
   }
   function renderResetLive(s){
-    const session=s.liveState.session,events=session?.events||[],started=events.some(event=>event.kind==='clock-start'),hasGameActions=events.some(event=>['stat','opponent-score','substitution','period-start','finish'].includes(event.kind));
-    const canReset=Boolean(session?.schemaVersion>=3&&started&&!hasGameActions&&!s.liveState.clock?.ended),key=canonical([session?.id,events,s.readOnly,s.busy]);
+    const session=s.liveState.session,events=session?effectiveEvents(session):[],started=events.some(event=>event.kind==='clock-start'),hasGameActions=(session?.events||[]).some(event=>['stat','opponent-score','substitution','period-start','finish'].includes(event.kind));
+    const canReset=Boolean(session?.schemaVersion>=3&&started&&!hasGameActions&&!s.liveState.clock?.ended),key=canonical([session?.id,session?.events,s.readOnly,s.busy]);
     resetLive.hidden=!canReset;if(!canReset){resetLive.replaceChildren();resetKey='';return;}if(key===resetKey)return;resetKey=key;resetLive.replaceChildren(el('h3','Uhr versehentlich gestartet?'),el('p','Solange noch keine Punkte, Statistiken, Wechsel oder weiteren Abschnitte erfasst wurden, kannst du zur bearbeitbaren Spielvorbereitung zurückkehren.'));
     const reset=el('button','Live-Spiel zurücksetzen');reset.type='button';reset.dataset.action='reset-live';reset.disabled=s.readOnly||s.busy;resetLive.append(reset);
     reset.addEventListener('click',()=>{

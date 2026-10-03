@@ -72,6 +72,13 @@ assert.equal(host.querySelector('[data-role="live-tools"] > summary').textConten
 const events=c.live.getState().session.events.length;assert.equal(await cleanup.flush(),true);assert.equal(c.live.getState().session.events.length,events);assert.equal(c.getState().draft.closingNote,'Nicht verlieren');
 assert.equal(c.live.getState().boxscore.plusMinusComplete,false);assert.match(host.querySelector('[data-role="report"]').textContent,/vorläufig/i);
 cleanup();await c.close();host.replaceChildren();
+const corrected=await fixture(),correctedController=await corrected.open();
+await correctedController.saveDraft({...emptyDraft(),ownSide:'home',step:'review',roster:corrected.roster.map((player,index)=>({...player,gameStatus:index<5?'starter':'bench'})),startingFive:corrected.roster.slice(0,5).map(player=>player.id)});await correctedController.start();
+await correctedController.live.dispatch({id:'accidental-start',kind:'clock-start'});await correctedController.live.dispatch({kind:'void',payload:{targetId:'accidental-start'}});
+const correctedStop=mountMatchdayLive(host,correctedController,{players:()=>corrected.roster});
+assert.match(host.textContent,/Spiel noch nicht gestartet/);assert.ok([...host.querySelectorAll('button')].some(button=>button.textContent==='Kader ändern'),'Ein verworfener Uhrstart blendet die Kaderbearbeitung fälschlich aus.');
+assert.equal((await correctedController.live.dispatch({kind:'pregame-roster',payload:{players:correctedController.live.getState().roster,startingFive:correctedController.live.getState().lineups.onCourt}})).ok,true,'Der Controller sperrt den Kader trotz verworfenem Uhrstart.');
+correctedStop();await correctedController.close();host.replaceChildren();
 const two=await fixture(),tc=await two.open();
 await tc.saveDraft({...emptyDraft(),ownSide:'away',step:'review',roster:two.roster,startingFive:two.roster.slice(0,5).map(p=>p.id),config:{periods:2,periodMs:600000,overtimeMs:300000}});await tc.start();
 const stop=mountMatchdayLive(host,tc,{tactics:()=>[]});

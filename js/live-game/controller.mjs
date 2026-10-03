@@ -69,7 +69,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     if(s.events.some(e=>e.id===command.id))return;
     let c=clockAt(s,deps.now());
     if(command.kind==='reset-pregame'){
-      ensure(s.schemaVersion>=3&&s.events.some(event=>event.kind==='clock-start')&&!s.events.some(event=>['stat','opponent-score','substitution','period-start','finish'].includes(event.kind)),'reset','Zurücksetzen ist nur nach einem versehentlichen Uhrstart ohne Spielaktionen möglich.');
+      ensure(s.schemaVersion>=3&&effectiveEvents(s).some(event=>event.kind==='clock-start')&&!s.events.some(event=>['stat','opponent-score','substitution','period-start','finish'].includes(event.kind)),'reset','Zurücksetzen ist nur nach einem versehentlichen Uhrstart ohne Spielaktionen möglich.');
       ensure(live.sessions.length<20,'reset','Zu viele Live-Erfassungen. Bitte den Support kontaktieren.');
       if(c.running)s=appendEvent(s,{id:command.id+':pause',sessionId:s.id,seq:s.events.length+1,kind:'clock-pause',period:c.period,remainingMs:c.remainingMs,recordedAt:new Date(deps.now()).toISOString(),payload:{reset:true}});
       const onCourt=projectLineups(s,deps.now()).onCourt,starterIds=new Set(onCourt);
@@ -79,7 +79,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
       await write({...live,sessions,selectedSessionId:reset.id,resolutionRevision:live.resolutionRevision+1});deps.wake.release?.('live-game');return;
     }
     if(command.kind==='pregame-roster'){
-      ensure(!c.ended&&!c.running&&c.period===1&&c.remainingMs===duration(s,1)&&!s.events.some(e=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(e.kind)),'roster','Der Live-Kader kann nur vor dem ersten Spielstart geändert werden.');
+      ensure(!c.ended&&!c.running&&c.period===1&&c.remainingMs===duration(s,1)&&!effectiveEvents(s).some(e=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(e.kind)),'roster','Der Live-Kader kann nur vor dem ersten Spielstart geändert werden.');
       const players=command.payload?.players,startingFive=command.payload?.startingFive;
       ensure(Array.isArray(players)&&players.length>=5&&players.length<=40&&players.filter(player=>player.gameStatus!=='dnp').length>=5&&Array.isArray(startingFive)&&startingFive.length===5,'roster','Mindestens fünf nominierte Spieler und genau fünf Starter auswählen.');
       const base={sessionId:s.id,period:1,remainingMs:c.remainingMs,recordedAt:new Date(deps.now()).toISOString()};
@@ -87,7 +87,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
       s=appendEvent(s,{...base,id:command.id+':lineup',seq:s.events.length+1,kind:'starting-five',payload:{playerIds:startingFive}});
       await write({...live,sessions:live.sessions.map(x=>x.id===s.id?s:x)});return;
     }
-    const gameStarted=s.events.some(event=>event.kind==='clock-start');
+    const gameStarted=effectiveEvents(s).some(event=>event.kind==='clock-start');
     ensure(gameStarted||!['stat','opponent-score','substitution','period-start','finish'].includes(command.kind),'start','Das Spiel zuerst über „Uhr starten“ verbindlich beginnen.');
     ensure(command.kind!=='roster'||s.schemaVersion<3||!gameStarted,'roster','Der Spieltagskader ist seit dem ersten Uhrstart gesperrt.');
     ensure(!c.ended||['amend','void','roster','score-coverage','opponent-observation','defense-change'].includes(command.kind),'finished','Spiel beendet. Nur explizite Korrekturen sind möglich.');
