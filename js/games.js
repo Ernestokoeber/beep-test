@@ -158,7 +158,7 @@ BT.games = (function() {
       <div class="head-actions"><button class="btn small" data-action="edit-selected">Bearbeiten</button><button class="btn small" data-action="share-game">Bericht teilen</button></div>
     </div>
 
-    <section class="boxscore-panel game-preparation-card"><h3>Spielvorbereitung</h3><p>Kader nominieren, Starting Five festlegen und danach in die freie Live-Erfassung wechseln.</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live">Live erfassen</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
+    <section class="boxscore-panel game-preparation-card"><h3>Spielvorbereitung</h3><p>Kader, Gegneranalyse und Gameplan bestätigen und danach in die freie Live-Erfassung wechseln.</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live">Live Game mit Gegnerplan</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
     <section class="opponent-defense-card game-opponent-plan confidence-${escapeHTML(defensePlan?.confidence || 'low')}">
       <div class="section-head compact"><div><span class="section-kicker">Gegnerplan</span><h3>${escapeHTML(defensePlan?.startLabel || 'Mannverteidigung · No-Middle')}</h3></div><a class="btn small" href="#/opponents">Scouting öffnen</a></div>
       <p><strong>Alternative:</strong> ${escapeHTML(defensePlan?.alternativeLabel || 'nach den ersten Angriffen festlegen')}</p>
@@ -204,7 +204,7 @@ BT.games = (function() {
     $('[data-action="load-atlas"]', wrap).addEventListener('click', () => loadAtlas(game));
     $('[data-action="create-training"]', wrap).addEventListener('click', () => createTrainingFromGame(game, analysis));
     $('[data-action="share-game"]', wrap).addEventListener('click', () => shareGame(game, analysis));
-    $('[data-action="open-live"]', wrap).addEventListener('click', () => openLive(game.id, wrap));
+    $('[data-action="open-live"]', wrap).addEventListener('click', () => { location.hash='#/games/'+encodeURIComponent(game.id)+'/matchday'; });
     $('[data-action="open-matchday"]',wrap).addEventListener('click',()=>{location.hash='#/games/'+encodeURIComponent(game.id)+'/matchday';});
     $('[data-action="live-report"]', wrap).addEventListener('click', () => showLiveReport(game.id, wrap));
     $('[data-action="delete-game"]', wrap).addEventListener('click', async () => {
@@ -219,20 +219,6 @@ BT.games = (function() {
     });
   }
 
-  async function openLive(gameId, wrap) {
-    cleanup();const generation=liveGeneration;
-    const host=$('[data-role="live-game-host"]',wrap);host.textContent='Live-Erfassung wird geöffnet …';
-    try{
-      const state=BT.sync.getState(),user=state.user;
-      if(!user?.organization?.id)throw Error('Zuerst unter Konto & Sync im Team anmelden.');
-      const [{openLiveGame},{mountLiveView}]=await Promise.all([import('./live-game/controller.mjs'),import('./live-game/view.mjs')]);
-      if(generation!==liveGeneration)return;
-      const controller=await openLiveGame({gameId,scope:{organizationId:user.organization.id,actorId:user.id,sessionEpoch:state.sessionEpoch}});
-      if(generation!==liveGeneration){await controller.close();return;}
-      host.replaceChildren();const unmount=mountLiveView(host,controller);
-      liveCleanup=()=>{unmount();controller.close().catch(()=>{});};host.scrollIntoView?.({block:'start'});
-    }catch(error){if(generation===liveGeneration)host.textContent=error.message;}
-  }
   async function showLiveReport(gameId, wrap){
     cleanup();const generation=liveGeneration,host=$('[data-role="live-game-host"]',wrap);
     try{
@@ -442,18 +428,19 @@ BT.games = (function() {
       const game=BT.storage.getGame(gameId),state=BT.sync.getState(),user=state.user;
       if(!game)throw Error('Spiel nicht gefunden. Unter Spiele auswählen.');
       if(!user?.organization?.id)throw Error('Für den Spieltag zuerst unter Konto & Sync anmelden.');
-      const [{openMatchday},{mountMatchdayView,prepareMatchdayEntry}]=await Promise.all([import('./matchday/controller.mjs'),import('./matchday/view.mjs')]);
+      const [{openMatchday},{mountMatchdayView,prepareMatchdayEntry},{createOpponentPlan}]=await Promise.all([import('./matchday/controller.mjs'),import('./matchday/view.mjs'),import('./matchday/opponent-plan.mjs')]);
       if(generation!==liveGeneration)return;
       const c=await openMatchday({gameId:game.id,scope:{organizationId:user.organization.id,actorId:user.id,sessionEpoch:state.sessionEpoch}});
       if(generation!==liveGeneration){await c.close();return;}
       if(training&&!game.matchday&&!c.getState().liveState.hasLiveData)await c.saveDraft({...c.getState().draft,kind:'training'});
       const lindauHome=/\blindau\b/i.test(game.home||''),lindauAway=/\blindau\b/i.test(game.away||'');
-      await prepareMatchdayEntry(c,lindauHome!==lindauAway?(lindauHome?'home':'away'):null);
+      const currentOpponentPlan=()=>createOpponentPlan({game,context:BT.opponents?.contextForGame?.(game)});
+      await prepareMatchdayEntry(c,lindauHome!==lindauAway?(lindauHome?'home':'away'):null,currentOpponentPlan());
       if(generation!==liveGeneration){await c.close();return;}
       host.replaceChildren();const heading=document.createElement('h1');heading.textContent=game.home+' – '+game.away;host.append(heading);
       const meta=document.createElement('p');meta.textContent=formatDate(game.date)+(game.time?' · '+game.time:'');host.append(meta);
       const content=document.createElement('div');host.append(content);
-      matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics()});
+      matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.storage.getTactics(),getOpponentPlan:currentOpponentPlan});
       const view=matchdayView;liveCleanup=()=>{view();c.close().catch(()=>{});};
     }catch(e){if(generation===liveGeneration)host.textContent=e.message;}
   }

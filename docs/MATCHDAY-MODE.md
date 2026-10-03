@@ -15,9 +15,12 @@ wird durch die lokale Browserabnahme nicht bestätigt.
    `0` und `00` sind verschieden. Eine optionale Rolle beschreibt beispielsweise
    Ballhandler, Shooter oder Big.
 3. Abschnittsanzahl und Dauer prüfen. Spielziele, Aufwärmen und Coaching-Notiz
-   sind optional. Vorhandene Taktiken werden nach Offense, Defense, Einwurf und
-   Pressbreak aus dem Taktikboard übernommen. **Optionale Angaben überspringen**
-   behält bereits eingetragene Texte.
+   sind optional. Der aktuelle, geprüfte Gegnerstand wird als Snapshot angehängt.
+   **Mit Basketball-KI vorbereiten** erzeugt daraus Kabinensätze, Spielziele,
+   Offense-/Defense-Schlüssel, Aufwärmfokus und Halbzeitfragen; alles bleibt vor
+   dem Start bearbeitbar. Vorhandene Taktiken werden nach Offense, Defense,
+   Einwurf und Pressbreak aus dem Taktikboard übernommen. **Optionale Angaben
+   überspringen** behält bereits eingetragene Texte.
 4. Den vollständigen Gameplan prüfen und **Zur Live-Ansicht** öffnen. Das legt
    eine Erfassung an, friert den Gameplan ein und startet noch nicht die Spieluhr.
 
@@ -25,13 +28,21 @@ wird durch die lokale Browserabnahme nicht bestätigt.
 
 Die vorhandenen Aktionen für eigene Spieler, Gegnerpunkte, Wechsel, Uhr und
 Korrekturen bleiben frei bedienbar. Es gibt keinen Pflicht-Assistenten zwischen
-Statistikaktionen. **Gameplan & Abschluss** lässt sich aufklappen. Starting Five,
+Statistikaktionen. Der aufgeklappte **Gegnerplan** zeigt die aktuelle Defense und
+vier schnelle Beobachtungen: Paint/Drive, offener Dreier, Offensiv-Rebound und
+Freiwurfdruck. Die Buttons für Mannverteidigung, 2-1-2 und 3-2 protokollieren die
+bewusste Trainerentscheidung. CourtHub zeigt bei wiederholten Beobachtungen einen
+Wechselhinweis, wechselt die Defense aber nie automatisch.
+
+**Gameplan & Abschluss** lässt sich aufklappen. Starting Five,
 Bank, DNP, Rollen, Schwerpunkte und Taktiken bleiben dort lesbar, können während
 des Spiels aber nicht mehr verändert werden. DNP-Spieler werden nicht zur
 Einwechslung angeboten. Nur die Abschlussnotiz bleibt bearbeitbar.
 
 Bei 0:00 erscheint eine Abschnitts- bzw. Halbzeitübersicht. Der nächste Abschnitt
-wird bewusst vorbereitet und gestartet. Ein Pausieren mitten im Viertel ist
+wird bewusst vorbereitet und gestartet. Zur Halbzeit stehen dort zusätzlich
+aktueller Gegnerstand, Defense, Beobachtungszähler, KI-Prüffragen und erreichte
+Wechsel-Auslöser. Ein Pausieren mitten im Viertel ist
 keine Viertelpause. Die Hallenuhr wird nicht ferngesteuert. Auch beim Verlassen
 oder Schließen läuft die gestartete App-Uhr rechnerisch bis 0:00 weiter.
 
@@ -57,6 +68,7 @@ bestehende Erfassung am neuen Gerät bewusst übernehmen.
 erzeugen. Versionen werden nicht still überschrieben; eine Version bewusst
 auswählen. Nach Beginn der Live-Erfassung kann keine andere Vorbereitung mehr
 übernommen werden; der beim Start bestätigte Gameplan ist Teil der Live-Sitzung.
+Eine spätere Änderung im Gegnerprofil verändert diesen eingefrorenen Plan nicht.
 Parallele Abschlussnotizen können getrennt davon bewusst zusammengeführt und
 anschließend weiterbearbeitet werden. Bei erneut eintreffenden unbekannten
 Offline-Änderungen muss gegebenenfalls vor dem Start nochmals entschieden werden.
@@ -73,6 +85,11 @@ Punkten, Wurfversuchen, Rebounds, weiteren Aktionen, Einsatzzeit, DNP und Plus/M
 „Gesamten Punkteverlauf beider Teams erfasst“ nur bei vollständiger Erfassung
 ankreuzen; ohne Bestätigung bleiben Werte vorläufig. Nachträgliche Notizen
 verändern weder Statistik noch Uhr.
+
+Nach dem Abschluss übernimmt CourtHub die protokollierten Beobachtungen,
+gegnerischen Trefferarten und Defense-Wechsel in das passende Gegnerprofil. Ein
+erneutes Öffnen desselben Spiels erzeugt keinen doppelten Bericht. Diese eigenen
+Live-Beobachtungen fließen damit vorsichtig in spätere Defense-Empfehlungen ein.
 
 Offizielles Ergebnis, manueller Boxscore und Live-Erfassung bleiben getrennt.
 Alte Sitzungen im Format 1 erhalten keine erfundenen Gegnerpunkte oder Plus/Minus.

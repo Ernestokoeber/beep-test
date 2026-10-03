@@ -19,7 +19,7 @@ function coverageCurrent(s,events) {
 export function projectBoxscore(s,nowMs) {
   validateSession(s);
   const stats=projectStats(s),lineups=projectLineups(s,nowMs),events=effectiveEvents(s);
-  const supportsScoring=s.schemaVersion===2,complete=clockAt(s,nowMs).ended;
+  const supportsScoring=s.schemaVersion>=2,complete=clockAt(s,nowMs).ended;
   const players=Object.values(stats.players).map(p=>{
     const played=lineups.playedIds.includes(p.id),minutesMs=lineups.minutesMs[p.id]||0;
     return {...p,played,minutesMs,minutesSeconds:Math.floor(minutesMs/1000),plusMinus:supportsScoring&&played?0:null};

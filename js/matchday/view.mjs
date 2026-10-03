@@ -2,18 +2,25 @@ import {clone,canonical} from '../live-game/core.mjs';
 import {buildSetup} from './flow.mjs';
 import {mountMatchdayLive} from './live-shell.mjs';
 import {GAME_POSITIONS,gamePositionLabel,normalizeGamePosition} from '../basketball-positions.mjs';
+import {activeGamePlan,mergeAIPlan} from './opponent-plan.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const playerStatusLabels={starter:'Starting Five',bench:'Bank',dnp:'DNP – nicht eingesetzt'};
 const tacticGroups=[['offense','Offense'],['defense','Defense'],['inbound','Einwurf'],['pressbreak','Pressbreak']];
 const tacticUsage=t=>{const value=String(t.usage||t.category||'').toLowerCase();if(/defen|no-middle/.test(value))return'defense';if(/einwurf|inbound|baseline|sideline|blob|slob/.test(value))return'inbound';if(/press/.test(value))return'pressbreak';return'offense';};
-export async function prepareMatchdayEntry(controller,defaultOwnSide){
+export async function prepareMatchdayEntry(controller,defaultOwnSide,opponentPlan=null){
   const initial=controller.getState();
-  if(initial.stage!=='game'||!['home','away'].includes(defaultOwnSide)||initial.readOnly)return true;
-  const result=await controller.saveDraft({...initial.draft,ownSide:defaultOwnSide,step:'roster'},{parents:initial.heads});
+  if(initial.readOnly||initial.conflict||initial.liveState?.hasLiveData)return true;
+  const ownSide=initial.draft.ownSide||(['home','away'].includes(defaultOwnSide)?defaultOwnSide:null);
+  const next={...initial.draft,ownSide,opponentPlan:initial.draft.opponentPlan||opponentPlan||null};
+  if(initial.stage==='game'&&ownSide)next.step='roster';
+  if(canonical(next)===canonical(initial.draft))return true;
+  const result=await controller.saveDraft(next,{parents:initial.heads});
   if(!result.ok)throw Error(result.error||controller.getState().error||'Spielvorbereitung konnte nicht geöffnet werden.');
   return true;
 }
-export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,prepareRosterPdf=()=>import('./roster-pdf.mjs').then(module=>module.prepareRosterPdf()),onRosterPdf=payload=>import('./roster-pdf.mjs').then(module=>module.exportRosterPdf(payload)),onLive=(host,c)=>mountMatchdayLive(host,c,{tactics})}={}){
+export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,getOpponentPlan=()=>null,requestGamePlan=async({game,opponentPlan})=>{
+  const response=await window.BT.api.ai('planGame',{game,opponentPlan});return response.data;
+},onOpponentFeedback=payload=>window.BT?.opponents?.recordMatchdayFeedback?.(payload),prepareRosterPdf=()=>import('./roster-pdf.mjs').then(module=>module.prepareRosterPdf()),onRosterPdf=payload=>import('./roster-pdf.mjs').then(module=>module.exportRosterPdf(payload)),onLive=(host,c)=>mountMatchdayLive(host,c,{tactics,game,onOpponentFeedback})}={}){
   container.classList.add('matchday');let stage='',draft,parents,read=()=>draft,dirty=false,saving=false,revision=0,liveCleanup=null,dead=false,pending=Promise.resolve(true),selectionPane='roster';
   const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div'),conflicts=el('section');let conflictKey='';status.setAttribute('role','status');container.append(title,steps,status,body,conflicts);
   const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;container.append(discard);
@@ -21,6 +28,45 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
   function field(parent,label,key,type,value){const l=el('label',label),n=el(type==='textarea'?'textarea':type==='select'?'select':'input');if(n.tagName==='INPUT')n.type=type;n.dataset.field=key;if(type!=='select')n.value=value??'';l.append(n);parent.append(l);return n;}
   function button(parent,label,action,fn){const n=el('button',label);n.type='button';n.dataset.action=action;n.addEventListener('click',fn);parent.append(n);return n;}
   function mark(){dirty=true;revision++;status.textContent='Ungespeichert';}
+  async function replaceAndRender(value){
+    draft=clone(value);read=()=>clone(draft);dirty=true;revision++;
+    const ok=await save();if(ok){stage='';update(controller.getState());}return ok;
+  }
+  function opponentSection(plan,{review=false}={}){
+    const section=el('section');section.className='matchday-opponent-plan';section.dataset.role='opponent-plan';
+    if(!plan){section.append(el('h3','Gegneranalyse'),el('p','Für dieses Spiel ist noch keine bestätigte Gegneranalyse verbunden.'));return section;}
+    const heading=el('div');heading.className='matchday-opponent-head';const title=el('div');title.append(el('small','Gegneranalyse'),el('h3',plan.opponent));const quality=el('strong',plan.dataQuality?.confidence==='high'?'Datenlage Grün':plan.dataQuality?.confidence==='medium'?'Datenlage Gelb':'Datenlage Rot');quality.dataset.quality=plan.dataQuality?.confidence||'low';heading.append(title,quality);section.append(heading);
+    const defense=el('div');defense.className='matchday-defense-pair';defense.append(el('p','Start: '+plan.defense.startLabel),el('p','Alternative: '+plan.defense.alternativeLabel));section.append(defense);
+    const triggers=el('ul');for(const item of plan.defense.triggers||[])triggers.append(el('li',item));if(triggers.children.length)section.append(el('h4','Wechsel-Auslöser'),triggers);
+    const active=activeGamePlan(plan);
+    if(active){const room=el('ol');for(const item of active.lockerRoom||[])room.append(el('li',item));section.append(el('h4','Kabine'),room);}
+    if(review&&active){
+      for(const [key,label]of [['gameGoals','Spielziele'],['offenseKeys','Offense'],['defenseKeys','Defense'],['halftimeChecks','Halbzeit prüfen']]){
+        const items=active[key]||[];if(!items.length)continue;const list=el('ul');for(const item of items)list.append(el('li',item));section.append(el('h4',label),list);
+      }
+    }
+    if(!review){
+      const buttons=el('div');buttons.className='matchday-opponent-actions';
+      button(buttons,'Analyse aktualisieren','refresh-opponent-plan',async()=>{
+        const refreshed=getOpponentPlan();if(!refreshed){status.textContent='Für dieses Spiel wurde kein Gegnerprofil gefunden.';return;}
+        await replaceAndRender({...read(),opponentPlan:refreshed});
+      });
+      const ai=button(buttons,plan.aiPlan?'KI-Gameplan neu erstellen':'Mit Basketball-KI vorbereiten','generate-game-plan',async()=>{
+        ai.disabled=true;status.textContent='Basketball-KI erstellt den Gameplan …';
+        try{
+          const base=read(),generated=await requestGamePlan({game,opponentPlan:base.opponentPlan});
+          const opponentPlan=mergeAIPlan(base.opponentPlan,generated),active=activeGamePlan(opponentPlan);
+          const next={...base,opponentPlan};
+          if(!String(next.goals||'').trim())next.goals=(active.gameGoals||[]).join('\n');
+          if(!String(next.warmup||'').trim())next.warmup=(active.warmupFocus||[]).join('\n');
+          if(!String(next.coachingNote||'').trim())next.coachingNote=[...(active.defenseKeys||[]),...(active.offenseKeys||[])].join('\n');
+          await replaceAndRender(next);
+        }catch(error){status.textContent=error.message;}finally{ai.disabled=false;}
+      });
+      section.append(buttons);
+    }
+    return section;
+  }
   function save(next){
     if(saving)return pending.then(ok=>ok?save(next):false);
     if(!dirty&&!next)return Promise.resolve(true);
@@ -113,6 +159,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       const minutes=field(group,'Minuten je Abschnitt','minutes','number',draft.config.periodMs/60000);minutes.min=1;minutes.max=60;
       const overtime=field(group,'Minuten je Verlängerung','overtime','number',draft.config.overtimeMs/60000);overtime.min=1;overtime.max=60;
       const fields={};for(const [key,label]of [['goals','Spielziele'],['warmup','Aufwärmen'],['coachingNote','Coaching-Notiz']]){fields[key]=field(group,label,key,'textarea',draft[key]);fields[key].maxLength=4000;}
+      group.insertBefore(opponentSection(draft.opponentPlan),periods.parentElement);
       group.append(el('h3','Taktiken für dieses Spiel'));
       const options=new Map(tactics().filter(t=>!t.archived).map(t=>[t.id,{id:t.id,title:t.title||t.name||'Taktik',usage:tacticUsage(t)}]));for(const t of draft.tactics)if(!options.has(t.id))options.set(t.id,{...t,usage:t.usage||'offense',missing:true});
       const selected=[];for(const [usage,label]of tacticGroups){const section=el('section');section.className='matchday-tactic-group';section.dataset.tacticGroup=usage;section.append(el('h4',label));const matches=[...options.values()].filter(t=>t.usage===usage);if(!matches.length)section.append(el('p','Keine passende Taktik im Taktikboard.'));for(const t of matches){const check=field(section,t.title+(t.missing?' – Nicht mehr verfügbar':''),'tactic','checkbox',t.id);check.checked=draft.tactics.some(x=>x.id===t.id);check.dataset.tacticId=t.id;selected.push({check,t});}group.append(section);}
@@ -122,6 +169,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       button(actions,'Gameplan prüfen','next',()=>save('review'));
     }else{
       group.append(el('h3','Gameplan bestätigen'),el('p',`${draft.kind==='training'?'Trainingsspiel':'Spiel'} · ${draft.ownSide==='home'?'Heim':'Gast'} · ${draft.config.periods} × ${draft.config.periodMs/60000} Minuten`),el('p','Mit dem Start wird dieser Gameplan eingefroren. Während des Spiels bleibt er nur lesbar.'));
+      group.append(opponentSection(draft.opponentPlan,{review:true}));
       const lineup=el('div');lineup.className='matchday-lineup-board';for(const [key,label]of Object.entries(playerStatusLabels)){const section=el('section');section.dataset.status=key;section.append(el('h4',label));const list=el('ul');for(const p of draft.roster.filter(player=>(player.gameStatus||(draft.startingFive.includes(player.id)?'starter':'bench'))===key))list.append(el('li',`${p.jerseyNumber===null?'Ohne Nummer':'#'+p.jerseyNumber} ${p.name} · ${gamePositionLabel(p.gamePosition)}${p.role?' · '+p.role:''}`));if(!list.children.length)list.append(el('li','Keine Spieler'));section.append(list);lineup.append(section);}group.append(lineup);
       const plan=el('section');plan.className='matchday-plan-summary';plan.append(el('h4','Schwerpunkte'),el('p',draft.goals||'Keine Spielziele eingetragen.'),el('p',draft.warmup?'Aufwärmen: '+draft.warmup:'Kein Aufwärmplan eingetragen.'),el('p',draft.coachingNote?'Coaching: '+draft.coachingNote:'Keine Coaching-Notiz eingetragen.'));group.append(plan);
       const tacticsSummary=el('section');tacticsSummary.className='matchday-plan-summary';tacticsSummary.append(el('h4','Geplante Taktiken'));for(const [usage,label]of tacticGroups){const chosen=draft.tactics.filter(t=>(t.usage||'offense')===usage);if(chosen.length)tacticsSummary.append(el('p',label+': '+chosen.map(t=>t.title).join(', ')));}if(!draft.tactics.length)tacticsSummary.append(el('p','Keine Taktik ausgewählt.'));group.append(tacticsSummary,el('p','Die Spieluhr startest du anschließend selbst.'));

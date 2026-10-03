@@ -212,6 +212,25 @@
   gap: 0.65rem;
 }
 
+.opponent-live-history {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.opponent-live-history article {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card-soft, var(--card));
+}
+
+.opponent-live-history article span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .opponent-form {
   display: grid;
   gap: 1rem;

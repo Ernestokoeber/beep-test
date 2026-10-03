@@ -16,7 +16,9 @@ export const actions = Object.freeze({
   oreb:'Offensiv-Rebound',dreb:'Defensiv-Rebound',assist:'Assist',steal:'Steal',
   block:'Block',turnover:'Ballverlust',foul:'Foul'
 });
-const kinds = ['stat','substitution','clock-start','clock-pause','clock-correction','period-start','finish','amend','void','roster','opponent-score','score-coverage'];
+const kinds = ['stat','substitution','clock-start','clock-pause','clock-correction','period-start','finish','amend','void','roster','opponent-score','score-coverage','opponent-observation','defense-change'];
+const opponentObservations=new Set(['paint','open-three','oreb','free-throw-pressure']);
+const defenses=new Set(['man','zone212','zone32']);
 const gamePositions=new Set(GAME_POSITION_VALUES);
 export const duration = (s,p) => p <= s.config.periods ? s.config.periodMs : s.config.overtimeMs;
 const idOK = id => typeof id === 'string' && id.length > 0 && id.length <= 120 && !['__proto__','constructor','prototype'].includes(id);
@@ -42,9 +44,13 @@ function validateGameplan(gameplan) {
   ensure(['goals','warmup','coachingNote'].every(key=>typeof gameplan[key]==='string'&&gameplan[key].length<=4000),'gameplan','Ungültige Gameplan-Notiz.');
   ensure(Array.isArray(gameplan.tactics)&&gameplan.tactics.length<=20&&gameplan.tactics.every(t=>t&&idOK(t.id)&&typeof t.title==='string'&&t.title.length<=200&&
     (t.usage===undefined||['offense','defense','inbound','pressbreak'].includes(t.usage))),'gameplan','Ungültige Taktikauswahl im Gameplan.');
+  if(gameplan.opponentPlan!==undefined&&gameplan.opponentPlan!==null){
+    const plan=gameplan.opponentPlan;
+    ensure(plan&&plan.schemaVersion===1&&idOK(plan.opponentId)&&typeof plan.opponent==='string'&&plan.opponent.length<=100&&plan.defense&&defenses.has(plan.defense.start)&&defenses.has(plan.defense.alternative),'gameplan','Ungültiger bestätigter Gegnerplan.');
+  }
 }
 export function createSession({schemaVersion=1,id,deviceId,actorId,roster,startingFive,config,gameplan}) {
-  ensure([1,2].includes(schemaVersion),'schema','Unbekannte Live-Datenversion. App aktualisieren.');
+  ensure([1,2,3].includes(schemaVersion),'schema','Unbekannte Live-Datenversion. App aktualisieren.');
   ensure([id,deviceId,actorId].every(idOK),'identity','Ungültige Sitzungskennung.');
   ensure(Array.isArray(roster) && roster.length >= 5 && roster.length <= 40 && roster.every(p => idOK(p.id) && typeof p.name === 'string' && p.name.length <= 100),'roster','Ungültiger Spieltagskader.');
   ensure(new Set(roster.map(p=>p.id)).size === roster.length,'roster','Spieler dürfen nicht doppelt im Kader stehen.');
@@ -59,12 +65,14 @@ function validateEvent(s,e) {
   ensure(e && idOK(e.id) && e.sessionId === s.id && Number.isInteger(e.seq) && e.seq > 0,'event','Ungültige Aktion.');
   ensure(kinds.includes(e.kind) && e.payload && typeof e.payload === 'object' && !Array.isArray(e.payload),'event','Unbekannte Aktion.');
   if(['opponent-score','score-coverage'].includes(e.kind)){
-    ensure(s.schemaVersion===2,'schema','Gegnerpunkte benötigen eine neue Erfassung mit Format 2.');
+    ensure(s.schemaVersion>=2,'schema','Gegnerpunkte benötigen eine neue Erfassung mit Format 2.');
     const field=e.kind==='opponent-score'?'points':'complete';
     ensure(Object.keys(e.payload).length===1 && Object.hasOwn(e.payload,field) &&
       (field==='points'?[1,2,3].includes(e.payload.points):typeof e.payload.complete==='boolean'),
       'event','Ungültige Gegnerpunkte oder Vollständigkeitsangabe.');
   }
+  if(e.kind==='opponent-observation')ensure(s.schemaVersion>=3&&Object.keys(e.payload).length===1&&opponentObservations.has(e.payload.type),'event','Ungültige Gegnerbeobachtung.');
+  if(e.kind==='defense-change')ensure(s.schemaVersion>=3&&Object.keys(e.payload).length===1&&defenses.has(e.payload.defense),'event','Ungültiger Defense-Wechsel.');
   ensure(Number.isInteger(e.period) && e.period >= 1 && e.period <= 50 && Number.isInteger(e.remainingMs) && e.remainingMs >= 0 && e.remainingMs <= duration(s,e.period),'time','Ungültige Spielzeit.',[e.id]);
   ensure(typeof e.recordedAt === 'string' && Number.isFinite(Date.parse(e.recordedAt)),'time','Ungültige Erfassungszeit.');
   const known = s.roster.concat(s.events.filter(x=>x.kind==='roster' && x.seq<e.seq).flatMap(x=>x.payload.players||[]));
@@ -96,7 +104,7 @@ export function effectiveEvents(s) {
   return [...originals.values()].sort((a,b)=>a.seq-b.seq);
 }
 export function validateSession(s) {
-  ensure([1,2].includes(s?.schemaVersion),'schema','Unbekannte Live-Datenversion. App aktualisieren.');
+  ensure([1,2,3].includes(s?.schemaVersion),'schema','Unbekannte Live-Datenversion. App aktualisieren.');
   createSession(s);
   ensure(Array.isArray(s.events) && s.events.length <= 10000,'events','Zu viele oder ungültige Aktionen.');
   const ids = new Set(); let seq=0;

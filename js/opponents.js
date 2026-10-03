@@ -260,6 +260,7 @@ BT.opponents = (function() {
     const scouting = profile?.scouting || {};
     const observed = ['insideThreat', 'perimeterThreat', 'highPostPassing', 'offensiveRebounding', 'primaryScorerArea']
       .filter(key => scouting[key] && scouting[key] !== 'unknown').length;
+    const liveReports = Array.isArray(profile?.matchdayReports) ? profile.matchdayReports : [];
     let points = 0;
     if (metrics.games >= 3) points += 1;
     if (metrics.games >= 5) points += 1;
@@ -268,12 +269,15 @@ BT.opponents = (function() {
     if (shooting.gamesWithMadeProfile >= 3) points += 1;
     if (observed >= 2) points += 1;
     if (playerSummary(profile).length >= 2) points += 1;
+    if (liveReports.length >= 1) points += 1;
+    if (liveReports.length >= 3) points += 1;
     const confidence = points >= 6 ? 'high' : points >= 3 ? 'medium' : 'low';
     const sources = [];
     if (profileGames(profile).length) sources.push('TeamSL-Ergebnisse');
     if (shooting.source === 'dbb-scores-screenshot' || playerSummary(profile).some(player => player.source === 'dbb-scores-screenshot')) sources.push('DBB.Scores-Screenshot');
     if ((shooting.gamesWithFouls || shooting.gamesWithShots || playerSummary(profile).length) && !sources.includes('DBB.Scores-Screenshot')) sources.push('geprüfte manuelle Statistik');
     if (observed) sources.push('Trainerbeobachtung');
+    if (liveReports.length) sources.push('CourtHub-Livebeobachtung');
     return { confidence, points, sources, observedFields: observed };
   }
 
@@ -284,6 +288,11 @@ BT.opponents = (function() {
     const quality = dataQuality(profile);
     const scores = { man: 2, zone212: 0, zone32: 0 };
     const reasons = [];
+    const liveReports = Array.isArray(profile?.matchdayReports) ? profile.matchdayReports : [];
+    const observedLive = liveReports.reduce((sum, report) => {
+      for (const key of ['paint', 'open-three', 'oreb', 'free-throw-pressure']) sum[key] += normalizedNumber(report?.observations?.[key]);
+      return sum;
+    }, { paint: 0, 'open-three': 0, oreb: 0, 'free-throw-pressure': 0 });
 
     if (scouting.insideThreat === 'high') { scores.zone212 += 3; reasons.push('hohe Gefahr durch Drives oder Inside-Spiel'); }
     if (scouting.insideThreat === 'medium') scores.zone212 += 1;
@@ -314,6 +323,9 @@ BT.opponents = (function() {
       scores.zone32 += 1;
       reasons.push('mindestens ein belegter Volumen-Schütze');
     }
+    if (observedLive.paint >= 4) { scores.zone212 += 1; reasons.push('wiederholte Paint-/Drive-Beobachtungen aus eigenen Spielen'); }
+    if (observedLive['open-three'] >= 4) { scores.zone32 += 1; reasons.push('wiederholt offene Dreier in eigenen Spielen'); }
+    if (observedLive.oreb >= 3) { scores.man += 1; reasons.push('wiederholte Offensiv-Rebounds erfordern klare Box-out-Zuordnung'); }
     if (quality.confidence === 'low') {
       scores.man += 5;
       reasons.unshift('Datenbasis reicht noch nicht für einen belastbaren Zonenstart');
@@ -367,6 +379,7 @@ BT.opponents = (function() {
         primaryScorerArea: scoutingValue(profile, 'primaryScorerArea'),
         notes: String(profile.scouting?.notes || '').slice(0, 800)
       },
+      matchdayReports: (Array.isArray(profile.matchdayReports) ? profile.matchdayReports : []).slice(-5),
       defenseRecommendation: recommendDefense(profile),
       dataQuality: {
         confidence: quality.confidence,
@@ -379,6 +392,24 @@ BT.opponents = (function() {
 
   function scoutingValue(profile, key) {
     return String(profile?.scouting?.[key] || 'unknown');
+  }
+
+  function recordMatchdayFeedback(feedback) {
+    if (!feedback?.gameId || !feedback?.opponentId) return null;
+    const profile = BT.storage.getOpponents().find(item => item.id === feedback.opponentId || keyFor(item.name) === keyFor(feedback.opponent));
+    if (!profile) return null;
+    const reports = (Array.isArray(profile.matchdayReports) ? profile.matchdayReports : []).filter(item => item.gameId !== feedback.gameId);
+    reports.push({
+      gameId: String(feedback.gameId), date: String(feedback.date || ''), recordedAt: String(feedback.recordedAt || new Date().toISOString()),
+      observations: Object.fromEntries(['paint', 'open-three', 'oreb', 'free-throw-pressure'].map(key => [key, normalizedNumber(feedback.observations?.[key])])),
+      opponentMakes: Object.fromEntries(['one', 'two', 'three'].map(key => [key, normalizedNumber(feedback.opponentMakes?.[key])])),
+      defenseChanges: (Array.isArray(feedback.defenseChanges) ? feedback.defenseChanges : []).slice(0, 30).map(item => ({ defense: ['man', 'zone212', 'zone32'].includes(item.defense) ? item.defense : 'man', period: normalizedNumber(item.period), remainingMs: normalizedNumber(item.remainingMs) })),
+      finalDefense: ['man', 'zone212', 'zone32'].includes(feedback.finalDefense) ? feedback.finalDefense : 'man'
+    });
+    reports.sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')));
+    const next = reports.slice(-20);
+    if (JSON.stringify(next) === JSON.stringify(profile.matchdayReports || [])) return profile;
+    return BT.storage.upsertOpponent({ id: profile.id, matchdayReports: next });
   }
 
   function contextForGame(game) {
@@ -546,6 +577,7 @@ BT.opponents = (function() {
     const scouting = profile.scouting || {};
     const totals = profile.manualTotals || {};
     const top = context.topScorers;
+    const liveReports = context.matchdayReports || [];
     host.innerHTML = `
       <div class="game-detail-head"><div><span class="section-kicker">Gegner-Scouting · ${BT.util.escapeHTML(profile.seasonId || 'Saison')}</span><h3>${BT.util.escapeHTML(profile.name)}</h3><p class="muted">Quellen: ${BT.util.escapeHTML(context.dataQuality.sources.join(', ') || 'noch keine belastbare Quelle')} · ${qualityLabel(context.dataQuality.confidence)}</p></div></div>
       <section class="boxscore-panel opponent-screenshot-panel">
@@ -582,6 +614,7 @@ BT.opponents = (function() {
         <p><strong>Risiko:</strong> ${BT.util.escapeHTML(defense.risk)}</p>
         <div><strong>Wechsel-Auslöser</strong><ul>${defense.triggers.map(trigger => `<li>${BT.util.escapeHTML(trigger)}</li>`).join('')}</ul></div>
       </section>
+      ${liveReports.length ? `<section class="boxscore-panel opponent-live-history"><div class="section-head compact"><div><span class="section-kicker">Eigene Spiele</span><h3>CourtHub-Livebeobachtungen</h3></div></div>${liveReports.slice().reverse().map(report => `<article><strong>${BT.util.escapeHTML(report.date || 'Spieltag')}</strong><span>Paint ${normalizedNumber(report.observations?.paint)} · offene 3er ${normalizedNumber(report.observations?.['open-three'])} · OREB ${normalizedNumber(report.observations?.oreb)} · FW-Druck ${normalizedNumber(report.observations?.['free-throw-pressure'])}</span></article>`).join('')}</section>` : ''}
       <section class="boxscore-panel"><div class="section-head compact"><div><span class="section-kicker">Leistungsträger</span><h3>Topscorer aus erfassten Daten</h3></div></div>
         ${top.length ? `<div class="opponent-leaders">${top.map(player => `<div><strong>${BT.util.escapeHTML(player.name)}</strong><span>${valueOrDash(player.pointsPerGame)} PPG · ${valueOrDash(player.foulsPerGame)} Fouls · ${valueOrDash(player.threePointPct, ' % 3P')}</span></div>`).join('')}</div>` : '<p class="muted">Noch keine geprüften Spielerwerte. Punkte sind nicht automatisch eine Wurfquote.</p>'}
       </section>
@@ -994,6 +1027,7 @@ BT.opponents = (function() {
     buildScreenshotBatches,
     runScreenshotBatches,
     mergeScreenshotResults,
+    recordMatchdayFeedback,
     syncLeague,
     ensureFromOwnGames,
     render

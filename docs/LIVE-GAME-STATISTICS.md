@@ -11,7 +11,7 @@ Die anschließende freie Live-Ansicht nutzt dieselbe Erfassung, keine zweite
 Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
 
 1. App einmal online öffnen, unter **Konto & Sync** anmelden und synchronisieren.
-2. Unter **Spiele** das Spiel auswählen und **Live erfassen** öffnen.
+2. Unter **Spiele** das Spiel auswählen und **Live Game mit Gegnerplan** öffnen.
 3. Spieltagskader und genau fünf Starter auswählen. Abschnittsdauer einstellen.
    Trikotnummern für dieses Spiel prüfen: `0` und `00` sind verschieden; fehlende
    Nummern dürfen leer bleiben. Profiländerungen verändern diesen Spieltagskader
@@ -31,6 +31,10 @@ Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
   gemeinsam auswählen, dann bestätigen. Bei weniger als fünf Spielern Unterzahl
   ausdrücklich bestätigen. Die Uhr danach selbst wieder starten.
 - Fünf Fouls erzeugen einen Hinweis, keine automatische Auswechslung.
+- Im Spieltag-Modus bleiben Gegnerplan und aktuelle Defense sichtbar. Paint/Drive,
+  offene Dreier, Offensiv-Rebounds und Freiwurfdruck lassen sich als schnelle
+  Beobachtung erfassen. Erreichte Auslöser erscheinen als Hinweis; den Wechsel
+  zwischen Mann, 2-1-2 und 3-2 bestätigt immer der Coach selbst.
 - **Letzte Aktion rückgängig** betrifft die letzte Statistikaktion, Gegnerpunkte, Wechselgruppe
   oder Kaderkorrektur. Widersprüchliche Folgeaktionen verhindern die Änderung.
 - **Uhr korrigieren** setzt die angehaltene Uhr auf MM:SS. Betroffene Wechselzeiten
@@ -101,8 +105,9 @@ bestätigen**. Eine alte Bestätigung wird dadurch nicht automatisch erneuert.
 Ein passender Endstand allein beweist keine korrekte Zuordnung zu Spielern.
 
 Alte Erfassungen (Format 1) bleiben unverändert nutzbar, ohne Gegnerpunkte und
-ohne geschätztes Plus/Minus. Diese Ergänzungen gelten für neu angelegte
-Erfassungen (Format 2). Vor einem neuen Spiel die App auf allen Geräten online
+ohne geschätztes Plus/Minus. Format 2 ergänzt Gegnerpunkte und Plus/Minus. Neue
+Spieltage verwenden Format 3 für schnelle Gegnerbeobachtungen und bestätigte
+Defense-Wechsel. Vor einem neuen Spiel die App auf allen Geräten online
 aktualisieren. Bei einer nicht unterstützten Datenversion aktualisieren, niemals
 Browserdaten löschen oder eine neue Erfassung über die alte schreiben.
 

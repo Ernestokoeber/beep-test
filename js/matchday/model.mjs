@@ -5,7 +5,23 @@ const text=(x,max)=>typeof x==='string'&&x.length<=max;
 const playerStatuses=new Set(['starter','bench','dnp']);
 const gamePositions=new Set(GAME_POSITION_VALUES);
 const tacticUsages=new Set(['offense','defense','inbound','pressbreak']);
-export function emptyDraft(){return {ownSide:null,kind:'match',step:'game',roster:[],startingFive:[],config:{periods:4,periodMs:600000,overtimeMs:300000},goals:'',warmup:'',tactics:[],coachingNote:'',closingNote:''};}
+const defenses=new Set(['man','zone212','zone32']);
+const qualities=new Set(['low','medium','high']);
+export function emptyDraft(){return {ownSide:null,kind:'match',step:'game',roster:[],startingFive:[],config:{periods:4,periodMs:600000,overtimeMs:300000},goals:'',warmup:'',tactics:[],coachingNote:'',closingNote:'',opponentPlan:null};}
+function validateOpponentPlan(plan){
+  if(plan===undefined||plan===null)return;
+  ensure(plan&&plan.schemaVersion===1&&idOK(plan.opponentId)&&text(plan.opponent,100)&&text(plan.gameId||'',120)&&
+    typeof plan.capturedAt==='string'&&Number.isFinite(Date.parse(plan.capturedAt)),'schema','Ungültiger Gegnerplan.');
+  ensure(plan.dataQuality&&qualities.has(plan.dataQuality.confidence)&&Array.isArray(plan.dataQuality.sources)&&plan.dataQuality.sources.length<=8&&plan.dataQuality.sources.every(item=>text(item,400)),'schema','Ungültige Datenqualität im Gegnerplan.');
+  ensure(plan.defense&&defenses.has(plan.defense.start)&&defenses.has(plan.defense.alternative)&&text(plan.defense.startLabel,100)&&text(plan.defense.alternativeLabel,100)&&
+    qualities.has(plan.defense.confidence)&&Array.isArray(plan.defense.reasons)&&plan.defense.reasons.length<=5&&plan.defense.reasons.every(item=>text(item,400))&&
+    Array.isArray(plan.defense.triggers)&&plan.defense.triggers.length<=5&&plan.defense.triggers.every(item=>text(item,400))&&text(plan.defense.risk||'',400),'schema','Ungültige Defense-Empfehlung im Gegnerplan.');
+  ensure(Array.isArray(plan.topScorers)&&plan.topScorers.length<=5&&plan.topScorers.every(player=>player&&text(player.name,100)),'schema','Ungültige Schlüsselspieler im Gegnerplan.');
+  if(plan.aiPlan){
+    ensure(plan.aiPlan&&['lockerRoom','gameGoals','offenseKeys','defenseKeys','warmupFocus','halftimeChecks'].every(key=>Array.isArray(plan.aiPlan[key])&&plan.aiPlan[key].length<=3&&plan.aiPlan[key].every(item=>text(item,500)))&&
+      text(plan.aiPlan.generatedAt||'',80),'schema','Ungültiger KI-Gameplan.');
+  }
+}
 function validateDraft(v){
   ensure(v&&[null,'home','away'].includes(v.ownSide)&&['match','training'].includes(v.kind)&&['game','roster','preparation','review'].includes(v.step),'schema','Ungültige Spieltagsvorbereitung.');
   ensure(['goals','warmup','coachingNote','closingNote'].every(k=>text(v[k],4000)),'schema','Notizen dürfen höchstens 4000 Zeichen enthalten.');
@@ -15,6 +31,7 @@ function validateDraft(v){
   ensure(Array.isArray(v.startingFive)&&v.startingFive.length<=5&&v.startingFive.every(idOK)&&new Set(v.startingFive).size===v.startingFive.length,'schema','Ungültige Starterauswahl.');
   ensure(v.config&&Number.isInteger(v.config.periods)&&v.config.periods>=1&&v.config.periods<=12&&['periodMs','overtimeMs'].every(k=>Number.isInteger(v.config[k])&&v.config[k]>=1000&&v.config[k]<=3600000),'schema','Ungültige Uhr-Einstellungen.');
   ensure(Array.isArray(v.tactics)&&v.tactics.length<=20&&v.tactics.every(t=>t&&idOK(t.id)&&text(t.title,200)&&(t.usage===undefined||tacticUsages.has(t.usage)))&&new Set(v.tactics.map(t=>t.id)).size===v.tactics.length,'schema','Ungültige Taktikauswahl.');
+  validateOpponentPlan(v.opponentPlan);
 }
 export function validateMatchday(value){
   ensure(value&&value.schemaVersion===1&&Array.isArray(value.revisions)&&value.revisions.length>0&&value.revisions.length<=1000,'schema','Unbekannte oder zu große Spieltagsversion. App aktualisieren; lokale Daten behalten.');

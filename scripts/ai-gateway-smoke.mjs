@@ -53,7 +53,7 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 7, 'KI-Vertrag wurde für die verknüpfte DBB.Scores-Auswertung nicht angehoben');
+assert(AI_CONTRACT_VERSION === 8, 'KI-Vertrag wurde für den verknüpften Gegner-Gameplan nicht angehoben');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.1', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -256,6 +256,16 @@ assert(requestBody.generationConfig.responseSchema.type === 'object', 'Schema wu
 
 const tacticRequest = buildAIRequest('explainTactic', { tactic: { title: 'Horns', phases: [{ number: 1, offense: [], defense: [], actions: [] }] } });
 assert(promptText(tacticRequest).includes('COURTHUB BASKETBALL-KI') && promptText(tacticRequest).includes('Screenwinkel'), 'Taktikerklärung nutzt das Basketball-Fachwissen nicht');
+
+const gamePlanRequest=buildAIRequest('planGame',{game:{date:'2026-10-04',home:'TSV Lindau',away:'TSV Ottobeuren',leagueName:'Bezirkspokal'},opponentPlan:{schemaVersion:1,opponent:'TSV Ottobeuren',defense:{start:'man',alternative:'zone212'},dataQuality:{confidence:'medium'}}});
+assert(promptText(gamePlanRequest).includes('bestätigten opponentPlan')&&promptText(gamePlanRequest).includes('nicht als gegnerische Schwäche'),'Gameplan-KI ist nicht an bestätigte Gegnerfakten gebunden');
+assert(gamePlanRequest.timeoutMs===38_000&&gamePlanRequest.generationConfig.responseSchema.properties.lockerRoom.minItems===3,'Gameplan-KI hat keinen begrenzten, strukturierten Vertrag');
+const gamePlanValue=gamePlanRequest.parse(JSON.stringify({
+  lockerRoom:['Satz 1','Satz 2','Satz 3'],gameGoals:['Ziel 1','Ziel 2','Ziel 3'],offenseKeys:['Offense 1','Offense 2','Offense 3'],
+  defenseKeys:['Defense 1','Defense 2','Defense 3'],warmupFocus:['Warmup 1','Warmup 2','Warmup 3'],halftimeChecks:['Check 1','Check 2','Check 3']
+}));
+assert(gamePlanValue.halftimeChecks.length===3,'Strukturierter KI-Gameplan wird nicht validiert');
+await expectAIError(()=>Promise.resolve(buildAIRequest('planGame',{opponentPlan:{schemaVersion:1,opponent:'Test',defense:{start:'zone23',alternative:'man'}}})),'AI_INPUT_INVALID','Nicht trainierte Gameplan-Defense');
 
 const screenshotRequest = buildAIRequest('parseOpponentScreenshots', {
   expectedOpponent: 'TSV Ottobeuren',

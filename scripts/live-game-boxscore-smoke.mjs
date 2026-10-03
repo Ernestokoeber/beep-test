@@ -16,10 +16,12 @@ s=appendEvent(s,event(s,'roster',{players:[{id:'p1',name:'P1',jerseyNumber:'00'}
 assert.equal(sessionRoster(s)[0].jerseyNumber,'00');
 s=appendEvent(s,event(s,'roster',{players:[{id:'p1',name:'P1',jerseyNumber:null}]}));
 assert.equal(sessionRoster(s)[0].jerseyNumber,null);
-assert.throws(()=>createSession({...fresh(),schemaVersion:3}));
+assert.equal(createSession({...fresh(),schemaVersion:3}).schemaVersion,3);
+assert.throws(()=>createSession({...fresh(),schemaVersion:4}));
 assert.throws(()=>validateSession({...fresh(),schemaVersion:undefined}));
 assert.throws(()=>createSession({...fresh(),roster:fresh().roster.map(p=>({...p,jerseyNumber:'4'}))}));
 assert.throws(()=>appendEvent(fresh(1),event(fresh(1),'opponent-score',{points:2})));
+assert.throws(()=>appendEvent(fresh(2),event(fresh(2),'opponent-observation',{type:'paint'})));
 for(const payload of [{points:0},{points:4},{points:1.5},{points:'2'},{points:2,playerId:'p1'}])assert.throws(()=>appendEvent(s,event(s,'opponent-score',payload)));
 for(const payload of [{complete:1},{complete:'true'},{complete:true,playerId:'p1'}])assert.throws(()=>appendEvent(s,event(s,'score-coverage',payload)));
 console.log('Live boxscore: format and jersey validation passed.');

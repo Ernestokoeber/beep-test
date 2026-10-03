@@ -18,7 +18,7 @@ function replay(s) {
     const at=position(s,e.period,e.remainingMs);
     if(e.kind==='roster'){for(const p of e.payload.players)known.add(p.id);ensure(known.size<=40,'roster','Höchstens 40 Spieler.');continue;}
     if(e.kind==='stat'){ensure(known.has(e.payload.playerId),'roster','Spieler fehlt im Kader.',[e.id]);stats.push(e);continue;}
-    if(e.kind==='opponent-score'||e.kind==='score-coverage'){stats.push(e);continue;}
+    if(['opponent-score','score-coverage','opponent-observation','defense-change'].includes(e.kind)){stats.push(e);continue;}
     ensure(!c.ended,'finished','Das Spiel wurde bereits beendet.',[e.id]);
     if(e.kind==='period-start') {
       ensure(e.period===c.period+1 && c.remainingMs===0 && !c.running && e.remainingMs===duration(s,e.period),'period','Vorherigen Abschnitt zuerst bei 0:00 anhalten.',[e.id]);

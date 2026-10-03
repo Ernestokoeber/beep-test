@@ -79,11 +79,28 @@ höchstens eine der fünf Stationen aus einer Gegnerbesonderheit oder einem
 Trainerproblem entstehen. Tagesform, Schmerzen, RPE, Spielminuten und
 Wochenbelastung haben weiterhin Vorrang.
 
+## Spielvorbereitung und Live Game
+
+Beim Öffnen eines Spieltags friert CourtHub den zu diesem Zeitpunkt bestätigten
+Gegnerkontext als nachvollziehbaren Snapshot ein. Die Basketball-KI kann daraus
+Kabinensätze, Spielziele, Offense-/Defense-Schlüssel, Aufwärmfokus und
+Halbzeitfragen erstellen. Sie darf nur belegte Daten verwenden und nur zwischen
+Mannverteidigung mit No-Middle, 2-1-2 und 3-2 wählen.
+
+Im Live Game können Paint-/Drive-Aktionen, offene Dreier, Offensiv-Rebounds und
+Freiwurfdruck mit einem Tipp protokolliert werden. CourtHub vergleicht diese
+Beobachtungen mit messbaren Auslösern und zeigt eine Empfehlung; ein
+Defense-Wechsel wird erst durch den Coach bestätigt und als eigenes Ereignis
+gespeichert. Die Halbzeitansicht bündelt Stand, aktuelle Defense, Zähler und
+Prüffragen. Nach Spielende werden Beobachtungen und Wechsel idempotent in das
+Gegnerprofil zurückgeführt.
+
 ## Grenzen
 
 - Unlesbare oder abgeschnittene Werte bleiben leer.
 - Saison-Durchschnittswerte werden nicht als Einzelspielwerte importiert.
-- Eine Defense-Empfehlung ist eine vorbereitete Coaching-Entscheidung und keine
-  automatische Live-Steuerung.
+- Eine Defense-Empfehlung oder ein Live-Hinweis ist eine Coaching-Hilfe und keine
+  automatische Steuerung. CourtHub dokumentiert nur ausdrücklich bestätigte
+  Defense-Wechsel.
 - Eine spätere autorisierte Recherche-API kann weitere öffentliche Quellen
   ergänzen; sie ändert nichts an Quellenangabe, Vorschau und Bestätigung.

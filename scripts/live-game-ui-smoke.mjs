@@ -25,7 +25,7 @@ document.querySelector('[data-jersey-player="p2"]').value='0';
 for(const input of document.querySelectorAll('[data-starter]'))input.checked=Number(input.value.slice(1))<=5;
 click('Erfassung starten');await c.idle();
 assert.equal(c.getState().session.startingFive.length,5);
-assert.equal(c.getState().session.schemaVersion,2);
+assert.equal(c.getState().session.schemaVersion,3);
 assert.equal(c.getState().roster.find(p=>p.id==='p1').jerseyNumber,'00');
 assert.equal(c.getState().roster.find(p=>p.id==='p2').jerseyNumber,'0');
 click('Gegner +2');click('Gegner +2');await c.idle();

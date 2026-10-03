@@ -25,6 +25,8 @@ Saison-Gegner werden aus dem vollständigen TeamSL-Ligaspielplan angelegt. Ergä
 
 Der geprüfte `opponentContext` enthält Ergebnisform, Punkteschnitte, verfügbare Teamfouls, Wurfwerte, Topscorer, Trainerbeobachtungen, Quellen und Datenqualität. Die zulässige Defense-Auswahl ist auf Mannverteidigung mit No-Middle, Zone 2-1-2 und Zone 3-2 begrenzt. Bei niedriger Datenqualität bleibt Mannverteidigung die Basis. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit und höchstens eine von fünf individuellen Freitagsstationen bestimmen.
 
+Im Spieltag erstellt die Aktion `planGame` aus dem eingefrorenen Gegner-Snapshot genau drei Kabinensätze, Spielziele, Offense-Schlüssel, Defense-Schlüssel, Aufwärmpunkte und Halbzeitfragen. Fehlende Wurfversuche werden nicht zu Quoten ergänzt, einzelne Trefferprofile nicht als sichere Schwäche formuliert und andere Defense-Systeme nicht vorgeschlagen. Der Coach kann die Inhalte vor dem Live-Start ändern; im Live Game bleiben sie unverändert nachvollziehbar.
+
 Die vollständige Bedien- und Datenbeschreibung steht in `docs/OPPONENT-SCOUTING.md`.
 
 ## Verbindliche Grenzen

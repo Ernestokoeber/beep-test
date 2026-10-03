@@ -51,7 +51,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     let s=session();
     if(command.kind==='setup'){
       ensure(!live,'session','Eine Erfassung ist bereits vorhanden.');
-      s=createSession({...command.payload,id:command.id,deviceId:deps.deviceId,actorId:scope.actorId,schemaVersion:2});
+      s=createSession({...command.payload,id:command.id,deviceId:deps.deviceId,actorId:scope.actorId,schemaVersion:3});
       await write({schemaVersion:1,sessions:[s],selectedSessionId:s.id,resolutionRevision:0});return;
     }
     if(command.kind==='select-session'){
@@ -67,11 +67,11 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     ensure(s.deviceId===deps.deviceId,'device','Dieses Gerät muss die Erfassung zuerst ausdrücklich übernehmen.');
     if(s.events.some(e=>e.id===command.id))return;
     let c=clockAt(s,deps.now());
-    ensure(!c.ended||['amend','void','roster','score-coverage'].includes(command.kind),'finished','Spiel beendet. Nur explizite Korrekturen sind möglich.');
+    ensure(!c.ended||['amend','void','roster','score-coverage','opponent-observation','defense-change'].includes(command.kind),'finished','Spiel beendet. Nur explizite Korrekturen sind möglich.');
     const confirmScore=command.kind==='finish'&&Object.hasOwn(command.payload||{},'scoreComplete');
-    if(confirmScore)ensure(s.schemaVersion===2&&typeof command.payload.scoreComplete==='boolean'&&command.id.length<=111,'event','Ungültige Abschlussbestätigung.');
+    if(confirmScore)ensure(s.schemaVersion>=2&&typeof command.payload.scoreComplete==='boolean'&&command.id.length<=111,'event','Ungültige Abschlussbestätigung.');
     if(command.kind==='undo-last'){
-      const target=effectiveEvents(s).filter(e=>['stat','opponent-score','substitution','roster'].includes(e.kind)).at(-1);
+      const target=effectiveEvents(s).filter(e=>['stat','opponent-score','substitution','roster','opponent-observation','defense-change'].includes(e.kind)).at(-1);
       ensure(target,'undo','Keine rückgängig machbare Aktion.');
       command={...command,kind:'void',payload:{targetId:target.id}};
     }

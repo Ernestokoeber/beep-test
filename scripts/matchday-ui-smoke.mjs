@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {fixture} from './matchday-fixture.mjs';
 import * as matchdayView from '../js/matchday/view.mjs';
+import {createOpponentPlan} from '../js/matchday/opponent-plan.mjs';
 const {mountMatchdayView,prepareMatchdayEntry}=matchdayView;
 const dom=new JSDOM('<main></main>',{url:'https://ui.test'});globalThis.document=dom.window.document;globalThis.window=dom.window;
 const f=await fixture();f.roster[0].position='Center';f.roster[1].position='Shooting Guard';
 const c=await f.open(),root=document.querySelector('main');
+const opponentPlan=createOpponentPlan({game:{id:'g',home:'Lindau',away:'Gast'},context:{opponentId:'guest',opponent:'Gast',results:{games:3},teamStatistics:{gamesWithMadeProfile:3,twoMadeShare:80},topScorers:[{id:'s',name:'Topscorer',games:3,pointsPerGame:16}],bestShooters:[],scouting:{},defenseRecommendation:{start:'man',alternative:'zone212',reasons:['Paint schützen'],triggers:['Zwei Paint-Touches: 2-1-2 prüfen.'],risk:'Drives',confidence:'medium'},dataQuality:{confidence:'medium',sources:['DBB.Scores-Screenshot']}}});
+await c.saveDraft({...c.getState().draft,opponentPlan});
+let aiCalls=0;
+const aiPlan={lockerRoom:['Kabine 1','Kabine 2','Kabine 3'],gameGoals:['Ziel 1','Ziel 2','Ziel 3'],offenseKeys:['Offense 1','Offense 2','Offense 3'],defenseKeys:['Defense 1','Defense 2','Defense 3'],warmupFocus:['Warmup 1','Warmup 2','Warmup 3'],halftimeChecks:['Check 1','Check 2','Check 3']};
 let rosterPdfPayload=null;
 let releasePdfEngine;const pdfEngineReady=new Promise(resolve=>{releasePdfEngine=resolve;});
 assert.equal(typeof prepareMatchdayEntry,'function','Der Direkteinstieg braucht eine abwartbare Vorbereitung vor dem View-Mount.');
@@ -16,7 +21,7 @@ const availableTactics=[
   {id:'baseline',title:'Baseline Box',category:'Einwurf'},
   {id:'pressbreak',title:'1–4 Pressbreak',category:'Pressbreak'}
 ];
-const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>availableTactics,game:{id:'g',home:'Lindau',away:'Gast',date:'2026-10-04',time:'17:00'},prepareRosterPdf:()=>pdfEngineReady,onRosterPdf:async payload=>{rosterPdfPayload=payload;return {delivery:'cancelled'};}});
+const cleanup=mountMatchdayView(root,c,{players:()=>f.roster,tactics:()=>availableTactics,game:{id:'g',home:'Lindau',away:'Gast',date:'2026-10-04',time:'17:00'},getOpponentPlan:()=>opponentPlan,requestGamePlan:async()=>{aiCalls++;return aiPlan;},prepareRosterPdf:()=>pdfEngineReady,onRosterPdf:async payload=>{rosterPdfPayload=payload;return {delivery:'cancelled'};}});
 const input=(key,value)=>{const n=root.querySelector('[data-field="'+key+'"]');n.value=value;n.dispatchEvent(new window.Event('input',{bubbles:true}));return n;};
 const click=async key=>{root.querySelector('[data-action="'+key+'"]').click();await new Promise(r=>setTimeout(r,20));await c.idle();};
 input('ownSide','home');await click('next');assert.equal(c.getState().stage,'roster');
@@ -61,6 +66,8 @@ await click('show-gameplan');assert.equal(c.getState().stage,'preparation');
 assert.equal(c.getState().draft.roster[0].gameStatus,'starter');assert.equal(c.getState().draft.roster[0].role,'Ballhandler');
 assert.equal(c.getState().draft.roster[0].gamePosition,'pg','Die Spieltagsposition muss unabhängig vom Spielerprofil gespeichert werden.');
 assert.equal(c.getState().draft.roster[5].gameStatus,'dnp');
+assert.match(root.querySelector('[data-role="opponent-plan"]').textContent,/Gast.*Mannverteidigung.*2-1-2/s,'Die bestätigte Gegneranalyse fehlt im Gameplan.');
+await click('generate-game-plan');assert.equal(aiCalls,1);assert.deepEqual(c.getState().draft.opponentPlan.aiPlan.lockerRoom,aiPlan.lockerRoom);assert.match(root.querySelector('[data-field="goals"]').value,/Ziel 1/,'KI-Spielziele werden nicht in den editierbaren Gameplan übernommen.');
 const goals=input('goals','<img src=x> Rebounds');goals.focus();f.emit();await new Promise(r=>setTimeout(r,10));assert.equal(document.activeElement,goals);assert.equal(goals.value,'<img src=x> Rebounds');
 assert.match(root.textContent,/Offense/);assert.match(root.textContent,/Defense/);assert.match(root.textContent,/Einwurf/);assert.match(root.textContent,/Pressbreak/);
 assert.match(root.querySelector('[data-tactic-group="offense"]').textContent,/Zone Overload/,'Zone-Offense muss als Offense gruppiert werden.');

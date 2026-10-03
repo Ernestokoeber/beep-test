@@ -6,7 +6,9 @@ const field=(parent,label,type,value)=>{const l=el('label',label),i=el('input');
 const select=(parent,label,items,value)=>{const l=el('label',label),s=el('select');for(const [v,t]of items){const o=el('option',t);o.value=v;s.append(o);}s.value=value;l.append(s);parent.append(l);return s;};
 const parseTime=value=>{const m=/^(\d{1,2}):([0-5]\d)$/.exec(value.trim());if(!m)throw Error('Zeit als MM:SS eingeben, z. B. 08:30.');return (+m[1]*60 + +m[2])*1000;};
 const playerLabel=p=>(p.jerseyNumber==null?'Ohne Nummer':'#'+p.jerseyNumber)+' · '+p.name;
-const eventLabel=e=>e.kind==='opponent-score'?'Gegner +'+e.payload.points:e.kind==='score-coverage'?(e.payload.complete?'Punkteverlauf bestätigt':'Punkteverlauf unvollständig'):(actions[e.payload.action]||e.kind);
+const observationLabels={paint:'Paint / Drive','open-three':'Offener Dreier',oreb:'Offensiv-Rebound','free-throw-pressure':'Freiwurfdruck'};
+const defenseLabels={man:'Mannverteidigung · No-Middle',zone212:'Zone 2-1-2',zone32:'Zone 3-2'};
+const eventLabel=e=>e.kind==='opponent-score'?'Gegner +'+e.payload.points:e.kind==='score-coverage'?(e.payload.complete?'Punkteverlauf bestätigt':'Punkteverlauf unvollständig'):e.kind==='opponent-observation'?'Gegner: '+(observationLabels[e.payload.type]||e.payload.type):e.kind==='defense-change'?'Defense: '+(defenseLabels[e.payload.defense]||e.payload.defense):(actions[e.payload.action]||e.kind);
 function jerseyField(parent,player){const n=field(parent,'Trikotnummer für dieses Spiel','text',player?.jerseyNumber??'');n.inputMode='numeric';n.maxLength=2;n.pattern='[0-9]{1,2}';return n;}
 
 export function mountLiveView(container,controller){
@@ -73,6 +75,10 @@ export function mountLiveView(container,controller){
         const points=select(row,'Gegnerpunkte',[[1,'1 Punkt'],[2,'2 Punkte'],[3,'3 Punkte']],e.payload.points);payload=()=>({points:+points.value});
       }else if(e.kind==='score-coverage'){
         const complete=field(row,'Punkteverlauf vollständig','checkbox','yes');complete.checked=e.payload.complete;payload=()=>({complete:complete.checked});
+      }else if(e.kind==='opponent-observation'){
+        const type=select(row,'Beobachtung',Object.entries(observationLabels),e.payload.type);payload=()=>({type:type.value});
+      }else if(e.kind==='defense-change'){
+        const defense=select(row,'Defense',Object.entries(defenseLabels),e.payload.defense);payload=()=>({defense:defense.value});
       }else if(e.kind==='substitution'){
         const out=checks(row,'Ausgewechselt',current.roster,e.payload.out),incoming=checks(row,'Eingewechselt',current.roster.filter(p=>p.gameStatus!=='dnp'),e.payload.in);
         const short=field(row,'Unterzahl bestätigen','checkbox','yes');short.checked=!!e.payload.allowShortHanded;
@@ -88,7 +94,7 @@ export function mountLiveView(container,controller){
     submit(f,'Korrekturen gemeinsam speichern',()=>{const patches=changes.map(fn=>fn()).filter(Boolean);if(!patches.length)throw Error('Keine Änderung ausgewählt.');return send({kind:'amend',payload:{changes:patches}});});
   }
   function render(s){
-    current=s;header.hidden=!s.session;periodText.textContent=s.clock?'Abschnitt '+s.clock.period+' · Eigene '+s.stats.points+(s.session.schemaVersion===2?' : Gegner '+s.boxscore.opponentPoints:' Punkte')+' · erfasst':'';
+    current=s;header.hidden=!s.session;periodText.textContent=s.clock?'Abschnitt '+s.clock.period+' · Eigene '+s.stats.points+(s.session.schemaVersion>=2?' : Gegner '+s.boxscore.opponentPoints:' Punkte')+' · erfasst':'';
     clockText.textContent=s.clock?formatTime(s.clock.remainingMs):'';
     start.textContent=s.clock?.running?'Uhr anhalten':'Uhr starten';start.disabled=s.busy||s.readOnly||s.needsTakeover||s.clock?.ended;
     status.textContent=s.error||s.syncError||(s.clock?.needsCorrection?'Gerätezeit geändert: Restzeit über „Uhr korrigieren“ abgleichen.':s.busy?'Wird lokal gespeichert …':s.status==='synced'?'Lokal gesichert und synchronisiert.':'Lokal gesichert · Synchronisierung ausstehend.');
@@ -114,10 +120,10 @@ export function mountLiveView(container,controller){
       for(const id of s.lineups.onCourt){const p=s.stats.players[id];const b=button(playerLabel(p)+' · '+p.points+' P · '+p.fouls+' F',()=>{chosen=id;signature='';render(current);});b.dataset.player=id;b.setAttribute('aria-pressed',String(chosen===id));players.append(b);}body.append(players);
       const actionGrid=el('div',undefined,'live-actions');for(const [id,label]of Object.entries(actions)){const b=button(label,async()=>{if(!chosen)return;const r=await send({kind:'stat',payload:{playerId:chosen,action:id}});if(r.ok){chosen=null;signature='';render(current);}});b.dataset.liveAction='stat';b.disabled=!chosen||s.busy;actionGrid.append(b);}body.append(actionGrid);
       if(Object.values(s.stats.players).some(p=>p.fouls>=5))body.append(el('p','Foulgrenze erreicht: Aufstellung prüfen. Kein automatischer Wechsel.','live-warning'));
-      const controls=el('div',undefined,'live-controls');controls.append(button(s.clock.running?'Uhr anhalten und wechseln':'Wechsel erfassen',substitutions),button('Letzte Aktion rückgängig',()=>send({kind:'undo-last'})),button('Uhr korrigieren',clockCorrection),button('Nächster Abschnitt',()=>confirmCommand('Nächsten Abschnitt vorbereiten',s.clock.period>=s.session.config.periods?'Eine Verlängerung vorbereiten? Uhr muss bei 0:00 stehen.':'Uhr muss bei 0:00 stehen. Der nächste Abschnitt startet pausiert.','period-start')),button('Spiel abschließen',()=>s.session.schemaVersion===2?confirmScore(true):confirmCommand('Spiel abschließen','Die Uhr wird angehalten. Danach sind nur noch ausdrückliche Korrekturen möglich.','finish')));body.append(controls);
+      const controls=el('div',undefined,'live-controls');controls.append(button(s.clock.running?'Uhr anhalten und wechseln':'Wechsel erfassen',substitutions),button('Letzte Aktion rückgängig',()=>send({kind:'undo-last'})),button('Uhr korrigieren',clockCorrection),button('Nächster Abschnitt',()=>confirmCommand('Nächsten Abschnitt vorbereiten',s.clock.period>=s.session.config.periods?'Eine Verlängerung vorbereiten? Uhr muss bei 0:00 stehen.':'Uhr muss bei 0:00 stehen. Der nächste Abschnitt startet pausiert.','period-start')),button('Spiel abschließen',()=>s.session.schemaVersion>=2?confirmScore(true):confirmCommand('Spiel abschließen','Die Uhr wird angehalten. Danach sind nur noch ausdrückliche Korrekturen möglich.','finish')));body.append(controls);
     }
     body.append(button('Kader korrigieren',rosterCorrection),button('Protokoll korrigieren',corrections));
-    if(s.clock.ended&&s.session.schemaVersion===2){body.append(el('p',s.boxscore.plusMinusComplete?'Punkteverlauf vom Coach bestätigt.':'Plus/Minus ist vorläufig: Punkteverlauf prüfen.'),button('Punkteverlauf bestätigen',()=>confirmScore(false)));}
+    if(s.clock.ended&&s.session.schemaVersion>=2){body.append(el('p',s.boxscore.plusMinusComplete?'Punkteverlauf vom Coach bestätigt.':'Plus/Minus ist vorläufig: Punkteverlauf prüfen.'),button('Punkteverlauf bestätigen',()=>confirmScore(false)));}
     const history=el('details');history.append(el('summary','Aktionsprotokoll'));const list=el('ol');
     for(const e of effectiveEvents(s.session).slice().reverse()){const item=el('li','#'+e.seq+' · '+e.period+'/'+formatTime(e.remainingMs)+' · '+(s.roster.find(p=>p.id===e.payload.playerId)?.name||'')+' '+eventLabel(e));item.title=e.id;list.append(item);}history.append(list);body.append(history);
   }

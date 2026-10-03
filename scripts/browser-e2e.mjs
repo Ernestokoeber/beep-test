@@ -774,7 +774,13 @@ async function testMatchday(browser, name, options) {
     await page.locator('#app > *').first().waitFor();
     const gameId = await page.evaluate(() => {
       for (let i = 1; i <= 6; i++) window.BT.storage.upsertPlayer({ name: `E2E Spieler ${i}`, jerseyNumber: String(i) });
-      return window.BT.storage.upsertGame({ date: '2026-09-30', home: 'TSV Lindau', away: 'E2E Gast', source: 'manual' }).id;
+      const game = window.BT.storage.upsertGame({ date: '2026-09-30', home: 'TSV Lindau', away: 'E2E Gast', source: 'manual' });
+      window.BT.storage.upsertOpponent({
+        key: 'e2e-gast', name: 'E2E Gast', source: 'manual', games: [game],
+        scouting: { insideThreat: 'high', perimeterThreat: 'medium', highPostPassing: 'low', offensiveRebounding: 'medium', primaryScorerArea: 'inside', notes: 'E2E: früher Ringdruck.' },
+        manualTotals: {}, playerStats: []
+      });
+      return game.id;
     });
     await page.goto(baseUrl + '/#/games', { waitUntil: 'domcontentloaded' });
     await page.locator(`[data-game-id="${gameId}"]`).tap();
@@ -791,6 +797,8 @@ async function testMatchday(browser, name, options) {
     await page.locator('[data-player-role]').first().fill('Ballhandler');
     await noOverflow('Kader');
     await page.getByRole('button', { name: 'Gameplan', exact: true }).tap();
+    const opponentPlan = await page.locator('.matchday-opponent-plan').innerText();
+    assert(opponentPlan.includes('E2E Gast') && opponentPlan.includes('Zone 2-1-2'), `${name}: Gegnerplan fehlt in der Vorbereitung`);
     await page.locator('[data-field="goals"]').fill('Rebounds sichern');
     await noOverflow('Vorbereitung');
     await page.getByRole('button', { name: 'Optionale Angaben überspringen' }).tap();
@@ -799,6 +807,13 @@ async function testMatchday(browser, name, options) {
     await noOverflow('Übersicht');
     await page.getByRole('button', { name: 'Zur Live-Ansicht' }).tap();
     await page.getByRole('button', { name: 'Uhr starten', exact: true }).waitFor();
+    await page.getByText(/Gegnerplan ·/).waitFor();
+    await page.getByRole('button', { name: 'Paint / Drive +1', exact: true }).tap();
+    await page.getByRole('button', { name: 'Paint / Drive +1', exact: true }).tap();
+    await page.getByText(/2-1-2 prüfen/).waitFor();
+    await page.getByRole('button', { name: 'Zone 2-1-2', exact: true }).tap();
+    await page.getByText('Aktuell: Zone 2-1-2', { exact: true }).waitFor();
+    await noOverflow('Live-Gegnerscouting');
     await page.getByText('Gameplan & Abschluss', { exact: true }).tap();
     const frozenGameplan = await page.locator('.matchday-frozen-plan').innerText();
     assert(frozenGameplan.includes('Rebounds sichern') && frozenGameplan.includes('Ballhandler'), `${name}: eingefrorener Gameplan fehlt`);
