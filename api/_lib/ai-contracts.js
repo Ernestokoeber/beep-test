@@ -562,10 +562,16 @@ function buildOpponentScreenshots(payload) {
     if (!Array.isArray(value?.games) || !Array.isArray(value?.players) || !Array.isArray(value?.warnings)) fail('Die Screenshot-Auswertung ist unvollständig.');
     const sourceIndex = (input) => integer(input, 0, images.length - 1, 'Screenshot-Index');
     const cleanDate = (input) => input ? date(input, 'Spieldatum') : '';
+    const warnings = value.warnings.map(item => generatedString(item, 300, 'Warnhinweis')).slice(0, 20);
     const games = value.games.slice(0, 30).map((game) => {
-      const homeScore = optionalInteger(game?.homeScore, 300, 'Heimpunkte');
-      const awayScore = optionalInteger(game?.awayScore, 300, 'Gastpunkte');
-      if ((homeScore === null) !== (awayScore === null)) fail('Ein Screenshot enthält nur eine der beiden Punktzahlen.');
+      const index = sourceIndex(game?.sourceIndex);
+      let homeScore = optionalInteger(game?.homeScore, 300, 'Heimpunkte');
+      let awayScore = optionalInteger(game?.awayScore, 300, 'Gastpunkte');
+      if ((homeScore === null) !== (awayScore === null)) {
+        homeScore = null;
+        awayScore = null;
+        warnings.push(`Screenshot ${index + 1}: Das Ergebnis ist unvollständig; beide Punktzahlen wurden zur Prüfung offengelassen.`);
+      }
       const stats = game?.opponentTeamStats || {};
       return {
         date: cleanDate(game?.date),
@@ -573,7 +579,7 @@ function buildOpponentScreenshots(payload) {
         away: generatedString(game?.away, 100, 'Gastteam'),
         homeScore,
         awayScore,
-        sourceIndex: sourceIndex(game?.sourceIndex),
+        sourceIndex: index,
         opponentTeamStats: {
           fouls: optionalInteger(stats.fouls, 200, 'Teamfouls'),
           fieldGoalsMade: optionalInteger(stats.fieldGoalsMade, 200, 'Feldwurftreffer'),
@@ -604,7 +610,7 @@ function buildOpponentScreenshots(payload) {
       opponentName: generatedString(value.opponentName || expectedOpponent || 'Unbekannter Gegner', 100, 'Gegnername'),
       games,
       players,
-      warnings: value.warnings.map(item => generatedString(item, 300, 'Warnhinweis')).slice(0, 20)
+      warnings: warnings.slice(0, 20)
     };
   });
 }

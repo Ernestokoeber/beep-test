@@ -274,6 +274,15 @@ const screenshotValue = screenshotRequest.parse(JSON.stringify({
 }));
 assert(screenshotValue.games[0].opponentTeamStats.fouls === 18 && screenshotValue.players[0].points === 17, 'Gültige Screenshot-Daten werden nicht übernommen');
 
+const partialScoreValue = screenshotRequest.parse(JSON.stringify({
+  opponentName: 'TSV Ottobeuren',
+  games: [{ date: '2026-09-28', home: 'Team B', away: 'TSV Ottobeuren', homeScore: 64, sourceIndex: 1 }],
+  players: [],
+  warnings: []
+}));
+assert(partialScoreValue.games[0].homeScore === null && partialScoreValue.games[0].awayScore === null, 'Einseitig erkannte Punktzahl wird nicht sicher verworfen');
+assert(partialScoreValue.warnings.some(warning => warning.includes('Ergebnis ist unvollständig')), 'Unvollständiges Ergebnis erzeugt keinen Prüfhinweis');
+
 const validText = await generateWithGemini({
   action: 'explainTactic',
   payload: { tactic: { title: 'Horns', phases: [{ number: 1, offense: [], defense: [], actions: [] }] } },
