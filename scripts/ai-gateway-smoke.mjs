@@ -53,7 +53,7 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 5, 'KI-Vertrag wurde für den deterministischen Freitagsrahmen nicht angehoben');
+assert(AI_CONTRACT_VERSION === 6, 'KI-Vertrag wurde für Gegner-Scouting und Screenshot-Import nicht angehoben');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.1', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -64,6 +64,7 @@ assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema 
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.drills.items.required.includes('intensity'), 'Saison-Schema verlangt die validierte Drillintensität nicht');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining.properties.stations.minItems === 5, 'Saison-Schema verlangt nicht genau fünf KI-Stationen');
 assert(season.parts[0].text.includes('höchstens 25 Prozent') && season.parts[0].text.includes('Höchstens eine der fünf Stationen'), 'KI-Prompt begrenzt die Problemgewichtung nicht');
+assert(season.parts[0].text.includes('Zone 2-1-2') && season.parts[0].text.includes('Zone 3-2'), 'KI-Prompt begrenzt die Defense-Auswahl nicht auf das TSV-Repertoire');
 assert(season.parts[0].text.includes('summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen'), 'KI-Prompt begrenzt den Trainingsschwerpunkt nicht');
 assert(season.timeoutMs === 48_000, 'Saison-Timeout ist nicht begrenzt');
 
@@ -255,6 +256,23 @@ assert(requestBody.generationConfig.responseSchema.type === 'object', 'Schema wu
 
 const tacticRequest = buildAIRequest('explainTactic', { tactic: { title: 'Horns', phases: [{ number: 1, offense: [], defense: [], actions: [] }] } });
 assert(promptText(tacticRequest).includes('COURTHUB BASKETBALL-KI') && promptText(tacticRequest).includes('Screenwinkel'), 'Taktikerklärung nutzt das Basketball-Fachwissen nicht');
+
+const screenshotRequest = buildAIRequest('parseOpponentScreenshots', {
+  expectedOpponent: 'TSV Ottobeuren',
+  images: [
+    { mimeType: 'image/jpeg', data: 'aW1hZ2Ux' },
+    { mimeType: 'image/png', data: 'aW1hZ2Uy' }
+  ]
+});
+assert(screenshotRequest.parts.filter(part => part.inlineData).length === 2, 'Mehrere Gegner-Screenshots werden nicht gemeinsam übertragen');
+assert(promptText(screenshotRequest).includes('Erfinde keine Namen') && promptText(screenshotRequest).includes('sourceIndex'), 'Screenshot-Import ist nicht an sichtbare Fakten gebunden');
+const screenshotValue = screenshotRequest.parse(JSON.stringify({
+  opponentName: 'TSV Ottobeuren',
+  games: [{ date: '2026-09-27', home: 'TSV Ottobeuren', away: 'Team A', homeScore: 71, awayScore: 65, sourceIndex: 0, opponentTeamStats: { fouls: 18, completeFouls: true } }],
+  players: [{ name: 'Spieler A', gameDate: '2026-09-27', points: 17, fouls: 3, sourceIndex: 1 }],
+  warnings: ['Wurfversuche waren nicht vollständig sichtbar.']
+}));
+assert(screenshotValue.games[0].opponentTeamStats.fouls === 18 && screenshotValue.players[0].points === 17, 'Gültige Screenshot-Daten werden nicht übernommen');
 
 const validText = await generateWithGemini({
   action: 'explainTactic',

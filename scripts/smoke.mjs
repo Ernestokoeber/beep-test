@@ -117,6 +117,7 @@ assert(gameButton, 'Spiel wurde nicht gerendert');
 gameButton.click();
 assert(window.document.querySelector('.atlas-panel'), 'Atlas-Bereich fehlt');
 assert(window.document.querySelector('.game-boxscore'), 'Spieler-Boxscore fehlt');
+assert(window.document.querySelector('.game-opponent-plan')?.textContent.includes('Mannverteidigung'), 'Gegnerplan fehlt in der Spielvorbereitung');
 assert(window.document.querySelector('[data-action="open-matchday"]')?.textContent === 'Kader & Starting Five festlegen', 'Der sichtbare Einstieg zur Mannschaftsplanung fehlt');
 assert(/Kader\s+0.*Starting Five\s+0\/5/.test(window.document.querySelector('[data-role="game-preparation-summary"]')?.textContent || ''), 'Der Spielkarte fehlt der sichtbare Stand von Kader und Starting Five');
 window.BT.api.getAtlasAnalysis = async () => ({
@@ -135,6 +136,13 @@ await new Promise(resolveWait => window.setTimeout(resolveWait, 100));
 assert(window.document.querySelector('.atlas-stat-strip'), 'Echter Atlas-Vertrag wurde nicht gerendert');
 assert(window.document.querySelector('.atlas-linked'), 'Atlas-Spieler wurde nicht über Trikotnummer zugeordnet');
 assert(window.document.querySelector('[data-player-id="' + player.id + '"] [data-stat="points"]').value === '12', 'Atlas-Boxscore wurde nicht übernommen');
+
+route('#/opponents');
+await new Promise(resolveWait => window.setTimeout(resolveWait, 20));
+assert(window.document.querySelector('.opponents-view'), 'Gegner-Scouting ist nicht erreichbar');
+assert(window.document.querySelector('[data-opponent-id]'), 'Gegnerprofil wird nicht aus dem eigenen Spielplan angelegt');
+assert(window.document.querySelector('.opponent-defense-card')?.textContent.includes('Mannverteidigung'), 'Sichere Defense-Basis bei niedriger Datenlage fehlt');
+assert(window.document.querySelector('[data-role="opponent-screenshots"][multiple]'), 'Mehrfachauswahl für DBB.Scores-Screenshots fehlt');
 
 const futureTrainingDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const secondTrainingDate = new Date(Date.now() + 172800000).toISOString().slice(0, 10);
@@ -510,5 +518,5 @@ assert(imported.games.length === 2 && imported.games.find(entry => entry.id === 
 assert(imported.tableDuties.length === 2 && imported.tableDuties.some(entry => entry.id === 'new-duty'), 'Merge ergänzt Kampfgerichte nicht');
 assert(imported.phases.length === 2 && imported.phases.some(entry => entry.id === 'new-phase'), 'Merge ergänzt Saisonphasen nicht');
 
-console.log('UI-Smoke-Test erfolgreich: Dashboard, Auswertung, Theme, Entwicklung, Spiele/Atlas, Training, Kampfgericht und KI-Saisonplanung.');
+console.log('UI-Smoke-Test erfolgreich: Dashboard, Gegner-Scouting, Auswertung, Theme, Entwicklung, Spiele/Atlas, Training, Kampfgericht und KI-Saisonplanung.');
 dom.window.close();

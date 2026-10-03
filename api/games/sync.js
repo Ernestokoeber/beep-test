@@ -36,6 +36,14 @@ function seasonKey(value, date) {
   return String(start).slice(-2) + '/' + String(start + 1).slice(-2);
 }
 
+function teamIdOf(team) {
+  if (!team) return null;
+  const value = [team.teamPermanentId, team.seasonTeamId, team.teamCompetitionId, team.clubId]
+    .map(Number)
+    .find(Number.isFinite);
+  return value ?? null;
+}
+
 function normalize(match, league) {
   const home = match.homeTeam && match.homeTeam.teamname;
   const away = match.guestTeam && match.guestTeam.teamname;
@@ -52,6 +60,7 @@ function normalize(match, league) {
     matchDay: match.matchDay == null ? null : Number(match.matchDay),
     date, time: String(match.kickoffTime || '').slice(0, 5),
     home: String(home).slice(0, 100), away: String(away).slice(0, 100),
+    homeTeamId: teamIdOf(match.homeTeam), awayTeamId: teamIdOf(match.guestTeam),
     score, cancelled: Boolean(match.abgesagt || match.verzicht),
     status: match.abgesagt ? 'cancelled' : (score ? 'played' : 'upcoming')
   };
@@ -90,11 +99,12 @@ export default async function handler(req, res) {
     const matches = data.matches.filter(match =>
       teamMatches(match.homeTeam, teamId, teamName) || teamMatches(match.guestTeam, teamId, teamName)
     );
+    const leagueGames = data.matches.map(match => normalize(match, league)).filter(Boolean);
     const games = matches.map(match => normalize(match, league)).filter(Boolean);
     if (!games.length) return res.status(404).json({ error: 'Für diese Liga- und Team-ID wurden keine Spiele gefunden.' });
     const matchedTeam = matches.flatMap(match => [match.homeTeam, match.guestTeam]).find(team => teamMatches(team, teamId, teamName));
     return res.status(200).json({
-      games, syncedAt: new Date().toISOString(), source: DBB_BASE,
+      games, leagueGames, syncedAt: new Date().toISOString(), source: DBB_BASE,
       league: { id: Number(league.ligaId), name: league.liganame, season: league.seasonName },
       team: { id: matchedTeam?.teamPermanentId || teamId, name: matchedTeam?.teamname || teamName }
     });

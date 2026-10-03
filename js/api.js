@@ -100,7 +100,7 @@ BT.api = (function() {
     ai: (action, payload) => request('/ai/gemini', {
       method: 'POST',
       body: { action, payload },
-      timeoutMs: action === 'parsePlan' || action === 'planSeason' ? 55_000 : 38_000
+      timeoutMs: action === 'parsePlan' || action === 'planSeason' || action === 'parseOpponentScreenshots' ? 55_000 : 38_000
     }),
     createCheckin: (trainingId, expiresInMinutes) => request('/checkin/manage', {
       method: 'POST', body: { trainingId, expiresInMinutes }

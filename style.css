@@ -100,6 +100,147 @@
     width: 100%;
   }
 }
+
+/* Gegner-Scouting */
+.opponents-layout {
+  align-items: start;
+}
+
+.opponent-detail {
+  display: grid;
+  gap: 1rem;
+}
+
+.opponent-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.opponent-kpis > div,
+.opponent-leaders > div {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--card-soft, var(--card));
+}
+
+.opponent-kpis span,
+.opponent-leaders span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.opponent-kpis strong {
+  font-size: 1.15rem;
+}
+
+.opponent-defense-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-left: 0.28rem solid var(--muted);
+  border-radius: 0.9rem;
+  background: var(--card);
+}
+
+.opponent-defense-card.confidence-high { border-left-color: #1e9b5b; }
+.opponent-defense-card.confidence-medium { border-left-color: #d49a19; }
+.opponent-defense-card.confidence-low { border-left-color: #c45151; }
+
+.opponent-defense-card ul {
+  margin: 0.55rem 0 0.8rem;
+  padding-left: 1.2rem;
+}
+
+.opponent-leaders {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.65rem;
+}
+
+.opponent-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.opponent-form-grid,
+.opponent-totals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.opponent-form-grid label,
+.opponent-totals-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.opponent-player-table input {
+  min-width: 4.5rem;
+  width: 100%;
+}
+
+.opponent-player-table td:first-child input {
+  min-width: 10rem;
+}
+
+.opponent-screenshot-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.opponent-screenshot-actions input[type="file"] {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.screenshot-review {
+  margin-top: 0.8rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--card-soft, var(--card));
+}
+
+.screenshot-review > ul,
+.screenshot-warnings ul {
+  margin: 0.55rem 0;
+  padding-left: 1.25rem;
+}
+
+.screenshot-warnings {
+  margin-top: 0.75rem;
+  color: var(--warning-text, #9a6510);
+}
+
+.screenshot-warning {
+  padding: 0.65rem;
+  border-radius: 0.65rem;
+  background: #d49a1920;
+  color: var(--warning-text, #9a6510);
+}
+
+.screenshot-player-preview {
+  margin-top: 0.7rem;
+}
+
+@media (max-width: 760px) {
+  .opponent-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .opponents-layout {
+    grid-template-columns: 1fr;
+  }
+}
 @font-face {
   font-family: 'Monoton';
   font-style: normal;

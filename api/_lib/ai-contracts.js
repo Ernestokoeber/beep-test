@@ -1,7 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 5;
+export const AI_CONTRACT_VERSION = 6;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
@@ -167,11 +167,70 @@ export const SEASON_SCHEMA = {
   properties: { trainings: { type: 'array', items: SEASON_TRAINING_SCHEMA } }
 };
 
+export const OPPONENT_SCREENSHOT_SCHEMA = {
+  type: 'object',
+  required: ['opponentName', 'games', 'players', 'warnings'],
+  properties: {
+    opponentName: STRING,
+    games: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['home', 'away', 'sourceIndex'],
+        properties: {
+          date: STRING,
+          home: STRING,
+          away: STRING,
+          homeScore: INTEGER,
+          awayScore: INTEGER,
+          sourceIndex: INTEGER,
+          opponentTeamStats: {
+            type: 'object',
+            properties: {
+              fouls: INTEGER,
+              fieldGoalsMade: INTEGER,
+              fieldGoalsAttempted: INTEGER,
+              threeMade: INTEGER,
+              threeAttempted: INTEGER,
+              freeThrowsMade: INTEGER,
+              freeThrowsAttempted: INTEGER,
+              completeFouls: { type: 'boolean' },
+              completeShots: { type: 'boolean' }
+            }
+          }
+        }
+      }
+    },
+    players: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name', 'gameDate', 'sourceIndex'],
+        properties: {
+          name: STRING,
+          gameDate: STRING,
+          points: INTEGER,
+          fouls: INTEGER,
+          fieldGoalsMade: INTEGER,
+          fieldGoalsAttempted: INTEGER,
+          threeMade: INTEGER,
+          threeAttempted: INTEGER,
+          freeThrowsMade: INTEGER,
+          freeThrowsAttempted: INTEGER,
+          sourceIndex: INTEGER
+        }
+      }
+    },
+    warnings: { type: 'array', items: STRING }
+  }
+};
+
 const PROMPTS = {
   parsePlan: basketballExpertPrompt(`Du überträgst einen Basketball-Trainingsplan aus einem PDF in strukturierte CourtHub-Daten. Nutze ausschließlich Inhalte des Dokuments und die mitgesendeten tatsächlichen Trainingstage, Uhrzeit und Dauer. Fachwissen darf nur Begriffe korrekt zuordnen, aber keine fehlenden Inhalte ergänzen. Erfinde keine Termine. Gib nur das angeforderte JSON aus.`),
   summarizeTraining: basketballExpertPrompt(`Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze trotz deines Fachwissens keine Namen, Zahlen, Ursachen oder Bewertungen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`),
   explainTactic: basketballExpertPrompt(`Du erklärst einen strukturierten Basketball-Spielzug auf Deutsch. Beschreibe Ziel, Spacing, Timing, Phasen, tatsächlich beteiligte Rollen, Defense-Read und Offense-Antwort. Prüfe besonders Screenwinkel, Passfenster, Anschlussaktionen und die Reaktion auf Hilfe oder Switch. Erfinde keine Rollen oder Aktionen. Liefere zwei bis vier konkrete Coaching-Punkte und nur das angeforderte JSON.`),
-  planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Wiederkehrende Muster aus mehreren Einträgen wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Formuliere summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
+  parseOpponentScreenshots: basketballExpertPrompt(`Du extrahierst überprüfbare Basketball-Gegnerdaten aus einem oder mehreren Screenshots der DBB.Scores-App. Verwende ausschließlich klar sichtbare Angaben. Erfinde keine Namen, Daten, Ergebnisse, Fouls, Würfe oder Quoten und leite fehlende Einzelwerte nicht aus Summen ab. sourceIndex ist die nullbasierte Position des Bildes in der Anfrage. Erfasse ein Spiel nur, wenn beide Teams klar erkennbar sind; Ergebnisse nur, wenn beide Punktzahlen sichtbar sind. Das Datum wird als YYYY-MM-DD ausgegeben, andernfalls als leerer String. opponentTeamStats und players beziehen sich ausschließlich auf den als erwarteten Gegner genannten Verein, niemals auf den anderen Verein. Spielerwerte werden ausschließlich als einzelne Spielzeilen mit eindeutigem Spieltag ausgegeben; Saison-Gesamtsummen oder Durchschnittswerte werden nicht als Einzelspielwerte übernommen. Setze completeFouls beziehungsweise completeShots nur dann auf true, wenn die vollständigen Teamwerte dieses Spiels sichtbar sind. Weise in warnings auf unlesbare, abgeschnittene, mehrdeutige oder unvollständige Bereiche hin. Gib nur das angeforderte JSON aus.`),
+  planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Wiederkehrende Muster aus mehreren Einträgen wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Analysiere zusätzlich den opponentContext des Slots, sofern vorhanden. Verwende ausschließlich dort belegte Gegnerwerte und beachte Datenqualität, Stichprobengröße und Warnungen. Empfehle niemals eine nicht trainierte Verteidigung: erlaubt sind nur Mannverteidigung mit No-Middle, Zone 2-1-2 und Zone 3-2. Bei niedriger Datenqualität bleibt Mannverteidigung mit No-Middle die Basis. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Formuliere summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
 
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die langfristigen Mannschaftsprinzipien, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster bleiben davon unberührt und haben Vorrang.
 
@@ -475,6 +534,81 @@ function buildTactic(payload) {
   });
 }
 
+function optionalInteger(value, max, label) {
+  if (value === undefined || value === null || value === '') return null;
+  return integer(value, 0, max, label);
+}
+
+function buildOpponentScreenshots(payload) {
+  const images = Array.isArray(payload.images) ? payload.images : [];
+  if (!images.length || images.length > 6) {
+    throw new AIError('AI_INPUT_INVALID', 'Bitte ein bis sechs DBB.Scores-Screenshots auswählen.', { status: 400 });
+  }
+  let totalBytes = 0;
+  const parts = images.map((image, index) => {
+    const mimeType = String(image?.mimeType || '');
+    const data = String(image?.data || '');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType) || !data) {
+      throw new AIError('AI_INPUT_INVALID', `Screenshot ${index + 1} hat kein unterstütztes Bildformat.`, { status: 400 });
+    }
+    totalBytes += Buffer.byteLength(data, 'base64');
+    return { inlineData: { mimeType, data } };
+  });
+  if (totalBytes > 3_200_000) throw new AIError('AI_INPUT_INVALID', 'Die Screenshots sind zusammen zu groß. Bitte in zwei Durchgängen importieren.', { status: 413 });
+  const expectedOpponent = String(payload.expectedOpponent || '').trim().slice(0, 100);
+  parts.push({ text: `${PROMPTS.parseOpponentScreenshots}\n\nErwarteter Gegner: ${expectedOpponent || 'nicht vorgegeben'}\nBilder: ${images.length}` });
+  return structured(parts, OPPONENT_SCREENSHOT_SCHEMA, 'low', 48_000, (text) => {
+    const value = parseJson(text);
+    if (!Array.isArray(value?.games) || !Array.isArray(value?.players) || !Array.isArray(value?.warnings)) fail('Die Screenshot-Auswertung ist unvollständig.');
+    const sourceIndex = (input) => integer(input, 0, images.length - 1, 'Screenshot-Index');
+    const cleanDate = (input) => input ? date(input, 'Spieldatum') : '';
+    const games = value.games.slice(0, 30).map((game) => {
+      const homeScore = optionalInteger(game?.homeScore, 300, 'Heimpunkte');
+      const awayScore = optionalInteger(game?.awayScore, 300, 'Gastpunkte');
+      if ((homeScore === null) !== (awayScore === null)) fail('Ein Screenshot enthält nur eine der beiden Punktzahlen.');
+      const stats = game?.opponentTeamStats || {};
+      return {
+        date: cleanDate(game?.date),
+        home: generatedString(game?.home, 100, 'Heimteam'),
+        away: generatedString(game?.away, 100, 'Gastteam'),
+        homeScore,
+        awayScore,
+        sourceIndex: sourceIndex(game?.sourceIndex),
+        opponentTeamStats: {
+          fouls: optionalInteger(stats.fouls, 200, 'Teamfouls'),
+          fieldGoalsMade: optionalInteger(stats.fieldGoalsMade, 200, 'Feldwurftreffer'),
+          fieldGoalsAttempted: optionalInteger(stats.fieldGoalsAttempted, 300, 'Feldwurfversuche'),
+          threeMade: optionalInteger(stats.threeMade, 100, 'Dreiertreffer'),
+          threeAttempted: optionalInteger(stats.threeAttempted, 200, 'Dreierversuche'),
+          freeThrowsMade: optionalInteger(stats.freeThrowsMade, 150, 'Freiwurftreffer'),
+          freeThrowsAttempted: optionalInteger(stats.freeThrowsAttempted, 200, 'Freiwurfversuche'),
+          completeFouls: stats.completeFouls === true,
+          completeShots: stats.completeShots === true
+        }
+      };
+    });
+    const players = value.players.slice(0, 160).map((player) => ({
+      name: generatedString(player?.name, 100, 'Spielername'),
+      gameDate: cleanDate(player?.gameDate),
+      points: optionalInteger(player?.points, 150, 'Spielerpunkte'),
+      fouls: optionalInteger(player?.fouls, 10, 'Spielerfouls'),
+      fieldGoalsMade: optionalInteger(player?.fieldGoalsMade, 80, 'Feldwurftreffer'),
+      fieldGoalsAttempted: optionalInteger(player?.fieldGoalsAttempted, 100, 'Feldwurfversuche'),
+      threeMade: optionalInteger(player?.threeMade, 50, 'Dreiertreffer'),
+      threeAttempted: optionalInteger(player?.threeAttempted, 70, 'Dreierversuche'),
+      freeThrowsMade: optionalInteger(player?.freeThrowsMade, 60, 'Freiwurftreffer'),
+      freeThrowsAttempted: optionalInteger(player?.freeThrowsAttempted, 80, 'Freiwurfversuche'),
+      sourceIndex: sourceIndex(player?.sourceIndex)
+    })).filter(player => player.gameDate);
+    return {
+      opponentName: generatedString(value.opponentName || expectedOpponent || 'Unbekannter Gegner', 100, 'Gegnername'),
+      games,
+      players,
+      warnings: value.warnings.map(item => generatedString(item, 300, 'Warnhinweis')).slice(0, 20)
+    };
+  });
+}
+
 function isFriday(slot) {
   const weekday = String(slot.weekday || '').toLowerCase();
   return weekday === 'fri' || weekday === 'friday' || weekday === 'freitag' || new Date(`${slot.date}T12:00:00Z`).getUTCDay() === 5;
@@ -517,6 +651,7 @@ const ACTIONS = {
   parsePlan: buildParsePlan,
   summarizeTraining: buildSummary,
   explainTactic: buildTactic,
+  parseOpponentScreenshots: buildOpponentScreenshots,
   planSeason: buildSeason
 };
 

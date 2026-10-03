@@ -1688,6 +1688,17 @@ BT.training = (function() {
     const presentCount = presentPlayerIds(currentTraining).length;
     const hasFridayVariants = plan.variants && (plan.variants.over8?.length || plan.variants.eightOrLess?.length);
     const evidence = plan.evidenceBasis;
+    const opponentPlan = plan.opponentPlan;
+    const defense = opponentPlan?.defenseRecommendation;
+    const opponentMarkup = defense?.startLabel ? `
+      <details class="plan-evidence opponent-plan-evidence">
+        <summary>Gegnerplan gegen ${escapeHTML(opponentPlan.opponent || 'den nächsten Gegner')}</summary>
+        <div><strong>Startverteidigung</strong><p>${escapeHTML(defense.startLabel)}</p></div>
+        <div><strong>Alternative</strong><p>${escapeHTML(defense.alternativeLabel || '–')}</p></div>
+        ${defense.reasons?.length ? `<div><strong>Datenbasierte Gründe</strong><ul>${defense.reasons.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul></div>` : ''}
+        ${defense.triggers?.length ? `<div><strong>Wechsel-Auslöser</strong><ul>${defense.triggers.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul></div>` : ''}
+        <p class="muted">Datenlage: ${escapeHTML(opponentPlan.dataQuality?.confidence === 'high' ? 'Grün' : opponentPlan.dataQuality?.confidence === 'medium' ? 'Gelb' : 'Rot')} · Fehlende Werte werden nicht geschätzt.</p>
+      </details>` : '';
     const evidenceMarkup = evidence?.planningDecision ? `
       <details class="plan-evidence">
         <summary>Warum die Basketball-KI dieses Training plant</summary>
@@ -1718,6 +1729,7 @@ BT.training = (function() {
       </div>
       <div class="plan-progress" aria-label="${fillPct} Prozent der Trainingszeit verplant"><span style="width:${fillPct}%"></span></div>
       ${targets.length ? '<p class="muted">Vorgaben pro Spieler: ' + targets.join(' · ') + '</p>' : ''}
+      ${opponentMarkup}
       ${evidenceMarkup}
       ${fridayVariantMarkup}
     `;

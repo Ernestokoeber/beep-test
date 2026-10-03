@@ -61,8 +61,11 @@ BT.games = (function() {
       try {
         const result = await BT.api.syncWebsiteGames(BT.seasonplanner.scheduleConfig());
         result.games.forEach(game => BT.storage.upsertGame(game));
+        const opponentProfiles = BT.opponents?.syncLeague
+          ? BT.opponents.syncLeague(result.leagueGames || result.games, { teamName: result.team.name, teamId: result.team.id })
+          : [];
         BT.seasonplanner.saveScheduleConfig({ teamId: result.team.id, teamName: result.team.name });
-        status.textContent = result.games.length + ' Spiele direkt aus TeamSL synchronisiert · ' + result.league.name + '.';
+        status.textContent = result.games.length + ' eigene Spiele und ' + opponentProfiles.length + ' Gegner direkt aus TeamSL synchronisiert · ' + result.league.name + '.';
         drawList(); if (selectedGameId) drawDetail();
       } catch (error) { status.textContent = error.message; }
       finally { button.disabled = false; }
@@ -134,6 +137,9 @@ BT.games = (function() {
     const wrap = $('[data-role="game-detail"]', root);
     const game = BT.storage.getGame(selectedGameId);
     if (!game) { wrap.innerHTML = '<div class="empty empty--field"><p class="empty-body">Spiel auswählen.</p></div>'; return; }
+    if (BT.opponents?.ensureFromOwnGames) BT.opponents.ensureFromOwnGames();
+    const opponentContext = BT.opponents?.contextForGame ? BT.opponents.contextForGame(game) : null;
+    const defensePlan = opponentContext?.defenseRecommendation;
     game.playerStats = Array.isArray(game.playerStats) ? game.playerStats : [];
     const analysis = normalizedAtlas(game.atlas && game.atlas.package);
     const scoreParts = String(game.score || '').match(/(\d+)\s*:\s*(\d+)/);
@@ -153,6 +159,11 @@ BT.games = (function() {
     </div>
 
     <section class="boxscore-panel game-preparation-card"><h3>Spielvorbereitung</h3><p>Kader nominieren, Starting Five festlegen und danach in die freie Live-Erfassung wechseln.</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live">Live erfassen</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
+    <section class="opponent-defense-card game-opponent-plan confidence-${escapeHTML(defensePlan?.confidence || 'low')}">
+      <div class="section-head compact"><div><span class="section-kicker">Gegnerplan</span><h3>${escapeHTML(defensePlan?.startLabel || 'Mannverteidigung · No-Middle')}</h3></div><a class="btn small" href="#/opponents">Scouting öffnen</a></div>
+      <p><strong>Alternative:</strong> ${escapeHTML(defensePlan?.alternativeLabel || 'nach den ersten Angriffen festlegen')}</p>
+      ${defensePlan?.triggers?.length ? `<ul>${defensePlan.triggers.map(trigger => `<li>${escapeHTML(trigger)}</li>`).join('')}</ul>` : '<p class="muted">Noch keine belastbaren Gegnerdaten. Mannverteidigung bleibt die Basis.</p>'}
+    </section>
     <div class="game-observation-grid">
       <label>Was hat funktioniert?<textarea data-game-field="strengths" rows="4" placeholder="Stärken, erfolgreiche Lineups, gute Entscheidungen …">${escapeHTML(game.strengths || '')}</textarea></label>
       <label>Was müssen wir verbessern?<textarea data-game-field="improvements" rows="4" placeholder="Konkrete Spielsituationen und Trainingsbedarf …">${escapeHTML(game.improvements || '')}</textarea></label>

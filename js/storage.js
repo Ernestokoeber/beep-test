@@ -2,7 +2,7 @@ window.BT = window.BT || {};
 
 BT.storage = (function() {
   const KEY = 'beepTest_v1';
-  const CURRENT_SCHEMA = 3;
+  const CURRENT_SCHEMA = 4;
   let readCache = null;
 
   function load() {
@@ -19,6 +19,7 @@ BT.storage = (function() {
       data.freethrows = data.freethrows || [];
       data.drills = data.drills || [];
       data.games = data.games || [];
+      data.opponents = data.opponents || [];
       data.tableDuties = data.tableDuties || [];
       data.tactics = data.tactics || [];
       if (data.schemaVersion < CURRENT_SCHEMA) {
@@ -66,6 +67,10 @@ BT.storage = (function() {
       }
       data.schemaVersion = 3;
     }
+    if (data.schemaVersion < 4) {
+      data.opponents = data.opponents || [];
+      data.schemaVersion = 4;
+    }
   }
 
   function save(data, options) {
@@ -77,7 +82,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], tableDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], tactics: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], opponents: [], tableDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], tactics: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -458,6 +463,42 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getOpponents() {
+    return (load().opponents || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
+  }
+
+  function getOpponent(idOrKey) {
+    return (load().opponents || []).find(opponent => opponent.id === idOrKey || opponent.key === idOrKey);
+  }
+
+  function upsertOpponent(opponent) {
+    const data = load();
+    data.opponents = data.opponents || [];
+    const index = data.opponents.findIndex(item => item.id === opponent.id || (opponent.key && item.key === opponent.key));
+    const now = new Date().toISOString();
+    if (index >= 0) {
+      data.opponents[index] = Object.assign({}, data.opponents[index], opponent, {
+        id: data.opponents[index].id,
+        createdAt: data.opponents[index].createdAt || now,
+        updatedAt: now
+      });
+      opponent = data.opponents[index];
+    } else {
+      opponent.id = opponent.id || BT.util.uuid('opp_');
+      opponent.createdAt = now;
+      opponent.updatedAt = now;
+      data.opponents.push(opponent);
+    }
+    save(data);
+    return opponent;
+  }
+
+  function deleteOpponent(id) {
+    const data = load();
+    data.opponents = (data.opponents || []).filter(opponent => opponent.id !== id);
+    save(data);
+  }
+
   function getTableDuties() {
     return (load().tableDuties || []).slice().sort((a, b) =>
       ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || ''))
@@ -509,6 +550,7 @@ BT.storage = (function() {
     getTemplates, getTemplate, upsertTemplate, deleteTemplate,
     getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,
     getGames, getGame, upsertGame, deleteGame,
+    getOpponents, getOpponent, upsertOpponent, deleteOpponent,
     getTableDuties, getTableDuty, upsertTableDuty, deleteTableDuty,
     getShotCategories, setShotCategories,
     getSetting, setSetting,

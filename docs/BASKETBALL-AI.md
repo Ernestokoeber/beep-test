@@ -19,6 +19,14 @@ Die Saisonplanung verarbeitet jeden Trainingstermin einzeln. Der Analysekontext 
 
 Die KI muss wiederkehrende Muster stärker gewichten als einzelne Ausreißer und fehlende Werte neutral behandeln. Zu jedem erzeugten Training speichert sie deshalb eine `evidenceBasis` mit den verwendeten Trends, Belastungsaspekten und der abgeleiteten Planungsentscheidung. Diese Begründung ist im Trainingsplan unter „Warum die Basketball-KI dieses Training plant“ sichtbar.
 
+## Gegner-Scouting und Defense-Auswahl
+
+Saison-Gegner werden aus dem vollständigen TeamSL-Ligaspielplan angelegt. Ergänzend kann das Trainerteam mehrere DBB.Scores-Screenshots gemeinsam auswerten lassen. Die KI extrahiert ausschließlich sichtbare Spiele und Einzelspielwerte; CourtHub zeigt vor jeder Übernahme eine Kontrollvorschau und speichert die Bilder selbst nicht.
+
+Der geprüfte `opponentContext` enthält Ergebnisform, Punkteschnitte, verfügbare Teamfouls, Wurfwerte, Topscorer, Trainerbeobachtungen, Quellen und Datenqualität. Die zulässige Defense-Auswahl ist auf Mannverteidigung mit No-Middle, Zone 2-1-2 und Zone 3-2 begrenzt. Bei niedriger Datenqualität bleibt Mannverteidigung die Basis. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit und höchstens eine von fünf individuellen Freitagsstationen bestimmen.
+
+Die vollständige Bedien- und Datenbeschreibung steht in `docs/OPPONENT-SCOUTING.md`.
+
 ## Verbindliche Grenzen
 
 Die Basketball-KI erfindet keine Spieler-, Spiel-, Leistungs-, Verletzungs- oder Ergebnisdaten. PDF-Importe werden nur strukturiert und nicht fachlich ergänzt. Trainingszusammenfassungen bleiben wortgetreu an verifizierte Fakten gebunden. Bei Schmerzen oder Verletzungsverdacht gibt die KI keine Diagnose, sondern reduziert die Belastung und empfiehlt bei anhaltenden Beschwerden eine medizinische Abklärung.

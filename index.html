@@ -58,6 +58,7 @@
       <a href="#/players" data-nav="players"><span class="nav-icon" aria-hidden="true">◎</span><span>Spieler</span></a>
       <a href="#/reports" data-nav="reports"><span class="nav-icon" aria-hidden="true">▥</span><span>Auswertung</span></a>
       <span class="nav-section-label">Planung & Analyse</span>
+      <a href="#/opponents" data-nav="opponents"><span class="nav-icon" aria-hidden="true">◈</span><span>Gegner-Scouting</span></a>
       <a href="#/schedule" data-nav="schedule"><span class="nav-icon" aria-hidden="true">▦</span><span>Trainingsplan</span></a>
       <a href="#/drills" data-nav="drills"><span class="nav-icon" aria-hidden="true">◇</span><span>Drills</span></a>
       <a href="#/tactics" data-nav="tactics"><span class="nav-icon" aria-hidden="true">⌁</span><span>Taktikboard</span></a>
@@ -611,6 +612,21 @@
         <section class="game-detail" data-role="game-detail"><div class="empty empty--field"><p class="empty-body">Spiel auswählen, um Beobachtungen, Spielerwerte und Atlas-Analyse zu bearbeiten.</p></div></section>
       </div>
       <div class="empty hidden" data-role="games-empty"><p class="empty-headline">Noch keine Spiele</p><p class="empty-body">Synchronisiere den TSV-Spielplan oder lege ein Spiel manuell an.</p></div>
+    </section>
+  </template>
+
+  <template id="tpl-opponents">
+    <section class="view opponents-view">
+      <div class="section-head">
+        <div class="section-title-block"><span class="section-kicker">Saison · Gegner · Defense</span><h2>Gegner-Scouting</h2></div>
+        <div class="head-actions"><button class="btn small primary" type="button" data-action="sync-opponents">↻ Ligadaten aktualisieren</button></div>
+      </div>
+      <p class="muted">CourtHub verbindet offizielle Ergebnisse mit geprüften Spielberichten und Trainerbeobachtungen. Die Defense-Auswahl ist auf Mannverteidigung, 2-1-2 und 3-2 begrenzt.</p>
+      <p class="auth-status" data-role="opponents-status" aria-live="polite"></p>
+      <div class="games-layout opponents-layout">
+        <ul class="game-list" data-role="opponent-list"></ul>
+        <section class="game-detail opponent-detail" data-role="opponent-detail"><div class="empty empty--field"><p class="empty-body">Gegner auswählen.</p></div></section>
+      </div>
     </section>
   </template>
 
@@ -1491,6 +1507,7 @@
   <script defer src="js/station-training.js"></script>
   <script defer src="js/training.js"></script>
   <script defer src="js/games.js"></script>
+  <script defer src="js/opponents.js"></script>
   <script defer src="js/tablecrew.js"></script>
   <script defer src="js/season-ai-draft.js"></script>
   <script defer src="js/seasonplanner.js"></script>

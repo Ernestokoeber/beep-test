@@ -2,7 +2,7 @@ window.BT = window.BT || {};
 
 BT.history = (function() {
   const { $, renderTemplate, formatDate, escapeHTML, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, todayISO } = BT.util;
-  const IMPORT_LISTS = ['players', 'sessions', 'trainings', 'games', 'tableDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics'];
+  const IMPORT_LISTS = ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics'];
 
   function renderList(target) {
     const root = renderTemplate('tpl-history');
@@ -153,13 +153,13 @@ BT.history = (function() {
   function applyBackup(data, mode) {
     const current = BT.storage.load();
     if (mode === 'r') {
-      const replacement = { schemaVersion: 2, settings: importSettings(data) };
+      const replacement = { schemaVersion: 4, settings: importSettings(data) };
       IMPORT_LISTS.forEach(key => { replacement[key] = importList(data, key); });
       BT.storage.save(replacement);
       return;
     }
     if (mode === 'm') {
-      const merged = { schemaVersion: 2, settings: Object.assign({}, current.settings || {}, importSettings(data)) };
+      const merged = { schemaVersion: 4, settings: Object.assign({}, current.settings || {}, importSettings(data)) };
       IMPORT_LISTS.forEach(key => { merged[key] = mergeById(importList(current, key), importList(data, key)); });
       BT.storage.save(merged);
       return;

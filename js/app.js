@@ -176,6 +176,8 @@
       BT.games.renderMatchday(app,decodeURIComponent(hash.split('/')[2]),hash.endsWith('?training'));
     } else if (hash === '#/games') {
       BT.games.render(app);
+    } else if (hash === '#/opponents') {
+      BT.opponents.render(app);
     } else if (hash === '#/tablecrew') {
       BT.tablecrew.render(app);
     } else if (hash === '#/reports') {
@@ -225,6 +227,8 @@
       active = 'training';
     } else if (hash.startsWith('#/games')) {
       active = 'games';
+    } else if (hash.startsWith('#/opponents')) {
+      active = 'opponents';
     } else if (hash.startsWith('#/tablecrew')) {
       active = 'tablecrew';
     } else if (hash.startsWith('#/reports')) {

@@ -90,6 +90,7 @@ BT.seasonplanner = (function() {
   }
 
   function buildSlots(games, options) {
+    if (BT.opponents?.ensureFromOwnGames) BT.opponents.ensureFromOwnGames();
     const config = options || {};
     const allGames = (games || [])
       .filter(game => game && game.date && !game.cancelled)
@@ -117,6 +118,7 @@ BT.seasonplanner = (function() {
         date, weekday, time, load: load.level, loadReason: load.reason,
         durationMinutes: weekendGame ? 105 : Math.max(60, Number(BT.storage.getSetting('trainingDurationMinutes', 105)) || 105),
         fridayStationMode: Boolean(weekendGame), weekendGame: gameSummary(weekendGame),
+        opponentContext: nextGame && BT.opponents?.contextForGame ? BT.opponents.contextForGame(nextGame) : null,
         daysAfterPreviousGame: previousGame ? daysBetween(previousGame.date, date) : null,
         daysBeforeNextGame: nextGame ? daysBetween(date, nextGame.date) : null,
         previousGame: gameSummary(previousGame), nextGame: gameSummary(nextGame)
@@ -289,7 +291,9 @@ BT.seasonplanner = (function() {
       durationMinutes: Math.max(60, Number(BT.storage.getSetting('trainingDurationMinutes', 105)) || 105),
       principles: {
         offense: 'Horns, 5-Out, Spacing, Entscheidungen und Transition',
-        defense: 'No-Middle, Helpside-Kommunikation, Rebounding und Transition Defense'
+        defense: 'No-Middle, Helpside-Kommunikation, Rebounding und Transition Defense',
+        allowedDefenses: ['Mannverteidigung · No-Middle', 'Zone 2-1-2', 'Zone 3-2'],
+        defenseRule: 'Nur diese drei trainierten Verteidigungen empfehlen. Mannverteidigung bleibt bei unzureichender Gegnerdatenlage die Basis.'
       },
       weeklyStructure: {
         tuesday: 'Haupttrainingstag: höchste Wochenbelastung, neue Systeme und alle wichtigen Lerninhalte.',
@@ -306,13 +310,14 @@ BT.seasonplanner = (function() {
         problemInputRole: 'diagnostischer Hinweis, nicht Hauptschwerpunkt',
         maxProblemSharePercent: 25,
         fridayMaxProblemStations: 1,
+        maxOpponentSpecificSharePercent: 25,
         preserve: ['langfristige Mannschaftsprinzipien', 'aktueller Schwerpunkt', 'technische Grundlagen', 'ausgewogene Belastung'],
         safetyException: 'Schmerzen, Verletzungen und Belastungsgrenzen haben immer Vorrang'
       },
       coachInput: preferences || {},
       slots,
       performanceContext: performanceContext(slots),
-      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Gewichte coachInput.problems mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem aufgreift; verwende keine feste Rotation.'
+      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Die Defense-Auswahl ist verbindlich auf Mannverteidigung mit No-Middle, Zone 2-1-2 und Zone 3-2 begrenzt. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift; verwende keine feste Rotation.'
     };
   }
 
@@ -458,6 +463,11 @@ BT.seasonplanner = (function() {
       loadTarget: slot.load,
       loadReason: slot.loadReason,
       gameContext: { previous: slot.previousGame, next: slot.nextGame },
+      opponentPlan: slot.opponentContext ? {
+        opponent: slot.opponentContext.opponent,
+        defenseRecommendation: slot.opponentContext.defenseRecommendation,
+        dataQuality: slot.opponentContext.dataQuality
+      } : null,
       freethrows: entry.freethrows?.attempted ? { attempted: Math.max(1, Number(entry.freethrows.attempted)) } : null,
       shots: Array.isArray(entry.shots) ? entry.shots.filter(item => item?.category).map(item => ({ category: String(item.category).slice(0, 80), attempted: Math.max(1, Number(item.attempted) || 10) })) : [],
       drills,
@@ -570,6 +580,7 @@ BT.seasonplanner = (function() {
       loadReason: before === 1 ? 'Aktivierung einen Tag vor dem Spiel' : 'Kontrollierte individuelle Belastung zwei Tage vor dem Spiel',
       fridayStationMode: true,
       weekendGame: gameSummary(game),
+      opponentContext: BT.opponents?.contextForGame ? BT.opponents.contextForGame(game) : null,
       daysAfterPreviousGame: null,
       daysBeforeNextGame: before,
       previousGame: null,
