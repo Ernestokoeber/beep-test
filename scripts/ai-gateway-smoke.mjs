@@ -53,7 +53,7 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 3, 'KI-Vertrag wurde für tolerante KI-Textgrenzen nicht angehoben');
+assert(AI_CONTRACT_VERSION === 4, 'KI-Vertrag wurde für robuste KI-Dauernormalisierung nicht angehoben');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.1', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -102,15 +102,22 @@ const fridayResult = {
   }]
 };
 assert(fridayRequest.parse(JSON.stringify(fridayResult)).trainings[0].stationTraining.stations[0].title === 'KI Station 1', 'KI-Stationen werden nicht validiert und übernommen');
+const unevenFriday = structuredClone(fridayResult);
+unevenFriday.trainings[0].drills[2].minutes = 14;
+unevenFriday.trainings[0].drills[3].minutes = 16;
+const normalizedFriday = fridayRequest.parse(JSON.stringify(unevenFriday));
+assert(
+  normalizedFriday.trainings[0].drills.map(drill => drill.minutes).join(',') === '10,10,15,15,15,15,15,10',
+  'KI-Stationstraining wird nicht auf 10 + 10 + fünfmal 15 + 10 Minuten normalisiert'
+);
 await expectAIError(
   () => {
-    const invalid = structuredClone(fridayResult);
-    invalid.trainings[0].drills[2].minutes = 14;
-    invalid.trainings[0].drills[3].minutes = 16;
-    return Promise.resolve(fridayRequest.parse(JSON.stringify(invalid)));
+    const incomplete = structuredClone(fridayResult);
+    incomplete.trainings[0].drills.pop();
+    return Promise.resolve(fridayRequest.parse(JSON.stringify(incomplete)));
   },
   'AI_INVALID_RESPONSE',
-  'Falscher 105-Minuten-Stationsaufbau wurde akzeptiert'
+  'Unvollständiger Stationsaufbau wurde akzeptiert'
 );
 
 const summary = buildAIRequest('summarizeTraining', {

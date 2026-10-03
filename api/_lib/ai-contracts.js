@@ -1,7 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 3;
+export const AI_CONTRACT_VERSION = 4;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
@@ -234,7 +234,26 @@ function weekdayNumber(value) {
   return WEEKDAYS[String(value || '').trim().toLowerCase()];
 }
 
-function validateDrills(input, { requireIntensity = false, durationMinutes = null } = {}) {
+const FRIDAY_STATION_MINUTES = [10, 10, 15, 15, 15, 15, 15, 10];
+
+function fitDrillMinutes(drills, durationMinutes) {
+  if (durationMinutes === null || drills.reduce((sum, drill) => sum + drill.minutes, 0) === durationMinutes) return drills;
+  if (drills.length > durationMinutes) fail('Die Drillliste enthält zu viele Blöcke für die Trainingsdauer.');
+  const remaining = durationMinutes - drills.length;
+  const weightTotal = drills.reduce((sum, drill) => sum + drill.minutes, 0);
+  const allocations = drills.map((drill, index) => {
+    const exact = remaining * drill.minutes / weightTotal;
+    return { index, minutes: 1 + Math.floor(exact), fraction: exact - Math.floor(exact) };
+  });
+  let rest = durationMinutes - allocations.reduce((sum, item) => sum + item.minutes, 0);
+  allocations.slice().sort((left, right) => right.fraction - left.fraction || left.index - right.index)
+    .slice(0, rest)
+    .forEach(item => { allocations[item.index].minutes += 1; });
+  allocations.forEach(item => { drills[item.index].minutes = item.minutes; });
+  return drills;
+}
+
+function validateDrills(input, { requireIntensity = false, durationMinutes = null, durationPattern = null } = {}) {
   if (!Array.isArray(input) || input.length < 1 || input.length > 30) fail('Die Drillliste ist ungültig.');
   const drills = input.map((drill) => {
     if (!drill || typeof drill !== 'object') fail('Ein Drill ist ungültig.');
@@ -251,8 +270,11 @@ function validateDrills(input, { requireIntensity = false, durationMinutes = nul
     }
     return normalized;
   });
-  if (durationMinutes !== null && drills.reduce((sum, drill) => sum + drill.minutes, 0) !== durationMinutes) {
-    fail('Die Drill-Minuten entsprechen nicht der Trainingsdauer.');
+  if (durationPattern) {
+    if (drills.length !== durationPattern.length) fail('Das KI-Stationstraining benötigt acht Trainingsblöcke.');
+    drills.forEach((drill, index) => { drill.minutes = durationPattern[index]; });
+  } else {
+    fitDrillMinutes(drills, durationMinutes);
   }
   return drills;
 }
@@ -278,14 +300,6 @@ function validateFridayStations(input) {
   };
 }
 
-function validateFridayStationDrills(drills) {
-  const minutes = drills.map((drill) => drill.minutes);
-  const expected = [10, 10, 15, 15, 15, 15, 15, 10];
-  if (minutes.length !== expected.length || minutes.some((value, index) => value !== expected[index])) {
-    fail('Das KI-Stationstraining benötigt 10 + 10 + fünfmal 15 + 10 Minuten.');
-  }
-}
-
 function validateEvidenceBasis(input) {
   const list = (value, label) => {
     if (!Array.isArray(value) || value.length < 1 || value.length > 4) fail(`${label} ist ungültig.`);
@@ -306,13 +320,16 @@ function normalizeTraining(input, { durationMinutes = null, requireIntensity = f
     summary: generatedString(input.summary, 240, 'Trainingsschwerpunkt'),
     freethrows: { attempted: integer(input.freethrows?.attempted, 0, 1000, 'Freiwurfversuche') },
     shots: validateShots(input.shots),
-    drills: validateDrills(input.drills, { requireIntensity, durationMinutes })
+    drills: validateDrills(input.drills, {
+      requireIntensity,
+      durationMinutes,
+      durationPattern: fridayStationMode ? FRIDAY_STATION_MINUTES : null
+    })
   };
   if (input.evidenceBasis) training.evidenceBasis = validateEvidenceBasis(input.evidenceBasis);
   if (input.weekday) training.weekday = generatedString(input.weekday, 20, 'Wochentag');
   if (fridayStationMode) {
     if (durationMinutes !== 105) fail('Das KI-Stationstraining muss 105 Minuten dauern.');
-    validateFridayStationDrills(training.drills);
     training.stationTraining = validateFridayStations(input.stationTraining);
   } else if (friday) {
     if (!input.fridayVariants || typeof input.fridayVariants !== 'object') fail('Freitagsvarianten fehlen.');
