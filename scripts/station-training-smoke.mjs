@@ -48,6 +48,27 @@ assert.equal(friday.stationTraining.players.p1.weeklyLoad, 935);
 assert.equal(friday.stationTraining.players.p1.light, 'red', 'Hohe Wochenlast führt nicht zu Rot');
 assert.equal(friday.stationTraining.players.p2.light, 'green');
 
+const aiEntry = {
+  summary: 'KI erstellt jede Spielwoche einen neuen individuellen Schwerpunkt.',
+  freethrows: { attempted: 12 },
+  shots: [{ category: 'Form Shooting', attempted: 25 }],
+  drills: [10, 10, 15, 15, 15, 15, 15, 10].map((minutes, index) => ({
+    name: `KI-Block ${index + 1}`, minutes, intensity: 'low', description: `KI-Beschreibung ${index + 1}`
+  })),
+  stationTraining: {
+    rationale: 'Spielnah frisch geplant, ohne die Kombination der Vorwoche zu wiederholen.',
+    stations: Array.from({ length: 5 }, (_, index) => ({
+      title: `Neue KI-Station ${index + 1}`, category: `KI-Kategorie ${index + 1}`, description: `Individuelle KI-Aufgabe ${index + 1}`
+    }))
+  }
+};
+assert(stations.applyAI(friday, suggestion.game, aiEntry), 'Gültiger KI-Freitagsplan wird abgelehnt');
+assert.equal(friday.stationTraining.source, 'gemini');
+assert.equal(friday.stationTraining.stations[0].title, 'Neue KI-Station 1', 'Feste Rotation ersetzt weiterhin die KI-Stationen');
+assert.equal(friday.plan.drills[2].name, 'KI-Block 3', 'KI-Trainingsblöcke werden nicht für den Live-Modus übernommen');
+assert.equal(friday.plan.drills.reduce((sum, drill) => sum + drill.minutes, 0), 105);
+assert.equal(friday.stationTraining.players.p1.light, 'red', 'Belastungsampel geht beim KI-Plan verloren');
+
 let saves = 0;
 const host = window.document.querySelector('#host');
 stations.render(host, friday, () => { saves += 1; });
@@ -68,4 +89,4 @@ assert(serviceWorker.includes("'./js/station-training.js'"));
 assert(serviceWorker.includes("'./station-training.css'"));
 
 dom.window.close();
-console.log('Freitags-Stationstraining: Spielwochen-Automatik, 105 Minuten, Wochenrotation, Lastampel, RPE, XSS und Offline-Cache erfolgreich.');
+console.log('Freitags-Stationstraining: KI-Neuplanung, Spielwochen-Automatik, 105 Minuten, Lastampel, RPE, XSS und Offline-Cache erfolgreich.');

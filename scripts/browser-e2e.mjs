@@ -599,10 +599,31 @@ async function testTrainingLive(browser, name, options) {
       const players = Array.from({ length: 9 }, (_, index) =>
         window.BT.storage.upsertPlayer({ name: `Stationsspieler ${index + 1}`, jerseyNumber: String(index + 1) }));
       const game = window.BT.storage.upsertGame({ team: 'herren', date: gameDate, time: '18:00', home: 'TSV Lindau', away: 'Stations-Gegner', source: 'manual', playerStats: [] });
+      window.BT.api.ai = async (_action, payload) => ({
+        data: {
+          trainings: payload.data.slots.map(slot => ({
+            date: slot.date,
+            summary: 'KI-generiertes individuelles Freitagstraining',
+            freethrows: { attempted: 20 },
+            shots: [],
+            drills: [
+              { name: 'Readiness-Check & Tagesziel', minutes: 10, intensity: 'low', description: 'Tagesform und Belastung erfassen.' },
+              { name: 'Individuelle Aktivierung', minutes: 10, intensity: 'low', description: 'Schonend aktivieren.' },
+              ...Array.from({ length: 5 }, (_, index) => ({ name: `KI-Station ${index + 1}`, minutes: 15, intensity: 'low', description: `Neue individuelle Aufgabe ${index + 1}.` })),
+              { name: 'Cooldown & Session-RPE', minutes: 10, intensity: 'low', description: 'Belastung dokumentieren.' }
+            ],
+            stationTraining: {
+              rationale: 'Passend zur aktuellen Spielwoche neu erzeugt.',
+              stations: Array.from({ length: 5 }, (_, index) => ({ title: `KI-Station ${index + 1}`, category: `Kategorie ${index + 1}`, description: `Neue individuelle Aufgabe ${index + 1}.` }))
+            }
+          }))
+        },
+        model: 'gemini-3.8-flash', requestId: 'ai_browser_station'
+      });
       return { friday, gameId: game.id, playerId: players[0].id };
     });
     await page.goto(baseUrl + '/#/training', { waitUntil: 'domcontentloaded' });
-    await page.getByRole('button', { name: 'Stationstraining anlegen', exact: true }).tap();
+    await page.getByRole('button', { name: 'Mit KI planen', exact: true }).tap();
     await page.getByRole('button', { name: 'Belastung', exact: true }).tap();
     assert(await page.locator('.station-card').count() === 5, `${name}: fünf Freitagstationen fehlen`);
     assert(await page.locator('.station-player-card').count() === 9, `${name}: Belastungssteuerung enthält nicht alle Spieler`);

@@ -115,6 +115,7 @@ BT.seasonplanner = (function() {
         ? nextGame : null;
       slots.push({
         date, weekday, time, load: load.level, loadReason: load.reason,
+        durationMinutes: weekendGame ? 105 : Math.max(60, Number(BT.storage.getSetting('trainingDurationMinutes', 105)) || 105),
         fridayStationMode: Boolean(weekendGame), weekendGame: gameSummary(weekendGame),
         daysAfterPreviousGame: previousGame ? daysBetween(previousGame.date, date) : null,
         daysBeforeNextGame: nextGame ? daysBetween(date, nextGame.date) : null,
@@ -148,13 +149,19 @@ BT.seasonplanner = (function() {
       },
       weeklyStructure: {
         tuesday: 'Haupttrainingstag: höchste Wochenbelastung, neue Systeme und alle wichtigen Lerninhalte.',
-        fridayGameWeek: '105 Minuten ausschließlich individuelles Stationstraining mit Readiness, Belastungsampel und Session-RPE.',
+        fridayGameWeek: 'Die KI erstellt für jede Spielwoche neu: 105 Minuten ausschließlich individuelles Stationstraining mit fünf neuen Stationen, Readiness, Belastungsampel und Session-RPE.',
         fridayWithoutWeekendGame: 'Technik, Entscheidungen und Small-Sided Games passend zur Spielerzahl.'
+      },
+      fridayLoadManagement: {
+        inputs: ['Tagesform 1–5', 'Schmerzen 0–10', 'Spielminuten der letzten sieben Tage', 'Session-RPE und Wochenbelastung'],
+        green: 'volles geplantes Volumen bis zum Ziel-RPE',
+        yellow: 'etwa 70 Prozent Volumen, längere Pausen, keine Zusatzbelastung',
+        red: 'nur schmerzfreie Technik, Wurf und Prehab; keine Sprünge oder harten Richtungswechsel'
       },
       coachInput: preferences || {},
       slots,
       completedTrainingHistory: compactHistory(),
-      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden.'
+      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern; verwende keine feste Rotation.'
     };
   }
 
@@ -223,7 +230,14 @@ BT.seasonplanner = (function() {
       for (let attempt = 1; attempt <= 2; attempt++) {
         if (onProgress) onProgress({ block: index + 1, total: batches.length, attempt, resumed: false });
         try {
-          const response = await requestBatch(batches[index]);
+          const requestPayload = Object.assign({}, batches[index], {
+            priorGeneratedTrainings: trainings.slice(-8).map(training => ({
+              date: training.date,
+              summary: training.summary,
+              stations: (training.stationTraining?.stations || []).map(station => station.title)
+            }))
+          });
+          const response = await requestBatch(requestPayload);
           const blockTrainings = validateBatchResponse(response, batches[index].slots);
           trainings.push(...blockTrainings);
           if (response.model) models.add(response.model);
@@ -352,12 +366,14 @@ BT.seasonplanner = (function() {
     slots.forEach(slot => {
       const entry = byDate.get(slot.date);
       const current = existing.find(training => training.date === slot.date);
+      const aiManaged = ['ai-season', 'ai-friday-stations'].includes(current?.planning?.source);
       const protectedTraining = current && (
         current.status === 'completed' || current.endedAt ||
-        current.planning?.coachEdited || current.planning?.source !== 'ai-season'
+        current.planning?.coachEdited || !aiManaged
       );
       if (protectedTraining) { result.protected++; return; }
       if (slot.fridayStationMode && BT.stationTraining) {
+        if (!entry) { result.missing++; return; }
         const game = BT.storage.getGame(slot.weekendGame?.id) || slot.weekendGame || slot.nextGame;
         const base = current || {
           date: slot.date, startTime: slot.time,
@@ -365,14 +381,14 @@ BT.seasonplanner = (function() {
           freethrows: [], shots: []
         };
         base.startTime = slot.time;
-        BT.stationTraining.apply(base, game);
+        if (!BT.stationTraining.applyAI(base, game, entry)) { result.missing++; return; }
         BT.storage.upsertTraining(base);
         if (current) result.updated++;
         else result.created++;
         return;
       }
       if (!entry) { result.missing++; return; }
-      const plan = normalizePlan(entry, slot, duration);
+      const plan = normalizePlan(entry, slot, Number(slot.durationMinutes) || duration);
       const base = current || {
         date: slot.date, startTime: slot.time,
         attendance: BT.storage.attendanceForActivePlayers(slot.date),
@@ -397,8 +413,46 @@ BT.seasonplanner = (function() {
     return result;
   }
 
+  function fridaySlot(friday, game) {
+    const before = daysBetween(friday, game.date);
+    return {
+      date: friday,
+      weekday: 'fri',
+      time: BT.storage.getSetting('trainingStartTime', '20:15'),
+      durationMinutes: 105,
+      load: 'low',
+      loadReason: before === 1 ? 'Aktivierung einen Tag vor dem Spiel' : 'Kontrollierte individuelle Belastung zwei Tage vor dem Spiel',
+      fridayStationMode: true,
+      weekendGame: gameSummary(game),
+      daysAfterPreviousGame: null,
+      daysBeforeNextGame: before,
+      previousGame: null,
+      nextGame: gameSummary(game)
+    };
+  }
+
+  async function generateFridayTraining(friday, game, existing = null) {
+    if (!game || !BT.stationTraining) throw new Error('Das Wochenendspiel für das Freitagstraining fehlt.');
+    const slot = fridaySlot(friday, game);
+    const payload = buildAIPayload([slot], BT.storage.getSetting('seasonCoachInput', {}));
+    const response = await BT.api.ai('planSeason', { data: payload });
+    const [entry] = validateBatchResponse(response, [slot]);
+    const training = existing || {
+      date: friday,
+      startTime: slot.time,
+      attendance: BT.storage.attendanceForActivePlayers(friday),
+      freethrows: [], shots: []
+    };
+    training.startTime = slot.time;
+    if (!BT.stationTraining.applyAI(training, game, entry)) throw new Error('Die KI hat kein vollständiges 105-Minuten-Stationstraining geliefert.');
+    BT.storage.upsertTraining(training);
+    saveToLibraries(training.plan, friday);
+    return training;
+  }
+
   return {
     BAVARIA_SCHOOL_BREAKS, parseLeagueId, scheduleConfig, saveScheduleConfig,
-    closureFor, buildSlots, buildAIPayload, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan
+    closureFor, buildSlots, buildAIPayload, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan,
+    generateFridayTraining
   };
 })();

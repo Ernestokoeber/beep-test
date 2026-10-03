@@ -60,6 +60,15 @@ const SEASON_DRILL_SCHEMA = {
   ...DRILL_SCHEMA,
   required: ['name', 'minutes', 'intensity', 'description']
 };
+const FRIDAY_STATION_SCHEMA = {
+  type: 'object',
+  required: ['title', 'category', 'description'],
+  properties: {
+    title: STRING,
+    category: STRING,
+    description: STRING
+  }
+};
 const SEASON_TRAINING_SCHEMA = {
   ...TRAINING_SCHEMA,
   properties: {
@@ -71,6 +80,19 @@ const SEASON_TRAINING_SCHEMA = {
       properties: {
         over8: { type: 'array', items: SEASON_DRILL_SCHEMA },
         eightOrLess: { type: 'array', items: SEASON_DRILL_SCHEMA }
+      }
+    },
+    stationTraining: {
+      type: 'object',
+      required: ['rationale', 'stations'],
+      properties: {
+        rationale: STRING,
+        stations: {
+          type: 'array',
+          minItems: 5,
+          maxItems: 5,
+          items: FRIDAY_STATION_SCHEMA
+        }
       }
     }
   }
@@ -134,7 +156,11 @@ const PROMPTS = {
   parsePlan: `Du überträgst einen Basketball-Trainingsplan aus einem PDF in strukturierte CourtHub-Daten. Nutze ausschließlich Inhalte des Dokuments und die mitgesendeten tatsächlichen Trainingstage, Uhrzeit und Dauer. Erfinde keine Termine. Gib nur das angeforderte JSON aus.`,
   summarizeTraining: `Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze keine Namen oder Zahlen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`,
   explainTactic: `Du erklärst einen strukturierten Basketball-Spielzug auf Deutsch. Beschreibe Ziel, Phasen, tatsächlich beteiligte Rollen, Defense-Read und Offense-Antwort. Erfinde keine Rollen oder Aktionen. Liefere zwei bis vier konkrete Coaching-Punkte und nur das angeforderte JSON.`,
-  planSeason: `Du planst einen Wochenblock einer Basketball-Saison. Liefere für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Die Drill-Minuten entsprechen der Trainingsdauer. Freitage benötigen vollständige Varianten für mehr als acht sowie höchstens acht Spieler. Gib nur das angeforderte JSON aus.`
+  planSeason: `Du planst einen Wochenblock einer Basketball-Saison. Liefere für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer.
+
+Für einen Slot mit fridayStationMode=true erstellst du jedes Mal ein neues individuelles Stationstraining passend zur aktuellen Spielwoche und zum folgenden Wochenendspiel. Nutze die Historie, um Schwerpunkte und Stationskombinationen nicht einfach zu wiederholen. Das Training dauert genau 105 Minuten und besteht in dieser Reihenfolge aus: 10 Minuten Readiness-Check, 10 Minuten individuelle Aktivierung, fünf unterschiedliche Einzelstationen zu je 15 Minuten und 10 Minuten Cooldown mit Session-RPE. Liefere dazu stationTraining mit genau fünf Stationen. Keine Teamtaktik, keine Spielformen und kein 1-gegen-1 bis 5-gegen-5. Alle Inhalte müssen allein oder mit einfachen Zuspielern ausführbar sein. Plane niedrige Vor-Spiel-Belastung; die individuelle Ampel für Tagesform, Schmerzen, Spielminuten und Wochenbelastung skaliert das Volumen später pro Spieler. fridayVariants wird für diesen Modus nicht benötigt.
+
+Für sonstige Freitage werden weiterhin vollständige fridayVariants für mehr als acht sowie höchstens acht Spieler benötigt. Gib nur das angeforderte JSON aus.`
 };
 
 function fail(message = 'Die KI-Antwort entspricht nicht dem erwarteten Format.') {
@@ -215,7 +241,28 @@ function validateShots(input) {
   }));
 }
 
-function normalizeTraining(input, { durationMinutes = null, requireIntensity = false, friday = false } = {}) {
+function validateFridayStations(input) {
+  if (!input || typeof input !== 'object') fail('KI-Stationstraining fehlt.');
+  if (!Array.isArray(input.stations) || input.stations.length !== 5) fail('Das KI-Stationstraining benötigt genau fünf Stationen.');
+  return {
+    rationale: string(input.rationale, 500, 'Begründung des Stationstrainings'),
+    stations: input.stations.map((station) => ({
+      title: string(station?.title, 120, 'Stationstitel'),
+      category: string(station?.category, 80, 'Stationskategorie'),
+      description: string(station?.description, 800, 'Stationsbeschreibung')
+    }))
+  };
+}
+
+function validateFridayStationDrills(drills) {
+  const minutes = drills.map((drill) => drill.minutes);
+  const expected = [10, 10, 15, 15, 15, 15, 15, 10];
+  if (minutes.length !== expected.length || minutes.some((value, index) => value !== expected[index])) {
+    fail('Das KI-Stationstraining benötigt 10 + 10 + fünfmal 15 + 10 Minuten.');
+  }
+}
+
+function normalizeTraining(input, { durationMinutes = null, requireIntensity = false, friday = false, fridayStationMode = false } = {}) {
   if (!input || typeof input !== 'object') fail('Ein Training ist ungültig.');
   const training = {
     date: date(input.date, 'Trainingsdatum'),
@@ -225,7 +272,11 @@ function normalizeTraining(input, { durationMinutes = null, requireIntensity = f
     drills: validateDrills(input.drills, { requireIntensity, durationMinutes })
   };
   if (input.weekday) training.weekday = string(input.weekday, 20, 'Wochentag');
-  if (friday) {
+  if (fridayStationMode) {
+    if (durationMinutes !== 105) fail('Das KI-Stationstraining muss 105 Minuten dauern.');
+    validateFridayStationDrills(training.drills);
+    training.stationTraining = validateFridayStations(input.stationTraining);
+  } else if (friday) {
     if (!input.fridayVariants || typeof input.fridayVariants !== 'object') fail('Freitagsvarianten fehlen.');
     training.fridayVariants = {
       over8: validateDrills(input.fridayVariants.over8, { requireIntensity, durationMinutes }),
@@ -371,7 +422,14 @@ function buildSeason(payload) {
     const trainings = value.trainings.map((training) => {
       const slot = slots.find((entry) => entry.date === training?.date);
       if (!slot) fail('Die KI-Antwort enthält einen unbekannten Trainingstermin.');
-      return normalizeTraining(training, { durationMinutes: expectedDuration, requireIntensity: true, friday: isFriday(slot) });
+      const slotDuration = Number(slot.durationMinutes);
+      const trainingDuration = Number.isInteger(slotDuration) && slotDuration >= 30 && slotDuration <= 240 ? slotDuration : expectedDuration;
+      return normalizeTraining(training, {
+        durationMinutes: trainingDuration,
+        requireIntensity: true,
+        friday: isFriday(slot),
+        fridayStationMode: slot.fridayStationMode === true
+      });
     });
     if (new Set(trainings.map((training) => training.date)).size !== dates.length) fail('Die KI-Antwort enthält doppelte Trainingstermine.');
     return { trainings };

@@ -305,21 +305,32 @@ const manualTraining = window.BT.storage.upsertTraining({
 });
 const manualBefore = JSON.stringify(window.BT.storage.getTraining(manualTraining.id));
 const aiSeasonResponse = {
-  trainings: seasonSlots.map(slot => ({
-    date: slot.date,
-    summary: slot.weekday === 'tue' ? 'Haupttraining' : 'Freitagsfestigung',
-    freethrows: { attempted: 20 },
-    shots: [{ category: 'Catch-and-Shoot', attempted: 20 }],
-    drills: [
-      { name: 'KI Warm-up', minutes: 15, intensity: 'low', description: 'Mobilisieren und Ballgefühl' },
-      { name: 'KI Hauptblock', minutes: 65, intensity: slot.load, description: 'Spielnaher Schwerpunkt' },
-      { name: 'KI 5-gegen-5', minutes: 25, intensity: slot.load, description: 'Strukturiertes Abschlussspiel' }
-    ],
-    fridayVariants: slot.weekday === 'fri' ? {
-      over8: [{ name: 'KI Teamtaktik', minutes: 105, intensity: slot.load, description: '4-gegen-4 und 5-gegen-5' }],
-      eightOrLess: [{ name: 'KI Small-Sided', minutes: 105, intensity: slot.load, description: '1-gegen-1 bis 3-gegen-3' }]
-    } : null
-  }))
+  trainings: seasonSlots.map(slot => {
+    const stationDrills = [10, 10, 15, 15, 15, 15, 15, 10].map((minutes, index) => ({
+      name: `KI Freitag Block ${index + 1}`, minutes, intensity: 'low', description: `Individuelle KI-Aufgabe ${index + 1}`
+    }));
+    return {
+      date: slot.date,
+      summary: slot.fridayStationMode ? 'KI-Spielwochenstationen' : slot.weekday === 'tue' ? 'Haupttraining' : 'Freitagsfestigung',
+      freethrows: { attempted: 20 },
+      shots: [{ category: 'Catch-and-Shoot', attempted: 20 }],
+      drills: slot.fridayStationMode ? stationDrills : [
+        { name: 'KI Warm-up', minutes: 15, intensity: 'low', description: 'Mobilisieren und Ballgefühl' },
+        { name: 'KI Hauptblock', minutes: 65, intensity: slot.load, description: 'Spielnaher Schwerpunkt' },
+        { name: 'KI 5-gegen-5', minutes: 25, intensity: slot.load, description: 'Strukturiertes Abschlussspiel' }
+      ],
+      stationTraining: slot.fridayStationMode ? {
+        rationale: 'Von der KI passend zur aktuellen Spielwoche neu geplant.',
+        stations: Array.from({ length: 5 }, (_, index) => ({
+          title: `KI Wochenstation ${index + 1}`, category: `Kategorie ${index + 1}`, description: `Individuelle Aufgabe ${index + 1}`
+        }))
+      } : null,
+      fridayVariants: slot.weekday === 'fri' && !slot.fridayStationMode ? {
+        over8: [{ name: 'KI Teamtaktik', minutes: 105, intensity: slot.load, description: '4-gegen-4 und 5-gegen-5' }],
+        eightOrLess: [{ name: 'KI Small-Sided', minutes: 105, intensity: slot.load, description: '1-gegen-1 bis 3-gegen-3' }]
+      } : null
+    };
+  })
 };
 const appliedSeason = window.BT.seasonplanner.applyAIPlan(aiSeasonResponse, seasonSlots);
 assert(appliedSeason.protected >= 1, 'Manuelles Training wurde nicht als geschützt gezählt');
@@ -328,7 +339,8 @@ assert(appliedSeason.created + appliedSeason.updated + appliedSeason.protected +
 assert(window.BT.storage.getDrills().some(drill => drill.source === 'ai-season'), 'KI-Trainingsblöcke fehlen in der Drill-Bibliothek');
 assert(window.BT.storage.getTemplates().some(template => template.source === 'ai-season'), 'KI-Trainings fehlen in der Vorlagenbibliothek');
 const stationFriday = window.BT.storage.getTrainings().find(entry => entry.date === '2026-10-09');
-assert(stationFriday?.planning?.source === 'friday-stations' && stationFriday.plan.durationMinutes === 105, 'Saisonplanung übernimmt das 105-Minuten-Stationstraining nicht automatisch');
+assert(stationFriday?.planning?.source === 'ai-friday-stations' && stationFriday.plan.durationMinutes === 105, 'Saisonplanung übernimmt das KI-generierte 105-Minuten-Stationstraining nicht automatisch');
+assert(stationFriday.stationTraining.stations[0].title === 'KI Wochenstation 1', 'Saisonplanung ersetzt die KI-Stationen durch die feste Rotation');
 const fridayTraining = window.BT.storage.getTrainings().find(entry => entry.planning?.source === 'ai-season' && entry.plan?.variants);
 assert(fridayTraining && fridayTraining.plan.variants.over8.length && fridayTraining.plan.variants.eightOrLess.length, 'Freitagsvarianten für die Spielerzahl fehlen');
 const batchPayload = window.BT.seasonplanner.buildAIPayload(

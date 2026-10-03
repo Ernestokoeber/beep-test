@@ -53,7 +53,42 @@ assert(season.generationConfig.responseMimeType === 'application/json', 'JSON-MI
 assert(season.generationConfig.thinkingConfig.thinkingLevel === 'medium', 'Saison-Thinking-Level falsch');
 assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema fehlt');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.drills.items.required.includes('intensity'), 'Saison-Schema verlangt die validierte Drillintensität nicht');
+assert(season.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining.properties.stations.minItems === 5, 'Saison-Schema verlangt nicht genau fünf KI-Stationen');
 assert(season.timeoutMs === 48_000, 'Saison-Timeout ist nicht begrenzt');
+
+const fridayRequest = buildAIRequest('planSeason', { data: {
+  durationMinutes: 90,
+  slots: [{
+    date: '2026-10-09', weekday: 'fri', durationMinutes: 105, fridayStationMode: true,
+    weekendGame: { date: '2026-10-10', home: 'TSV Lindau', away: 'Testgegner' }
+  }]
+} });
+const fridayDrills = [10, 10, 15, 15, 15, 15, 15, 10].map((minutes, index) => ({
+  name: `KI Block ${index + 1}`, minutes, intensity: 'low', description: `Individueller Inhalt ${index + 1}`
+}));
+const fridayResult = {
+  trainings: [{
+    date: '2026-10-09', summary: 'Frischer KI-Spielwochenplan',
+    freethrows: { attempted: 20 }, shots: [], drills: fridayDrills,
+    stationTraining: {
+      rationale: 'Neue Schwerpunkte passend zur Spielnähe und zur bisherigen Trainingshistorie.',
+      stations: Array.from({ length: 5 }, (_, index) => ({
+        title: `KI Station ${index + 1}`, category: `Kategorie ${index + 1}`, description: `Neue Einzelaufgabe ${index + 1}`
+      }))
+    }
+  }]
+};
+assert(fridayRequest.parse(JSON.stringify(fridayResult)).trainings[0].stationTraining.stations[0].title === 'KI Station 1', 'KI-Stationen werden nicht validiert und übernommen');
+await expectAIError(
+  () => {
+    const invalid = structuredClone(fridayResult);
+    invalid.trainings[0].drills[2].minutes = 14;
+    invalid.trainings[0].drills[3].minutes = 16;
+    return Promise.resolve(fridayRequest.parse(JSON.stringify(invalid)));
+  },
+  'AI_INVALID_RESPONSE',
+  'Falscher 105-Minuten-Stationsaufbau wurde akzeptiert'
+);
 
 const summary = buildAIRequest('summarizeTraining', {
   facts: [

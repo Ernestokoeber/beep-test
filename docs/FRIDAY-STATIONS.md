@@ -1,6 +1,6 @@
 # Freitags-Stationstraining
 
-CourtHub bietet vor einem Herrenspiel am folgenden Samstag oder Sonntag automatisch ein individuelles Freitagstraining an. Der Vorschlag erscheint in der Trainingsliste und kann auf einen vorhandenen Freitagstermin angewendet oder als neuer Termin angelegt werden.
+CourtHub bietet vor einem Herrenspiel am folgenden Samstag oder Sonntag automatisch ein individuelles Freitagstraining an. Der Vorschlag erscheint in der Trainingsliste und kann auf einen vorhandenen Freitagstermin angewendet oder als neuer Termin angelegt werden. Die Einheit wird beim Planen von der KI neu erzeugt; CourtHub setzt keine feste Wochenrotation ein.
 
 ## Aufbau: 105 Minuten
 
@@ -9,7 +9,9 @@ CourtHub bietet vor einem Herrenspiel am folgenden Samstag oder Sonntag automati
 - fünf Stationsrunden à 15 Minuten
 - 10 Minuten Cooldown und Session-RPE
 
-Die fünf Stationen decken Ballhandling, Wurf, Abschluss, defensive Beinarbeit/Rebound sowie Prehab oder Freiwürfe ab. Jede Kategorie besitzt acht Varianten. Sie werden anhand der Kalenderwoche rotiert, sodass über acht aufeinanderfolgende Spielwochen jeweils eine neue Stationskombination erscheint.
+Die KI wählt fünf unterschiedliche Einzelstationen passend zum folgenden Spiel, zu den Trainer-Vorgaben und zur bisherigen Trainingshistorie. Sie erhält ausdrücklich die bereits absolvierten sowie die im aktuellen Planungslauf zuvor erzeugten Inhalte, damit Schwerpunkte und Kombinationen von Woche zu Woche wechseln. Teamtaktik, Spielformen und 1-gegen-1 bis 5-gegen-5 sind für diesen Freitag ausgeschlossen.
+
+Der KI-Entwurf wird nur übernommen, wenn er genau fünf beschriebene Stationen und den vollständigen 105-Minuten-Aufbau liefert. Die erzeugten Blöcke werden direkt im Live-Training verwendet.
 
 ## Belastungssteuerung
 

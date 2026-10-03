@@ -21,7 +21,7 @@ BT.training = (function() {
     const root = renderTemplate('tpl-training-list');
     target.appendChild(root);
 
-    root.addEventListener('click', e => {
+    root.addEventListener('click', async e => {
       const deleteButton = e.target.closest('[data-delete-training]');
       if (deleteButton) {
         e.preventDefault();
@@ -51,9 +51,19 @@ BT.training = (function() {
         const game = BT.storage.getGame(stationButton.dataset.gameId);
         const existing = BT.storage.getTrainings().find(training => training.date === friday && !training.endedAt && training.status !== 'completed') || null;
         if (!game) { BT.util.toast('Das zugehörige Wochenendspiel wurde nicht gefunden.'); return; }
-        if (existing && !existing.stationTraining && existing.plan?.drills?.length && !confirm('Den bestehenden Trainingsplan durch das 105-Minuten-Stationstraining ersetzen?')) return;
-        const training = BT.stationTraining.createOrUpdate(friday, game, existing);
-        location.hash = '#/training/' + training.id;
+        if (existing && !existing.stationTraining && existing.plan?.drills?.length && !confirm('Den bestehenden Trainingsplan durch ein neues KI-Stationstraining mit 105 Minuten ersetzen?')) return;
+        const previousLabel = stationButton.textContent;
+        stationButton.disabled = true;
+        stationButton.textContent = 'KI plant …';
+        try {
+          const training = await BT.seasonplanner.generateFridayTraining(friday, game, existing);
+          location.hash = '#/training/' + training.id;
+        } catch (error) {
+          console.error(error);
+          BT.util.toast('KI-Freitagstraining konnte nicht erstellt werden: ' + error.message);
+          stationButton.disabled = false;
+          stationButton.textContent = previousLabel;
+        }
         return;
       }
       if (e.target.closest('[data-action="new-training"]')) {
@@ -108,9 +118,9 @@ BT.training = (function() {
     const gameOpponent = /lindau/i.test(game.home || '') ? game.away : game.home;
     const ready = Boolean(suggestion.existing?.stationTraining);
     host.classList.remove('hidden');
-    host.innerHTML = `<div><span class="section-kicker">Spielwochen-Freitag</span><h3>${escapeHTML(formatDate(suggestion.friday))} · 105 Minuten individuell</h3><p>Vor dem Spiel gegen ${escapeHTML(gameOpponent || 'den nächsten Gegner')}: fünf Stationen, neue Wochenrotation und Belastungsampel pro Spieler.</p></div>${ready
+    host.innerHTML = `<div><span class="section-kicker">Spielwochen-Freitag</span><h3>${escapeHTML(formatDate(suggestion.friday))} · 105 Minuten individuell</h3><p>Die KI erstellt vor dem Spiel gegen ${escapeHTML(gameOpponent || 'den nächsten Gegner')} ein neues Training mit fünf individuellen Stationen. Die Belastungsampel passt das Volumen pro Spieler an.</p></div>${ready
       ? `<a class="btn primary" href="#/training/${encodeURIComponent(suggestion.existing.id)}">Stationstraining öffnen</a>`
-      : `<button class="btn primary" type="button" data-action="create-friday-stations" data-friday="${escapeHTML(suggestion.friday)}" data-game-id="${escapeHTML(game.id)}">${suggestion.existing ? 'Auf Training anwenden' : 'Stationstraining anlegen'}</button>`}`;
+      : `<button class="btn primary" type="button" data-action="create-friday-stations" data-friday="${escapeHTML(suggestion.friday)}" data-game-id="${escapeHTML(game.id)}">${suggestion.existing ? 'Mit KI neu planen' : 'Mit KI planen'}</button>`}`;
   }
 
   function buildTrainingItem(t, isPast) {

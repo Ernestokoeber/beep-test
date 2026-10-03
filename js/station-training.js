@@ -177,7 +177,7 @@ BT.stationTraining = (() => {
     return { light, targetRpe, weeklyLoad: load, message };
   }
 
-  function createState(training, game) {
+  function createState(training, game, stations = stationsForDate(training.date)) {
     const players = {};
     BT.storage.getPlayers().filter(player => !player.archived).forEach(player => {
       const minutes = gameMinutes(player.id, training.date);
@@ -199,15 +199,12 @@ BT.stationTraining = (() => {
       gameId: game?.id || null,
       gameDate: game?.date || null,
       generatedAt: new Date().toISOString(),
-      stations: stationsForDate(training.date),
+      stations,
       players
     };
   }
 
-  function apply(training, game = weekendGameForFriday(training.date)) {
-    if (!training || !game) return false;
-    const previousPlayers = training.stationTraining?.players || {};
-    const state = createState(training, game);
+  function restorePlayerInputs(state, previousPlayers, game, training) {
     Object.keys(state.players).forEach(playerId => {
       const previous = previousPlayers[playerId];
       if (!previous) return;
@@ -220,11 +217,75 @@ BT.stationTraining = (() => {
       });
       Object.assign(state.players[playerId], recommendation(state.players[playerId], game.date, training.date));
     });
+  }
+
+  function apply(training, game = weekendGameForFriday(training.date)) {
+    if (!training || !game) return false;
+    const previousPlayers = training.stationTraining?.players || {};
+    const state = createState(training, game);
+    restorePlayerInputs(state, previousPlayers, game, training);
     training.plan = planFor(training.date, game, state.stations);
     training.stationTraining = state;
     training.note = `Freitags-Stationstraining vor ${opponent(game) || 'dem Spiel'}`;
     training.planning = {
       source: 'friday-stations', status: 'ready', coachEdited: false,
+      generatedAt: state.generatedAt, loadTarget: 'individual'
+    };
+    return training;
+  }
+
+  function normalizeAIStations(entry) {
+    const input = entry?.stationTraining?.stations;
+    if (!Array.isArray(input) || input.length !== 5) return null;
+    const stations = input.map((station, index) => ({
+      id: `station_${index + 1}`,
+      label: `Station ${index + 1}`,
+      title: clean(station?.title).slice(0, 120),
+      category: clean(station?.category).slice(0, 80),
+      description: clean(station?.description).slice(0, 800),
+      minutes: 15
+    }));
+    return stations.every(station => station.title && station.category && station.description) ? stations : null;
+  }
+
+  function planFromAI(entry, date, game, stations) {
+    const drills = Array.isArray(entry?.drills) ? entry.drills.map((drill, index) => ({
+      id: `friday_ai_${index + 1}`,
+      name: clean(drill?.name).slice(0, 120),
+      minutes: Number(drill?.minutes) || 0,
+      intensity: ['low', 'medium', 'high'].includes(drill?.intensity) ? drill.intensity : 'low',
+      description: clean(drill?.description).slice(0, 800)
+    })) : [];
+    const expectedMinutes = [10, 10, 15, 15, 15, 15, 15, 10];
+    if (drills.length !== expectedMinutes.length || drills.some((drill, index) => !drill.name || !drill.description || drill.minutes !== expectedMinutes[index])) return null;
+    const fallback = planFor(date, game, stations);
+    return Object.assign(fallback, {
+      summary: clean(entry.summary).slice(0, 500) || fallback.summary,
+      drills,
+      freethrows: entry.freethrows?.attempted >= 0 ? { attempted: Number(entry.freethrows.attempted) || 0 } : null,
+      shots: Array.isArray(entry.shots) ? entry.shots.filter(item => clean(item?.category)).map(item => ({
+        category: clean(item.category).slice(0, 100), attempted: Math.max(0, Number(item.attempted) || 0)
+      })) : [],
+      aiRationale: clean(entry.stationTraining?.rationale).slice(0, 500)
+    });
+  }
+
+  function applyAI(training, game, entry) {
+    if (!training || !game) return false;
+    const stations = normalizeAIStations(entry);
+    if (!stations) return false;
+    const plan = planFromAI(entry, training.date, game, stations);
+    if (!plan) return false;
+    const previousPlayers = training.stationTraining?.players || {};
+    const state = createState(training, game, stations);
+    state.source = 'gemini';
+    state.rationale = plan.aiRationale;
+    restorePlayerInputs(state, previousPlayers, game, training);
+    training.plan = plan;
+    training.stationTraining = state;
+    training.note = plan.summary;
+    training.planning = {
+      source: 'ai-friday-stations', status: 'draft', coachEdited: false,
       generatedAt: state.generatedAt, loadTarget: 'individual'
     };
     return training;
@@ -320,8 +381,9 @@ BT.stationTraining = (() => {
     trainingLoad,
     recommendation,
     apply,
+    applyAI,
     createOrUpdate,
     render,
-    __test: { mondayFor, addDays, planFor, createState }
+    __test: { mondayFor, addDays, planFor, planFromAI, createState, normalizeAIStations }
   };
 })();
