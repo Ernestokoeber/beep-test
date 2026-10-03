@@ -45,7 +45,7 @@ Im Vercel-Projekt unter „Domains“ `coach.tsv-lindau.de` hinzufügen. Beim DN
 - KI-Modell: `gemini-3.8-flash`
 - Pflichtvariable: `GEMINI_API_KEY`
 - Schnellprüfung: `npm run test:ai`
-- Limits: Saisonplanung 60 Wochenblöcke pro Nutzer und Stunde; alle übrigen KI-Aktionen 30 Anfragen pro Nutzer und Stunde
+- Limits: Saisonplanung 60 Trainingstermine pro Nutzer und Stunde; alle übrigen KI-Aktionen 30 Anfragen pro Nutzer und Stunde
 
 CourtHub meldet KI-Probleme mit einem stabilen Code und einer `requestId`. Die
 wichtigsten Codes sind:
@@ -58,6 +58,9 @@ wichtigsten Codes sind:
 | `AI_EMPTY_RESPONSE` | keine verwertbare Kandidatenantwort | ja |
 | `AI_TRUNCATED_RESPONSE` | Antwort wurde unvollständig beendet | ja |
 | `AI_INVALID_RESPONSE` | JSON, Schema oder Inhalt ist ungültig | nach Prüfung der Eingabe |
+| `AI_PROVIDER_REQUEST` | Gemini hat die strukturierte Anfrage abgelehnt | nein; Request-ID prüfen |
+| `AI_PROVIDER_AUTH` | Gemini-Schlüssel oder Berechtigung ist ungültig | nein; Konfiguration prüfen |
+| `AI_MODEL_UNAVAILABLE` | das konfigurierte Gemini-Modell ist nicht erreichbar | nein; Modellkonfiguration prüfen |
 | `AI_INPUT_INVALID` | CourtHub hat unvollständige/zu große Eingaben abgewiesen | nein, Eingabe korrigieren |
 | `AI_NOT_CONFIGURED` | `GEMINI_API_KEY` fehlt | nein, Vercel-Konfiguration korrigieren |
 

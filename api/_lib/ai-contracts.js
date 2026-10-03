@@ -5,12 +5,13 @@ export const AI_CONTRACT_VERSION = 2;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
-  constructor(code, message, { status = 502, retryable = false } = {}) {
+  constructor(code, message, { status = 502, retryable = false, providerStatus = null } = {}) {
     super(message);
     this.name = 'AIError';
     this.code = code;
     this.status = status;
     this.retryable = retryable;
+    this.providerStatus = Number.isInteger(providerStatus) ? providerStatus : null;
   }
 }
 
@@ -437,7 +438,7 @@ function isFriday(slot) {
 function buildSeason(payload) {
   const data = payload.data || {};
   const slots = Array.isArray(data.slots) ? data.slots : [];
-  if (!slots.length || slots.length > 2) throw new AIError('AI_INPUT_INVALID', 'Für die Saisonplanung fehlen gültige Trainingstermine.', { status: 400 });
+  if (slots.length !== 1) throw new AIError('AI_INPUT_INVALID', 'Für die Saisonplanung wird genau ein Trainingstermin pro Anfrage benötigt.', { status: 400 });
   const dates = slots.map((slot) => date(slot?.date, 'Trainingstermin'));
   if (new Set(dates).size !== dates.length) throw new AIError('AI_INPUT_INVALID', 'Trainingstermine müssen eindeutig sein.', { status: 400 });
   const durationMinutes = Number(data.durationMinutes);
@@ -446,7 +447,7 @@ function buildSeason(payload) {
   if (serialized.length > 150_000) throw new AIError('AI_INPUT_INVALID', 'Die Saisonplanungsdaten sind zu umfangreich.', { status: 413 });
   return structured([
     { text: `${PROMPTS.planSeason}\n\nPlanungsdaten:\n${serialized}` }
-  ], SEASON_SCHEMA, 'medium', 48_000, (text) => {
+  ], SEASON_SCHEMA, 'low', 48_000, (text) => {
     const value = parseJson(text);
     if (!Array.isArray(value?.trainings) || value.trainings.length !== slots.length) fail('Die KI-Antwort enthält nicht alle Trainingstermine.');
     const trainings = value.trainings.map((training) => {

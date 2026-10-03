@@ -1,13 +1,16 @@
 # CourtHub – Nächste Umsetzungsschritte
 
-Stand: 03.08.2026
+Stand: 03.10.2026
 
-## 1. KI-Saisonplanung stabilisieren
+## 1. KI-Saisonplanung stabilisiert
 
-Die Saisonplanung wird in Viererblöcken angefragt. Offen sind noch zwei Punkte:
+Die Saisonplanung arbeitet pro KI-Anfrage mit genau einem Trainingstermin. Der Leistungs- und Belastungskontext wird für den jeweiligen Termin neu gebildet und kompakt übertragen. Gemini verwendet für diesen zeitkritischen Ablauf den niedrigen Thinking-Level.
 
-- Service-Worker-Cache versionieren, damit Browser und Server immer dieselbe Blockgröße verwenden.
-- Ungültige Gemini-JSON-Antworten je Block einmal kontrolliert erneut anfordern und erst nach vollständigem Erfolg alle Trainings übernehmen.
+- Wiederholt werden nur als wiederholbar klassifizierte Fehler.
+- Provider-, Konfigurations-, Modell- und Timeoutfehler besitzen unterscheidbare Codes.
+- Request-ID, Fehlercode und eine sichtbare Fehlermeldung erscheinen direkt in der Planung.
+- Serverlogs enthalten nur sichere Diagnosemetadaten, keine Prompts, Leistungsdaten oder Schlüssel.
+- Bestätigte Einzeltermine bleiben nach Abbruch oder Neuladen fortsetzbar.
 
 Die Neon-SSL-Warnung ist nicht Ursache der Abbrüche. Die Datenbank-URL sollte bei Gelegenheit von `sslmode=require` auf `sslmode=verify-full` umgestellt werden.
 
@@ -24,7 +27,5 @@ Ziel ist ein 5-gegen-5-Halbfeld-Taktikboard für Training und Spielerkommunikati
 
 ## Reihenfolge
 
-1. Saisonplanung technisch stabil machen und produktiv testen.
-2. Taktikdatenmodell und Tokens für Angriff/Verteidigung erstellen.
-3. Werkzeugleiste und Vorlagenbibliothek bauen.
-4. Animation, Export und Spieleransicht ergänzen.
+1. Saisonplanung produktiv mit echten Teamdaten abnehmen.
+2. Taktikboard und Trainingsplanung anhand des Trainerfeedbacks weiter verfeinern.

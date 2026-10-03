@@ -59,7 +59,7 @@ const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
 assert(promptText(season).includes('COURTHUB BASKETBALL-KI') && promptText(season).includes('Trainingslehre'), 'Saisonplanung nutzt den Basketball-Fachstandard nicht');
 assert(season.generationConfig.responseMimeType === 'application/json', 'JSON-MIME fehlt');
-assert(season.generationConfig.thinkingConfig.thinkingLevel === 'medium', 'Saison-Thinking-Level falsch');
+assert(season.generationConfig.thinkingConfig.thinkingLevel === 'low', 'Saisonplanung nutzt nicht den latenzarmen Thinking-Level');
 assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema fehlt');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.drills.items.required.includes('intensity'), 'Saison-Schema verlangt die validierte Drillintensität nicht');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining.properties.stations.minItems === 5, 'Saison-Schema verlangt nicht genau fünf KI-Stationen');
@@ -201,11 +201,10 @@ for (const [label, mutate] of [
 await expectAIError(
   () => Promise.resolve(buildAIRequest('planSeason', { data: { slots: [
     { date: '2026-10-06', weekday: 'tue' },
-    { date: '2026-10-09', weekday: 'fri' },
-    { date: '2026-10-13', weekday: 'tue' }
+    { date: '2026-10-09', weekday: 'fri' }
   ] } })),
   'AI_INPUT_INVALID',
-  'Zu großer Saisonblock wurde akzeptiert'
+  'Mehrere Termine in einer Saisonanfrage wurden akzeptiert'
 );
 
 let now = 1_000;
@@ -284,6 +283,27 @@ await expectAIError(
   'Später Providerfehler'
 );
 assert(lateAttempts === 1, 'Später Providerfehler wurde trotz knapper Restzeit wiederholt');
+
+for (const [status, code, retryable] of [
+  [400, 'AI_PROVIDER_REQUEST', false],
+  [401, 'AI_PROVIDER_AUTH', false],
+  [403, 'AI_PROVIDER_AUTH', false],
+  [404, 'AI_MODEL_UNAVAILABLE', false]
+]) {
+  const error = await expectAIError(
+    () => generateWithGemini({
+      action: 'planSeason',
+      payload: validSeasonPayload,
+      apiKey: 'GEHEIM',
+      requestId: `ai_provider_${status}`,
+      fetchImpl: async () => response(status, { error: { message: 'GEHEIM' } })
+    }),
+    code,
+    `Providerstatus ${status}`
+  );
+  assert(error.providerStatus === status, `Providerstatus ${status} ging verloren`);
+  assert(error.retryable === retryable, `Providerstatus ${status} hat falsche Wiederholbarkeit`);
+}
 
 for (const status of [429, 500, 503]) {
   let attempts = 0;

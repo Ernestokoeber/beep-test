@@ -4008,6 +4008,14 @@ table.results tr:last-child td { border-bottom: none; }
   font-weight: 700;
 }
 
+.auth-status[data-status="error"] {
+  padding: 0.75rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  color: var(--danger);
+}
+
 .account-profile-card {
   display: flex;
   align-items: center;

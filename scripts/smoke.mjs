@@ -375,7 +375,7 @@ const batchResult = await window.BT.seasonplanner.planInBatches(batchPayload, as
   batchSizes.push(data.slots.length);
   return { data: { trainings: data.slots.map(slot => ({ date: slot.date, drills: [] })) } };
 });
-assert(batchSizes.length > 1 && batchSizes.every(size => size <= 2), 'Saisonplanung teilt Slots nicht in sichere Wochenblöcke');
+assert(batchSizes.length === 17 && batchSizes.every(size => size === 1), 'Saisonplanung teilt Slots nicht in sichere Einzelanfragen');
 assert(batchResult.trainings.length === 17, 'Antworten aller Blöcke wurden nicht gesammelt');
 
 function responseForSlots(slots) {
@@ -383,24 +383,27 @@ function responseForSlots(slots) {
 }
 
 const firstBatchPayload = { ...batchPayload, slots: batchPayload.slots.slice(0, 2) };
+const retryPayload = { ...batchPayload, slots: batchPayload.slots.slice(0, 1) };
 let retryCalls = 0;
 const retryProgress = [];
 const retriedResult = await window.BT.seasonplanner.planInBatches(
-  firstBatchPayload,
+  retryPayload,
   async data => {
     retryCalls++;
     return retryCalls === 1
-      ? { data: { trainings: [{ date: data.slots[0].date, drills: [] }] } }
+      ? { data: { trainings: [] } }
       : responseForSlots(data.slots);
   },
   progress => retryProgress.push(progress)
 );
 assert(retryCalls === 2, 'Ungültiger KI-Block wurde nicht einmal erneut angefragt');
-assert(retriedResult.trainings.length === 2, 'Erfolgreicher Retry liefert nicht alle Trainings zurück');
+assert(retriedResult.trainings.length === 1, 'Erfolgreicher Retry liefert das Training nicht zurück');
 assert(retryProgress.some(item => item.attempt === 2), 'Retry-Fortschritt wird nicht gemeldet');
-assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 1 }) === 'KI plant Wochenblock 2 von 5 …', 'Erster Blockstatus ist falsch');
-assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 2 }) === 'KI versucht Wochenblock 2 von 5 erneut …', 'Retry-Blockstatus ist falsch');
-assert(window.BT.schedule.seasonPlanningProgressText({ block: 1, total: 5, attempt: 0, resumed: true }) === 'Wochenblock 1 von 5 aus dem Entwurf übernommen …', 'Fortsetzungsstatus ist falsch');
+assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 1 }) === 'KI plant Training 2 von 5 …', 'Erster Trainingsstatus ist falsch');
+assert(window.BT.schedule.seasonPlanningProgressText({ block: 2, total: 5, attempt: 2 }) === 'KI versucht Training 2 von 5 erneut …', 'Retry-Trainingsstatus ist falsch');
+assert(window.BT.schedule.seasonPlanningProgressText({ block: 1, total: 5, attempt: 0, resumed: true }) === 'Training 1 von 5 aus dem Entwurf übernommen …', 'Fortsetzungsstatus ist falsch');
+const visibleAIError = window.BT.schedule.aiErrorText({ message: 'Zeitlimit', code: 'AI_TIMEOUT', requestId: 'ai_test' }, 'KI-Saisonplanung fehlgeschlagen');
+assert(visibleAIError.includes('AI_TIMEOUT') && visibleAIError.includes('ai_test'), 'Sichtbare KI-Fehlermeldung enthält Code oder Request-ID nicht');
 let finalConfirmationText = '';
 assert(window.BT.schedule.confirmSeasonPlanResult(
   { trainings: firstBatchPayload.slots.map(slot => ({ date: slot.date })) },
@@ -425,10 +428,10 @@ for (const invalidResponse of invalidResponses) {
       async () => { calls++; return invalidResponse; }
     );
   } catch (error) {
-    rejected = /^KI-Block 1 von 1 fehlgeschlagen:/.test(error.message);
+    rejected = /^KI-Training 1 von 2 fehlgeschlagen:/.test(error.message);
   }
   assert(calls === 2, 'Ungültige KI-Antwort wurde nicht exakt zweimal angefragt');
-  assert(rejected, 'Endgültig ungültige KI-Antwort benennt den fehlerhaften Block nicht');
+  assert(rejected, 'Endgültig ungültige KI-Antwort benennt den fehlerhaften Trainingstermin nicht');
 }
 
 let rejectedBatch = false;
@@ -443,9 +446,9 @@ try {
     return responseForSlots(data.slots);
   });
 } catch (error) {
-  rejectedBatch = error.message === 'KI-Block 3 von 3 fehlgeschlagen: Blockfehler';
+  rejectedBatch = error.message === 'KI-Training 5 von 5 fehlgeschlagen: Blockfehler';
 }
-assert(rejectedBatch, 'Ein Blockfehler bricht die Saisonplanung nicht zuverlässig ab');
+assert(rejectedBatch, 'Ein Trainingsfehler bricht die Saisonplanung nicht zuverlässig ab');
 
 route('#/schedule');
 assert(window.document.querySelector('[data-action="generate-season"]'), 'KI-Saisonplanung fehlt im Trainingsplan');

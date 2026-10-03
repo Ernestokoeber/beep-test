@@ -13,6 +13,8 @@ window.BT = {
     getSetting: (_key, fallback) => fallback,
     setSetting: () => {},
     getTrainings: () => [],
+    getGames: () => [],
+    getPlayers: () => [],
     getDrills: () => [],
     getTemplates: () => []
   }
@@ -34,14 +36,13 @@ const payload = {
   ]
 };
 const batches = window.BT.seasonplanner.splitAIPayload(payload);
-assert(batches.every((batch) => batch.slots.length <= 2), 'Wochenblock ist zu groß');
-assert(batches[0].slots.map((slot) => slot.date).join(',') === '2026-10-06,2026-10-09', 'Erste Woche wurde getrennt');
-assert(batches[1].slots.map((slot) => slot.date).join(',') === '2026-10-13,2026-10-16', 'Zweite Woche wurde getrennt');
+assert(batches.every((batch) => batch.slots.length === 1), 'KI-Anfragen enthalten mehr als einen Termin');
+assert(batches.map((batch) => batch.slots[0].date).join(',') === payload.slots.map((slot) => slot.date).join(','), 'Einzelanfragen verlieren die Terminreihenfolge');
 
 const fingerprint = window.BT.seasonDraft.fingerprint(payload);
 window.BT.seasonDraft.save('team-a', {
   fingerprint,
-  completed: [{ index: 0, dates: ['2026-10-06', '2026-10-09'], trainings: [{ date: '2026-10-06' }, { date: '2026-10-09' }] }]
+  completed: [{ index: 0, dates: ['2026-10-06'], trainings: [{ date: '2026-10-06' }] }]
 });
 assert(window.BT.seasonDraft.load('team-a', fingerprint).completed.length === 1, 'Passender Entwurf wird nicht geladen');
 const changedPayload = { ...payload, coachInput: { focus: 'Rebounding' } };
@@ -50,12 +51,15 @@ assert(window.localStorage.getItem('courthub_ai_season_draft_v1:team-a') === nul
 
 const scope = 'team-resume';
 const calls = [];
+const contextDates = [];
 let secondBlockFails = true;
 async function requestBatch(batch) {
   calls.push(batch.slots.map((slot) => slot.date).join(','));
+  contextDates.push(batch.performanceContext?.cutoffDate);
   if (batch.slots[0].date === '2026-10-13' && secondBlockFails) {
     const error = new Error('Vorübergehend nicht verfügbar');
     error.requestId = 'ai_failed_block';
+    error.retryable = true;
     throw error;
   }
   return {
@@ -69,12 +73,12 @@ try {
   await window.BT.seasonplanner.planInBatches(payload, requestBatch, () => {}, { scope, store: window.BT.seasonDraft });
   throw new Error('Fehlgeschlagener Block wurde verschluckt');
 } catch (error) {
-  assert(error.message.includes('Block 2'), 'Fehler nennt den betroffenen Block nicht');
+  assert(error.message.includes('Training 3'), 'Fehler nennt den betroffenen Trainingstermin nicht');
   assert(error.requestId === 'ai_failed_block', 'Request-ID des Blocks ging verloren');
 }
 const draftAfterFailure = window.BT.seasonDraft.load(scope, fingerprint);
-assert(draftAfterFailure.completed.length === 1 && draftAfterFailure.nextIndex === 1, 'Erfolgreicher Block wurde vor dem Abbruch nicht gespeichert');
-assert(calls.filter((entry) => entry.startsWith('2026-10-06')).length === 1, 'Erster Block wurde im ersten Lauf mehrfach angefragt');
+assert(draftAfterFailure.completed.length === 2 && draftAfterFailure.nextIndex === 2, 'Erfolgreiche Einzelblöcke wurden vor dem Abbruch nicht gespeichert');
+assert(calls.filter((entry) => entry.startsWith('2026-10-06')).length === 1, 'Erster Einzelblock wurde im ersten Lauf mehrfach angefragt');
 assert(calls.filter((entry) => entry.startsWith('2026-10-13')).length === 2, 'Fehlgeschlagener Block wurde nicht genau einmal wiederholt');
 
 secondBlockFails = false;
@@ -82,9 +86,10 @@ const progress = [];
 const resumed = await window.BT.seasonplanner.planInBatches(payload, requestBatch, (entry) => progress.push(entry), { scope, store: window.BT.seasonDraft });
 assert(calls.filter((entry) => entry.startsWith('2026-10-06')).length === 1, 'Bereits bestätigter Block wurde erneut angefragt');
 assert(resumed.trainings.length === 5, 'Fortgesetzte Planung enthält nicht alle Trainings');
-assert(resumed.resumedBlocks === 1, 'Fortgesetzter Block wird nicht ausgewiesen');
+assert(resumed.resumedBlocks === 2, 'Fortgesetzte Blöcke werden nicht ausgewiesen');
 assert(resumed.models.join(',') === 'gemini-3.8-flash', 'Modellliste ist nicht dedupliziert');
-assert(resumed.requestIds.length === 2, 'Request-IDs der neuen Blöcke fehlen');
+assert(resumed.requestIds.length === 3, 'Request-IDs der neuen Blöcke fehlen');
 assert(progress.some((entry) => entry.resumed === true && entry.block === 1), 'Fortsetzungsfortschritt fehlt');
+assert(contextDates.every(Boolean) && contextDates.includes('2026-10-13') && contextDates.includes('2026-10-20'), 'Analysekontext wird nicht auf den angefragten Termin bezogen');
 
-console.log('CourtHub KI-Saisonentwurf: Wochenblöcke und Wiederaufnahme erfolgreich.');
+console.log('CourtHub KI-Saisonentwurf: Einzeltermine und Wiederaufnahme erfolgreich.');

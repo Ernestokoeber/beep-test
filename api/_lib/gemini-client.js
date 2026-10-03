@@ -5,9 +5,18 @@ const RETRYABLE_STATUS = new Set([429, 500, 503]);
 
 function providerError(status) {
   if (status === 429) {
-    return new AIError('AI_RATE_LIMIT', 'Gemini ist ausgelastet. Bitte versuche es gleich noch einmal.', { status: 429, retryable: true });
+    return new AIError('AI_RATE_LIMIT', 'Gemini ist ausgelastet. Bitte versuche es gleich noch einmal.', { status: 429, retryable: true, providerStatus: status });
   }
-  return new AIError('AI_PROVIDER', 'Gemini ist vorübergehend nicht verfügbar.', { status: 503, retryable: true });
+  if (status === 400) {
+    return new AIError('AI_PROVIDER_REQUEST', 'Gemini hat die strukturierte Anfrage abgelehnt.', { status: 502, retryable: false, providerStatus: status });
+  }
+  if (status === 401 || status === 403) {
+    return new AIError('AI_PROVIDER_AUTH', 'Die Gemini-Konfiguration ist ungültig oder nicht berechtigt.', { status: 503, retryable: false, providerStatus: status });
+  }
+  if (status === 404) {
+    return new AIError('AI_MODEL_UNAVAILABLE', 'Das konfigurierte Gemini-Modell ist nicht verfügbar.', { status: 503, retryable: false, providerStatus: status });
+  }
+  return new AIError('AI_PROVIDER', 'Gemini ist vorübergehend nicht verfügbar.', { status: 503, retryable: true, providerStatus: status });
 }
 
 function readCandidate(data) {

@@ -125,20 +125,6 @@ BT.seasonplanner = (function() {
     return slots;
   }
 
-  function compactHistory() {
-    return BT.storage.getTrainings()
-      .filter(training => training.status === 'completed' || training.endedAt)
-      .slice(0, 10)
-      .map(training => ({
-        date: training.date,
-        note: String(training.note || '').slice(0, 500),
-        summary: String(training.plan?.summary || '').slice(0, 300),
-        drills: (training.plan?.drills || []).slice(0, 10).map(drill => ({
-          name: drill.name, minutes: drill.minutes, intensity: drill.intensity
-        }))
-      }));
-  }
-
   function addDaysISO(value, days) {
     const date = dateAtNoon(value);
     date.setDate(date.getDate() + days);
@@ -153,9 +139,9 @@ BT.seasonplanner = (function() {
     return attempted > 0 ? Math.round((made / attempted) * 100) : null;
   }
 
-  function stringList(value, max = 6) {
+  function stringList(value, max = 4) {
     const list = Array.isArray(value) ? value : value ? [value] : [];
-    return list.map(item => String(item).slice(0, 400)).slice(0, max);
+    return list.map(item => String(item).slice(0, 250)).slice(0, max);
   }
 
   function recentGameHistory(cutoffDate) {
@@ -165,7 +151,7 @@ BT.seasonplanner = (function() {
       .filter(game => game?.date >= fromDate && game.date < cutoffDate && game.team !== 'u18' && !game.cancelled)
       .filter(game => game.score || game.liveStats || game.atlas || (game.playerStats || []).length || game.strengths || game.improvements || game.coachSummary)
       .sort((left, right) => String(left.date).localeCompare(String(right.date)))
-      .slice(-8)
+      .slice(-6)
       .map(game => {
         const rows = (game.playerStats || []).filter(row => row && row.playerId && Object.keys(row).some(key => key !== 'playerId' && row[key] !== null && row[key] !== ''));
         const fieldGoalsMade = sumStats(rows, 'fieldGoalsMade');
@@ -195,22 +181,22 @@ BT.seasonplanner = (function() {
             steals: sumStats(rows, 'steals'), blocks: sumStats(rows, 'blocks'),
             turnovers: sumStats(rows, 'turnovers'), fouls: sumStats(rows, 'fouls')
           },
-          playerBoxscore: rows.slice(0, 20).map(row => ({
-            player: playersById.get(String(row.playerId)) || String(row.playerId),
+          playerBoxscore: rows.slice(0, 16).map(row => ({
+            player: String(playersById.get(String(row.playerId)) || row.playerId).slice(0, 80),
             minutes: Number(row.minutes) || 0, points: Number(row.points) || 0,
             fieldGoalsMade: Number(row.fieldGoalsMade) || 0, fieldGoalsAttempted: Number(row.fieldGoalsAttempted) || 0,
             freeThrowsMade: Number(row.freeThrowsMade) || 0, freeThrowsAttempted: Number(row.freeThrowsAttempted) || 0,
             rebounds: Number(row.rebounds) || 0, assists: Number(row.assists) || 0,
             steals: Number(row.steals) || 0, blocks: Number(row.blocks) || 0,
             turnovers: Number(row.turnovers) || 0, fouls: Number(row.fouls) || 0,
-            plusMinus: row.plusMinus == null ? null : Number(row.plusMinus), note: String(row.note || '').slice(0, 160)
+            plusMinus: row.plusMinus == null ? null : Number(row.plusMinus), note: String(row.note || '').slice(0, 100)
           })),
           reviewedAnalysis: {
-            summary: String(atlasAnalysis.text || atlasAnalysis.summary || atlasAnalysis.narrative || '').slice(0, 600),
+            summary: String(atlasAnalysis.text || atlasAnalysis.summary || atlasAnalysis.narrative || '').slice(0, 400),
             strengths: stringList(atlasAnalysis.strengths || atlasAnalysis.positives),
             improvements: stringList(atlasAnalysis.improvements || atlasAnalysis.weaknesses),
             trainingFocus: stringList(atlasAnalysis.trainingFocus || atlasAnalysis.trainingRecommendations || atlasAnalysis.recommendations),
-            verifiedTotals: Object.fromEntries(Object.entries(atlasTotals).filter(([, value]) => typeof value === 'number').slice(0, 30))
+            verifiedTotals: Object.fromEntries(Object.entries(atlasTotals).filter(([, value]) => typeof value === 'number').slice(0, 16))
           },
           dataQuality: rows.length ? 'boxscore-recorded' : game.liveStats ? 'live-capture-without-boxscore-projection' : 'observations-only'
         };
@@ -222,7 +208,7 @@ BT.seasonplanner = (function() {
     return BT.storage.getTrainings()
       .filter(training => training?.date >= fromDate && training.date < cutoffDate && (training.status === 'completed' || training.endedAt))
       .sort((left, right) => String(left.date).localeCompare(String(right.date)))
-      .slice(-12)
+      .slice(-8)
       .map(training => {
         const attendance = (training.attendance || []).reduce((counts, entry) => {
           const key = ['present', 'absent', 'excused', 'injured'].includes(entry.status) ? entry.status : 'open';
@@ -241,15 +227,15 @@ BT.seasonplanner = (function() {
         const rpeValues = Object.values(training.stationTraining?.players || {}).map(entry => Number(entry.actualRpe)).filter(value => value >= 1 && value <= 10);
         return {
           date: training.date,
-          summary: String(training.plan?.summary || training.note || '').slice(0, 400),
+          summary: String(training.plan?.summary || training.note || '').slice(0, 240),
           plannedMinutes: Number(training.plan?.durationMinutes) || 0,
           actualMinutes: Math.round((Number(training.liveSession?.report?.actualSeconds) || 0) / 60) || null,
           loadTarget: training.plan?.loadTarget || null,
           attendance,
           sessionRpe: rpeValues.length ? Math.round((rpeValues.reduce((sum, value) => sum + value, 0) / rpeValues.length) * 10) / 10 : null,
           freeThrows: { ...freeThrows, pct: percent(freeThrows.made, freeThrows.attempted) },
-          shots,
-          drills: (training.plan?.drills || []).slice(0, 12).map(drill => ({ name: drill.name, minutes: drill.minutes, intensity: drill.intensity }))
+          shots: shots.slice(0, 8),
+          drills: (training.plan?.drills || []).slice(0, 8).map(drill => ({ name: String(drill.name || '').slice(0, 100), minutes: drill.minutes, intensity: drill.intensity }))
         };
       });
   }
@@ -326,47 +312,33 @@ BT.seasonplanner = (function() {
       coachInput: preferences || {},
       slots,
       performanceContext: performanceContext(slots),
-      completedTrainingHistory: compactHistory(),
       instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Gewichte coachInput.problems mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem aufgreift; verwende keine feste Rotation.'
     };
-  }
-
-  function weekMonday(dateValue) {
-    const date = dateAtNoon(dateValue);
-    const daysSinceMonday = (date.getDay() + 6) % 7;
-    date.setDate(date.getDate() - daysSinceMonday);
-    return isoDate(date);
   }
 
   function splitAIPayload(payload) {
     const slots = (Array.isArray(payload?.slots) ? payload.slots : [])
       .slice()
       .sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')));
-    const weeks = new Map();
-    slots.forEach((slot) => {
-      const key = weekMonday(slot.date);
-      if (!weeks.has(key)) weeks.set(key, []);
-      weeks.get(key).push(slot);
-    });
-    const batches = [];
-    for (const weekSlots of weeks.values()) {
-      for (let index = 0; index < weekSlots.length; index += 2) {
-        batches.push(Object.assign({}, payload, { slots: weekSlots.slice(index, index + 2) }));
-      }
-    }
-    return batches;
+    return slots.map((slot) => Object.assign({}, payload, { slots: [slot] }));
   }
 
   function validateBatchResponse(response, slots) {
+    const invalid = (message) => {
+      const error = new Error(message);
+      error.code = 'AI_INVALID_RESPONSE';
+      error.retryable = true;
+      throw error;
+    };
     const trainings = response?.data?.trainings;
-    if (!Array.isArray(trainings)) throw new Error('KI-Antwort enthält keine Trainingsliste.');
+    if (!Array.isArray(trainings)) invalid('KI-Antwort enthält keine Trainingsliste.');
     const expectedDates = slots.map(slot => slot.date);
     const receivedDates = trainings.map(training => String(training?.date || ''));
     const expected = new Set(expectedDates);
     const hasExactDates = receivedDates.length === expectedDates.length &&
       new Set(receivedDates).size === receivedDates.length &&
       receivedDates.every(date => expected.has(date));
-    if (!hasExactDates) throw new Error('KI-Antwort enthält nicht genau die erwarteten Trainingstermine.');
+    if (!hasExactDates) invalid('KI-Antwort enthält nicht genau den erwarteten Trainingstermin.');
     return trainings;
   }
 
@@ -397,6 +369,7 @@ BT.seasonplanner = (function() {
         if (onProgress) onProgress({ block: index + 1, total: batches.length, attempt, resumed: false });
         try {
           const requestPayload = Object.assign({}, batches[index], {
+            performanceContext: performanceContext(batches[index].slots),
             priorGeneratedTrainings: trainings.slice(-8).map(training => ({
               date: training.date,
               summary: training.summary,
@@ -427,13 +400,15 @@ BT.seasonplanner = (function() {
           break;
         } catch (error) {
           lastError = error;
+          if (error?.retryable !== true) break;
         }
       }
       if (lastError) {
-        const error = new Error('KI-Block ' + (index + 1) + ' von ' + batches.length + ' fehlgeschlagen: ' + lastError.message);
+        const error = new Error('KI-Training ' + (index + 1) + ' von ' + batches.length + ' fehlgeschlagen: ' + lastError.message);
         error.code = lastError.code || null;
         error.retryable = lastError.retryable === true;
         error.requestId = lastError.requestId || null;
+        error.providerStatus = lastError.providerStatus || null;
         error.block = index + 1;
         throw error;
       }

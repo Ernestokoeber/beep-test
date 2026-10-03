@@ -38,6 +38,7 @@ const handler = createAIHandler({
     return { rows: [{ count: nextCount }] };
   },
   getApiKey: () => 'GEHEIM',
+  logger: { error: () => {} },
   generate: async ({ action, requestId }) => ({
     value: action === 'summarizeTraining'
       ? { text: 'Das Team trainierte konzentriert.' }
@@ -59,13 +60,29 @@ const timeoutHandler = createAIHandler({
   requireMembership: async () => ({ sub: 'user-1' }),
   query: async () => ({ rows: [{ count: 1 }] }),
   getApiKey: () => 'GEHEIM',
-  generate: async () => { throw new AIError('AI_TIMEOUT', 'Die KI-Anfrage hat zu lange gedauert.', { status: 504, retryable: true }); }
+  generate: async () => { throw new AIError('AI_TIMEOUT', 'Die KI-Anfrage hat zu lange gedauert.', { status: 504, retryable: true }); },
+  logger: { error: () => {} }
 });
 const timeout = response();
 await timeoutHandler(request('summarizeTraining', summaryPayload), timeout);
 assert(timeout.statusCode === 504, 'KI-Timeout wird nicht als 504 ausgegeben');
 assert(timeout.body.code === 'AI_TIMEOUT' && timeout.body.retryable === true, 'Timeout-Vertrag fehlt');
 assert(timeout.body.requestId?.startsWith('ai_'), 'Timeout enthält keine Request-ID');
+
+const providerLogs = [];
+const providerHandler = createAIHandler({
+  requireMembership: async () => ({ sub: 'user-1' }),
+  query: async () => ({ rows: [{ count: 1 }] }),
+  getApiKey: () => 'GEHEIM',
+  generate: async () => { throw new AIError('AI_PROVIDER_REQUEST', 'Gemini hat die strukturierte Anfrage abgelehnt.', { status: 502, providerStatus: 400 }); },
+  logger: { error: (...args) => providerLogs.push(args) }
+});
+const providerFailure = response();
+await providerHandler(request('planSeason', seasonPayload), providerFailure);
+assert(providerFailure.statusCode === 502 && providerFailure.body.code === 'AI_PROVIDER_REQUEST', 'Provider-Anfragefehler wird falsch klassifiziert');
+assert(providerFailure.body.providerStatus === 400 && providerFailure.body.requestId?.startsWith('ai_'), 'Providerstatus oder Request-ID fehlt');
+assert(providerLogs.length === 1 && providerLogs[0][1].code === 'AI_PROVIDER_REQUEST' && providerLogs[0][1].payloadBytes > 0, 'Sichere KI-Diagnosemetadaten fehlen');
+assert(!JSON.stringify(providerLogs).includes('GEHEIM'), 'KI-Diagnose protokolliert Geheimnisse');
 
 nextCount = 61;
 const rateLimited = response();
@@ -81,7 +98,8 @@ const missingKeyHandler = createAIHandler({
   requireMembership: async () => ({ sub: 'user-1' }),
   query: async () => { throw new Error('Rate-Limit darf ohne Schlüssel nicht laufen'); },
   generate: async () => { throw new Error('Gemini darf ohne Schlüssel nicht laufen'); },
-  getApiKey: () => ''
+  getApiKey: () => '',
+  logger: { error: () => {} }
 });
 const missingKey = response();
 await missingKeyHandler(request('summarizeTraining', summaryPayload), missingKey);

@@ -33,11 +33,17 @@ function sendError(res, error, requestId) {
     error: normalized.message,
     code: normalized.code || 'AI_PROVIDER',
     retryable: normalized.retryable === true,
-    requestId
+    requestId,
+    providerStatus: normalized.providerStatus || undefined
   });
 }
 
-export function createAIHandler({ requireMembership, query, generate, getApiKey }) {
+function payloadSize(payload) {
+  try { return Buffer.byteLength(JSON.stringify(payload)); }
+  catch { return null; }
+}
+
+export function createAIHandler({ requireMembership, query, generate, getApiKey, logger = console }) {
   if (typeof requireMembership !== 'function' || typeof query !== 'function') throw new TypeError('KI-Handler benötigt Authentifizierung und Datenbankzugriff.');
   if (typeof generate !== 'function' || typeof getApiKey !== 'function') throw new TypeError('KI-Handler benötigt Gemini-Transport und Schlüsselzugriff.');
 
@@ -84,9 +90,16 @@ export function createAIHandler({ requireMembership, query, generate, getApiKey 
       }
       res.status(200).json({ data: result.value, model: result.model, requestId: result.requestId });
     } catch (error) {
-      if (!(error instanceof AIError)) {
-        console.error('[gemini]', { action, requestId, error: error?.name || 'Error' });
-      }
+      const normalized = error instanceof AIError ? error : null;
+      logger.error('[gemini]', {
+        action,
+        requestId,
+        code: normalized?.code || 'AI_PROVIDER',
+        status: normalized?.status || 500,
+        providerStatus: normalized?.providerStatus || null,
+        retryable: normalized?.retryable === true,
+        payloadBytes: payloadSize(req.body?.payload || {})
+      });
       sendError(res, error, requestId);
     }
   };

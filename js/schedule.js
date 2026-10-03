@@ -14,10 +14,26 @@ BT.schedule = (function() {
   ];
 
   function seasonPlanningProgressText({ block, total, attempt, resumed }) {
-    if (resumed) return 'Wochenblock ' + block + ' von ' + total + ' aus dem Entwurf übernommen …';
+    if (resumed) return 'Training ' + block + ' von ' + total + ' aus dem Entwurf übernommen …';
     return attempt === 2
-      ? 'KI versucht Wochenblock ' + block + ' von ' + total + ' erneut …'
-      : 'KI plant Wochenblock ' + block + ' von ' + total + ' …';
+      ? 'KI versucht Training ' + block + ' von ' + total + ' erneut …'
+      : 'KI plant Training ' + block + ' von ' + total + ' …';
+  }
+
+  function aiErrorText(error, label) {
+    const details = [];
+    if (error?.code) details.push('Code: ' + error.code);
+    if (error?.requestId) details.push('Request-ID: ' + error.requestId);
+    return label + ': ' + (error?.message || 'Unbekannter Fehler.') + (details.length ? ' · ' + details.join(' · ') : '');
+  }
+
+  function showAIError(status, error, label) {
+    const message = aiErrorText(error, label);
+    status.textContent = message;
+    status.dataset.status = 'error';
+    status.setAttribute('role', 'alert');
+    if (typeof status.scrollIntoView === 'function') status.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    BT.util.toast(message, { timeout: 12000 });
   }
 
   function confirmSeasonPlanResult(result, slots, confirmResult = confirm) {
@@ -173,6 +189,8 @@ BT.schedule = (function() {
       button.disabled = true;
       BT.wake.acquire('season-ai-plan');
       try {
+        delete status.dataset.status;
+        status.removeAttribute('role');
         const preferences = seasonCoachInput(root);
         BT.storage.setSetting('seasonCoachInput', preferences);
         status.textContent = 'Offizieller Herren-Spielplan wird synchronisiert …';
@@ -188,7 +206,7 @@ BT.schedule = (function() {
         const resumedCount = existingDraft?.completed?.length || 0;
         if (resumedCount) button.textContent = 'Saisonplanung fortsetzen';
         const resumeText = resumedCount
-          ? '\n\n' + resumedCount + ' bereits bestätigte Wochenblöcke werden vom Gerät übernommen.'
+          ? '\n\n' + resumedCount + ' bereits bestätigte Trainingstermine werden vom Gerät übernommen.'
           : '';
         if (!confirm(slots.length + ' Trainings bis ' + formatDate(slots.at(-1).date) + ' durch die KI planen?' + resumeText + '\n\nManuelle und absolvierte Einheiten bleiben unverändert.')) {
           status.textContent = 'Saisonplanung abgebrochen.';
@@ -208,10 +226,11 @@ BT.schedule = (function() {
         BT.seasonDraft.clear(scope);
         renderSeasonSummary(root);
         renderUpcoming(root);
-        status.textContent = 'Saisonplanung mit der CourtHub Basketball-KI erstellt: ' + applied.created + ' neu, ' + applied.updated + ' aktualisiert, ' + applied.protected + ' geschützt' + (result.resumedBlocks ? ', ' + result.resumedBlocks + ' Wochenblöcke fortgesetzt' : '') + (applied.missing ? ', ' + applied.missing + ' KI-Antworten fehlten' : '') + '.';
+        status.textContent = 'Saisonplanung mit der CourtHub Basketball-KI erstellt: ' + applied.created + ' neu, ' + applied.updated + ' aktualisiert, ' + applied.protected + ' geschützt' + (result.resumedBlocks ? ', ' + result.resumedBlocks + ' Trainingstermine fortgesetzt' : '') + (applied.missing ? ', ' + applied.missing + ' KI-Antworten fehlten' : '') + '.';
       } catch (error) {
         console.error(error);
-        status.textContent = 'KI-Saisonplanung fehlgeschlagen: ' + error.message + (error.requestId ? ' · Request-ID: ' + error.requestId : '') + ' Der bestätigte Fortschritt bleibt auf diesem Gerät erhalten.';
+        showAIError(status, error, 'KI-Saisonplanung fehlgeschlagen');
+        status.append(' Der bestätigte Fortschritt bleibt auf diesem Gerät erhalten.');
       } finally {
         BT.wake.release('season-ai-plan');
         button.disabled = false;
@@ -233,6 +252,8 @@ BT.schedule = (function() {
       if (!file) return;
 
       status.textContent = '⏳ Plan wird analysiert (kann 10-60 Sekunden dauern) ...';
+      delete status.dataset.status;
+      status.removeAttribute('role');
       BT.wake.acquire('schedule-pdf');
       try {
         const parsed = await BT.aiimport.parseWithGemini(file, null, (msg) => {
@@ -269,7 +290,7 @@ BT.schedule = (function() {
         renderUpcoming(root);
       } catch (e) {
         console.error(e);
-        status.textContent = '✗ Fehler: ' + e.message + (e.requestId ? ' · Request-ID: ' + e.requestId : '');
+        showAIError(status, e, 'KI-Import fehlgeschlagen');
       } finally {
         BT.wake.release('schedule-pdf');
       }
@@ -398,5 +419,5 @@ BT.schedule = (function() {
     BT.util.toast(dates.length + ' Termine als Kalender exportiert.');
   }
 
-  return { render, seasonPlanningProgressText, confirmSeasonPlanResult };
+  return { render, seasonPlanningProgressText, aiErrorText, confirmSeasonPlanResult };
 })();

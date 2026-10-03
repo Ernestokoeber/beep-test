@@ -58,15 +58,15 @@ Die Anfragekonfiguration wird pro Aktion festgelegt:
 | PDF-Import | `low` | JSON-Schema | höchstens 48 Sekunden |
 | Trainingszusammenfassung | `low` | JSON-Schema | höchstens 30 Sekunden |
 | Taktikerklärung | `low` | JSON-Schema | höchstens 30 Sekunden |
-| Saisonplanung | `medium` | JSON-Schema | höchstens 48 Sekunden je Wochenblock |
+| Saisonplanung | `low` | JSON-Schema | höchstens 48 Sekunden je Trainingstermin |
 
 Das serverseitige Gesamtzeitbudget liegt unter dem Vercel-Limit von 60
 Sekunden. Ein `AbortController` beendet den Provider-Aufruf kontrolliert.
 Ein zweiter serverseitiger Versuch erfolgt nur bei einem frühen `429`-, `500`-
 oder `503`-Fehler und nur, wenn mindestens 20 Sekunden Restbudget vorhanden
 sind. Timeout-, Schema- und Inhaltsfehler werden nicht innerhalb derselben
-Serverfunktion wiederholt. Der Client darf einen betroffenen Block einmal als
-neue Anfrage wiederholen.
+Serverfunktion wiederholt. Der Client darf einen als wiederholbar
+klassifizierten Termin einmal als neue Anfrage wiederholen.
 
 ## Gemeinsame KI-Architektur
 
@@ -90,7 +90,7 @@ Datenbank und ohne Vercel-Laufzeit testen.
 
 Erfolgreiche Antworten behalten die bestehenden Client-Felder `data`, `text`
 und `model`, damit die sichtbaren Abläufe nicht unnötig umgebaut werden.
-Zusätzlich werden `requestId` und bei Saisonblöcken die bestätigten Termine
+Zusätzlich werden `requestId` und bei Saisonanfragen die bestätigten Termine
 zurückgegeben.
 
 Fehler verwenden durchgehend:
@@ -105,6 +105,7 @@ Fehler verwenden durchgehend:
 ```
 
 Vorgesehene Codes sind `AI_TIMEOUT`, `AI_RATE_LIMIT`, `AI_PROVIDER`,
+`AI_PROVIDER_REQUEST`, `AI_PROVIDER_AUTH`, `AI_MODEL_UNAVAILABLE`,
 `AI_EMPTY_RESPONSE`, `AI_TRUNCATED_RESPONSE`, `AI_INVALID_RESPONSE`,
 `AI_INPUT_INVALID` und `AI_NOT_CONFIGURED`. Der Client erhält keine
 Provider-Rohantwort und keine internen Stacktraces.
@@ -121,21 +122,22 @@ Jede Oberfläche zeigt:
 - den aktuellen Arbeitsschritt;
 - eine konkrete Fehlermeldung;
 - ob ein erneuter Versuch sinnvoll ist;
-- die `requestId` in einem einklappbaren technischen Hinweis.
+- Fehlercode und `requestId` in einer sichtbaren Fehlermeldung.
 
 ## KI-Saisonplanung
 
 ### Blockbildung und Umfang
 
-Die Saison wird chronologisch in Kalenderwochen mit höchstens zwei
-Trainingsterminen pro Block aufgeteilt. Ein Block enthält die Dienstagseinheit
-und, sofern vorhanden, die Freitagseinheit derselben Woche. Dadurch bleiben
-Freitagsvarianten und Wochenzusammenhang erhalten, ohne vier große Einheiten in
-eine Antwort zu zwingen.
+Die Saison wird chronologisch in Einzelanfragen mit genau einem Trainingstermin
+aufgeteilt. Der Leistungs- und Belastungskontext wird unmittelbar vor jeder
+Anfrage auf diesen Termin zugeschnitten. Wochenzusammenhang, Spielabstand und
+bereits erzeugte Schwerpunkte bleiben als kompakter Kontext erhalten, ohne zwei
+umfangreiche Einheiten in eine Antwort zu zwingen.
 
-Jeder Block muss genau einmal alle angefragten Datumswerte und keine weiteren
-Datumswerte liefern. Für Freitag sind `over8` und `eightOrLess` Pflicht; für
-andere Wochentage sind sie nicht erforderlich. Drill-Minuten, Intensitäten,
+Jede Antwort muss genau einmal den angefragten Trainingstermin und keinen
+weiteren Termin liefern. Für normale Freitage sind `over8` und `eightOrLess`
+Pflicht; Spielwochen-Freitage liefern stattdessen genau fünf individuelle
+Stationen. Für andere Wochentage sind Varianten nicht erforderlich. Drill-Minuten, Intensitäten,
 Wurfziele und Textlängen werden server- und clientseitig validiert und danach
 normalisiert.
 
@@ -146,12 +148,12 @@ verständlich weitergegeben.
 
 ### Fortsetzung und atomare Übernahme
 
-Nach jedem erfolgreichen Block speichert der Browser lokal einen Entwurf mit:
+Nach jedem erfolgreichen Termin speichert der Browser lokal einen Entwurf mit:
 
 - Hash der Termine, Coach-Eingaben und Planungsregeln;
 - Modell-ID und Vertragsversion;
-- bereits bestätigten Blöcken;
-- Index des nächsten Blocks;
+- bereits bestätigten Einzelterminen;
+- Index des nächsten Termins;
 - Erstellungs- und Aktualisierungszeit.
 
 Der Entwurf enthält keine Zugangsdaten und wird nicht in das Team-Workspace-
@@ -159,14 +161,15 @@ Dokument geschrieben. Er ist gerätebezogen. Passt der Hash beim nächsten
 Aufruf, bietet CourtHub „Saisonplanung fortsetzen“ an. Bei geänderten Terminen
 oder Eingaben wird der alte Entwurf verworfen und eine neue Planung begonnen.
 
-Bis alle Blöcke validiert sind, werden keine Trainings verändert. Erst der
+Bis alle Termine validiert sind, werden keine Trainings verändert. Erst der
 abschließende Bestätigungsdialog ruft die vorhandene atomare Übernahmelogik
 auf. Abgeschlossene, beendete, manuell bearbeitete oder nicht von der
 KI-Saisonplanung stammende Einheiten bleiben geschützt.
 
-Ein fehlgeschlagener Block bleibt im Entwurf offen. Ein automatischer
-Client-Wiederholungsversuch ist zulässig; danach kann der Coach denselben Block
-manuell fortsetzen, ohne frühere Blöcke neu anzufragen.
+Ein fehlgeschlagener Termin bleibt im Entwurf offen. Nur ein als wiederholbar
+klassifizierter Fehler erhält einen automatischen Client-Wiederholungsversuch;
+danach kann der Coach denselben Termin fortsetzen, ohne frühere Termine neu
+anzufragen.
 
 ## PDF-Trainingsplanimport
 
@@ -287,7 +290,7 @@ Handler-Test mit simuliertem Gemini-Transport ausgeführt.
 Nach Deployment werden die vier Abläufe nacheinander mit kleinen Testdaten
 geprüft. Die Produktion wird nicht durch einen vollständigen Saisonlauf als
 ersten Test belastet. Reihenfolge: Trainingszusammenfassung, Taktikerklärung,
-kleiner PDF-Import, danach Saisonplanung mit zwei Wochenblöcken. Erst dann wird
+kleiner PDF-Import, danach Saisonplanung mit zwei Einzelterminen. Erst dann wird
 ein vollständiger Saisonlauf empfohlen.
 
 ## Abnahmekriterien

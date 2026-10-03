@@ -60,6 +60,7 @@ BT.api = (function() {
         error.code = data.code || null;
         error.retryable = data.retryable === true;
         error.requestId = data.requestId || null;
+        error.providerStatus = Number.isInteger(data.providerStatus) ? data.providerStatus : null;
         error.data = data;
         throw error;
       }
