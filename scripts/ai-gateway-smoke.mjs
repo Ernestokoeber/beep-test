@@ -53,7 +53,7 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 2, 'KI-Vertrag wurde für die verpflichtende Planungsgrundlage nicht angehoben');
+assert(AI_CONTRACT_VERSION === 3, 'KI-Vertrag wurde für tolerante KI-Textgrenzen nicht angehoben');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.1', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -64,7 +64,15 @@ assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema 
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.drills.items.required.includes('intensity'), 'Saison-Schema verlangt die validierte Drillintensität nicht');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining.properties.stations.minItems === 5, 'Saison-Schema verlangt nicht genau fünf KI-Stationen');
 assert(season.parts[0].text.includes('höchstens 25 Prozent') && season.parts[0].text.includes('Höchstens eine der fünf Stationen'), 'KI-Prompt begrenzt die Problemgewichtung nicht');
+assert(season.parts[0].text.includes('summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen'), 'KI-Prompt begrenzt den Trainingsschwerpunkt nicht');
 assert(season.timeoutMs === 48_000, 'Saison-Timeout ist nicht begrenzt');
+
+const verboseSeasonResult = JSON.parse(validSeasonResult);
+verboseSeasonResult.trainings[0].summary = 'Ausführlicher Trainingsschwerpunkt '.repeat(12);
+verboseSeasonResult.trainings[0].drills[0].description = 'Ausführliche Drillbeschreibung '.repeat(40);
+const boundedSeasonResult = season.parse(JSON.stringify(verboseSeasonResult));
+assert(boundedSeasonResult.trainings[0].summary.length === 240, 'Zu langer KI-Trainingsschwerpunkt wird nicht sicher gekürzt');
+assert(boundedSeasonResult.trainings[0].drills[0].description.length === 800, 'Zu lange KI-Drillbeschreibung wird nicht sicher gekürzt');
 
 const fridayRequest = buildAIRequest('planSeason', { data: {
   durationMinutes: 90,

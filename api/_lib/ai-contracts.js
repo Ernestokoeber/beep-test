@@ -1,7 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 2;
+export const AI_CONTRACT_VERSION = 3;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
@@ -171,7 +171,7 @@ const PROMPTS = {
   parsePlan: basketballExpertPrompt(`Du überträgst einen Basketball-Trainingsplan aus einem PDF in strukturierte CourtHub-Daten. Nutze ausschließlich Inhalte des Dokuments und die mitgesendeten tatsächlichen Trainingstage, Uhrzeit und Dauer. Fachwissen darf nur Begriffe korrekt zuordnen, aber keine fehlenden Inhalte ergänzen. Erfinde keine Termine. Gib nur das angeforderte JSON aus.`),
   summarizeTraining: basketballExpertPrompt(`Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze trotz deines Fachwissens keine Namen, Zahlen, Ursachen oder Bewertungen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`),
   explainTactic: basketballExpertPrompt(`Du erklärst einen strukturierten Basketball-Spielzug auf Deutsch. Beschreibe Ziel, Spacing, Timing, Phasen, tatsächlich beteiligte Rollen, Defense-Read und Offense-Antwort. Prüfe besonders Screenwinkel, Passfenster, Anschlussaktionen und die Reaktion auf Hilfe oder Switch. Erfinde keine Rollen oder Aktionen. Liefere zwei bis vier konkrete Coaching-Punkte und nur das angeforderte JSON.`),
-  planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Wiederkehrende Muster aus mehreren Einträgen wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
+  planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Wiederkehrende Muster aus mehreren Einträgen wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Formuliere summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
 
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die langfristigen Mannschaftsprinzipien, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster bleiben davon unberührt und haben Vorrang.
 
@@ -196,6 +196,13 @@ function string(value, max, label) {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (!normalized || normalized.length > max) fail(`${label} ist ungültig.`);
   return normalized;
+}
+
+function generatedString(value, max, label) {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (!normalized) fail(`${label} ist ungültig.`);
+  if (normalized.length <= max) return normalized;
+  return normalized.slice(0, max).trimEnd();
 }
 
 function integer(value, min, max, label) {
@@ -232,9 +239,9 @@ function validateDrills(input, { requireIntensity = false, durationMinutes = nul
   const drills = input.map((drill) => {
     if (!drill || typeof drill !== 'object') fail('Ein Drill ist ungültig.');
     const normalized = {
-      name: string(drill.name, 120, 'Drillname'),
+      name: generatedString(drill.name, 120, 'Drillname'),
       minutes: integer(drill.minutes, 1, 240, 'Drilldauer'),
-      description: string(drill.description, 800, 'Drillbeschreibung')
+      description: generatedString(drill.description, 800, 'Drillbeschreibung')
     };
     if (requireIntensity) {
       if (!['low', 'medium', 'high'].includes(drill.intensity)) fail('Drillintensität ist ungültig.');
@@ -253,7 +260,7 @@ function validateDrills(input, { requireIntensity = false, durationMinutes = nul
 function validateShots(input) {
   if (!Array.isArray(input) || input.length > 30) fail('Die Wurfliste ist ungültig.');
   return input.map((shot) => ({
-    category: string(shot?.category, 100, 'Wurfkategorie'),
+    category: generatedString(shot?.category, 100, 'Wurfkategorie'),
     attempted: integer(shot?.attempted, 0, 1000, 'Wurfversuche')
   }));
 }
@@ -262,11 +269,11 @@ function validateFridayStations(input) {
   if (!input || typeof input !== 'object') fail('KI-Stationstraining fehlt.');
   if (!Array.isArray(input.stations) || input.stations.length !== 5) fail('Das KI-Stationstraining benötigt genau fünf Stationen.');
   return {
-    rationale: string(input.rationale, 500, 'Begründung des Stationstrainings'),
+    rationale: generatedString(input.rationale, 500, 'Begründung des Stationstrainings'),
     stations: input.stations.map((station) => ({
-      title: string(station?.title, 120, 'Stationstitel'),
-      category: string(station?.category, 80, 'Stationskategorie'),
-      description: string(station?.description, 800, 'Stationsbeschreibung')
+      title: generatedString(station?.title, 120, 'Stationstitel'),
+      category: generatedString(station?.category, 80, 'Stationskategorie'),
+      description: generatedString(station?.description, 800, 'Stationsbeschreibung')
     }))
   };
 }
@@ -282,13 +289,13 @@ function validateFridayStationDrills(drills) {
 function validateEvidenceBasis(input) {
   const list = (value, label) => {
     if (!Array.isArray(value) || value.length < 1 || value.length > 4) fail(`${label} ist ungültig.`);
-    return value.map(item => string(item, 300, label));
+    return value.map(item => generatedString(item, 300, label));
   };
   if (!input || typeof input !== 'object') fail('Die KI-Planungsgrundlage fehlt.');
   return {
     observedTrends: list(input.observedTrends, 'Beobachteter Trend'),
     loadConsiderations: list(input.loadConsiderations, 'Belastungsaspekt'),
-    planningDecision: string(input.planningDecision, 600, 'Planungsentscheidung')
+    planningDecision: generatedString(input.planningDecision, 600, 'Planungsentscheidung')
   };
 }
 
@@ -296,13 +303,13 @@ function normalizeTraining(input, { durationMinutes = null, requireIntensity = f
   if (!input || typeof input !== 'object') fail('Ein Training ist ungültig.');
   const training = {
     date: date(input.date, 'Trainingsdatum'),
-    summary: string(input.summary, 240, 'Trainingsschwerpunkt'),
+    summary: generatedString(input.summary, 240, 'Trainingsschwerpunkt'),
     freethrows: { attempted: integer(input.freethrows?.attempted, 0, 1000, 'Freiwurfversuche') },
     shots: validateShots(input.shots),
     drills: validateDrills(input.drills, { requireIntensity, durationMinutes })
   };
   if (input.evidenceBasis) training.evidenceBasis = validateEvidenceBasis(input.evidenceBasis);
-  if (input.weekday) training.weekday = string(input.weekday, 20, 'Wochentag');
+  if (input.weekday) training.weekday = generatedString(input.weekday, 20, 'Wochentag');
   if (fridayStationMode) {
     if (durationMinutes !== 105) fail('Das KI-Stationstraining muss 105 Minuten dauern.');
     validateFridayStationDrills(training.drills);
@@ -352,11 +359,11 @@ function buildParsePlan(payload) {
     const value = parseJson(text);
     if (!value?.phase || !Array.isArray(value.trainings) || value.trainings.length > 200) fail();
     const phase = {
-      name: string(value.phase.name, 120, 'Phasenname'),
-      focus: string(value.phase.focus, 300, 'Phasenfokus'),
+      name: generatedString(value.phase.name, 120, 'Phasenname'),
+      focus: generatedString(value.phase.focus, 300, 'Phasenfokus'),
       start: date(value.phase.start, 'Phasenstart'),
       end: date(value.phase.end, 'Phasenende'),
-      goals: Array.isArray(value.phase.goals) ? value.phase.goals.map((goal) => string(goal, 200, 'Phasenziel')).slice(0, 20) : fail('Phasenziele fehlen.')
+      goals: Array.isArray(value.phase.goals) ? value.phase.goals.map((goal) => generatedString(goal, 200, 'Phasenziel')).slice(0, 20) : fail('Phasenziele fehlen.')
     };
     if (phase.start > phase.end) fail('Der Phasenzeitraum ist ungültig.');
     const trainings = value.trainings.map((training) => normalizeTraining(training));
@@ -424,8 +431,8 @@ function buildTactic(payload) {
     const value = parseJson(text);
     if (!Array.isArray(value?.coachingPoints) || value.coachingPoints.length < 2 || value.coachingPoints.length > 4) fail('Coaching-Punkte fehlen.');
     return {
-      explanation: string(value.explanation, 2400, 'Taktikerklärung'),
-      coachingPoints: value.coachingPoints.map((point) => string(point, 240, 'Coaching-Punkt'))
+      explanation: generatedString(value.explanation, 2400, 'Taktikerklärung'),
+      coachingPoints: value.coachingPoints.map((point) => generatedString(point, 240, 'Coaching-Punkt'))
     };
   });
 }
