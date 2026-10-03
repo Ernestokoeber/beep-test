@@ -596,8 +596,12 @@ async function testScreenAcademy(browser, name, options) {
   page.on('pageerror', error => errors.push(error.message));
   try {
     await waitForApp(page);
-    await page.goto(baseUrl + '/#/tactics/screens', { waitUntil: 'domcontentloaded' });
+    await openQuickEditor(page, 'default');
+    await page.getByRole('button', { name: 'Zurück zur Taktikbibliothek' }).click();
+    await page.waitForSelector('.chqw-overlay .chl-library');
+    await page.getByRole('button', { name: /Screen-Akademie/ }).click();
     await page.waitForSelector('.screen-academy');
+    assert(await page.locator('.chqw-overlay').count() === 0, `${name}: Taktikbibliothek bleibt über der Screen-Akademie geöffnet.`);
     assert(await page.locator('.screen-card-core').count() >= 12, `${name}: Kernaktionen für Dienstag fehlen.`);
     assert(await page.locator('.screen-reference-grid .screen-card').count() >= 40, `${name}: Screen-Nachschlagewerk ist unvollständig.`);
     assert((await page.locator('.screen-lesson').innerText()).includes('35-Minuten-Lehrpfad'), `${name}: Lehrpfad für Dienstag fehlt.`);

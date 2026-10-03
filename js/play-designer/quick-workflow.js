@@ -383,6 +383,10 @@ function openPlaybookV2(reload) {
     const library = createPlayLibrary({
       plays: items,
       collections,
+      onOpenScreenAcademy: () => {
+        modal.close();
+        location.hash = '#/tactics/screens';
+      },
       onCreatePlay: () => openBoard(core.defaultBoard()),
       onOpen: openBoard,
       onDuplicate: item => {

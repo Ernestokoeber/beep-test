@@ -28,14 +28,18 @@ const latest = library.filterAndSortPlays(plays, { sort: 'updated' });
 assert(latest[0].id === 'horns', 'Sortierung nach zuletzt geändert ist falsch.');
 
 let newPlayRequests = 0;
+let academyRequests = 0;
 const root = library.createPlayLibrary({
   plays,
   collections: [{ id: 'book-1', title: 'Herren Playbook', playIds: ['horns'] }],
+  onOpenScreenAcademy: () => { academyRequests += 1; },
   onCreatePlay: () => { newPlayRequests += 1; }
 });
 assert(root.querySelector('[data-role="library-search"]'), 'Bibliothekssuche fehlt.');
 root.querySelector('[data-action="create-play"]').click();
 assert(newPlayRequests === 1, 'Aus der Bibliothek kann kein neues Play erstellt werden.');
+root.querySelector('[data-action="open-screen-academy"]').click();
+assert(academyRequests === 1, 'Die Screen-Akademie kann aus der Bibliothek nicht geöffnet werden.');
 for (const filter of ['man-offense', 'zone-offense', 'pick-and-roll', 'horns', 'defense', 'tsv-phase-3', 'inbound', 'press-break']) {
   assert(root.querySelector(`[data-library-filter="${filter}"]`), `Filter ${filter} fehlt.`);
 }

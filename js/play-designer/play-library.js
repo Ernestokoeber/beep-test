@@ -118,7 +118,7 @@ export function createPlayLibrary(options = {}) {
   const root = document.createElement('section');
   root.className = 'chl-library';
   root.innerHTML = `
-    <div class="chl-library-head"><a class="chl-screen-academy" href="#/tactics/screens"><span aria-hidden="true">▥</span> Screen-Akademie</a><button class="chl-new-play" type="button" data-action="create-play"><span aria-hidden="true">＋</span> Neues Play</button></div>
+    <div class="chl-library-head"><button class="chl-screen-academy" type="button" data-action="open-screen-academy"><span aria-hidden="true">▥</span> Screen-Akademie</button><button class="chl-new-play" type="button" data-action="create-play"><span aria-hidden="true">＋</span> Neues Play</button></div>
     <div class="chl-toolbar"><input type="search" data-role="library-search" placeholder="Titel, Kategorie oder Beschreibung suchen …" aria-label="Taktik suchen"><select data-role="library-sort"><option value="updated">Zuletzt geändert</option><option value="title">Titel</option><option value="category">Kategorie</option></select></div>
     <div class="chl-filters"><button class="chl-filter active" type="button" data-library-filter="">Alle</button></div>
     <label class="che-check"><input type="checkbox" data-role="show-archived"> Archivierte Plays anzeigen</label>
@@ -157,6 +157,10 @@ export function createPlayLibrary(options = {}) {
   root.querySelector('[data-role="library-sort"]').onchange = event => { state.sort = event.target.value; render(); };
   root.querySelector('[data-role="show-archived"]').onchange = event => { state.showArchived = event.target.checked; render(); };
   root.querySelector('[data-action="create-play"]').onclick = () => options.onCreatePlay?.();
+  root.querySelector('[data-action="open-screen-academy"]').onclick = () => {
+    if (options.onOpenScreenAcademy) options.onOpenScreenAcademy();
+    else location.hash = '#/tactics/screens';
+  };
   filters.onclick = event => {
     const button = event.target.closest('[data-library-filter]');
     if (!button) return;
