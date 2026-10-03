@@ -139,6 +139,164 @@ BT.seasonplanner = (function() {
       }));
   }
 
+  function addDaysISO(value, days) {
+    const date = dateAtNoon(value);
+    date.setDate(date.getDate() + days);
+    return isoDate(date);
+  }
+
+  function sumStats(rows, key) {
+    return rows.reduce((sum, row) => sum + (Number(row?.[key]) || 0), 0);
+  }
+
+  function percent(made, attempted) {
+    return attempted > 0 ? Math.round((made / attempted) * 100) : null;
+  }
+
+  function stringList(value, max = 6) {
+    const list = Array.isArray(value) ? value : value ? [value] : [];
+    return list.map(item => String(item).slice(0, 400)).slice(0, max);
+  }
+
+  function recentGameHistory(cutoffDate) {
+    const playersById = new Map(BT.storage.getPlayers().map(player => [String(player.id), player.name]));
+    const fromDate = addDaysISO(cutoffDate, -42);
+    return BT.storage.getGames()
+      .filter(game => game?.date >= fromDate && game.date < cutoffDate && game.team !== 'u18' && !game.cancelled)
+      .filter(game => game.score || game.liveStats || game.atlas || (game.playerStats || []).length || game.strengths || game.improvements || game.coachSummary)
+      .sort((left, right) => String(left.date).localeCompare(String(right.date)))
+      .slice(-8)
+      .map(game => {
+        const rows = (game.playerStats || []).filter(row => row && row.playerId && Object.keys(row).some(key => key !== 'playerId' && row[key] !== null && row[key] !== ''));
+        const fieldGoalsMade = sumStats(rows, 'fieldGoalsMade');
+        const fieldGoalsAttempted = sumStats(rows, 'fieldGoalsAttempted');
+        const freeThrowsMade = sumStats(rows, 'freeThrowsMade');
+        const freeThrowsAttempted = sumStats(rows, 'freeThrowsAttempted');
+        const atlas = game.atlas?.package || {};
+        const atlasAnalysis = atlas.analysis || atlas.websiteSummary || atlas.summary || {};
+        const atlasTotals = atlas.totals || atlasAnalysis.totals || {};
+        return {
+          date: game.date,
+          opponent: /lindau/i.test(game.home || '') ? game.away || '' : game.home || '',
+          venue: /lindau/i.test(game.home || '') ? 'home' : 'away',
+          score: String(game.score || ''),
+          observations: {
+            strengths: String(game.strengths || '').slice(0, 500),
+            improvements: String(game.improvements || '').slice(0, 500),
+            coachSummary: String(game.coachSummary || '').slice(0, 500)
+          },
+          teamBoxscore: {
+            playersRecorded: rows.length,
+            minutes: sumStats(rows, 'minutes'),
+            points: sumStats(rows, 'points'),
+            fieldGoalsMade, fieldGoalsAttempted, fieldGoalPct: percent(fieldGoalsMade, fieldGoalsAttempted),
+            freeThrowsMade, freeThrowsAttempted, freeThrowPct: percent(freeThrowsMade, freeThrowsAttempted),
+            rebounds: sumStats(rows, 'rebounds'), assists: sumStats(rows, 'assists'),
+            steals: sumStats(rows, 'steals'), blocks: sumStats(rows, 'blocks'),
+            turnovers: sumStats(rows, 'turnovers'), fouls: sumStats(rows, 'fouls')
+          },
+          playerBoxscore: rows.slice(0, 20).map(row => ({
+            player: playersById.get(String(row.playerId)) || String(row.playerId),
+            minutes: Number(row.minutes) || 0, points: Number(row.points) || 0,
+            fieldGoalsMade: Number(row.fieldGoalsMade) || 0, fieldGoalsAttempted: Number(row.fieldGoalsAttempted) || 0,
+            freeThrowsMade: Number(row.freeThrowsMade) || 0, freeThrowsAttempted: Number(row.freeThrowsAttempted) || 0,
+            rebounds: Number(row.rebounds) || 0, assists: Number(row.assists) || 0,
+            steals: Number(row.steals) || 0, blocks: Number(row.blocks) || 0,
+            turnovers: Number(row.turnovers) || 0, fouls: Number(row.fouls) || 0,
+            plusMinus: row.plusMinus == null ? null : Number(row.plusMinus), note: String(row.note || '').slice(0, 160)
+          })),
+          reviewedAnalysis: {
+            summary: String(atlasAnalysis.text || atlasAnalysis.summary || atlasAnalysis.narrative || '').slice(0, 600),
+            strengths: stringList(atlasAnalysis.strengths || atlasAnalysis.positives),
+            improvements: stringList(atlasAnalysis.improvements || atlasAnalysis.weaknesses),
+            trainingFocus: stringList(atlasAnalysis.trainingFocus || atlasAnalysis.trainingRecommendations || atlasAnalysis.recommendations),
+            verifiedTotals: Object.fromEntries(Object.entries(atlasTotals).filter(([, value]) => typeof value === 'number').slice(0, 30))
+          },
+          dataQuality: rows.length ? 'boxscore-recorded' : game.liveStats ? 'live-capture-without-boxscore-projection' : 'observations-only'
+        };
+      });
+  }
+
+  function recentTrainingHistory(cutoffDate) {
+    const fromDate = addDaysISO(cutoffDate, -42);
+    return BT.storage.getTrainings()
+      .filter(training => training?.date >= fromDate && training.date < cutoffDate && (training.status === 'completed' || training.endedAt))
+      .sort((left, right) => String(left.date).localeCompare(String(right.date)))
+      .slice(-12)
+      .map(training => {
+        const attendance = (training.attendance || []).reduce((counts, entry) => {
+          const key = ['present', 'absent', 'excused', 'injured'].includes(entry.status) ? entry.status : 'open';
+          counts[key] += 1;
+          return counts;
+        }, { present: 0, absent: 0, excused: 0, injured: 0, open: 0 });
+        const freeThrows = (training.freethrows || []).reduce((total, entry) => ({
+          made: total.made + (Number(entry.made) || 0), attempted: total.attempted + (Number(entry.attempted) || 0)
+        }), { made: 0, attempted: 0 });
+        const shots = (training.shots || []).map(category => {
+          const totals = (category.entries || []).reduce((total, entry) => ({
+            made: total.made + (Number(entry.made) || 0), attempted: total.attempted + (Number(entry.attempted) || 0)
+          }), { made: 0, attempted: 0 });
+          return { category: category.category, ...totals, pct: percent(totals.made, totals.attempted) };
+        });
+        const rpeValues = Object.values(training.stationTraining?.players || {}).map(entry => Number(entry.actualRpe)).filter(value => value >= 1 && value <= 10);
+        return {
+          date: training.date,
+          summary: String(training.plan?.summary || training.note || '').slice(0, 400),
+          plannedMinutes: Number(training.plan?.durationMinutes) || 0,
+          actualMinutes: Math.round((Number(training.liveSession?.report?.actualSeconds) || 0) / 60) || null,
+          loadTarget: training.plan?.loadTarget || null,
+          attendance,
+          sessionRpe: rpeValues.length ? Math.round((rpeValues.reduce((sum, value) => sum + value, 0) / rpeValues.length) * 10) / 10 : null,
+          freeThrows: { ...freeThrows, pct: percent(freeThrows.made, freeThrows.attempted) },
+          shots,
+          drills: (training.plan?.drills || []).slice(0, 12).map(drill => ({ name: drill.name, minutes: drill.minutes, intensity: drill.intensity }))
+        };
+      });
+  }
+
+  function playerLoadSnapshot(cutoffDate) {
+    const station = BT.stationTraining;
+    return BT.storage.getPlayers().filter(player => !player.archived).map(player => ({
+      player: player.name,
+      gameMinutesLast7Days: station?.gameMinutes ? station.gameMinutes(player.id, cutoffDate) : 0,
+      trainingLoadLast7Days: station?.trainingLoad ? station.trainingLoad(player.id, cutoffDate) : 0
+    }));
+  }
+
+  function playerLoadByWeek(cutoffDate) {
+    const station = BT.stationTraining;
+    const players = BT.storage.getPlayers().filter(player => !player.archived);
+    return Array.from({ length: 4 }, (_, index) => {
+      const weekEnding = addDaysISO(cutoffDate, -1 - index * 7);
+      return {
+        weekEnding,
+        players: players.map(player => ({
+          player: player.name,
+          gameMinutes: station?.gameMinutes ? station.gameMinutes(player.id, weekEnding) : 0,
+          trainingLoad: station?.trainingLoad ? station.trainingLoad(player.id, addDaysISO(weekEnding, 1)) : 0
+        }))
+      };
+    }).reverse();
+  }
+
+  function performanceContext(slots) {
+    const cutoffDate = (slots || []).map(slot => slot.date).filter(Boolean).sort()[0] || BT.util.todayISO();
+    return {
+      cutoffDate,
+      lookbackDays: 42,
+      games: recentGameHistory(cutoffDate),
+      completedTrainings: recentTrainingHistory(cutoffDate),
+      playerLoadByWeek: playerLoadByWeek(cutoffDate),
+      playerLoadBeforeFirstSlot: playerLoadSnapshot(cutoffDate),
+      interpretationRules: [
+        'Nur vorhandene Werte verwenden; fehlende Werte sind kein negatives Ergebnis.',
+        'Wiederkehrende Muster über mehrere Spiele oder Wochen stärker gewichten als Einzelereignisse.',
+        'Trainerbeobachtungen mit Boxscore-, Trainings- und Belastungsdaten abgleichen.',
+        'Planungsentscheidung und verwendete Evidenz in evidenceBasis offenlegen.'
+      ]
+    };
+  }
+
   function buildAIPayload(slots, preferences) {
     return {
       team: scheduleConfig().teamName,
@@ -167,6 +325,7 @@ BT.seasonplanner = (function() {
       },
       coachInput: preferences || {},
       slots,
+      performanceContext: performanceContext(slots),
       completedTrainingHistory: compactHistory(),
       instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Gewichte coachInput.problems mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem aufgreift; verwende keine feste Rotation.'
     };
@@ -315,6 +474,11 @@ BT.seasonplanner = (function() {
     } : null;
     return {
       summary: String(entry.summary || slot.loadReason).slice(0, 500),
+      evidenceBasis: {
+        observedTrends: (entry.evidenceBasis?.observedTrends || []).map(value => String(value).slice(0, 300)).slice(0, 4),
+        loadConsiderations: (entry.evidenceBasis?.loadConsiderations || []).map(value => String(value).slice(0, 300)).slice(0, 4),
+        planningDecision: String(entry.evidenceBasis?.planningDecision || '').slice(0, 600)
+      },
       durationMinutes,
       loadTarget: slot.load,
       loadReason: slot.loadReason,
@@ -459,7 +623,7 @@ BT.seasonplanner = (function() {
 
   return {
     BAVARIA_SCHOOL_BREAKS, parseLeagueId, scheduleConfig, saveScheduleConfig,
-    closureFor, buildSlots, buildAIPayload, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan,
+    closureFor, buildSlots, buildAIPayload, performanceContext, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan,
     generateFridayTraining
   };
 })();

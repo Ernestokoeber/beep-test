@@ -312,6 +312,11 @@ const aiSeasonResponse = {
     return {
       date: slot.date,
       summary: slot.fridayStationMode ? 'KI-Spielwochenstationen' : slot.weekday === 'tue' ? 'Haupttraining' : 'Freitagsfestigung',
+      evidenceBasis: {
+        observedTrends: ['Wiederkehrendes Muster aus vorherigen Spielen und Trainings'],
+        loadConsiderations: ['Belastung passend zum Abstand zum nächsten Spiel'],
+        planningDecision: 'Der Trainingsaufbau verbindet den erkannten Trend mit den dauerhaften Teamprinzipien.'
+      },
       freethrows: { attempted: 20 },
       shots: [{ category: 'Catch-and-Shoot', attempted: 20 }],
       drills: slot.fridayStationMode ? stationDrills : [
@@ -343,6 +348,16 @@ assert(stationFriday?.planning?.source === 'ai-friday-stations' && stationFriday
 assert(stationFriday.stationTraining.stations[0].title === 'KI Wochenstation 1', 'Saisonplanung ersetzt die KI-Stationen durch die feste Rotation');
 const fridayTraining = window.BT.storage.getTrainings().find(entry => entry.planning?.source === 'ai-season' && entry.plan?.variants);
 assert(fridayTraining && fridayTraining.plan.variants.over8.length && fridayTraining.plan.variants.eightOrLess.length, 'Freitagsvarianten für die Spielerzahl fehlen');
+window.BT.storage.upsertGame({
+  id: 'performance-game', team: 'herren', date: '2027-05-30', home: 'TSV Lindau', away: 'Trendgegner', score: '66:61',
+  improvements: 'Defensive Rückwärtsbewegung war wiederholt zu langsam.',
+  playerStats: [{ playerId: player.id, minutes: 28, points: 12, fieldGoalsMade: 5, fieldGoalsAttempted: 11, rebounds: 7, assists: 3, turnovers: 2 }]
+});
+window.BT.storage.upsertTraining({
+  date: '2027-05-29', status: 'completed', endedAt: '2027-05-29T21:45:00Z',
+  attendance: [{ playerId: player.id, status: 'present' }], freethrows: [{ playerId: player.id, made: 7, attempted: 10 }], shots: [],
+  plan: { summary: 'Transition Defense', durationMinutes: 90, loadTarget: 'medium', drills: [{ name: 'Sprint-to-gap', minutes: 90, intensity: 'medium' }] }
+});
 const batchPayload = window.BT.seasonplanner.buildAIPayload(
   Array.from({ length: 17 }, (_, index) => ({
     date: '2027-06-' + String(index + 1).padStart(2, '0'), weekday: 'tue', time: '20:15', load: 'medium', loadReason: 'Test'
@@ -351,6 +366,10 @@ const batchPayload = window.BT.seasonplanner.buildAIPayload(
 );
 assert(batchPayload.balancePolicy.maxProblemSharePercent === 25, 'Problemeingaben werden im KI-Payload nicht auf 25 Prozent begrenzt');
 assert(batchPayload.balancePolicy.fridayMaxProblemStations === 1, 'Ein Problem darf zu viele Freitagstationen bestimmen');
+assert(batchPayload.performanceContext.games.some(game => game.opponent === 'Trendgegner' && game.teamBoxscore.fieldGoalPct === 45), 'Vorherige Spielwerte fehlen in der KI-Auswertung');
+assert(batchPayload.performanceContext.completedTrainings.some(training => training.summary === 'Transition Defense' && training.freeThrows.pct === 70), 'Vorherige Trainingswerte fehlen in der KI-Auswertung');
+assert(batchPayload.performanceContext.playerLoadBeforeFirstSlot.some(entry => entry.player === player.name && entry.gameMinutesLast7Days === 28), 'Spielminuten fließen nicht in die Belastungsanalyse ein');
+assert(batchPayload.performanceContext.playerLoadByWeek.length === 4 && batchPayload.performanceContext.playerLoadByWeek.at(-1).players.some(entry => entry.player === player.name && entry.gameMinutes === 28), 'Mehrwöchiger Belastungsverlauf fehlt in der KI-Auswertung');
 const batchSizes = [];
 const batchResult = await window.BT.seasonplanner.planInBatches(batchPayload, async data => {
   batchSizes.push(data.slots.length);

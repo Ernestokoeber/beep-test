@@ -3763,6 +3763,28 @@ table.results tr:last-child td { border-bottom: none; }
   margin-bottom: 0;
 }
 
+.plan-evidence {
+  margin-top: 1rem;
+  padding: .9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: .9rem;
+  background: var(--surface-2);
+}
+
+.plan-evidence summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.plan-evidence > div {
+  margin-top: .75rem;
+}
+
+.plan-evidence p,
+.plan-evidence ul {
+  margin: .35rem 0 0;
+}
+
 .season-plan-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

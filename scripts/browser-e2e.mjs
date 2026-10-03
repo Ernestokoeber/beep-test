@@ -604,6 +604,11 @@ async function testTrainingLive(browser, name, options) {
           trainings: payload.data.slots.map(slot => ({
             date: slot.date,
             summary: 'KI-generiertes individuelles Freitagstraining',
+            evidenceBasis: {
+              observedTrends: ['Die vorherigen Spiel- und Trainingsdaten wurden ausgewertet.'],
+              loadConsiderations: ['Das Wochenendspiel folgt unmittelbar.'],
+              planningDecision: 'Niedrige Belastung und fünf unterschiedliche individuelle Entwicklungsfelder.'
+            },
             freethrows: { attempted: 20 },
             shots: [],
             drills: [
@@ -625,6 +630,7 @@ async function testTrainingLive(browser, name, options) {
     await page.goto(baseUrl + '/#/training', { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: 'Mit KI planen', exact: true }).tap();
     await page.getByRole('button', { name: 'Belastung', exact: true }).tap();
+    assert(await page.getByText('Warum die Basketball-KI dieses Training plant', { exact: true }).count() === 1, `${name}: KI-Planungsgrundlage wird nicht angezeigt`);
     assert(await page.locator('.station-card').count() === 5, `${name}: fünf Freitagstationen fehlen`);
     assert(await page.locator('.station-player-card').count() === 9, `${name}: Belastungssteuerung enthält nicht alle Spieler`);
     const firstLoadCard = page.locator('.station-player-card').first();

@@ -261,6 +261,11 @@ BT.stationTraining = (() => {
     const fallback = planFor(date, game, stations);
     return Object.assign(fallback, {
       summary: clean(entry.summary).slice(0, 500) || fallback.summary,
+      evidenceBasis: {
+        observedTrends: (entry.evidenceBasis?.observedTrends || []).map(value => clean(value).slice(0, 300)).slice(0, 4),
+        loadConsiderations: (entry.evidenceBasis?.loadConsiderations || []).map(value => clean(value).slice(0, 300)).slice(0, 4),
+        planningDecision: clean(entry.evidenceBasis?.planningDecision).slice(0, 600)
+      },
       drills,
       freethrows: entry.freethrows?.attempted >= 0 ? { attempted: Number(entry.freethrows.attempted) || 0 } : null,
       shots: Array.isArray(entry.shots) ? entry.shots.filter(item => clean(item?.category)).map(item => ({

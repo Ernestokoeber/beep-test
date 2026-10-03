@@ -1,5 +1,8 @@
+import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
+
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 1;
+export const AI_CONTRACT_VERSION = 2;
+export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
   constructor(code, message, { status = 502, retryable = false } = {}) {
@@ -69,11 +72,22 @@ const FRIDAY_STATION_SCHEMA = {
     description: STRING
   }
 };
+const EVIDENCE_BASIS_SCHEMA = {
+  type: 'object',
+  required: ['observedTrends', 'loadConsiderations', 'planningDecision'],
+  properties: {
+    observedTrends: { type: 'array', minItems: 1, maxItems: 4, items: STRING },
+    loadConsiderations: { type: 'array', minItems: 1, maxItems: 4, items: STRING },
+    planningDecision: STRING
+  }
+};
 const SEASON_TRAINING_SCHEMA = {
   ...TRAINING_SCHEMA,
+  required: [...TRAINING_SCHEMA.required, 'evidenceBasis'],
   properties: {
     ...TRAINING_SCHEMA.properties,
     drills: { type: 'array', items: SEASON_DRILL_SCHEMA },
+    evidenceBasis: EVIDENCE_BASIS_SCHEMA,
     fridayVariants: {
       type: 'object',
       required: ['over8', 'eightOrLess'],
@@ -153,16 +167,16 @@ export const SEASON_SCHEMA = {
 };
 
 const PROMPTS = {
-  parsePlan: `Du überträgst einen Basketball-Trainingsplan aus einem PDF in strukturierte CourtHub-Daten. Nutze ausschließlich Inhalte des Dokuments und die mitgesendeten tatsächlichen Trainingstage, Uhrzeit und Dauer. Erfinde keine Termine. Gib nur das angeforderte JSON aus.`,
-  summarizeTraining: `Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze keine Namen oder Zahlen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`,
-  explainTactic: `Du erklärst einen strukturierten Basketball-Spielzug auf Deutsch. Beschreibe Ziel, Phasen, tatsächlich beteiligte Rollen, Defense-Read und Offense-Antwort. Erfinde keine Rollen oder Aktionen. Liefere zwei bis vier konkrete Coaching-Punkte und nur das angeforderte JSON.`,
-  planSeason: `Du planst einen Wochenblock einer Basketball-Saison. Liefere für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer.
+  parsePlan: basketballExpertPrompt(`Du überträgst einen Basketball-Trainingsplan aus einem PDF in strukturierte CourtHub-Daten. Nutze ausschließlich Inhalte des Dokuments und die mitgesendeten tatsächlichen Trainingstage, Uhrzeit und Dauer. Fachwissen darf nur Begriffe korrekt zuordnen, aber keine fehlenden Inhalte ergänzen. Erfinde keine Termine. Gib nur das angeforderte JSON aus.`),
+  summarizeTraining: basketballExpertPrompt(`Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze trotz deines Fachwissens keine Namen, Zahlen, Ursachen oder Bewertungen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`),
+  explainTactic: basketballExpertPrompt(`Du erklärst einen strukturierten Basketball-Spielzug auf Deutsch. Beschreibe Ziel, Spacing, Timing, Phasen, tatsächlich beteiligte Rollen, Defense-Read und Offense-Antwort. Prüfe besonders Screenwinkel, Passfenster, Anschlussaktionen und die Reaktion auf Hilfe oder Switch. Erfinde keine Rollen oder Aktionen. Liefere zwei bis vier konkrete Coaching-Punkte und nur das angeforderte JSON.`),
+  planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Wiederkehrende Muster aus mehreren Einträgen wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
 
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die langfristigen Mannschaftsprinzipien, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster bleiben davon unberührt und haben Vorrang.
 
 Für einen Slot mit fridayStationMode=true erstellst du jedes Mal ein neues individuelles Stationstraining passend zur aktuellen Spielwoche und zum folgenden Wochenendspiel. Nutze die Historie, um Schwerpunkte und Stationskombinationen nicht einfach zu wiederholen. Das Training dauert genau 105 Minuten und besteht in dieser Reihenfolge aus: 10 Minuten Readiness-Check, 10 Minuten individuelle Aktivierung, fünf unterschiedliche Einzelstationen zu je 15 Minuten und 10 Minuten Cooldown mit Session-RPE. Liefere dazu stationTraining mit genau fünf Stationen. Höchstens eine der fünf Stationen darf unmittelbar aus coachInput.problems abgeleitet sein; die vier übrigen Stationen müssen andere Entwicklungsbereiche abdecken. Keine Teamtaktik, keine Spielformen und kein 1-gegen-1 bis 5-gegen-5. Alle Inhalte müssen allein oder mit einfachen Zuspielern ausführbar sein. Plane niedrige Vor-Spiel-Belastung; die individuelle Ampel für Tagesform, Schmerzen, Spielminuten und Wochenbelastung skaliert das Volumen später pro Spieler. fridayVariants wird für diesen Modus nicht benötigt.
 
-Für sonstige Freitage werden weiterhin vollständige fridayVariants für mehr als acht sowie höchstens acht Spieler benötigt. Gib nur das angeforderte JSON aus.`
+Für sonstige Freitage werden weiterhin vollständige fridayVariants für mehr als acht sowie höchstens acht Spieler benötigt. Gib nur das angeforderte JSON aus.`)
 };
 
 function fail(message = 'Die KI-Antwort entspricht nicht dem erwarteten Format.') {
@@ -264,6 +278,19 @@ function validateFridayStationDrills(drills) {
   }
 }
 
+function validateEvidenceBasis(input) {
+  const list = (value, label) => {
+    if (!Array.isArray(value) || value.length < 1 || value.length > 4) fail(`${label} ist ungültig.`);
+    return value.map(item => string(item, 300, label));
+  };
+  if (!input || typeof input !== 'object') fail('Die KI-Planungsgrundlage fehlt.');
+  return {
+    observedTrends: list(input.observedTrends, 'Beobachteter Trend'),
+    loadConsiderations: list(input.loadConsiderations, 'Belastungsaspekt'),
+    planningDecision: string(input.planningDecision, 600, 'Planungsentscheidung')
+  };
+}
+
 function normalizeTraining(input, { durationMinutes = null, requireIntensity = false, friday = false, fridayStationMode = false } = {}) {
   if (!input || typeof input !== 'object') fail('Ein Training ist ungültig.');
   const training = {
@@ -273,6 +300,7 @@ function normalizeTraining(input, { durationMinutes = null, requireIntensity = f
     shots: validateShots(input.shots),
     drills: validateDrills(input.drills, { requireIntensity, durationMinutes })
   };
+  if (input.evidenceBasis) training.evidenceBasis = validateEvidenceBasis(input.evidenceBasis);
   if (input.weekday) training.weekday = string(input.weekday, 20, 'Wochentag');
   if (fridayStationMode) {
     if (durationMinutes !== 105) fail('Das KI-Stationstraining muss 105 Minuten dauern.');
@@ -426,6 +454,7 @@ function buildSeason(payload) {
       if (!slot) fail('Die KI-Antwort enthält einen unbekannten Trainingstermin.');
       const slotDuration = Number(slot.durationMinutes);
       const trainingDuration = Number.isInteger(slotDuration) && slotDuration >= 30 && slotDuration <= 240 ? slotDuration : expectedDuration;
+      if (!training?.evidenceBasis) fail('Die KI hat die vorherigen Leistungs- und Belastungswerte nicht ausgewertet.');
       return normalizeTraining(training, {
         durationMinutes: trainingDuration,
         requireIntensity: true,

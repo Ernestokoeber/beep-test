@@ -1687,6 +1687,14 @@ BT.training = (function() {
     const fillPct = Math.min(100, Math.round((plannedMinutes / durationMinutes) * 100));
     const presentCount = presentPlayerIds(currentTraining).length;
     const hasFridayVariants = plan.variants && (plan.variants.over8?.length || plan.variants.eightOrLess?.length);
+    const evidence = plan.evidenceBasis;
+    const evidenceMarkup = evidence?.planningDecision ? `
+      <details class="plan-evidence">
+        <summary>Warum die Basketball-KI dieses Training plant</summary>
+        ${evidence.observedTrends?.length ? `<div><strong>Erkannte Trends</strong><ul>${evidence.observedTrends.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul></div>` : ''}
+        ${evidence.loadConsiderations?.length ? `<div><strong>Belastung</strong><ul>${evidence.loadConsiderations.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul></div>` : ''}
+        <div><strong>Planungsentscheidung</strong><p>${escapeHTML(evidence.planningDecision)}</p></div>
+      </details>` : '';
     const fridayVariantMarkup = hasFridayVariants ? `
       <div class="friday-variant-box">
         <div><span class="section-kicker">Freitagsregel</span><strong>${presentCount ? presentCount + ' Spieler aktuell anwesend' : 'Spielerzahl noch offen'}</strong></div>
@@ -1710,6 +1718,7 @@ BT.training = (function() {
       </div>
       <div class="plan-progress" aria-label="${fillPct} Prozent der Trainingszeit verplant"><span style="width:${fillPct}%"></span></div>
       ${targets.length ? '<p class="muted">Vorgaben pro Spieler: ' + targets.join(' · ') + '</p>' : ''}
+      ${evidenceMarkup}
       ${fridayVariantMarkup}
     `;
     sumEl.querySelectorAll('[data-plan-variant]').forEach(button => {

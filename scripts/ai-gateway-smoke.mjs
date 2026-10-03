@@ -1,4 +1,4 @@
-import { AI_MODEL_ID, AIError, buildAIRequest } from '../api/_lib/ai-contracts.js';
+import { AI_CONTRACT_VERSION, AI_MODEL_ID, AIError, BASKETBALL_KNOWLEDGE_VERSION, buildAIRequest } from '../api/_lib/ai-contracts.js';
 import { generateWithGemini } from '../api/_lib/gemini-client.js';
 
 function assert(condition, message) {
@@ -41,6 +41,11 @@ const validSeasonResult = JSON.stringify({
   trainings: [{
     date: '2026-10-06',
     summary: 'Defense und Entscheidungen',
+    evidenceBasis: {
+      observedTrends: ['Wiederkehrende Rotationsprobleme aus zwei Spielen'],
+      loadConsiderations: ['Dienstag ist der Hauptbelastungstag'],
+      planningDecision: 'Rotationen werden spielnah trainiert, ohne andere Mannschaftsprinzipien zu verdrängen.'
+    },
     freethrows: { attempted: 20 },
     shots: [{ category: 'Abschluss am Ring', attempted: 20 }],
     drills: [{ name: 'Shell Drill', minutes: 90, intensity: 'high', description: 'Kommunikation und Rotation' }]
@@ -48,7 +53,11 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
+assert(AI_CONTRACT_VERSION === 2, 'KI-Vertrag wurde für die verpflichtende Planungsgrundlage nicht angehoben');
+assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.1', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
+const promptText = request => request.parts.map(part => part.text || '').join('\n');
+assert(promptText(season).includes('COURTHUB BASKETBALL-KI') && promptText(season).includes('Trainingslehre'), 'Saisonplanung nutzt den Basketball-Fachstandard nicht');
 assert(season.generationConfig.responseMimeType === 'application/json', 'JSON-MIME fehlt');
 assert(season.generationConfig.thinkingConfig.thinkingLevel === 'medium', 'Saison-Thinking-Level falsch');
 assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema fehlt');
@@ -70,6 +79,11 @@ const fridayDrills = [10, 10, 15, 15, 15, 15, 15, 10].map((minutes, index) => ({
 const fridayResult = {
   trainings: [{
     date: '2026-10-09', summary: 'Frischer KI-Spielwochenplan',
+    evidenceBasis: {
+      observedTrends: ['Ballkontrolle blieb über mehrere Einheiten stabil'],
+      loadConsiderations: ['Spiel folgt am nächsten Tag'],
+      planningDecision: 'Individuelle Qualität bei niedriger Belastung sichern.'
+    },
     freethrows: { attempted: 20 }, shots: [], drills: fridayDrills,
     stationTraining: {
       rationale: 'Neue Schwerpunkte passend zur Spielnähe und zur bisherigen Trainingshistorie.',
@@ -97,6 +111,7 @@ const summary = buildAIRequest('summarizeTraining', {
     { id: 'player-max', text: 'Max traf 8 von 10 Würfen.', names: ['Max'], numbers: ['8', '10'] }
   ]
 });
+assert(promptText(summary).includes('COURTHUB BASKETBALL-KI') && promptText(summary).includes('keine Namen, Zahlen, Ursachen oder Bewertungen'), 'Zusammenfassung verliert Fachrolle oder Faktenbindung');
 assert(summary.generationConfig.thinkingConfig.thinkingLevel === 'low', 'Zusammenfassungs-Thinking-Level falsch');
 const summaryValue = summary.parse(JSON.stringify({ sentences: [
   { text: 'Das Team traf 71 % seiner Freiwürfe.', factIds: ['team-ft'] },
@@ -157,6 +172,7 @@ const pdfRequest = buildAIRequest('parsePlan', {
   mimeType: 'application/pdf',
   schedule: { days: ['tue', 'fri'], time: '20:15', durationMinutes: 90 }
 });
+assert(promptText(pdfRequest).includes('COURTHUB BASKETBALL-KI') && promptText(pdfRequest).includes('keine fehlenden Inhalte ergänzen'), 'PDF-Import nutzt den Fachstandard nicht sicher');
 const validPdfPlan = {
   phase: { name: 'Defense', focus: 'Kommunikation', start: '2026-10-01', end: '2026-10-31', goals: ['Rotation'] },
   trainings: [{
@@ -216,6 +232,9 @@ assert(success.requestId === 'ai_success', 'Request-ID ging verloren');
 assert(success.durationMs === 123, 'Dauer wurde nicht gemessen');
 assert(success.value.trainings[0].date === '2026-10-06', 'Saisonantwort wurde nicht validiert');
 assert(requestBody.generationConfig.responseSchema.type === 'object', 'Schema wurde nicht an Gemini übertragen');
+
+const tacticRequest = buildAIRequest('explainTactic', { tactic: { title: 'Horns', phases: [{ number: 1, offense: [], defense: [], actions: [] }] } });
+assert(promptText(tacticRequest).includes('COURTHUB BASKETBALL-KI') && promptText(tacticRequest).includes('Screenwinkel'), 'Taktikerklärung nutzt das Basketball-Fachwissen nicht');
 
 const validText = await generateWithGemini({
   action: 'explainTactic',

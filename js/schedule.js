@@ -208,14 +208,14 @@ BT.schedule = (function() {
         BT.seasonDraft.clear(scope);
         renderSeasonSummary(root);
         renderUpcoming(root);
-        status.textContent = 'Saisonplanung mit gemini-3.8-flash erstellt: ' + applied.created + ' neu, ' + applied.updated + ' aktualisiert, ' + applied.protected + ' geschützt' + (result.resumedBlocks ? ', ' + result.resumedBlocks + ' Wochenblöcke fortgesetzt' : '') + (applied.missing ? ', ' + applied.missing + ' KI-Antworten fehlten' : '') + '.';
+        status.textContent = 'Saisonplanung mit der CourtHub Basketball-KI erstellt: ' + applied.created + ' neu, ' + applied.updated + ' aktualisiert, ' + applied.protected + ' geschützt' + (result.resumedBlocks ? ', ' + result.resumedBlocks + ' Wochenblöcke fortgesetzt' : '') + (applied.missing ? ', ' + applied.missing + ' KI-Antworten fehlten' : '') + '.';
       } catch (error) {
         console.error(error);
         status.textContent = 'KI-Saisonplanung fehlgeschlagen: ' + error.message + (error.requestId ? ' · Request-ID: ' + error.requestId : '') + ' Der bestätigte Fortschritt bleibt auf diesem Gerät erhalten.';
       } finally {
         BT.wake.release('season-ai-plan');
         button.disabled = false;
-        button.textContent = 'Mit KI Saison planen';
+        button.textContent = 'Mit Basketball-KI planen';
       }
     });
   }
