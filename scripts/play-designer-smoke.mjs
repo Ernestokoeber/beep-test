@@ -27,7 +27,21 @@ const tactics = context.BT.tactics;
 const phase3 = tactics.phase3Templates();
 assert(phase3.length === 8, 'Das TSV-Phase-3-Playbook benötigt alle acht PDF-Inhalte.');
 assert(phase3.every(item => item.board.steps.length >= 5 && item.board.reference?.url.endsWith('.pdf')), 'Phase-3-Taktiken benötigen Phasen und eine PDF-Referenz.');
+assert(phase3.every(item => item.board.steps.slice(0, -1).every(step => {
+  const transition = step.transition;
+  return transition.motions.length + transition.passes.length + transition.screens.length > 0;
+})), 'Jeder Phase-3-Übergang benötigt mindestens eine sichtbare Basketballaktion.');
 assert(phase3.some(item => item.id === 'phase3-zone-2-3' && item.board.usage === 'defense'), 'Die 2-3-Zone ist nicht als aktive Defense integriert.');
+const fiveOut = phase3.find(item => item.id === 'phase3-five-out')?.board;
+assert(fiveOut?.steps.some(step => step.transition.passes.length > 0), 'Five-Out benötigt animierte Pässe.');
+assert(fiveOut?.steps.some(step => step.transition.motions.some(motion => motion.kind === 'dribble')), 'Five-Out benötigt eine echte Dribbelbewegung.');
+assert(fiveOut?.steps.some(step => step.transition.screens.length >= 2), 'Five-Out benötigt den animierten Doppelscreen.');
+const hornsTwo = phase3.find(item => item.id === 'phase3-horns-2')?.board;
+assert(hornsTwo?.steps[3].transition.passes.length === 2, 'Horns 2 benötigt die Ballbewegung 3 zu 2 zu 5.');
+for (const defenseId of ['phase3-no-middle', 'phase3-zone-3-2', 'phase3-pnr-defense', 'phase3-zone-2-3', 'phase3-zone-2-1-2']) {
+  const board = phase3.find(item => item.id === defenseId)?.board;
+  assert(board?.steps.some(step => step.transition.motions.some(motion => motion.elementId.startsWith('d'))), `${defenseId} benötigt animierte Verteidigerrotationen.`);
+}
 const legacy = tactics.normalizeBoard({
   players: [{ id: 'p1', label: '1', x: 120, y: 380 }],
   ball: { x: 250, y: 380 },

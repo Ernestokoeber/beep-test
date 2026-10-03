@@ -20,6 +20,45 @@ async function waitForApp(page) {
   });
 }
 
+async function verifyPhase3Animations(page) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await page.evaluate(() => window.BT?.tactics?.__timingFixApplied === true)) break;
+    await page.waitForTimeout(50);
+  }
+  assert(await page.evaluate(() => window.BT?.tactics?.__timingFixApplied === true), 'Das korrigierte Taktik-Timing wurde nicht geladen.');
+  const result = await page.evaluate(() => {
+    const tactics = window.BT.tactics;
+    const core = tactics.__core;
+    const templates = tactics.phase3Templates();
+    const fiveOut = templates.find(item => item.id === 'phase3-five-out')?.board;
+    const allTransitionsAnimated = templates.every(item => item.board.steps.slice(0, -1).every(step =>
+      step.transition.motions.length + step.transition.passes.length + step.transition.screens.length > 0
+    ));
+    if (!fiveOut) return { allTransitionsAnimated, hasFiveOut: false };
+
+    const dribbleStep = 2;
+    const dribbleTime = core.stepStartTime(fiveOut, dribbleStep) + 1.1;
+    const dribbleSnapshot = tactics.snapshotAt(fiveOut, dribbleTime);
+    const player = core.elementById(dribbleSnapshot, 'o3');
+    const ball = core.elementById(dribbleSnapshot, 'ball');
+    const expectedBall = core.ballPointForPlayer(player);
+    const ballTracksDribbler = core.distance(ball, expectedBall) < 1;
+
+    const passStep = fiveOut.steps[0];
+    const pass = passStep.transition.passes[0];
+    const passSnapshot = tactics.snapshotAt(fiveOut, pass.start + pass.duration / 2);
+    const passBall = core.elementById(passSnapshot, 'ball');
+    const sourceBall = core.elementById(passStep, 'ball');
+    const passMovesBall = core.distance(passBall, sourceBall) > 10;
+
+    return { allTransitionsAnimated, hasFiveOut: true, ballTracksDribbler, passMovesBall };
+  });
+  assert(result.hasFiveOut, 'Phase-3-Five-Out fehlt im echten Browser.');
+  assert(result.allTransitionsAnimated, 'Mindestens ein Phase-3-Übergang ist im echten Browser ohne Basketballaktion.');
+  assert(result.ballTracksDribbler, 'Der Ball bleibt im Phase-3-Dribbling nicht beim Ballhandler.');
+  assert(result.passMovesBall, 'Der Phase-3-Pass bewegt den Ball im echten Browser nicht.');
+}
+
 async function openQuickEditor(page, boardFactory = 'default') {
   await page.evaluate(factory => {
     const core = window.BT.tactics.__core;
@@ -476,6 +515,7 @@ async function testDesktop(browser) {
   page.on('pageerror', error => pageErrors.push(error.message));
   await waitForApp(page);
   await openQuickEditor(page, 'default');
+  await verifyPhase3Animations(page);
   await testPlayEditor2Desktop(page);
   await openQuickEditor(page, 'default');
   assert(await page.locator('.chq-court-wrap .offense-token').count() === 5, 'Desktop zeigt nicht alle fünf Angreifer');

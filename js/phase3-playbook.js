@@ -7,16 +7,62 @@ BT.phase3Playbook = (() => {
   const defense = (positions, mode = 'zone') => positions.map(([x, y], index) => ({ id: `d${index + 1}`, type: 'defense', role: `X${index + 1}`, defenseMode: mode, x, y }));
   const ball = (positions, owner = 0, offset = 16) => ({ id: 'ball', type: 'ball', x: positions[owner][0] + offset, y: positions[owner][1] });
   const step = (id, instruction, offensePositions, defensePositions = [], owner = 0, mode = 'zone', duration = 2.4) => ({
-    id, phaseId: id, instruction, duration,
+    id, phaseId: id, instruction, duration, ownerId: `o${owner + 1}`,
     elements: [...offense(offensePositions), ...defense(defensePositions, mode), ball(offensePositions, owner)],
     transition: { motions: [], passes: [], screens: [] }
   });
+  const element = (phase, id) => phase.elements.find(item => item.id === id);
+  const moved = (from, to) => Math.hypot(to.x - from.x, to.y - from.y) > 3;
+  const pathBetween = (from, to, bend = 0) => {
+    const dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy) || 1;
+    return [
+      { x: from.x, y: from.y },
+      { x: (from.x + to.x) / 2 - dy / length * bend, y: (from.y + to.y) / 2 + dx / length * bend },
+      { x: to.x, y: to.y }
+    ];
+  };
+  const pass = (id, fromId, toId, start = .28, duration = .42, curve = -34) => ({
+    id, type: 'pass', fromId, toId, relation: 'simultaneous', start, duration, curve
+  });
+  const screen = (id, phase, elementId, beneficiaryId, start = .75, duration = 1.1, angle = 0, groupType = 'screen') => {
+    const screener = element(phase, elementId);
+    return {
+      id, type: 'screen', elementId, beneficiaryId, relation: 'simultaneous', groupType,
+      start, duration, x: screener?.x || 250, y: screener?.y || 220, angle
+    };
+  };
+  function animateSequence(phases, options = {}) {
+    for (let index = 0; index < phases.length - 1; index += 1) {
+      const from = phases[index], to = phases[index + 1];
+      const ownershipChanges = from.ownerId !== to.ownerId;
+      for (const source of from.elements.filter(item => item.type === 'offense' || item.type === 'defense')) {
+        const target = element(to, source.id);
+        if (!target || !moved(source, target)) continue;
+        const isDribbler = source.id === from.ownerId && source.id === to.ownerId;
+        const bend = source.type === 'offense' ? (Number(source.id.slice(1)) % 2 ? 12 : -12) : 0;
+        from.transition.motions.push({
+          id: `${from.id}-${source.id}-move`, type: 'move', elementId: source.id,
+          kind: isDribbler ? 'dribble' : 'run', relation: 'simultaneous',
+          start: ownershipChanges ? .18 : .08, duration: Math.max(.8, from.duration - .35),
+          path: pathBetween(source, target, bend)
+        });
+      }
+      if (ownershipChanges) from.transition.passes.push(pass(`${from.id}-pass`, from.ownerId, to.ownerId));
+      for (const action of options.screens?.[index] || []) {
+        from.transition.screens.push(screen(`${from.id}-${action.elementId}-screen`, from, action.elementId, action.beneficiaryId, action.start, action.duration, action.angle, action.groupType));
+      }
+      if (options.passes?.[index]) from.transition.passes = options.passes[index].map((action, passIndex) => pass(
+        `${from.id}-pass-${passIndex + 1}`, action.fromId, action.toId, action.start, action.duration, action.curve
+      ));
+    }
+    return phases;
+  }
   const entry = (id, title, category, description, reference, coachingPoints, reads, steps) => ({
     schemaVersion: 3,
     id: `phase3-${id}`,
     playbook: 'TSV Phase 3',
     builtIn: true,
-    sourceVersion: 1,
+    sourceVersion: 2,
     title,
     description,
     category,
@@ -108,6 +154,50 @@ BT.phase3Playbook = (() => {
     step('zone212-f', '6 · Corner/Baseline und Rebound: weite Wege sprinten; Center plus Bottom boxen aus, Guards sichern lang.', attackers, [[190, 250], [310, 250], [130, 120], [370, 120], [250, 180]], 2)
   ];
 
+  animateSequence(fiveOut, {
+    screens: {
+      4: [
+        { elementId: 'o4', beneficiaryId: 'o3', start: .7, duration: 1.3, angle: -28, groupType: 'pick-and-roll' },
+        { elementId: 'o5', beneficiaryId: 'o3', start: .7, duration: 1.3, angle: 28, groupType: 'pick-and-roll' }
+      ],
+      5: [{ elementId: 'o5', beneficiaryId: 'o3', start: .2, duration: 1.15, angle: 24, groupType: 'pick-and-roll' }]
+    }
+  });
+  animateSequence(horns1, {
+    screens: {
+      1: [{ elementId: 'o1', beneficiaryId: 'o2', start: .5, duration: 1.15, angle: 12 }],
+      2: [{ elementId: 'o4', beneficiaryId: 'o2', start: .35, duration: 1.2, angle: -18, groupType: 'handoff' }]
+    }
+  });
+  animateSequence(horns2, {
+    screens: {
+      0: [{ elementId: 'o4', beneficiaryId: 'o1', start: .35, duration: 1.15, angle: -18, groupType: 'handoff' }],
+      2: [
+        { elementId: 'o1', beneficiaryId: 'o3', start: .35, duration: 1.15, angle: 12 },
+        { elementId: 'o4', beneficiaryId: 'o3', start: 1.05, duration: 1.05, angle: -18, groupType: 'handoff' }
+      ],
+      4: [
+        { elementId: 'o4', beneficiaryId: 'o1', start: .7, duration: 1.25, angle: -24 },
+        { elementId: 'o3', beneficiaryId: 'o1', start: .7, duration: 1.25, angle: 24 }
+      ]
+    },
+    passes: {
+      3: [
+        { fromId: 'o3', toId: 'o2', start: .22, duration: .38, curve: -28 },
+        { fromId: 'o2', toId: 'o5', start: .9, duration: .42, curve: 34 }
+      ]
+    }
+  });
+  animateSequence(noMiddle);
+  animateSequence(zone32);
+  animateSequence(pnr, {
+    screens: Object.fromEntries(Array.from({ length: pnr.length - 1 }, (_, index) => [index, [
+      { elementId: 'o5', beneficiaryId: 'o1', start: .25, duration: 1.25, angle: index % 2 ? 18 : -18, groupType: 'pick-and-roll' }
+    ]]))
+  });
+  animateSequence(zone23);
+  animateSequence(zone212);
+
   const entries = [
     entry('five-out', 'Five-Out · Read & PnR', '5-Out', 'Pass-Sequenz mit Read & Auffüllen, Doppelscreen am Top und PnR auf beiden Seiten.', 'five-out.pdf', ['Drive-Read ernst nehmen', 'V-Winkel im Doppelscreen schließen', 'Roller zieht bis zum Korb durch', 'Safety früh hochschieben'], ['Drive vor nächstem Pass', 'Roller oder Corner-Kick', 'Off-Ball-Big und Guard sichern'], fiveOut),
     entry('horns-1', 'Horns 1 · Elbow Entry', 'Horns', 'Elbow-Entry, Downscreen und DHO mit Drive-, Roll- und Kick-out-Reads.', 'horns-1.pdf', ['Elbow-Pass bestimmt die Seite', 'Downscreen mit Kontakt und Winkel', 'DHO Schulter an Hüfte', 'Zwei Spieler sichern'], ['Drive', 'Roll-Pass', 'Kick-out gegen Hilfe'], horns1),
@@ -119,5 +209,5 @@ BT.phase3Playbook = (() => {
     entry('zone-2-1-2', 'Zone 2-1-2 · High-Post-Kontrolle', 'Defense', 'Mittelmann kontrolliert High-Post und Mitte; Guards und Bottoms sprinten außen.', 'zone-2-1-2-defense.pdf', ['Mittelmann bleibt zentral', 'Bottoms sprinten Corner zu Corner', 'Guards nehmen einfache Reversals', 'Center und Bottom boxen aus'], ['Gegen starke High-Post- und Drive-Teams', 'Stärke: Mitte und High-Post', 'Risiko: Corner, Baseline und schnelle Reversals'], zone212)
   ];
 
-  return Object.freeze({ id: 'tsv-phase-3', title: 'TSV Phase 3', season: '2026/27', version: 1, entries });
+  return Object.freeze({ id: 'tsv-phase-3', title: 'TSV Phase 3', season: '2026/27', version: 2, entries });
 })();
