@@ -4,6 +4,7 @@ BT.opponents = (function() {
   const DEFENSE_LABELS = {
     man: 'Mannverteidigung · No-Middle',
     zone212: 'Zone 2-1-2',
+    zone23: 'Zone 2-3',
     zone32: 'Zone 3-2'
   };
   const LEVELS = new Set(['unknown', 'low', 'medium', 'high']);
@@ -286,7 +287,7 @@ BT.opponents = (function() {
     const shooting = shootingSummary(profile);
     const players = playerSummary(profile);
     const quality = dataQuality(profile);
-    const scores = { man: 2, zone212: 0, zone32: 0 };
+    const scores = { man: 2, zone212: 0, zone23: 0, zone32: 0 };
     const reasons = [];
     const liveReports = Array.isArray(profile?.matchdayReports) ? profile.matchdayReports : [];
     const observedLive = liveReports.reduce((sum, report) => {
@@ -294,21 +295,22 @@ BT.opponents = (function() {
       return sum;
     }, { paint: 0, 'open-three': 0, oreb: 0, 'free-throw-pressure': 0 });
 
-    if (scouting.insideThreat === 'high') { scores.zone212 += 3; reasons.push('hohe Gefahr durch Drives oder Inside-Spiel'); }
-    if (scouting.insideThreat === 'medium') scores.zone212 += 1;
+    if (scouting.insideThreat === 'high') { scores.zone212 += 2; scores.zone23 += 3; reasons.push('hohe Gefahr durch Drives oder Inside-Spiel'); }
+    if (scouting.insideThreat === 'medium') { scores.zone212 += 1; scores.zone23 += 1; }
     if (scouting.perimeterThreat === 'high') { scores.zone32 += 3; reasons.push('hohe Gefahr durch Guards und Distanzwurf'); }
     if (scouting.perimeterThreat === 'medium') scores.zone32 += 1;
-    if (scouting.perimeterThreat === 'low') scores.zone212 += 1;
-    if (scouting.primaryScorerArea === 'inside') { scores.zone212 += 2; reasons.push('primäre Scoring-Gefahr innen'); }
+    if (scouting.perimeterThreat === 'low') { scores.zone212 += 1; scores.zone23 += 2; }
+    if (scouting.primaryScorerArea === 'inside') { scores.zone212 += 1; scores.zone23 += 2; reasons.push('primäre Scoring-Gefahr innen'); }
     if (scouting.primaryScorerArea === 'perimeter') { scores.zone32 += 2; reasons.push('primäre Scoring-Gefahr am Perimeter'); }
     if (scouting.primaryScorerArea === 'balanced') { scores.man += 2; reasons.push('ausgeglichenes Angriffsprofil'); }
-    if (scouting.highPostPassing === 'high') { scores.man += 2; scores.zone212 -= 2; reasons.push('starkes Passspiel über den High Post'); }
-    if (scouting.offensiveRebounding === 'high') { scores.man += 2; scores.zone212 -= 1; scores.zone32 -= 1; reasons.push('hohe Gefahr am offensiven Brett'); }
-    if (shooting.threeAttemptsPerGame >= 16) { scores.zone32 += 2; reasons.push(`${shooting.threeAttemptsPerGame} Dreier-Versuche pro erfasstem Spiel`); }
+    if (scouting.highPostPassing === 'high') { scores.zone212 += 3; scores.zone23 -= 3; reasons.push('starkes Passspiel über den High Post'); }
+    if (scouting.offensiveRebounding === 'high') { scores.man += 2; scores.zone212 -= 1; scores.zone23 -= 1; scores.zone32 -= 1; reasons.push('hohe Gefahr am offensiven Brett'); }
+    if (shooting.threeAttemptsPerGame >= 16) { scores.zone32 += 2; scores.zone23 -= 2; reasons.push(`${shooting.threeAttemptsPerGame} Dreier-Versuche pro erfasstem Spiel`); }
     else if (shooting.threeAttemptsPerGame >= 10) scores.zone32 += 1;
-    if (shooting.threePointPct >= 34) { scores.zone32 += 1; reasons.push(`${shooting.threePointPct} % Dreierquote in der Datenbasis`); }
+    if (shooting.threePointPct >= 34) { scores.zone32 += 1; scores.zone23 -= 2; reasons.push(`${shooting.threePointPct} % Dreierquote in der Datenbasis`); }
     if (shooting.gamesWithMadeProfile >= 2 && shooting.twoMadeShare >= 75) {
       scores.zone212 += 1;
+      scores.zone23 += 2;
       reasons.push(`${shooting.twoMadeShare} % der sichtbaren Feldtreffer sind Zweier; keine Aussage zur Wurfquote`);
     }
     if (shooting.gamesWithMadeProfile >= 2 && shooting.freeThrowsMadePerGame >= 12) {
@@ -323,25 +325,28 @@ BT.opponents = (function() {
       scores.zone32 += 1;
       reasons.push('mindestens ein belegter Volumen-Schütze');
     }
-    if (observedLive.paint >= 4) { scores.zone212 += 1; reasons.push('wiederholte Paint-/Drive-Beobachtungen aus eigenen Spielen'); }
-    if (observedLive['open-three'] >= 4) { scores.zone32 += 1; reasons.push('wiederholt offene Dreier in eigenen Spielen'); }
+    if (observedLive.paint >= 4) { scores.zone212 += 1; scores.zone23 += 1; reasons.push('wiederholte Paint-/Drive-Beobachtungen aus eigenen Spielen'); }
+    if (observedLive['open-three'] >= 4) { scores.zone32 += 1; scores.zone23 -= 1; reasons.push('wiederholt offene Dreier in eigenen Spielen'); }
     if (observedLive.oreb >= 3) { scores.man += 1; reasons.push('wiederholte Offensiv-Rebounds erfordern klare Box-out-Zuordnung'); }
     if (quality.confidence === 'low') {
       scores.man += 5;
       reasons.unshift('Datenbasis reicht noch nicht für einen belastbaren Zonenstart');
     }
 
-    const order = ['man', 'zone212', 'zone32'].sort((left, right) => scores[right] - scores[left] || ['man', 'zone212', 'zone32'].indexOf(left) - ['man', 'zone212', 'zone32'].indexOf(right));
+    const defenseOrder = ['man', 'zone212', 'zone23', 'zone32'];
+    const order = defenseOrder.slice().sort((left, right) => scores[right] - scores[left] || defenseOrder.indexOf(left) - defenseOrder.indexOf(right));
     const start = order[0];
     const alternative = order[1];
     const triggers = {
-      man: ['Zwei klare Paint-Touches oder direkte Drives in drei Angriffen: 2-1-2 prüfen.', 'Zwei offene Abschlüsse von Guards oder Flügeln oberhalb der Freiwurflinie: 3-2 prüfen.'],
+      man: ['Zwei klare Paint-Touches oder direkte Drives in drei Angriffen: 2-3 prüfen.', 'Zwei offene Abschlüsse von Guards oder Flügeln oberhalb der Freiwurflinie: 3-2 prüfen.'],
       zone212: ['Wiederholte High-Post-Touches oder zwei offene Distanzwürfe aus derselben Zone: zurück zur Mannverteidigung.', 'Zwei verlorene Defensiv-Rebounds in drei Angriffen: Mannverteidigung und klare Box-outs.'],
+      zone23: ['Zwei freie High-Post- oder Short-Corner-Touches: 2-1-2 oder Mannverteidigung prüfen.', 'Zwei offene Dreier nach Skip-Pass: 3-2 oder Mannverteidigung prüfen.'],
       zone32: ['Zwei Abschlüsse aus Ecke oder Short Corner: zurück zur Mannverteidigung oder 2-1-2.', 'Zwei verlorene Defensiv-Rebounds in drei Angriffen: Zone beenden.']
     };
     const risks = {
       man: 'Foulbelastung, verlorene direkte Duelle und verspätete Helpside.',
       zone212: 'High Post, schnelle Ballverlagerung, Ecken und Rebound-Zuordnung.',
+      zone23: 'High Post, Short Corner, gute Werfer, Skip-Pässe und klare Rebound-Zuordnung.',
       zone32: 'Baseline, Ecken, Short Corner und Defensiv-Rebound.'
     };
     return {
@@ -399,7 +404,7 @@ BT.opponents = (function() {
     const profile = BT.storage.getOpponents().find(item => item.id === feedback.opponentId || keyFor(item.name) === keyFor(feedback.opponent));
     if (!profile) return null;
     const reports = (Array.isArray(profile.matchdayReports) ? profile.matchdayReports : []).filter(item => item.gameId !== feedback.gameId);
-    const defenseSummary = (Array.isArray(feedback.defenseSummary) ? feedback.defenseSummary : []).slice(0, 3).map(item => {
+    const defenseSummary = (Array.isArray(feedback.defenseSummary) ? feedback.defenseSummary : []).slice(0, 4).map(item => {
       const defense = Object.hasOwn(DEFENSE_LABELS, item?.defense) ? item.defense : 'man';
       const minutesMs = normalizedNumber(item?.minutesMs), points = normalizedNumber(item?.points);
       return {
@@ -417,9 +422,9 @@ BT.opponents = (function() {
       gameId: String(feedback.gameId), date: String(feedback.date || ''), recordedAt: String(feedback.recordedAt || new Date().toISOString()),
       observations: Object.fromEntries(['paint', 'open-three', 'oreb', 'free-throw-pressure'].map(key => [key, normalizedNumber(feedback.observations?.[key])])),
       opponentMakes: Object.fromEntries(['one', 'two', 'three'].map(key => [key, normalizedNumber(feedback.opponentMakes?.[key])])),
-      defenseChanges: (Array.isArray(feedback.defenseChanges) ? feedback.defenseChanges : []).slice(0, 30).map(item => ({ defense: ['man', 'zone212', 'zone32'].includes(item.defense) ? item.defense : 'man', period: normalizedNumber(item.period), remainingMs: normalizedNumber(item.remainingMs) })),
+      defenseChanges: (Array.isArray(feedback.defenseChanges) ? feedback.defenseChanges : []).slice(0, 30).map(item => ({ defense: ['man', 'zone212', 'zone23', 'zone32'].includes(item.defense) ? item.defense : 'man', period: normalizedNumber(item.period), remainingMs: normalizedNumber(item.remainingMs) })),
       defenseSummary, playerScoring,
-      finalDefense: ['man', 'zone212', 'zone32'].includes(feedback.finalDefense) ? feedback.finalDefense : 'man'
+      finalDefense: ['man', 'zone212', 'zone23', 'zone32'].includes(feedback.finalDefense) ? feedback.finalDefense : 'man'
     });
     reports.sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')));
     const next = reports.slice(-20);

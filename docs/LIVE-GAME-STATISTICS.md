@@ -39,7 +39,7 @@ Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
 - Im Spieltag-Modus bleiben Gegnerplan und aktuelle Defense sichtbar. Paint/Drive,
   offene Dreier, Offensiv-Rebounds und Freiwurfdruck lassen sich als schnelle
   Beobachtung erfassen. Erreichte Auslöser erscheinen als Hinweis; den Wechsel
-  zwischen Mann, 2-1-2 und 3-2 bestätigt immer der Coach selbst.
+  zwischen Mann, 2-1-2, 2-3 und 3-2 bestätigt immer der Coach selbst.
 - **Letzte Aktion rückgängig** betrifft die letzte Statistikaktion, Gegnerpunkte, Wechselgruppe
   oder Kaderkorrektur. Widersprüchliche Folgeaktionen verhindern die Änderung.
 - **Uhr korrigieren** setzt die angehaltene Uhr auf MM:SS. Betroffene Wechselzeiten
@@ -92,7 +92,7 @@ im Korrekturmodus. **Live-Auswertung** zeigt Punkte, FT/2P/3P, FG, Quoten,
 OREB/DREB/REB, AST/STL/BLK/TO/PF, Einsatzminuten und Aufstellungsverlauf.
 
 Im Spieltag-Modus ergänzt **Gegner & Defense** die manuell erfassten Gegnerpunkte
-und Beobachtungen je Mannverteidigung, 2-1-2 und 3-2. Angezeigt werden Einsatzzeit,
+und Beobachtungen je Mannverteidigung, 2-1-2, 2-3 und 3-2. Angezeigt werden Einsatzzeit,
 Punkte, Trefferarten und Punkte pro zehn Spielminuten sowie optional zugeordnete
 gegnerische Werfer. Diese Rate ist nicht possession-bereinigt und ersetzt keine
 vollständige Video- oder Boxscoreanalyse.

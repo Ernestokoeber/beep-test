@@ -3,12 +3,14 @@ const FILTERS = [
   ['zone-offense', 'Zone-Offense'],
   ['pick-and-roll', 'Pick & Roll'],
   ['horns', 'Horns'],
+  ['defense', 'Defense'],
+  ['tsv-phase-3', 'TSV Phase 3'],
   ['inbound', 'Einwurf'],
   ['press-break', 'Press Break']
 ];
 
 function searchable(play) {
-  return `${play?.title || ''} ${play?.category || ''} ${play?.description || ''} ${(play?.tags || []).join(' ')}`.toLowerCase();
+  return `${play?.title || ''} ${play?.category || ''} ${play?.description || ''} ${play?.playbook || ''} ${(play?.tags || []).join(' ')} ${(play?.coachingPoints || []).join(' ')} ${(play?.reads || []).join(' ')}`.toLowerCase();
 }
 
 function containsPickAndRoll(play) {
@@ -28,6 +30,8 @@ function matchesFilter(play, filter) {
   if (filter === 'zone-offense') return text.includes('zone-offense') || text.includes('gegen zone');
   if (filter === 'pick-and-roll') return containsPickAndRoll(play);
   if (filter === 'horns') return text.includes('horns');
+  if (filter === 'defense') return play?.usage === 'defense' || text.includes('defense');
+  if (filter === 'tsv-phase-3') return play?.playbook === 'TSV Phase 3';
   if (filter === 'inbound') return text.includes('einwurf') || text.includes('inbound');
   if (filter === 'press-break') return text.includes('press break') || text.includes('press-break') || text.includes('presse brechen');
   return true;
@@ -67,11 +71,11 @@ function createPlayCard(play, collections, options) {
   card.dataset.playId = play.id || '';
   card.innerHTML = `
     <button class="chl-card-main" type="button" data-library-action="open"><span class="chl-card-icon" aria-hidden="true">▤</span><span class="chl-card-copy"><h3></h3><small></small></span></button>
-    <details class="chl-card-menu"><summary aria-label="Weitere Aktionen">•••</summary><div><div class="chl-actions"><button class="chq-btn" type="button" data-library-action="duplicate">Duplizieren</button><button class="chq-btn" type="button" data-library-action="archive"></button><button class="chq-btn" type="button" data-library-action="publish"></button></div><label class="che-field"><span>Zu Playbook hinzufügen</span><select class="chl-collection-select"><option value="">Playbook wählen …</option></select></label></div></details>
+    <details class="chl-card-menu"><summary aria-label="Weitere Aktionen">•••</summary><div><div class="chl-actions"><button class="chq-btn" type="button" data-library-action="duplicate">Duplizieren</button><button class="chq-btn" type="button" data-library-action="archive"></button><button class="chq-btn" type="button" data-library-action="publish"></button><a class="chq-btn" data-library-action="reference" target="_blank" rel="noopener">Original-PDF</a></div><label class="che-field"><span>Zu Playbook hinzufügen</span><select class="chl-collection-select"><option value="">Playbook wählen …</option></select></label></div></details>
     <div class="chl-card-meta"><span data-state></span><div class="chl-badges"></div><p></p></div>`;
   card.querySelector('h3').textContent = play.title || 'Unbenanntes Play';
   card.querySelector('.chl-card-copy small').textContent = play.category || 'Play';
-  card.querySelector('[data-state]').textContent = play.published ? 'Veröffentlicht' : play.archived ? 'Archiviert' : 'Entwurf';
+  card.querySelector('[data-state]').textContent = play.builtIn ? 'TSV Phase 3' : play.published ? 'Veröffentlicht' : play.archived ? 'Archiviert' : 'Entwurf';
   card.querySelector('p').textContent = play.description || 'Keine Beschreibung hinterlegt.';
   const badges = card.querySelector('.chl-badges');
   [...new Set(play.tags || [])].forEach(value => {
@@ -88,6 +92,9 @@ function createPlayCard(play, collections, options) {
   card.querySelector('[data-library-action="duplicate"]').onclick = () => options.onDuplicate?.(play);
   archive.onclick = () => options.onArchive?.(play);
   publish.onclick = () => options.onPublish?.(play);
+  const reference = card.querySelector('[data-library-action="reference"]');
+  if (play.reference?.url) reference.href = play.reference.url;
+  else reference.remove();
   const collectionSelect = card.querySelector('.chl-collection-select');
   collections.forEach(collection => {
     const option = document.createElement('option');

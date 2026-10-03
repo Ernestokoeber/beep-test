@@ -18,8 +18,8 @@ export async function prepareMatchdayEntry(controller,defaultOwnSide,opponentPla
   if(!result.ok)throw Error(result.error||controller.getState().error||'Spielvorbereitung konnte nicht geöffnet werden.');
   return true;
 }
-export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,getOpponentPlan=()=>null,requestGamePlan=async({game,opponentPlan})=>{
-  const response=await window.BT.api.ai('planGame',{game,opponentPlan});return response.data;
+export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,getOpponentPlan=()=>null,requestGamePlan=async({game,opponentPlan,selectedTactics})=>{
+  const response=await window.BT.api.ai('planGame',{game,opponentPlan,selectedTactics});return response.data;
 },onOpponentFeedback=payload=>window.BT?.opponents?.recordMatchdayFeedback?.(payload),prepareRosterPdf=()=>import('./roster-pdf.mjs').then(module=>module.prepareRosterPdf()),onRosterPdf=payload=>import('./roster-pdf.mjs').then(module=>module.exportRosterPdf(payload)),onLive=(host,c)=>mountMatchdayLive(host,c,{tactics,game,onOpponentFeedback})}={}){
   container.classList.add('matchday');let stage='',draft,parents,read=()=>draft,dirty=false,saving=false,revision=0,liveCleanup=null,dead=false,pending=Promise.resolve(true),selectionPane='roster';
   const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div'),conflicts=el('section');let conflictKey='';status.setAttribute('role','status');container.append(title,steps,status,body,conflicts);
@@ -54,7 +54,12 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       const ai=button(buttons,plan.aiPlan?'KI-Gameplan neu erstellen':'Mit Basketball-KI vorbereiten','generate-game-plan',async()=>{
         ai.disabled=true;status.textContent='Basketball-KI erstellt den Gameplan …';
         try{
-          const base=read(),generated=await requestGamePlan({game,opponentPlan:base.opponentPlan});
+          const base=read(),selectedIds=new Set((base.tactics||[]).map(item=>item.id));
+          const selectedTactics=tactics().filter(item=>selectedIds.has(item.id)).map(item=>({
+            id:item.id,title:item.title,usage:tacticUsage(item),description:item.description||'',
+            coachingPoints:item.coachingPoints||[],reads:item.reads||[],playbook:item.playbook||''
+          }));
+          const generated=await requestGamePlan({game,opponentPlan:base.opponentPlan,selectedTactics});
           const opponentPlan=mergeAIPlan(base.opponentPlan,generated),active=activeGamePlan(opponentPlan);
           const next={...base,opponentPlan};
           if(!String(next.goals||'').trim())next.goals=(active.gameGoals||[]).join('\n');

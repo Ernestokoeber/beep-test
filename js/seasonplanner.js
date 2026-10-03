@@ -292,9 +292,13 @@ BT.seasonplanner = (function() {
       principles: {
         offense: 'Horns, 5-Out, Spacing, Entscheidungen und Transition',
         defense: 'No-Middle, Helpside-Kommunikation, Rebounding und Transition Defense',
-        allowedDefenses: ['Mannverteidigung · No-Middle', 'Zone 2-1-2', 'Zone 3-2'],
-        defenseRule: 'Nur diese drei trainierten Verteidigungen empfehlen. Mannverteidigung bleibt bei unzureichender Gegnerdatenlage die Basis.'
+        allowedDefenses: ['Mannverteidigung · No-Middle', 'Zone 2-1-2', 'Zone 2-3', 'Zone 3-2'],
+        defenseRule: 'Nur diese vier trainierten Verteidigungen empfehlen. Mannverteidigung bleibt bei unzureichender Gegnerdatenlage die Basis.'
       },
+      tacticalPlaybook: (BT.phase3Playbook?.entries || []).map(item => ({
+        id: item.id, title: item.title, usage: item.usage, description: item.description,
+        coachingPoints: item.coachingPoints, reads: item.reads
+      })),
       weeklyStructure: {
         tuesday: 'Haupttrainingstag: höchste Wochenbelastung, neue Systeme und alle wichtigen Lerninhalte.',
         fridayGameWeek: 'Die KI erstellt für jede Spielwoche neu: 105 Minuten ausschließlich individuelles Stationstraining mit fünf neuen Stationen, Readiness, Belastungsampel und Session-RPE.',
@@ -317,7 +321,7 @@ BT.seasonplanner = (function() {
       coachInput: preferences || {},
       slots,
       performanceContext: performanceContext(slots),
-      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Die Defense-Auswahl ist verbindlich auf Mannverteidigung mit No-Middle, Zone 2-1-2 und Zone 3-2 begrenzt. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift; verwende keine feste Rotation.'
+      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Die Defense-Auswahl ist verbindlich auf Mannverteidigung mit No-Middle, Zone 2-1-2, Zone 2-3 und Zone 3-2 begrenzt. Verwende für Teamtaktik ausschließlich Inhalte aus tacticalPlaybook. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift; verwende keine feste Rotation.'
     };
   }
 

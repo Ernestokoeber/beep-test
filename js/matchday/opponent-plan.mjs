@@ -4,6 +4,7 @@ import {clockAt,position} from '../live-game/clock.mjs';
 export const DEFENSES=Object.freeze({
   man:'Mannverteidigung · No-Middle',
   zone212:'Zone 2-1-2',
+  zone23:'Zone 2-3',
   zone32:'Zone 3-2'
 });
 
@@ -155,7 +156,7 @@ export function projectOpponentLive(session,plan,now=Date.now()){
   }
   const suggestions=[];
   const add=(code,message,recommendedDefense)=>{if(!suggestions.some(item=>item.code===code))suggestions.push({code,message,recommendedDefense});};
-  if(counts.paint>=2&&currentDefense!=='zone212')add('paint','Mehrere Paint-/Drive-Aktionen seit dem letzten Wechsel: 2-1-2 prüfen.','zone212');
+  if(counts.paint>=2&&currentDefense!=='zone23')add('paint','Mehrere Paint-/Drive-Aktionen seit dem letzten Wechsel: 2-3 für mehr Korbschutz prüfen.','zone23');
   if(counts['open-three']>=2&&currentDefense!=='zone32')add('open-three','Mehrere offene Dreier seit dem letzten Wechsel: 3-2 prüfen.','zone32');
   if(counts.oreb>=2&&currentDefense!=='man')add('oreb','Zwei Offensiv-Rebounds seit dem letzten Wechsel: Mannverteidigung und klare Box-outs prüfen.','man');
   if(counts['free-throw-pressure']>=2)add('free-throw-pressure','Wiederholter Freiwurfdruck: No-Middle, vertikale Hilfe und Hände zurück betonen.','man');

@@ -16,6 +16,7 @@ const context = {
 };
 context.window = context;
 vm.createContext(context);
+vm.runInContext(readFileSync(resolve(root, 'js/phase3-playbook.js'), 'utf8'), context, { filename: 'js/phase3-playbook.js' });
 vm.runInContext(readFileSync(resolve(root, 'js/tactics.js'), 'utf8'), context, { filename: 'js/tactics.js' });
 
 function assert(condition, message) {
@@ -23,6 +24,10 @@ function assert(condition, message) {
 }
 
 const tactics = context.BT.tactics;
+const phase3 = tactics.phase3Templates();
+assert(phase3.length === 8, 'Das TSV-Phase-3-Playbook benötigt alle acht PDF-Inhalte.');
+assert(phase3.every(item => item.board.steps.length >= 5 && item.board.reference?.url.endsWith('.pdf')), 'Phase-3-Taktiken benötigen Phasen und eine PDF-Referenz.');
+assert(phase3.some(item => item.id === 'phase3-zone-2-3' && item.board.usage === 'defense'), 'Die 2-3-Zone ist nicht als aktive Defense integriert.');
 const legacy = tactics.normalizeBoard({
   players: [{ id: 'p1', label: '1', x: 120, y: 380 }],
   ball: { x: 250, y: 380 },

@@ -36,7 +36,7 @@ const root = library.createPlayLibrary({
 assert(root.querySelector('[data-role="library-search"]'), 'Bibliothekssuche fehlt.');
 root.querySelector('[data-action="create-play"]').click();
 assert(newPlayRequests === 1, 'Aus der Bibliothek kann kein neues Play erstellt werden.');
-for (const filter of ['man-offense', 'zone-offense', 'pick-and-roll', 'horns', 'inbound', 'press-break']) {
+for (const filter of ['man-offense', 'zone-offense', 'pick-and-roll', 'horns', 'defense', 'tsv-phase-3', 'inbound', 'press-break']) {
   assert(root.querySelector(`[data-library-filter="${filter}"]`), `Filter ${filter} fehlt.`);
 }
 assert(root.querySelector('[data-role="library-sort"] option[value="updated"]'), 'Sortierung nach zuletzt geändert fehlt.');

@@ -18,7 +18,7 @@ export const actions = Object.freeze({
 });
 const kinds = ['stat','substitution','starting-five','clock-start','clock-pause','clock-correction','period-start','finish','amend','void','roster','opponent-score','score-coverage','opponent-observation','defense-change'];
 const opponentObservations=new Set(['paint','open-three','oreb','free-throw-pressure']);
-const defenses=new Set(['man','zone212','zone32']);
+const defenses=new Set(['man','zone212','zone23','zone32']);
 const gamePositions=new Set(GAME_POSITION_VALUES);
 export const duration = (s,p) => p <= s.config.periods ? s.config.periodMs : s.config.overtimeMs;
 const idOK = id => typeof id === 'string' && id.length > 0 && id.length <= 120 && !['__proto__','constructor','prototype'].includes(id);

@@ -51,7 +51,7 @@ assert(metrics.games === 2 && metrics.wins === 2 && metrics.pointsForPerGame ===
 
 const unknownRecommendation = window.BT.opponents.recommendDefense(otto);
 assert(unknownRecommendation.start === 'man', 'Bei dünner Datenlage bleibt Mannverteidigung nicht die Basis');
-assert(unknownRecommendation.allowedDefenses.length === 3, 'Defense-Auswahl ist nicht auf drei Systeme begrenzt');
+assert(unknownRecommendation.allowedDefenses.length === 4, 'Defense-Auswahl enthält nicht alle vier aktiven Systeme');
 
 Object.assign(otto, {
   scouting: { perimeterThreat: 'high', insideThreat: 'low', primaryScorerArea: 'perimeter', highPostPassing: 'medium', offensiveRebounding: 'medium' },
@@ -82,7 +82,7 @@ const inside = {
   manualTotals: { gamesWithShots: 3 },
   playerStats: [{ id: 'c', name: 'Center C', games: 3, points: 45 }, { id: 'd', name: 'Forward D', games: 3, points: 30 }]
 };
-assert(window.BT.opponents.recommendDefense(inside).start === 'zone212', 'Belegtes Inside-Profil führt nicht zur 2-1-2-Zone');
+assert(window.BT.opponents.recommendDefense(inside).start === 'zone23', 'Belegtes Inside-Profil bei niedriger Perimetergefahr führt nicht zur 2-3-Zone');
 
 const target = window.document.createElement('main');
 window.document.body.appendChild(target);

@@ -130,7 +130,19 @@ BT.tactics = (function() {
     const tags = [...new Set((Array.isArray(source.tags) ? source.tags : [])
       .map(value => String(value || '').trim().slice(0, 32))
       .filter(Boolean))].slice(0, 12);
-    return { schemaVersion: 3, id: source.id, title: String(source.title || fallback.title).slice(0, 100), description: String(source.description || '').slice(0, 400), category: String(source.category || 'Offense').slice(0, 32), tags, archived: source.archived === true, courtType: 'half', steps: steps.length ? steps : fallback.steps, currentStep: clamp(Math.floor(number(source.currentStep, 0)), 0, Math.max(0, (steps.length || 1) - 1)), published: source.published === true, publishedAt: source.publishedAt || null, createdAt: source.createdAt || null, updatedAt: source.updatedAt || null, createdBy: source.createdBy || null };
+    const compactTextList = value => (Array.isArray(value) ? value : []).map(item => String(item || '').trim().slice(0, 300)).filter(Boolean).slice(0, 12);
+    const usage = ['offense', 'defense', 'inbound', 'pressbreak'].includes(source.usage) ? source.usage : (/defen/i.test(source.category || '') ? 'defense' : 'offense');
+    const reference = source.reference && typeof source.reference === 'object' && /^assets\/playbooks\//.test(String(source.reference.url || ''))
+      ? { label: String(source.reference.label || 'Original-PDF').slice(0, 50), url: String(source.reference.url).slice(0, 240) }
+      : null;
+    return {
+      schemaVersion: 3, id: source.id, title: String(source.title || fallback.title).slice(0, 100), description: String(source.description || '').slice(0, 600),
+      category: String(source.category || 'Offense').slice(0, 32), usage, tags, playbook: String(source.playbook || '').slice(0, 80), builtIn: source.builtIn === true,
+      sourceVersion: Math.max(0, Math.floor(number(source.sourceVersion, 0))), coachingPoints: compactTextList(source.coachingPoints), reads: compactTextList(source.reads), reference,
+      archived: source.archived === true, courtType: 'half', steps: steps.length ? steps : fallback.steps,
+      currentStep: clamp(Math.floor(number(source.currentStep, 0)), 0, Math.max(0, (steps.length || 1) - 1)), published: source.published === true,
+      publishedAt: source.publishedAt || null, createdAt: source.createdAt || null, updatedAt: source.updatedAt || null, createdBy: source.createdBy || null
+    };
   }
   function cloneStep(step) { const normalized = normalizeStep(step, 0); return { id: uid('st_'), phaseId: uid('phase_'), instruction: '', duration: normalized.duration, elements: copy(normalized.elements), transition: emptyTransition() }; }
   function elements(step, type) { const list = step && Array.isArray(step.elements) ? step.elements : []; return type ? list.filter(item => item.type === type) : list; }
@@ -231,7 +243,19 @@ BT.tactics = (function() {
     board.currentStep = 0;
     return normalizeBoard(board);
   }
-  function templates() { return [['horns','Horns','Elbow Entry'],['five-out','5-Out','Drive-and-Kick'],['no-middle','No-Middle','Baseline Help'],['zone-2-3','2–3 Zone','Skip Rotation']].map(([id,title,description]) => ({ id, title, description, board: templateBoard(id) })); }
+  function starterTemplates() { return [['horns','Horns','Elbow Entry'],['five-out','5-Out','Drive-and-Kick'],['no-middle','No-Middle','Baseline Help'],['zone-2-3','2–3 Zone','Skip Rotation']].map(([id,title,description]) => ({ id, title, description, board: templateBoard(id) })); }
+  function phase3Templates() {
+    return (BT.phase3Playbook?.entries || []).map(raw => {
+      const board = normalizeBoard(raw);
+      return { id: board.id, title: board.title, description: board.description, board };
+    });
+  }
+  function templates() { return [...phase3Templates(), ...starterTemplates()]; }
+  function availableTactics() {
+    const merged = new Map(phase3Templates().map(item => [item.board.id, item.board]));
+    for (const stored of BT.storage?.getTactics?.() || []) merged.set(String(stored.id || uid('tactic_')), normalizeBoard(stored));
+    return [...merged.values()];
+  }
 
   function placeholder(target, playerMode) {
     const root = document.createElement('section');
@@ -259,5 +283,5 @@ BT.tactics = (function() {
   }
 
   const core = { uid, clamp, number, copy, positionBounds: POSITION_BOUNDS, clampX, clampY, point, ballPointForPlayer, currentUser, canEdit, startingElements, emptyTransition, defaultStep, defaultBoard, normalizeTransition, normalizeStep, normalizeBoard, cloneStep, elements, elementById, arrowStyle, boardDuration, stepStartTime, locateTime, distance, pointOnPath, quadraticPoint, positionDuring, interpolateStep, snapshotAt };
-  return { render, renderPlayer, normalizeBoard, templates, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
+  return { render, renderPlayer, normalizeBoard, templates, phase3Templates, availableTactics, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
 })();

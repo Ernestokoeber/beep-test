@@ -20,7 +20,7 @@ const roster=Array.from({length:5},(_,index)=>({id:'p'+index,name:'Spieler '+ind
 let session=createSession({schemaVersion:3,id:'session',deviceId:'phone',actorId:'coach',roster,startingFive:roster.map(player=>player.id),config:{periods:4,periodMs:600000,overtimeMs:300000},gameplan:{ownSide:'home',kind:'match',goals:'',warmup:'',coachingNote:'',tactics:[],opponentPlan:plan}});
 const add=(kind,payload,seq=session.events.length+1)=>{session=appendEvent(session,{id:'event-'+seq,sessionId:'session',seq,kind,period:1,remainingMs:600000,recordedAt:'2026-10-04T15:00:00Z',payload});};
 add('opponent-observation',{type:'paint'});add('opponent-observation',{type:'paint'});add('opponent-score',{points:2});
-let live=projectOpponentLive(session,plan);assert.equal(live.counts.paint,2);assert.equal(live.made.two,1);assert.equal(live.suggestions[0].recommendedDefense,'zone212');
+let live=projectOpponentLive(session,plan);assert.equal(live.counts.paint,2);assert.equal(live.made.two,1);assert.equal(live.suggestions[0].recommendedDefense,'zone23');
 add('defense-change',{defense:'zone212'});live=projectOpponentLive(session,plan);assert.equal(live.currentDefense,'zone212');assert.equal(live.counts.paint,0,'Beobachtungszähler muss nach einem Defense-Wechsel neu beginnen');
 add('opponent-observation',{type:'open-three'});add('opponent-observation',{type:'open-three'});assert.equal(projectOpponentLive(session,plan).suggestions[0].recommendedDefense,'zone32');
 add('finish',{});const feedback=buildOpponentFeedback({game,plan,session});

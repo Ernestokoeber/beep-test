@@ -8,4 +8,6 @@ for(const name of ['model','flow','journal','bridge','controller','view','live-s
 assert.ok(cached.some(url=>url.endsWith('/js/basketball-positions.mjs')),'basketball positions must be offline');
 assert.ok(cached.some(url=>url.endsWith('/matchday.css')));
 assert.ok(cached.some(url=>url.endsWith('/vendor/jspdf.umd.min.js')),'Die lokale PDF-Engine muss für einen kalten Offline-Export vorab gecacht werden.');
+assert.ok(cached.some(url=>url.endsWith('/js/phase3-playbook.js')),'Das TSV-Phase-3-Playbook muss offline verfügbar sein.');
+for(const pdf of ['five-out','horns-1','horns-2','no-middle-defense','zone-3-2-defense','pnr-defense','zone-2-3-defense','zone-2-1-2-defense'])assert.ok(cached.some(url=>url.endsWith(`/assets/playbooks/phase3/${pdf}.pdf`)),`${pdf}.pdf muss offline verfügbar sein.`);
 console.log('Matchday offline install: all new modules and styles precached.');

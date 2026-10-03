@@ -37,7 +37,7 @@ damit der nächste Punkt nicht versehentlich demselben Spieler zugeordnet wird.
 Eine falsche Zuordnung kann im Protokoll korrigiert oder entfernt werden.
 Der aufgeklappte **Gegnerplan** zeigt die aktuelle Defense und
 vier schnelle Beobachtungen: Paint/Drive, offener Dreier, Offensiv-Rebound und
-Freiwurfdruck. Die Buttons für Mannverteidigung, 2-1-2 und 3-2 protokollieren die
+Freiwurfdruck. Die Buttons für Mannverteidigung, 2-1-2, 2-3 und 3-2 protokollieren die
 bewusste Trainerentscheidung. CourtHub zeigt bei wiederholten Beobachtungen einen
 Wechselhinweis, wechselt die Defense aber nie automatisch.
 

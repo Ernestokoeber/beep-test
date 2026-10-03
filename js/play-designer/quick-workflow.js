@@ -359,7 +359,7 @@ function openPlaybook(reload) {
 
 function openPlaybookV2(reload) {
   const modal = createOverlay('Taktikbibliothek');
-  let items = window.BT.storage.getTactics().map(normalized);
+  let items = window.BT.tactics.availableTactics();
   let collections = window.BT.storage.getSetting('tacticsPlaybooksV1', []);
   if (!Array.isArray(collections)) collections = [];
 
@@ -399,14 +399,14 @@ function openPlaybookV2(reload) {
       onArchive: item => {
         item.archived = !item.archived;
         window.BT.storage.upsertTactic(item);
-        items = window.BT.storage.getTactics().map(normalized);
+        items = window.BT.tactics.availableTactics();
         render();
       },
       onPublish: item => {
         item.published = !item.published;
         item.publishedAt = item.published ? new Date().toISOString() : null;
         window.BT.storage.upsertTactic(item);
-        items = window.BT.storage.getTactics().map(normalized);
+        items = window.BT.tactics.availableTactics();
         render();
       },
       onAddToCollection: (item, collectionId) => {
@@ -427,8 +427,8 @@ function openPlaybookV2(reload) {
 
     const templates = document.createElement('section');
     templates.className = 'chqw-section';
-    templates.innerHTML = '<h3>CourtHub Vorlagen</h3><div class="chqw-template-list" data-templates></div>';
-    window.BT.tactics.templates().forEach(template => {
+    templates.innerHTML = '<h3>Schnellvorlagen</h3><div class="chqw-template-list" data-templates></div>';
+    window.BT.tactics.templates().filter(template => !template.board.builtIn).forEach(template => {
       const row = document.createElement('article');
       row.className = 'chqw-template-item';
       row.innerHTML = '<div><strong></strong><small></small></div><button class="chq-btn" type="button">Vorlage laden</button>';

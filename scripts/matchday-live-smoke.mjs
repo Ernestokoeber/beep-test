@@ -24,8 +24,9 @@ assert.ok(c.getState().draft.startingFive.includes('bench'),'Die eingefrorene An
 host.querySelector('[data-opponent-player="guard"]').click();[...host.querySelectorAll('button')].find(button=>button.textContent==='Gegner +2').click();await c.idle();
 const tagged=c.live.getState().session.events.find(event=>event.kind==='opponent-score');assert.equal(tagged.payload.opponentPlayerName,'Guard Gast');assert.equal(tagged.payload.opponentPlayerId,'guard');
 host.querySelector('[data-observation="paint"]').click();await c.idle();host.querySelector('[data-observation="paint"]').click();await c.idle();
-assert.match(host.querySelector('[data-role="live-scouting"]').textContent,/2-1-2 prüfen/,'Der Paint-Auslöser erzeugt keinen Live-Hinweis.');
-host.querySelector('[data-defense="zone212"]').click();await c.idle();assert.equal(c.live.getState().session.events.filter(event=>event.kind==='defense-change').length,1);assert.match(host.querySelector('[data-role="live-scouting"]').textContent,/Aktuell: Zone 2-1-2/);
+assert.match(host.querySelector('[data-role="live-scouting"]').textContent,/2-3.*prüfen/,'Der Paint-Auslöser erzeugt keinen Live-Hinweis.');
+assert.ok(host.querySelector('[data-defense="zone212"]')&&host.querySelector('[data-defense="zone32"]'),'Bestehende Zonen fehlen.');
+host.querySelector('[data-defense="zone23"]').click();await c.idle();assert.equal(c.live.getState().session.events.filter(event=>event.kind==='defense-change').length,1);assert.match(host.querySelector('[data-role="live-scouting"]').textContent,/Aktuell: Zone 2-3/);
 assert.equal(host.querySelector('[data-field="goals"]'),null,'Der eingefrorene Gameplan darf kein Eingabefeld mehr anbieten.');
 await c.live.dispatch({kind:'clock-start'});await c.live.dispatch({kind:'clock-pause'});assert.equal(c.getState().stage,'live');
 assert.equal([...host.querySelectorAll('button')].some(button=>button.textContent==='Starting Five ändern'),false);
@@ -38,7 +39,7 @@ assert.match(host.querySelector('[data-role="pause"]').textContent,/Abschnittspa
 await c.live.dispatch({kind:'period-start'});assert.equal(c.live.getState().clock.running,false);
 await c.live.dispatch({kind:'clock-start'});f.advance(600000);await c.refresh();assert.match(host.querySelector('[data-role="pause"]').textContent,/Halbzeit/);
 await c.live.dispatch({kind:'finish',payload:{scoreComplete:false}});assert.equal(c.getState().stage,'finished');assert.equal(note.value,'Nicht verlieren');
-assert.equal(feedback?.observations.paint,2,'Live-Beobachtungen werden nach Spielende nicht ins Gegnerprofil zurückgeführt.');assert.equal(feedback?.finalDefense,'zone212');
+assert.equal(feedback?.observations.paint,2,'Live-Beobachtungen werden nach Spielende nicht ins Gegnerprofil zurückgeführt.');assert.equal(feedback?.finalDefense,'zone23');
 assert.equal(feedback?.playerScoring[0].points,2);assert.match(host.querySelector('[data-role="report"]').textContent,/Gegner & Defense.*Guard Gast: 2 Punkte/s);
 assert.equal(host.firstElementChild.tagName,'P');
 const reportPosition=[...host.children].indexOf(host.querySelector('[data-role="report"]'));

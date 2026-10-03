@@ -85,7 +85,7 @@ Beim Öffnen eines Spieltags friert CourtHub den zu diesem Zeitpunkt bestätigte
 Gegnerkontext als nachvollziehbaren Snapshot ein. Die Basketball-KI kann daraus
 Kabinensätze, Spielziele, Offense-/Defense-Schlüssel, Aufwärmfokus und
 Halbzeitfragen erstellen. Sie darf nur belegte Daten verwenden und nur zwischen
-Mannverteidigung mit No-Middle, 2-1-2 und 3-2 wählen.
+Mannverteidigung mit No-Middle, 2-1-2, 2-3 und 3-2 wählen.
 
 Im Live Game können Paint-/Drive-Aktionen, offene Dreier, Offensiv-Rebounds und
 Freiwurfdruck mit einem Tipp protokolliert werden. CourtHub vergleicht diese

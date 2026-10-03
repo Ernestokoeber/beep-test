@@ -1,6 +1,6 @@
 // Bump this whenever the offline asset manifest changes so installed clients
 // cannot keep an older editor or planner bundle.
-const CACHE = 'courthub-v167';
+const CACHE = 'courthub-v168';
 const ASSETS = [
   './',
   './index.html',
@@ -58,6 +58,7 @@ const ASSETS = [
   './js/seasonplanner.js',
   './js/notes.js',
   './js/drills.js',
+  './js/phase3-playbook.js',
   './js/tactics.js',
   './js/play-designer/main.js',
   './js/play-designer/styles.js',
@@ -110,7 +111,15 @@ const ASSETS = [
   './js/settings.js',
   './js/account.js',
   './js/install.js',
-  './js/app.js'
+  './js/app.js',
+  './assets/playbooks/phase3/five-out.pdf',
+  './assets/playbooks/phase3/horns-1.pdf',
+  './assets/playbooks/phase3/horns-2.pdf',
+  './assets/playbooks/phase3/no-middle-defense.pdf',
+  './assets/playbooks/phase3/zone-3-2-defense.pdf',
+  './assets/playbooks/phase3/pnr-defense.pdf',
+  './assets/playbooks/phase3/zone-2-3-defense.pdf',
+  './assets/playbooks/phase3/zone-2-1-2-defense.pdf'
 ];
 
 self.addEventListener('install', (event) => {

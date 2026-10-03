@@ -19,7 +19,7 @@ export function mountPlayer(target){
   const root=document.createElement('section');root.className='view chpd';root.dataset.role='player-tactics';target.appendChild(root);
   const user=core.currentUser(),token=window.BT.api?.getToken?.();
   if(!user||!token){root.innerHTML='<div class="chpd-login"><span class="chpd-kicker">CourtHub Playbook</span><h2>Team-Plays</h2><p>Bitte zuerst anmelden, um veröffentlichte Teamtaktiken anzusehen.</p><a class="chpd-btn primary" href="#/account">Anmelden</a></div>';return root;}
-  const published=window.BT.storage.getTactics().map(core.normalizeBoard).filter(item=>item.published===true);
+  const published=window.BT.tactics.availableTactics().map(core.normalizeBoard).filter(item=>item.published===true);
   root.innerHTML='<header class="chpd-header"><div class="chpd-brand"><div class="chpd-logo">CH</div><div><span class="chpd-kicker">Spieleransicht</span><h1>Team-Plays</h1></div></div><div class="chpd-actions"><a href="#/tactics" class="chpd-btn ghost">Trainerboard</a></div></header><div class="chpd-player-grid"><aside class="chpd-panel"><div class="chpd-panel-head"><h2>Veröffentlichte Plays</h2></div><div class="chpd-panel-body chpd-player-list" data-role="list"></div></aside><div data-role="stage"></div></div>';
   const list=root.querySelector('[data-role="list"]'),stage=root.querySelector('[data-role="stage"]');
   if(!published.length){list.innerHTML='<p class="chpd-empty">Noch keine Plays veröffentlicht.</p>';stage.innerHTML='<div class="chpd-login"><h2>Kein Play ausgewählt</h2><p>Sobald ein Coach ein Play veröffentlicht, erscheint es hier.</p></div>';return root;}

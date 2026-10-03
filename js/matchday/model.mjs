@@ -5,7 +5,7 @@ const text=(x,max)=>typeof x==='string'&&x.length<=max;
 const playerStatuses=new Set(['starter','bench','dnp']);
 const gamePositions=new Set(GAME_POSITION_VALUES);
 const tacticUsages=new Set(['offense','defense','inbound','pressbreak']);
-const defenses=new Set(['man','zone212','zone32']);
+const defenses=new Set(['man','zone212','zone23','zone32']);
 const qualities=new Set(['low','medium','high']);
 export function emptyDraft(){return {ownSide:null,kind:'match',step:'game',roster:[],startingFive:[],config:{periods:4,periodMs:600000,overtimeMs:300000},goals:'',warmup:'',tactics:[],coachingNote:'',closingNote:'',opponentPlan:null};}
 function validateOpponentPlan(plan){
