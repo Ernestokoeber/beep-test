@@ -54,6 +54,7 @@ assert(season.generationConfig.thinkingConfig.thinkingLevel === 'medium', 'Saiso
 assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema fehlt');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.drills.items.required.includes('intensity'), 'Saison-Schema verlangt die validierte Drillintensität nicht');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining.properties.stations.minItems === 5, 'Saison-Schema verlangt nicht genau fünf KI-Stationen');
+assert(season.parts[0].text.includes('höchstens 25 Prozent') && season.parts[0].text.includes('Höchstens eine der fünf Stationen'), 'KI-Prompt begrenzt die Problemgewichtung nicht');
 assert(season.timeoutMs === 48_000, 'Saison-Timeout ist nicht begrenzt');
 
 const fridayRequest = buildAIRequest('planSeason', { data: {

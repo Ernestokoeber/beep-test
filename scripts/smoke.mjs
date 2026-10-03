@@ -349,6 +349,8 @@ const batchPayload = window.BT.seasonplanner.buildAIPayload(
   })),
   { focus: 'Defense' }
 );
+assert(batchPayload.balancePolicy.maxProblemSharePercent === 25, 'Problemeingaben werden im KI-Payload nicht auf 25 Prozent begrenzt');
+assert(batchPayload.balancePolicy.fridayMaxProblemStations === 1, 'Ein Problem darf zu viele Freitagstationen bestimmen');
 const batchSizes = [];
 const batchResult = await window.BT.seasonplanner.planInBatches(batchPayload, async data => {
   batchSizes.push(data.slots.length);

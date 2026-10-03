@@ -158,10 +158,17 @@ BT.seasonplanner = (function() {
         yellow: 'etwa 70 Prozent Volumen, längere Pausen, keine Zusatzbelastung',
         red: 'nur schmerzfreie Technik, Wurf und Prehab; keine Sprünge oder harten Richtungswechsel'
       },
+      balancePolicy: {
+        problemInputRole: 'diagnostischer Hinweis, nicht Hauptschwerpunkt',
+        maxProblemSharePercent: 25,
+        fridayMaxProblemStations: 1,
+        preserve: ['langfristige Mannschaftsprinzipien', 'aktueller Schwerpunkt', 'technische Grundlagen', 'ausgewogene Belastung'],
+        safetyException: 'Schmerzen, Verletzungen und Belastungsgrenzen haben immer Vorrang'
+      },
       coachInput: preferences || {},
       slots,
       completedTrainingHistory: compactHistory(),
-      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern; verwende keine feste Rotation.'
+      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Gewichte coachInput.problems mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem aufgreift; verwende keine feste Rotation.'
     };
   }
 
