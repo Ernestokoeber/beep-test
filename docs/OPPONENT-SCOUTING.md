@@ -7,16 +7,18 @@ zusammen. Fehlende Werte werden nie als Nullwert oder Schwäche interpretiert.
 ## Datenquellen
 
 - **TeamSL:** Saison-Gegner, Spieltermine, Ergebnisse, Form und Punkteschnitte.
-- **DBB.Scores-Screenshots:** bis zu sechs JPG-, PNG- oder WebP-Dateien pro
-  Durchgang. Die Bilder werden im Browser verkleinert, serverseitig durch die
-  Basketball-KI gelesen und nicht im Team-Workspace gespeichert.
+- **DBB.Scores-Screenshots:** bis zu 24 Fotos oder Screenshots pro Durchgang,
+  einschließlich HEIC/HEIF vom iPhone. CourtHub verkleinert die Bilder im
+  Browser und verarbeitet sie automatisch in Paketen mit höchstens sechs
+  Bildern. Die Bilder selbst werden nicht im Team-Workspace gespeichert.
 - **Trainerteam:** qualitative Angriffsmerkmale sowie vollständig erfasste
   Team- und Spielerstatistiken.
 
-Vor einem Screenshot-Import zeigt CourtHub die erkannten Spiele, die Anzahl der
-Spielerzeilen und alle Prüfhinweise. Erst die ausdrückliche Bestätigung speichert
-die extrahierten Werte. Identische Bildpakete und Spiele mit demselben Datum und
-denselben Teams werden nicht doppelt übernommen.
+Vor einem Screenshot-Import zeigt CourtHub kompakt die erkannten Spiele und die
+Anzahl der Spielerwerte. Spielerzeilen und Prüfhinweise sind auf Mobilgeräten
+einklappbar. Erst die ausdrückliche Bestätigung speichert die extrahierten Werte.
+Identische Bildpakete und Spiele mit demselben Datum und denselben Teams werden
+nicht doppelt übernommen.
 
 ## Kennzahlen
 

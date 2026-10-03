@@ -106,6 +106,16 @@
   align-items: start;
 }
 
+.opponents-view,
+.opponents-layout,
+.opponent-detail,
+.opponent-detail > *,
+.opponent-screenshot-panel,
+.screenshot-review {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .opponent-detail {
   display: grid;
   gap: 1rem;
@@ -228,20 +238,152 @@
 .screenshot-review {
   margin-top: 0.8rem;
   padding: 0.9rem;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 0.8rem;
   background: var(--card-soft, var(--card));
 }
 
-.screenshot-review > ul,
-.screenshot-warnings ul {
-  margin: 0.55rem 0;
-  padding-left: 1.25rem;
+.screenshot-review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.screenshot-review-head > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.screenshot-review-head > div:first-child > strong {
+  overflow-wrap: anywhere;
+  font-size: 1.15rem;
+}
+
+.screenshot-review-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.screenshot-review-metrics span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999rem;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.screenshot-review-metrics strong {
+  color: var(--text);
+}
+
+.screenshot-game-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.screenshot-game-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 6.25rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.screenshot-game-card time {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.screenshot-game-card div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.screenshot-game-card div span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.screenshot-game-card div span:last-child {
+  text-align: right;
+}
+
+.screenshot-player-details,
+.screenshot-warnings {
+  min-width: 0;
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.screenshot-player-details > summary,
+.screenshot-warnings > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+}
+
+.screenshot-player-details > summary::-webkit-details-marker,
+.screenshot-warnings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.screenshot-player-details > summary strong,
+.screenshot-warnings > summary strong {
+  min-width: 1.8rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999rem;
+  background: var(--surface-2);
+  text-align: center;
+  font-size: 0.72rem;
+}
+
+.screenshot-player-details .table-scroll {
+  max-width: 100%;
+  margin: 0;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .screenshot-warnings {
-  margin-top: 0.75rem;
   color: var(--warning-text, #9a6510);
+}
+
+.screenshot-warnings ul {
+  margin: 0;
+  padding: 0 1rem 0.85rem 2rem;
+}
+
+.screenshot-warnings li,
+.screenshot-warning,
+.opponent-screenshot-panel .muted,
+.opponents-status {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .screenshot-warning {
@@ -256,8 +398,27 @@
 }
 
 @media (max-width: 760px) {
+  .opponent-detail {
+    padding: 0.8rem;
+  }
+
   .opponent-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .opponent-form-grid,
+  .opponent-totals-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .opponent-form-grid label,
+  .opponent-totals-grid label,
+  .opponent-form-grid select,
+  .opponent-totals-grid input,
+  .opponent-form textarea {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .opponents-layout {
@@ -278,6 +439,48 @@
 
   .opponents-view .game-list > li {
     scroll-snap-align: start;
+  }
+
+  .opponent-screenshot-panel .section-head > div {
+    width: 100%;
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .screenshot-review {
+    padding: 0.7rem;
+  }
+
+  .screenshot-review-head {
+    flex-direction: column;
+  }
+
+  .screenshot-review-metrics {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .screenshot-game-card {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .screenshot-game-card div {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .screenshot-game-card div span:last-child {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .screenshot-review > .form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .screenshot-review > .form-actions .btn {
+    width: 100%;
   }
 }
 @font-face {

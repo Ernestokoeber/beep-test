@@ -87,14 +87,49 @@ const fileLabel = target.querySelector('[data-role="opponent-file-label"]');
 const fileCount = target.querySelector('[data-role="opponent-file-count"]');
 assert(fileInput?.accept.includes('image/*'), 'Der Foto-Dialog ist nicht für die iPhone-Fotomediathek geöffnet');
 assert(analyzeButton?.disabled, 'Die Auswertung ist ohne ausgewählte Bilder aktiv');
+const selectedFiles = Array.from({ length: 12 }, (_, index) => new window.File(['score'], `dbb-score-${index + 1}.png`, { type: 'image/png' }));
 Object.defineProperty(fileInput, 'files', {
   configurable: true,
-  value: [new window.File(['score'], 'dbb-score.png', { type: 'image/png' })]
+  value: selectedFiles
 });
 fileInput.dispatchEvent(new window.Event('change', { bubbles: true }));
 assert(!analyzeButton.disabled, 'Die Auswertung wird nach der Fotoauswahl nicht freigeschaltet');
 assert(fileLabel.textContent === 'Auswahl ändern', 'Der Foto-Button bestätigt die Auswahl nicht');
-assert(fileCount.textContent === '1 Foto ausgewählt.', 'Die Anzahl ausgewählter Fotos wird nicht angezeigt');
+assert(fileCount.textContent === '12 Fotos ausgewählt.', 'Die Anzahl ausgewählter Fotos wird nicht angezeigt');
 assert(index.includes('href="#/opponents"') && index.includes('Gegner analysieren'), 'Auf dem Dashboard fehlt der direkte Einstieg zur Gegneranalyse');
+
+const batches = window.BT.opponents.buildScreenshotBatches(Array.from({ length: 14 }, (_, index) => ({
+  name: `bild-${index + 1}.jpg`, mimeType: 'image/jpeg', data: 'x'.repeat(100)
+})));
+assert(batches.length === 3 && batches[0].images.length === 6 && batches[2].images.length === 2, 'Mehrfachimport wird nicht in sichere KI-Pakete aufgeteilt');
+const merged = window.BT.opponents.mergeScreenshotResults([
+  {
+    batch: { startIndex: 0 },
+    data: {
+      opponentName: 'TSV Ottobeuren',
+      games: [{ date: '2026-10-10', home: 'TSV Ottobeuren', away: 'Team A', homeScore: 70, awayScore: 60, sourceIndex: 0 }],
+      players: [{ gameDate: '2026-10-10', name: 'Guard A', points: 18, sourceIndex: 1 }],
+      warnings: ['Wurfversuche fehlen.']
+    }
+  },
+  {
+    batch: { startIndex: 6 },
+    data: {
+      opponentName: 'TSV Ottobeuren',
+      games: [
+        { date: '2026-10-10', home: 'TSV Ottobeuren', away: 'Team A', homeScore: 70, awayScore: 60, sourceIndex: 0 },
+        { date: '2026-10-17', home: 'Team B', away: 'TSV Ottobeuren', homeScore: 62, awayScore: 74, sourceIndex: 2 }
+      ],
+      players: [
+        { gameDate: '2026-10-10', name: 'Guard A', fouls: 2, sourceIndex: 1 },
+        { gameDate: '2026-10-17', name: 'Center B', points: 14, sourceIndex: 2 }
+      ],
+      warnings: []
+    }
+  }
+], 'TSV Ottobeuren');
+assert(merged.games.length === 2, 'Doppelte Spiele aus mehreren KI-Paketen werden nicht zusammengeführt');
+assert(merged.players.length === 2 && merged.players.find(player => player.name === 'Guard A')?.fouls === 2, 'Spielerwerte aus mehreren KI-Paketen werden nicht zusammengeführt');
+assert(merged.games.find(game => game.date === '2026-10-17')?.sourceIndex === 8, 'Screenshot-Indizes werden paketübergreifend nicht korrigiert');
 
 console.log('CourtHub Gegner-Scouting: Profile, Kennzahlen und Defense-Auswahl erfolgreich.');

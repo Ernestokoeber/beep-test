@@ -7,6 +7,9 @@ BT.opponents = (function() {
     zone32: 'Zone 3-2'
   };
   const LEVELS = new Set(['unknown', 'low', 'medium', 'high']);
+  const MAX_SCREENSHOTS = 24;
+  const SCREENSHOT_BATCH_SIZE = 6;
+  const SCREENSHOT_BATCH_MAX_CHARS = 3_800_000;
   let root = null;
   let selectedId = null;
   let pendingImport = null;
@@ -434,7 +437,7 @@ BT.opponents = (function() {
       <div class="game-detail-head"><div><span class="section-kicker">Gegner-Scouting · ${BT.util.escapeHTML(profile.seasonId || 'Saison')}</span><h3>${BT.util.escapeHTML(profile.name)}</h3><p class="muted">Quellen: ${BT.util.escapeHTML(context.dataQuality.sources.join(', ') || 'noch keine belastbare Quelle')} · ${qualityLabel(context.dataQuality.confidence)}</p></div></div>
       <section class="boxscore-panel opponent-screenshot-panel">
         <div class="section-head compact"><div><span class="section-kicker">DBB.Scores</span><h3>Screenshots auswerten</h3></div></div>
-        <p class="muted">Wähle bis zu sechs Fotos oder Screenshots gemeinsam aus. CourtHub liest sichtbare Spiele, Ergebnisse, Fouls, Wurfwerte und Spielerzeilen aus und speichert die Bilder selbst nicht im Team-Workspace.</p>
+        <p class="muted">Wähle bis zu ${MAX_SCREENSHOTS} Fotos oder Screenshots gemeinsam aus. CourtHub verarbeitet sie automatisch in sicheren Paketen, liest sichtbare Spiele, Ergebnisse, Fouls, Wurfwerte und Spielerzeilen aus und speichert die Bilder selbst nicht.</p>
         <div class="opponent-screenshot-actions">
           <label class="btn opponent-file-picker">
             <span aria-hidden="true">▣</span>
@@ -503,8 +506,8 @@ BT.opponents = (function() {
         : count > 1
           ? `${count} Fotos ausgewählt.`
           : 'Noch keine Fotos ausgewählt.';
-      analyzeButton.disabled = count < 1 || count > 6;
-      if (count > 6) fileCount.textContent = 'Bitte höchstens sechs Fotos auswählen.';
+      analyzeButton.disabled = count < 1 || count > MAX_SCREENSHOTS;
+      if (count > MAX_SCREENSHOTS) fileCount.textContent = `Bitte höchstens ${MAX_SCREENSHOTS} Fotos auswählen.`;
     };
     fileInput.addEventListener('change', updateFileSelection);
     analyzeButton.addEventListener('click', () => analyzeScreenshots(profile, host));
@@ -591,27 +594,125 @@ BT.opponents = (function() {
     return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
   }
 
+  function buildScreenshotBatches(images) {
+    const batches = [];
+    let current = [];
+    let currentLength = 0;
+    const flush = () => {
+      if (!current.length) return;
+      batches.push({ startIndex: current[0].sourceIndex, images: current });
+      current = [];
+      currentLength = 0;
+    };
+    images.forEach((image, sourceIndex) => {
+      const item = Object.assign({}, image, { sourceIndex });
+      const length = item.data.length;
+      if (length > SCREENSHOT_BATCH_MAX_CHARS) {
+        throw new Error(`${item.name} ist auch nach der Vorbereitung noch zu groß.`);
+      }
+      if (current.length >= SCREENSHOT_BATCH_SIZE || (current.length && currentLength + length > SCREENSHOT_BATCH_MAX_CHARS)) flush();
+      current.push(item);
+      currentLength += length;
+    });
+    flush();
+    return batches;
+  }
+
+  function mergeVisibleFields(existing, incoming) {
+    const merged = Object.assign({}, existing || {});
+    Object.entries(incoming || {}).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') merged[key] = value;
+    });
+    return merged;
+  }
+
+  function mergeScreenshotResults(results, expectedOpponent = '') {
+    const names = new Map();
+    const games = new Map();
+    const players = new Map();
+    const warnings = new Set();
+
+    results.forEach((result, batchIndex) => {
+      const data = result?.data || {};
+      const batch = result?.batch || { startIndex: 0 };
+      const opponentName = String(data.opponentName || '').trim();
+      if (opponentName) names.set(opponentName, (names.get(opponentName) || 0) + 1);
+
+      (Array.isArray(data.games) ? data.games : []).forEach(game => {
+        const sourceIndex = batch.startIndex + normalizedNumber(game.sourceIndex);
+        const normalized = Object.assign({}, game, {
+          sourceIndex,
+          opponentTeamStats: mergeVisibleFields({}, game.opponentTeamStats)
+        });
+        const signature = `${game.date || `bild-${sourceIndex}`}:${keyFor(game.home)}:${keyFor(game.away)}`;
+        const previous = games.get(signature);
+        games.set(signature, Object.assign({}, mergeVisibleFields(previous, normalized), {
+          opponentTeamStats: mergeVisibleFields(previous?.opponentTeamStats, normalized.opponentTeamStats)
+        }));
+      });
+
+      (Array.isArray(data.players) ? data.players : []).forEach(player => {
+        const sourceIndex = batch.startIndex + normalizedNumber(player.sourceIndex);
+        const normalized = Object.assign({}, player, { sourceIndex });
+        const signature = `${player.gameDate || `bild-${sourceIndex}`}:${keyFor(player.name)}`;
+        players.set(signature, mergeVisibleFields(players.get(signature), normalized));
+      });
+
+      (Array.isArray(data.warnings) ? data.warnings : []).forEach(warning => {
+        const text = String(warning || '').trim();
+        if (text) warnings.add(results.length > 1 ? `Paket ${batchIndex + 1}: ${text}` : text);
+      });
+    });
+
+    const detectedName = [...names.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+    return {
+      opponentName: detectedName || expectedOpponent,
+      games: [...games.values()].sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))),
+      players: [...players.values()].sort((a, b) => `${a.gameDate || ''}:${a.name || ''}`.localeCompare(`${b.gameDate || ''}:${b.name || ''}`, 'de')),
+      warnings: [...warnings]
+    };
+  }
+
   async function analyzeScreenshots(profile, host) {
     const input = host.querySelector('[data-role="opponent-screenshots"]');
     const button = host.querySelector('[data-action="analyze-screenshots"]');
     const status = host.querySelector('[data-role="screenshot-status"]');
     const files = [...(input.files || [])];
-    if (!files.length || files.length > 6) { status.textContent = 'Bitte ein bis sechs Screenshots auswählen.'; return; }
+    if (!files.length || files.length > MAX_SCREENSHOTS) { status.textContent = `Bitte ein bis ${MAX_SCREENSHOTS} Screenshots auswählen.`; return; }
     if (!BT.api.getToken()) { location.hash = '#/account'; return; }
     button.disabled = true;
     status.textContent = `${files.length} Screenshot${files.length === 1 ? '' : 's'} werden vorbereitet …`;
     try {
       const images = [];
-      for (const file of files) images.push(await compressScreenshot(file));
-      const totalLength = images.reduce((sum, image) => sum + image.data.length, 0);
-      if (totalLength > 4_000_000) throw new Error('Die komprimierten Screenshots sind zusammen noch zu groß. Bitte in zwei Durchgängen importieren.');
+      for (let index = 0; index < files.length; index += 1) {
+        status.textContent = `Foto ${index + 1} von ${files.length} wird vorbereitet …`;
+        images.push(await compressScreenshot(files[index]));
+      }
       const hash = await payloadHash(images);
       if ((profile.screenshotImports || []).some(item => item.hash === hash)) throw new Error('Diese Screenshots wurden bereits übernommen.');
-      status.textContent = 'Basketball-KI liest sichtbare Spiele und Statistiken …';
-      const response = await BT.api.ai('parseOpponentScreenshots', { images: images.map(({ mimeType, data }) => ({ mimeType, data })), expectedOpponent: profile.name });
-      pendingImport = { profileId: profile.id, hash, imageCount: images.length, data: response.data, model: response.model, requestId: response.requestId };
+      const batches = buildScreenshotBatches(images);
+      const results = [];
+      for (let index = 0; index < batches.length; index += 1) {
+        const batch = batches[index];
+        status.textContent = `Basketball-KI wertet Paket ${index + 1} von ${batches.length} aus …`;
+        const response = await BT.api.ai('parseOpponentScreenshots', {
+          images: batch.images.map(({ mimeType, data }) => ({ mimeType, data })),
+          expectedOpponent: profile.name
+        });
+        results.push({ data: response.data, model: response.model, requestId: response.requestId, batch });
+      }
+      pendingImport = {
+        profileId: profile.id,
+        hash,
+        imageCount: images.length,
+        batchCount: batches.length,
+        data: mergeScreenshotResults(results, profile.name),
+        model: results.find(result => result.model)?.model || '',
+        requestId: results.find(result => result.requestId)?.requestId || '',
+        requestIds: results.map(result => result.requestId).filter(Boolean)
+      };
       renderScreenshotPreview(profile, host);
-      status.textContent = 'Auswertung bereit. Bitte Daten prüfen und anschließend bestätigen.';
+      status.textContent = `${files.length} Fotos wurden in ${batches.length} Paket${batches.length === 1 ? '' : 'en'} ausgewertet. Bitte Ergebnis prüfen.`;
     } catch (error) {
       status.textContent = error.message;
     } finally {
@@ -625,12 +726,18 @@ BT.opponents = (function() {
     if (!data) { preview.replaceChildren(); return; }
     const opponentMismatch = data.opponentName && keyFor(data.opponentName) !== keyFor(profile.name);
     preview.innerHTML = `<div class="screenshot-review">
-      <strong>Erkannt: ${BT.util.escapeHTML(data.opponentName || profile.name)}</strong>
-      <p>${data.games.length} Spiele · ${data.players.length} Spielerzeilen</p>
+      <div class="screenshot-review-head">
+        <div><span class="section-kicker">Erkannter Gegner</span><strong>${BT.util.escapeHTML(data.opponentName || profile.name)}</strong></div>
+        <div class="screenshot-review-metrics">
+          <span><strong>${data.games.length}</strong> Spiele</span>
+          <span><strong>${data.players.length}</strong> Spielerwerte</span>
+          <span><strong>${pendingImport.imageCount}</strong> Fotos</span>
+        </div>
+      </div>
       ${opponentMismatch ? '<p class="screenshot-warning"><strong>Achtung:</strong> Der erkannte Teamname weicht vom ausgewählten Gegner ab. Vor der Übernahme genau prüfen.</p>' : ''}
-      ${data.games.length ? `<ul>${data.games.map(game => `<li>${BT.util.escapeHTML(game.date || 'Datum nicht lesbar')} · ${BT.util.escapeHTML(game.home)} ${game.homeScore ?? '–'}:${game.awayScore ?? '–'} ${BT.util.escapeHTML(game.away)}</li>`).join('')}</ul>` : ''}
-      ${data.players.length ? `<div class="table-scroll"><table class="results screenshot-player-preview"><thead><tr><th>Spiel</th><th>Spieler</th><th>PTS</th><th>PF</th><th>3P</th></tr></thead><tbody>${data.players.map(player => `<tr><td>${BT.util.escapeHTML(player.gameDate)}</td><td>${BT.util.escapeHTML(player.name)}</td><td>${player.points ?? '–'}</td><td>${player.fouls ?? '–'}</td><td>${player.threeMade ?? '–'}/${player.threeAttempted ?? '–'}</td></tr>`).join('')}</tbody></table></div>` : ''}
-      ${data.warnings.length ? `<div class="screenshot-warnings"><strong>Prüfhinweise</strong><ul>${data.warnings.map(warning => `<li>${BT.util.escapeHTML(warning)}</li>`).join('')}</ul></div>` : ''}
+      ${data.games.length ? `<div class="screenshot-game-list">${data.games.map(game => `<article class="screenshot-game-card"><time>${BT.util.escapeHTML(game.date || 'Datum nicht lesbar')}</time><div><span>${BT.util.escapeHTML(game.home)}</span><strong>${game.homeScore ?? '–'}:${game.awayScore ?? '–'}</strong><span>${BT.util.escapeHTML(game.away)}</span></div></article>`).join('')}</div>` : '<p class="muted">In der Auswahl wurde noch kein vollständiges Spiel erkannt.</p>'}
+      ${data.players.length ? `<details class="screenshot-player-details"><summary><span>Spielerwerte prüfen</span><strong>${data.players.length}</strong></summary><div class="table-scroll"><table class="results screenshot-player-preview"><thead><tr><th>Spiel</th><th>Spieler</th><th>PTS</th><th>PF</th><th>3P</th></tr></thead><tbody>${data.players.map(player => `<tr><td>${BT.util.escapeHTML(player.gameDate)}</td><td>${BT.util.escapeHTML(player.name)}</td><td>${player.points ?? '–'}</td><td>${player.fouls ?? '–'}</td><td>${player.threeMade ?? '–'}/${player.threeAttempted ?? '–'}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
+      ${data.warnings.length ? `<details class="screenshot-warnings"><summary><span>Prüfhinweise</span><strong>${data.warnings.length}</strong></summary><ul>${data.warnings.map(warning => `<li>${BT.util.escapeHTML(warning)}</li>`).join('')}</ul></details>` : ''}
       <div class="form-actions"><button class="btn primary" type="button" data-action="confirm-screenshot-import">Geprüfte Daten übernehmen</button><button class="btn" type="button" data-action="discard-screenshot-import">Verwerfen</button></div>
     </div>`;
     preview.querySelector('[data-action="confirm-screenshot-import"]').addEventListener('click', () => confirmScreenshotImport(profile));
@@ -671,7 +778,9 @@ BT.opponents = (function() {
       hash: pendingImport.hash,
       importedAt,
       imageCount: pendingImport.imageCount,
+      batchCount: pendingImport.batchCount || 1,
       requestId: pendingImport.requestId,
+      requestIds: pendingImport.requestIds || (pendingImport.requestId ? [pendingImport.requestId] : []),
       model: pendingImport.model,
       warnings: data.warnings
     });
@@ -692,6 +801,8 @@ BT.opponents = (function() {
     contextForProfile,
     contextForGame,
     mergeGames,
+    buildScreenshotBatches,
+    mergeScreenshotResults,
     syncLeague,
     ensureFromOwnGames,
     render
