@@ -8,9 +8,10 @@ BT.opponents = (function() {
   };
   const LEVELS = new Set(['unknown', 'low', 'medium', 'high']);
   const MAX_SCREENSHOTS = 24;
-  const SCREENSHOT_BATCH_SIZE = 6;
-  const SCREENSHOT_BATCH_NEW_IMAGES = 4;
+  const SCREENSHOT_BATCH_SIZE = 4;
+  const SCREENSHOT_BATCH_NEW_IMAGES = 2;
   const SCREENSHOT_BATCH_CONTEXT_IMAGES = 2;
+  const SCREENSHOT_BATCH_CONCURRENCY = 2;
   const SCREENSHOT_BATCH_MAX_CHARS = 3_800_000;
   let root = null;
   let selectedId = null;
@@ -40,6 +41,14 @@ BT.opponents = (function() {
     return game?.seasonId || (BT.util?.seasonForDate ? BT.util.seasonForDate(game?.date) : '');
   }
 
+  function compareGamesChronologically(left, right) {
+    const leftDate = String(left?.date || '');
+    const rightDate = String(right?.date || '');
+    if (leftDate && !rightDate) return -1;
+    if (!leftDate && rightDate) return 1;
+    return leftDate.localeCompare(rightDate) || normalizedNumber(left?.sourceIndex) - normalizedNumber(right?.sourceIndex);
+  }
+
   function opponentFromOwnGame(game, ownName, ownId) {
     if (!game) return null;
     if (sameTeam(game.home, game.homeTeamId, ownName, ownId)) return { name: game.away, teamId: game.awayTeamId };
@@ -47,8 +56,43 @@ BT.opponents = (function() {
     return null;
   }
 
+  function orderOpponentProfiles(profiles, games, config, today) {
+    const ownName = config?.teamName || 'TSV Lindau';
+    const ownId = Number(config?.teamId) || 0;
+    const cutoff = today || (BT.util?.todayISO ? BT.util.todayISO() : new Date().toISOString().slice(0, 10));
+    const upcoming = (Array.isArray(games) ? games : []).filter(game => {
+      if (!game?.date || game.cancelled || game.date < cutoff || scoreParts(game.score)) return false;
+      return Boolean(opponentFromOwnGame(game, ownName, ownId));
+    }).sort((left, right) => `${left.date || ''}T${left.time || '23:59'}`.localeCompare(`${right.date || ''}T${right.time || '23:59'}`));
+
+    return (Array.isArray(profiles) ? profiles : []).map(profile => {
+      const nextGame = upcoming.find(game => {
+        const opponent = opponentFromOwnGame(game, ownName, ownId);
+        return opponent && ((profile.teamId && opponent.teamId && Number(profile.teamId) === Number(opponent.teamId)) || keyFor(profile.name) === keyFor(opponent.name));
+      }) || null;
+      return { profile, nextGame };
+    }).sort((left, right) => {
+      if (left.nextGame && !right.nextGame) return -1;
+      if (!left.nextGame && right.nextGame) return 1;
+      if (left.nextGame && right.nextGame) {
+        const scheduleOrder = `${left.nextGame.date}T${left.nextGame.time || '23:59'}`.localeCompare(`${right.nextGame.date}T${right.nextGame.time || '23:59'}`);
+        if (scheduleOrder) return scheduleOrder;
+      }
+      return String(left.profile.name || '').localeCompare(String(right.profile.name || ''), 'de');
+    });
+  }
+
+  function upcomingGameLabel(game, isFirst) {
+    if (!game) return '';
+    const date = String(game.date || '').split('-');
+    const shortDate = date.length === 3 ? `${date[2]}.${date[1]}.` : String(game.date || '');
+    const competition = String(game.competition || game.leagueName || game.round || '');
+    const competitionLabel = /pokal|cup/i.test(competition) ? ' · Pokal' : '';
+    return `${isFirst ? 'Nächstes Spiel' : 'Danach'} · ${shortDate}${competitionLabel}`;
+  }
+
   function profileGames(profile) {
-    return Array.isArray(profile?.games) ? profile.games.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))) : [];
+    return Array.isArray(profile?.games) ? profile.games.slice().sort(compareGamesChronologically) : [];
   }
 
   function gameSignature(game) {
@@ -69,7 +113,7 @@ BT.opponents = (function() {
         merged[index] = Object.assign({}, merged[index], game);
       }
     }
-    return merged;
+    return merged.sort(compareGamesChronologically);
   }
 
   function metricsFor(profile) {
@@ -405,6 +449,7 @@ BT.opponents = (function() {
 
   function render(target) {
     ensureFromOwnGames();
+    selectedId = null;
     root = BT.util.renderTemplate('tpl-opponents');
     target.appendChild(root);
     const syncButton = root.querySelector('[data-action="sync-opponents"]');
@@ -432,12 +477,14 @@ BT.opponents = (function() {
 
   function drawList() {
     const list = root.querySelector('[data-role="opponent-list"]');
-    const profiles = BT.storage.getOpponents();
-    if (!selectedId && profiles.length) selectedId = profiles[0].id;
-    list.innerHTML = profiles.length ? profiles.map(profile => {
+    const config = BT.seasonplanner?.scheduleConfig?.() || { teamName: 'TSV Lindau', teamId: 0 };
+    const ordered = orderOpponentProfiles(BT.storage.getOpponents(), BT.storage.getGames(), config);
+    if ((!selectedId || !ordered.some(item => item.profile.id === selectedId)) && ordered.length) selectedId = ordered[0].profile.id;
+    list.innerHTML = ordered.length ? ordered.map(({ profile, nextGame }, index) => {
       const metrics = metricsFor(profile);
       const recommendation = recommendDefense(profile);
-      return `<li><button type="button" class="game-list-card ${selectedId === profile.id ? 'active' : ''}" data-opponent-id="${BT.util.escapeHTML(profile.id)}"><span class="game-team">${metrics.games ? `${metrics.wins}:${metrics.losses} · ${metrics.games} Spiele` : 'Datenbasis offen'}</span><strong>${BT.util.escapeHTML(profile.name)}</strong><span class="game-list-meta">${BT.util.escapeHTML(recommendation.startLabel)} · ${qualityLabel(recommendation.confidence)}</span></button></li>`;
+      const scheduleLabel = upcomingGameLabel(nextGame, index === 0);
+      return `<li><button type="button" class="game-list-card ${selectedId === profile.id ? 'active' : ''}" data-opponent-id="${BT.util.escapeHTML(profile.id)}"><span class="game-team">${BT.util.escapeHTML(scheduleLabel || (metrics.games ? `${metrics.wins}:${metrics.losses} · ${metrics.games} Spiele` : 'Datenbasis offen'))}</span><strong>${BT.util.escapeHTML(profile.name)}</strong><span class="game-list-meta">${BT.util.escapeHTML(recommendation.startLabel)} · ${qualityLabel(recommendation.confidence)}</span></button></li>`;
     }).join('') : '<li class="empty empty--field"><p class="empty-body">Noch keine Gegner. Synchronisiere den offiziellen Spielplan.</p></li>';
     list.querySelectorAll('[data-opponent-id]').forEach(button => button.addEventListener('click', () => {
       selectedId = button.dataset.opponentId;
@@ -665,6 +712,23 @@ BT.opponents = (function() {
     return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
   }
 
+  function sortScreenshotFiles(files) {
+    const collator = new Intl.Collator('de', { numeric: true, sensitivity: 'base' });
+    return [...(files || [])].map((file, selectionIndex) => ({ file, selectionIndex })).sort((left, right) => {
+      const leftName = String(left.file?.name || '');
+      const rightName = String(right.file?.name || '');
+      const bothHaveSequence = /\d/.test(leftName) && /\d/.test(rightName);
+      if (bothHaveSequence) {
+        const nameOrder = collator.compare(leftName, rightName);
+        if (nameOrder) return nameOrder;
+      }
+      const leftTime = Number(left.file?.lastModified);
+      const rightTime = Number(right.file?.lastModified);
+      if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) return leftTime - rightTime;
+      return collator.compare(leftName, rightName) || left.selectionIndex - right.selectionIndex;
+    }).map(item => item.file);
+  }
+
   function buildScreenshotBatches(images) {
     const groups = [];
     let current = [];
@@ -750,21 +814,62 @@ BT.opponents = (function() {
     const detectedName = [...names.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
     return {
       opponentName: detectedName || expectedOpponent,
-      games: [...games.values()].sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))),
+      games: [...games.values()].sort(compareGamesChronologically),
       players: [...players.values()].sort((a, b) => `${a.gameDate || ''}:${a.name || ''}`.localeCompare(`${b.gameDate || ''}:${b.name || ''}`, 'de')),
       warnings: [...warnings]
     };
+  }
+
+  async function runScreenshotBatches(batches, run, onProgress = () => {}) {
+    const results = new Array(batches.length);
+    let cursor = 0;
+    let completed = 0;
+    const worker = async () => {
+      while (cursor < batches.length) {
+        const index = cursor;
+        cursor += 1;
+        const batch = batches[index];
+        let attempt = 0;
+        while (attempt < 2) {
+          attempt += 1;
+          const requestBatch = attempt > 1 && batch.contextCount
+            ? {
+                startIndex: batch.images[batch.contextCount]?.sourceIndex ?? batch.startIndex,
+                contextCount: 0,
+                images: batch.images.slice(batch.contextCount)
+              }
+            : batch;
+          onProgress({ type: 'start', index, attempt, completed, total: batches.length });
+          try {
+            results[index] = { response: await run(requestBatch, index, attempt), batch: requestBatch };
+            completed += 1;
+            onProgress({ type: 'complete', index, attempt, completed, total: batches.length });
+            break;
+          } catch (error) {
+            const retryable = error?.retryable === true || ['CLIENT_TIMEOUT', 'AI_TIMEOUT', 'AI_SERVER_TIMEOUT', 'AI_RATE_LIMIT', 'AI_PROVIDER', 'AI_EMPTY_RESPONSE', 'AI_TRUNCATED_RESPONSE'].includes(error?.code);
+            if (!retryable || attempt >= 2) {
+              error.message = `Paket ${index + 1} von ${batches.length}: ${error.message}`;
+              throw error;
+            }
+            onProgress({ type: 'retry', index, attempt, completed, total: batches.length });
+            if (error?.code === 'AI_RATE_LIMIT') await new Promise(resolve => setTimeout(resolve, 800));
+          }
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(SCREENSHOT_BATCH_CONCURRENCY, batches.length) }, () => worker()));
+    return results;
   }
 
   async function analyzeScreenshots(profile, host) {
     const input = host.querySelector('[data-role="opponent-screenshots"]');
     const button = host.querySelector('[data-action="analyze-screenshots"]');
     const status = host.querySelector('[data-role="screenshot-status"]');
-    const files = [...(input.files || [])];
+    const files = sortScreenshotFiles(input.files || []);
     if (!files.length || files.length > MAX_SCREENSHOTS) { status.textContent = `Bitte ein bis ${MAX_SCREENSHOTS} Screenshots auswählen.`; return; }
     if (!BT.api.getToken()) { location.hash = '#/account'; return; }
     button.disabled = true;
-    status.textContent = `${files.length} Screenshot${files.length === 1 ? '' : 's'} werden vorbereitet …`;
+    status.textContent = `${files.length} Screenshot${files.length === 1 ? '' : 's'} werden sortiert und vorbereitet …`;
     try {
       const images = [];
       for (let index = 0; index < files.length; index += 1) {
@@ -774,16 +879,15 @@ BT.opponents = (function() {
       const hash = await payloadHash(images);
       if ((profile.screenshotImports || []).some(item => item.hash === hash)) throw new Error('Diese Screenshots wurden bereits übernommen.');
       const batches = buildScreenshotBatches(images);
-      const results = [];
-      for (let index = 0; index < batches.length; index += 1) {
-        const batch = batches[index];
-        status.textContent = `Basketball-KI wertet Paket ${index + 1} von ${batches.length} aus …`;
-        const response = await BT.api.ai('parseOpponentScreenshots', {
+      const processedBatches = await runScreenshotBatches(batches, (batch) => BT.api.ai('parseOpponentScreenshots', {
           images: batch.images.map(({ mimeType, data }) => ({ mimeType, data })),
           expectedOpponent: profile.name
+        }), progress => {
+          if (progress.type === 'retry') status.textContent = `Paket ${progress.index + 1} war zu langsam und wird kleiner erneut gesendet …`;
+          else if (progress.type === 'complete') status.textContent = `${progress.completed} von ${progress.total} KI-Paketen ausgewertet …`;
+          else status.textContent = `Basketball-KI verarbeitet Paket ${progress.index + 1} von ${progress.total} …`;
         });
-        results.push({ data: response.data, model: response.model, requestId: response.requestId, batch });
-      }
+      const results = processedBatches.map(({ response, batch }) => ({ data: response.data, model: response.model, requestId: response.requestId, batch }));
       pendingImport = {
         profileId: profile.id,
         hash,
@@ -818,7 +922,7 @@ BT.opponents = (function() {
         </div>
       </div>
       ${opponentMismatch ? '<p class="screenshot-warning"><strong>Achtung:</strong> Der erkannte Teamname weicht vom ausgewählten Gegner ab. Vor der Übernahme genau prüfen.</p>' : ''}
-      ${data.games.length ? `<div class="screenshot-game-list">${data.games.map(game => `<article class="screenshot-game-card"><time>${BT.util.escapeHTML(game.date || 'Datum nicht lesbar')}</time><div><span>${BT.util.escapeHTML(game.home)}</span><strong>${game.homeScore ?? '–'}:${game.awayScore ?? '–'}</strong><span>${BT.util.escapeHTML(game.away)}</span></div>${visibleMadeShotLine(game.opponentTeamStats) ? `<small>Treffer Gegner: ${visibleMadeShotLine(game.opponentTeamStats)}</small>` : ''}</article>`).join('')}</div>` : '<p class="muted">In der Auswahl wurde noch kein vollständiges Spiel erkannt.</p>'}
+      ${data.games.length ? `<div class="screenshot-game-list">${data.games.map((game, gameIndex) => `<article class="screenshot-game-card"><time>Spiel ${gameIndex + 1} · ${BT.util.escapeHTML(game.date || 'Datum nicht lesbar')}</time><div><span>${BT.util.escapeHTML(game.home)}</span><strong>${game.homeScore ?? '–'}:${game.awayScore ?? '–'}</strong><span>${BT.util.escapeHTML(game.away)}</span></div>${visibleMadeShotLine(game.opponentTeamStats) ? `<small>Treffer Gegner: ${visibleMadeShotLine(game.opponentTeamStats)}</small>` : ''}</article>`).join('')}</div>` : '<p class="muted">In der Auswahl wurde noch kein vollständiges Spiel erkannt.</p>'}
       ${data.players.length ? `<details class="screenshot-player-details"><summary><span>Spielerwerte prüfen</span><strong>${data.players.length}</strong></summary><div class="table-scroll"><table class="results screenshot-player-preview"><thead><tr><th>Spiel</th><th>Spieler</th><th>PTS</th><th>PF</th><th>2P</th><th>3P</th></tr></thead><tbody>${data.players.map(player => `<tr><td>${BT.util.escapeHTML(player.gameDate)}</td><td>${BT.util.escapeHTML(player.name)}</td><td>${player.points ?? '–'}</td><td>${player.fouls ?? '–'}</td><td>${player.twoMade ?? '–'}</td><td>${player.threeMade ?? '–'}/${player.threeAttempted ?? '–'}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
       ${data.warnings.length ? `<details class="screenshot-warnings"><summary><span>Prüfhinweise</span><strong>${data.warnings.length}</strong></summary><ul>${data.warnings.map(warning => `<li>${BT.util.escapeHTML(warning)}</li>`).join('')}</ul></details>` : ''}
       <div class="form-actions"><button class="btn primary" type="button" data-action="confirm-screenshot-import">Geprüfte Daten übernehmen</button><button class="btn" type="button" data-action="discard-screenshot-import">Verwerfen</button></div>
@@ -867,6 +971,7 @@ BT.opponents = (function() {
       model: pendingImport.model,
       warnings: data.warnings
     });
+    games.sort(compareGamesChronologically);
     BT.storage.upsertOpponent({ id: profile.id, games, screenshotPlayerStats: playerRows, screenshotImports: imports });
     pendingImport = null;
     BT.util.toast('DBB.Scores-Daten wurden geprüft übernommen.');
@@ -884,7 +989,10 @@ BT.opponents = (function() {
     contextForProfile,
     contextForGame,
     mergeGames,
+    orderOpponentProfiles,
+    sortScreenshotFiles,
     buildScreenshotBatches,
+    runScreenshotBatches,
     mergeScreenshotResults,
     syncLeague,
     ensureFromOwnGames,

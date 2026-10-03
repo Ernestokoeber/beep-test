@@ -98,11 +98,56 @@ assert(fileLabel.textContent === 'Auswahl ändern', 'Der Foto-Button bestätigt 
 assert(fileCount.textContent === '12 Fotos ausgewählt.', 'Die Anzahl ausgewählter Fotos wird nicht angezeigt');
 assert(index.includes('href="#/opponents"') && index.includes('Gegner analysieren'), 'Auf dem Dashboard fehlt der direkte Einstieg zur Gegneranalyse');
 
+const orderedProfiles = window.BT.opponents.orderOpponentProfiles([
+  { id: 'kauf', name: 'Kaufbeuren', teamId: 300 },
+  { id: 'otto', name: 'TSV Ottobeuren', teamId: 165633 },
+  { id: 'isny', name: 'TV Isny', teamId: 200 },
+  { id: 'past', name: 'Altgegner', teamId: 400 }
+], [
+  { date: '2026-10-17', time: '18:00', home: 'TSV Lindau', homeTeamId: 258298, away: 'Kaufbeuren', awayTeamId: 300 },
+  { date: '2026-10-04', time: '17:00', home: 'TSV Lindau', homeTeamId: 258298, away: 'TSV Ottobeuren', awayTeamId: 165633, leagueName: 'Bezirkspokal' },
+  { date: '2026-10-10', time: '19:00', home: 'TV Isny', homeTeamId: 200, away: 'TSV Lindau', awayTeamId: 258298 },
+  { date: '2026-09-20', home: 'Altgegner', homeTeamId: 400, away: 'TSV Lindau', awayTeamId: 258298, score: '60:70' }
+], { teamName: 'TSV Lindau', teamId: 258298 }, '2026-10-03');
+assert(orderedProfiles.map(item => item.profile.id).join(',') === 'otto,isny,kauf,past', 'Gegnerkarten folgen nicht dem nächsten Spiel und danach dem weiteren Spielplan');
+assert(orderedProfiles[0].nextGame.leagueName === 'Bezirkspokal', 'Das anstehende Pokalspiel steht nicht an erster Stelle');
+
+const sortedFiles = window.BT.opponents.sortScreenshotFiles([
+  { name: 'IMG_0110.png', lastModified: 30 },
+  { name: 'IMG_0105.png', lastModified: 10 },
+  { name: 'IMG_0109.png', lastModified: 20 }
+]);
+assert(sortedFiles.map(file => file.name).join(',') === 'IMG_0105.png,IMG_0109.png,IMG_0110.png', 'Screenshots werden nicht in natürlicher Dateireihenfolge ausgewertet');
+const sortedByTime = window.BT.opponents.sortScreenshotFiles([
+  { name: 'Screenshot.png', lastModified: 30 },
+  { name: 'Screenshot.png', lastModified: 10 },
+  { name: 'Screenshot.png', lastModified: 20 }
+]);
+assert(sortedByTime.map(file => file.lastModified).join(',') === '10,20,30', 'Aufnahmezeit wird nicht als Sortierfallback verwendet');
+
 const batches = window.BT.opponents.buildScreenshotBatches(Array.from({ length: 14 }, (_, index) => ({
   name: `bild-${index + 1}.jpg`, mimeType: 'image/jpeg', data: 'x'.repeat(100)
 })));
-assert(batches.length === 4 && batches[0].images.length === 4 && batches[1].images.length === 6 && batches[3].images.length === 4, 'Mehrfachimport wird nicht in überlappende KI-Pakete aufgeteilt');
-assert(batches[1].startIndex === 2 && batches[1].contextCount === 2 && batches[1].images.at(-1).sourceIndex === 7, 'Spielkontext wird an Paketgrenzen nicht mitgeführt');
+assert(batches.length === 7 && batches[0].images.length === 2 && batches[1].images.length === 4 && batches[6].images.length === 4, 'Mehrfachimport wird nicht in kleine überlappende KI-Pakete aufgeteilt');
+assert(batches[1].startIndex === 0 && batches[1].contextCount === 2 && batches[1].images.at(-1).sourceIndex === 3, 'Spielkontext wird an Paketgrenzen nicht mitgeführt');
+let activeBatches = 0;
+let maxActiveBatches = 0;
+const batchAttempts = new Map();
+const retrySizes = new Map();
+const processedBatches = await window.BT.opponents.runScreenshotBatches(batches.slice(0, 3), async (batch, index, attempt) => {
+  activeBatches += 1;
+  maxActiveBatches = Math.max(maxActiveBatches, activeBatches);
+  const attempts = (batchAttempts.get(index) || 0) + 1;
+  batchAttempts.set(index, attempts);
+  retrySizes.set(`${index}:${attempt}`, batch.images.length);
+  await Promise.resolve();
+  activeBatches -= 1;
+  if (index === 1 && attempts === 1) throw Object.assign(new Error('Timeout'), { code: 'CLIENT_TIMEOUT', retryable: true });
+  return { index };
+});
+assert(maxActiveBatches === 2, 'KI-Pakete werden weiterhin ausschließlich nacheinander ausgewertet');
+assert(batchAttempts.get(1) === 2 && processedBatches[1].response.index === 1, 'Nur das langsame KI-Paket wird nicht automatisch wiederholt');
+assert(retrySizes.get('1:1') === 4 && retrySizes.get('1:2') === 2 && processedBatches[1].batch.contextCount === 0, 'Ein Timeout-Paket wird beim zweiten Versuch nicht verkleinert');
 const merged = window.BT.opponents.mergeScreenshotResults([
   {
     batch: { startIndex: 0 },
@@ -130,6 +175,7 @@ const merged = window.BT.opponents.mergeScreenshotResults([
   }
 ], 'TSV Ottobeuren');
 assert(merged.games.length === 2, 'Doppelte Spiele aus mehreren KI-Paketen werden nicht zusammengeführt');
+assert(merged.games.map(game => game.date).join(',') === '2026-10-10,2026-10-17', 'Erkannte Spiele werden nicht chronologisch sortiert');
 assert(merged.players.length === 2 && merged.players.find(player => player.name === 'Guard A')?.fouls === 2, 'Spielerwerte aus mehreren KI-Paketen werden nicht zusammengeführt');
 assert(merged.games.find(game => game.date === '2026-10-17')?.sourceIndex === 8, 'Screenshot-Indizes werden paketübergreifend nicht korrigiert');
 

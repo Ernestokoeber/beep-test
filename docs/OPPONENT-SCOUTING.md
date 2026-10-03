@@ -4,15 +4,28 @@ CourtHub führt offizielle Ligaergebnisse, bestätigte DBB.Scores-Screenshots,
 manuell geprüfte Statistiken und Trainerbeobachtungen in einem Gegnerprofil
 zusammen. Fehlende Werte werden nie als Nullwert oder Schwäche interpretiert.
 
+Die Gegnerkarten folgen dem eigenen Spielplan: Das zeitlich nächste Spiel steht
+an erster Stelle und wird beim Öffnen automatisch ausgewählt, danach folgen die
+weiteren Gegner nach Datum und Uhrzeit. Gegner ohne kommendes Spiel stehen am
+Ende alphabetisch. Dadurch wird ein anstehendes Pokalspiel vor späteren
+Ligaspielen direkt als erste Analyse geöffnet.
+
 ## Datenquellen
 
 - **TeamSL:** Saison-Gegner, Spieltermine, Ergebnisse, Form und Punkteschnitte.
 - **DBB.Scores-Screenshots:** bis zu 24 Fotos oder Screenshots pro Durchgang,
   einschließlich HEIC/HEIF vom iPhone. CourtHub verkleinert die Bilder im
   Browser und verarbeitet sie automatisch in überlappenden Paketen mit
-  höchstens sechs Bildern. So bleiben Spielübersicht und die nachfolgenden
+  höchstens vier Bildern. Zwei Pakete werden parallel verarbeitet; bei einem
+  Timeout wird nur das betroffene Paket einmal automatisch wiederholt. Beim
+  zweiten Versuch entfallen die schon bekannten Kontextbilder, sodass nur zwei
+  neue Bilder gesendet werden. So bleiben Spielübersicht und die nachfolgenden
   DBB.Scores-Statistikansichten auch an Paketgrenzen miteinander verknüpft.
   Die Bilder selbst werden nicht im Team-Workspace gespeichert.
+- **Reihenfolge:** CourtHub sortiert ausgewählte Bilder zunächst natürlich nach
+  Dateiname (`IMG_0105`, `IMG_0106`, …) und ersatzweise nach Datei-Aufnahmezeit.
+  Erkannte Spiele werden anschließend chronologisch nach Spieltag angezeigt;
+  Spielerzeilen folgen dem Spieltag und danach dem Namen.
 - **Trainerteam:** qualitative Angriffsmerkmale sowie vollständig erfasste
   Team- und Spielerstatistiken.
 
