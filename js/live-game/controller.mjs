@@ -65,8 +65,19 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
       await write({...live,sessions:[...live.sessions,copy],selectedSessionId:copy.id,resolutionRevision:live.resolutionRevision+1});return;
     }
     ensure(s.deviceId===deps.deviceId,'device','Dieses Gerät muss die Erfassung zuerst ausdrücklich übernehmen.');
+    if(command.kind==='reset-pregame'&&live.sessions.some(session=>session.id===command.id))return;
     if(s.events.some(e=>e.id===command.id))return;
     let c=clockAt(s,deps.now());
+    if(command.kind==='reset-pregame'){
+      ensure(s.schemaVersion>=3&&s.events.some(event=>event.kind==='clock-start')&&!s.events.some(event=>['stat','opponent-score','substitution','period-start','finish'].includes(event.kind)),'reset','Zurücksetzen ist nur nach einem versehentlichen Uhrstart ohne Spielaktionen möglich.');
+      ensure(live.sessions.length<20,'reset','Zu viele Live-Erfassungen. Bitte den Support kontaktieren.');
+      if(c.running)s=appendEvent(s,{id:command.id+':pause',sessionId:s.id,seq:s.events.length+1,kind:'clock-pause',period:c.period,remainingMs:c.remainingMs,recordedAt:new Date(deps.now()).toISOString(),payload:{reset:true}});
+      const onCourt=projectLineups(s,deps.now()).onCourt,starterIds=new Set(onCourt);
+      const roster=sessionRoster(s).map(player=>({...player,gameStatus:player.gameStatus==='dnp'?'dnp':starterIds.has(player.id)?'starter':'bench'}));
+      const reset=createSession({schemaVersion:3,id:command.id,deviceId:deps.deviceId,actorId:scope.actorId,roster,startingFive:onCourt,config:s.config,gameplan:s.gameplan});
+      const sessions=live.sessions.map(item=>item.id===s.id?s:item).concat(reset);
+      await write({...live,sessions,selectedSessionId:reset.id,resolutionRevision:live.resolutionRevision+1});deps.wake.release?.('live-game');return;
+    }
     if(command.kind==='pregame-roster'){
       ensure(!c.ended&&!c.running&&c.period===1&&c.remainingMs===duration(s,1)&&!s.events.some(e=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(e.kind)),'roster','Der Live-Kader kann nur vor dem ersten Spielstart geändert werden.');
       const players=command.payload?.players,startingFive=command.payload?.startingFive;

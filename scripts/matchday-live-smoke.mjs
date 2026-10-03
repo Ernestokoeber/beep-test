@@ -35,8 +35,16 @@ assert.match(host.querySelector('.live-panel').textContent,/Spiel wirklich start
 [...host.querySelectorAll('button')].find(button=>button.textContent==='Spiel verbindlich starten').click();await c.idle();
 assert.equal(host.querySelector('[data-role="pregame-roster"]').hidden,true);assert.equal([...host.querySelectorAll('button')].some(button=>button.textContent==='Kader ändern'),false);
 assert.equal([...host.querySelectorAll('button')].some(button=>button.textContent==='Kader korrigieren'),false,'Der alte Kader-Korrekturpfad bleibt nach dem Start offen.');
+const resetLive=[...host.querySelectorAll('button')].find(button=>button.textContent==='Live-Spiel zurücksetzen');assert.ok(resetLive,'Ein versehentlicher Uhrstart kann nicht zurückgesetzt werden.');resetLive.click();
+[...host.querySelectorAll('button')].find(button=>button.textContent==='Ja, Live-Spiel zurücksetzen').click();await c.idle();
+assert.equal(c.live.getState().live.sessions.length,2);assert.equal(c.live.getState().session.events.length,0);assert.equal(c.live.getState().clock.running,false);
+assert.equal(c.live.getState().roster.find(player=>player.id==='p5').jerseyNumber,'55','Kaderkorrekturen gehen beim sicheren Reset verloren.');
+assert.ok([...host.querySelectorAll('button')].some(button=>button.textContent==='Kader ändern'),'Nach dem Reset bleibt der Kader gesperrt.');
+[...host.querySelectorAll('button')].find(button=>button.textContent==='Uhr starten').click();[...host.querySelectorAll('button')].find(button=>button.textContent==='Spiel verbindlich starten').click();await c.idle();
 host.querySelector('[data-opponent-player="guard"]').click();[...host.querySelectorAll('button')].find(button=>button.textContent==='Gegner +2').click();await c.idle();
 const tagged=c.live.getState().session.events.find(event=>event.kind==='opponent-score');assert.equal(tagged.payload.opponentPlayerName,'Guard Gast');assert.equal(tagged.payload.opponentPlayerId,'guard');
+assert.equal([...host.querySelectorAll('button')].some(button=>button.textContent==='Live-Spiel zurücksetzen'),false,'Nach der ersten Spielaktion bleibt der Reset verfügbar.');
+assert.equal((await c.live.dispatch({kind:'reset-pregame'})).ok,false,'Der Controller erlaubt den Reset trotz erfasster Spielaktion.');
 host.querySelector('[data-observation="paint"]').click();await c.idle();host.querySelector('[data-observation="paint"]').click();await c.idle();
 assert.match(host.querySelector('[data-role="live-scouting"]').textContent,/2-3.*prüfen/,'Der Paint-Auslöser erzeugt keinen Live-Hinweis.');
 assert.ok(host.querySelector('[data-defense="zone212"]')&&host.querySelector('[data-defense="zone32"]'),'Bestehende Zonen fehlen.');

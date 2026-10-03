@@ -20,9 +20,10 @@ function renderOpponentAnalysis(live,title='Defense-Vergleich'){
 }
 export function mountMatchdayLive(container,controller,{tactics=()=>[],players=()=>[],game=null,onPlayerInjury=()=>{},onOpponentFeedback=()=>{}}={}){
   let dirty=false,revision=0,parents=controller.getState().heads,base=clone(controller.getState().draft),saving=false,pending=Promise.resolve(true),dead=false,reportKey='',conflictKey='';
-  let scoutingKey='',feedbackKey='',rosterEditorKey='';
-  const hint=el('p'),pregameRoster=el('section'),scouting=el('details'),pause=el('section'),liveTools=el('details'),liveHost=el('section'),details=el('details'),report=el('section'),conflicts=el('section');
+  let scoutingKey='',feedbackKey='',rosterEditorKey='',resetKey='';
+  const hint=el('p'),pregameRoster=el('section'),resetLive=el('section'),scouting=el('details'),pause=el('section'),liveTools=el('details'),liveHost=el('section'),details=el('details'),report=el('section'),conflicts=el('section');
   pregameRoster.dataset.role='pregame-roster';pregameRoster.className='matchday-pregame-roster';
+  resetLive.dataset.role='reset-live';resetLive.className='matchday-reset-live';
   scouting.dataset.role='live-scouting';scouting.className='matchday-live-scouting';scouting.open=true;
   pause.dataset.role='pause';report.dataset.role='report';liveTools.dataset.role='live-tools';liveTools.open=true;liveTools.append(el('summary','Details und Korrekturen'),liveHost);details.className='matchday-frozen-plan';details.append(el('summary','Gameplan & Abschluss'));
   const overview=el('div'),form=el('form'),status=el('p');status.setAttribute('role','status');details.append(overview,form,status);
@@ -30,7 +31,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
   const save=el('button','Abschlussnotiz speichern');save.type='submit';form.append(save);
   const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;details.append(discard);
   discard.addEventListener('click',()=>{dirty=false;update(controller.getState());});
-  container.append(hint,pregameRoster,scouting,pause,report,liveTools,details,conflicts);
+  container.append(hint,pregameRoster,resetLive,scouting,pause,report,liveTools,details,conflicts);
   // Base and parents belong to the displayed fields, including a focused field
   // whose remote update was deliberately held back.
   function mark(){dirty=true;revision++;status.textContent='Abschlussnotiz ungespeichert';}
@@ -70,6 +71,16 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
       for(const row of rows.filter(item=>item.statusSelect.value==='injured'))onPlayerInjury(row.player,game);
     });
   }
+  function renderResetLive(s){
+    const session=s.liveState.session,events=session?.events||[],started=events.some(event=>event.kind==='clock-start'),hasGameActions=events.some(event=>['stat','opponent-score','substitution','period-start','finish'].includes(event.kind));
+    const canReset=Boolean(session?.schemaVersion>=3&&started&&!hasGameActions&&!s.liveState.clock?.ended),key=canonical([session?.id,events,s.readOnly,s.busy]);
+    resetLive.hidden=!canReset;if(!canReset){resetLive.replaceChildren();resetKey='';return;}if(key===resetKey)return;resetKey=key;resetLive.replaceChildren(el('h3','Uhr versehentlich gestartet?'),el('p','Solange noch keine Punkte, Statistiken, Wechsel oder weiteren Abschnitte erfasst wurden, kannst du zur bearbeitbaren Spielvorbereitung zurückkehren.'));
+    const reset=el('button','Live-Spiel zurücksetzen');reset.type='button';reset.dataset.action='reset-live';reset.disabled=s.readOnly||s.busy;resetLive.append(reset);
+    reset.addEventListener('click',()=>{
+      const warning=el('p','Wirklich zurücksetzen? Die versehentlich gestartete Erfassung wird geschlossen. Kader, Trikotnummern und Starting Five können danach wieder geändert werden.'),actions=el('div');actions.className='matchday-actions';const cancel=el('button','Abbrechen'),confirm=el('button','Ja, Live-Spiel zurücksetzen');cancel.type='button';confirm.type='button';confirm.dataset.action='confirm-reset-live';actions.append(cancel,confirm);resetLive.replaceChildren(el('h3','Live-Spiel zurücksetzen?'),warning,actions);
+      cancel.addEventListener('click',()=>{resetKey='';renderResetLive(controller.getState());});confirm.addEventListener('click',async()=>{confirm.disabled=true;const result=await controller.live.dispatch({kind:'reset-pregame'});if(!result.ok){confirm.disabled=false;warning.textContent=result.error;}});
+    });
+  }
   function renderScouting(s){
     const plan=s.draft.opponentPlan,session=s.liveState.session;
     if(!plan||!session){scouting.hidden=true;scouting.replaceChildren();return null;}
@@ -93,6 +104,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
     if(dead)return;
     hint.textContent=s.liveState.clock?.running?'Die Uhr läuft beim Verlassen weiter.':'Die Spieluhr startest und stoppst du selbst.';
     renderPregameRoster(s);
+    renderResetLive(s);
     pause.hidden=s.stage!=='pause';
     const opponentLive=renderScouting(s);
     if(!pause.hidden){const half=s.liveState.session.config.periods%2===0&&s.liveState.clock.period===s.liveState.session.config.periods/2;

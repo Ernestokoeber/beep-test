@@ -908,6 +908,16 @@ async function testMatchday(browser, name, options) {
     await page.getByRole('button', { name: 'Spiel verbindlich starten', exact: true }).tap();
     await page.locator('[data-player]').filter({ hasText: 'E2E Spieler 6' }).waitFor();
     assert(await page.locator('[data-player]').filter({ hasText: 'E2E Spieler 5' }).count() === 0, `${name}: alter Starter bleibt nach dem bestätigten Start auf dem Feld`);
+    await page.getByRole('button', { name: 'Live-Spiel zurücksetzen', exact: true }).tap();
+    await page.getByRole('button', { name: 'Ja, Live-Spiel zurücksetzen', exact: true }).tap();
+    await page.getByRole('button', { name: 'Kader ändern', exact: true }).waitFor();
+    assert(await page.evaluate(id => {
+      const live=window.BT.storage.getGame(id).liveStats,session=live.sessions.find(item=>item.id===live.selectedSessionId);
+      return live.sessions.length===2&&session.events.length===0&&session.roster.some(player=>player.name==='E2E Spieler 6'&&player.jerseyNumber==='66');
+    },gameId), `${name}: sicherer Live-Reset erhält Kader und Trikotnummern nicht`);
+    await page.getByRole('button', { name: 'Uhr starten', exact: true }).tap();
+    await page.getByRole('button', { name: 'Spiel verbindlich starten', exact: true }).tap();
+    await page.locator('[data-player]').filter({ hasText: 'E2E Spieler 6' }).waitFor();
     assert(await page.getByRole('button', { name: 'Kader ändern', exact: true }).count() === 0, `${name}: Kader bleibt nach Spielstart veränderbar`);
     assert(await page.getByRole('button', { name: 'Starting Five ändern', exact: true }).count() === 0, `${name}: Starting Five bleibt nach Spielstart veränderbar`);
     await page.getByText(/Gegnerplan ·/).waitFor();
