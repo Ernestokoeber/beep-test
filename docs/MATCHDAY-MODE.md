@@ -25,6 +25,9 @@ wird durch die lokale Browserabnahme nicht bestätigt.
    eine Erfassung an, friert den Gameplan ein und startet noch nicht die Spieluhr.
    Die Starting Five kann in der Live-Ansicht bis zum ersten Start der Spieluhr
    noch geändert werden. Danach ist sie für Einsatzzeit und Plus/Minus gesperrt.
+   Änderungen am Live-Kader werden als aktueller Spielzustand fortgeschrieben.
+   Kaderzahl, Starting Five, Trikotnummern, Spielerliste und Live-Erfassung lesen
+   denselben Stand statt weiterhin die ursprüngliche Freigabe anzuzeigen.
 
 ## Während des Spiels
 

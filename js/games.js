@@ -121,15 +121,62 @@ BT.games = (function() {
 
   function saveGame(game) { BT.storage.upsertGame(game); }
 
+  function effectiveSessionEvents(session) {
+    const originals = new Map();
+    for (const event of session.events || []) {
+      if (!['amend', 'void'].includes(event.kind)) {
+        originals.set(event.id, event);
+        continue;
+      }
+      const changes = event.kind === 'void'
+        ? [{ targetId: event.payload && event.payload.targetId, patch: null }]
+        : event.payload && event.payload.changes || [];
+      for (const change of changes) {
+        if (!change || !change.targetId) continue;
+        if (change.patch === null) { originals.delete(change.targetId); continue; }
+        const original = (session.events || []).find(item => item.id === change.targetId && item.seq < event.seq && !['amend', 'void'].includes(item.kind));
+        const base = originals.get(change.targetId) || original;
+        if (base && change.patch && typeof change.patch === 'object') {
+          originals.set(change.targetId, Object.assign({}, base, change.patch));
+        }
+      }
+    }
+    return [...originals.values()].sort((left, right) => left.seq - right.seq);
+  }
+
+  function projectLivePreparation(session) {
+    const roster = new Map((session.roster || []).map(player => [player.id, Object.assign({}, player)]));
+    let startingFive = Array.isArray(session.startingFive) ? [...session.startingFive] : [];
+    const events = effectiveSessionEvents(session);
+    for (const event of events) {
+      if (event.kind === 'roster') {
+        for (const player of event.payload && event.payload.players || []) {
+          roster.set(player.id, Object.assign({}, roster.get(player.id), player));
+        }
+      }
+      if (event.kind === 'starting-five' && Array.isArray(event.payload && event.payload.playerIds)) {
+        startingFive = [...event.payload.playerIds];
+      }
+    }
+    const starterIds = new Set(startingFive);
+    return {
+      roster: [...roster.values()].map(player => player.gameStatus === 'dnp'
+        ? player
+        : Object.assign({}, player, { gameStatus: starterIds.has(player.id) ? 'starter' : 'bench' })),
+      startingFive,
+      events
+    };
+  }
+
   function preparationState(game) {
     const selectedSession = game.liveStats?.sessions?.find(session => session.id === game.liveStats.selectedSessionId);
-    if (selectedSession) return { roster: selectedSession.roster || [], startingFive: selectedSession.startingFive || [] };
+    if (selectedSession) return projectLivePreparation(selectedSession);
     const revisions = game.matchday?.revisions;
-    if (!Array.isArray(revisions) || !revisions.length) return { roster: [], startingFive: [] };
+    if (!Array.isArray(revisions) || !revisions.length) return { roster: [], startingFive: [], events: [] };
     const parentIds = new Set(revisions.flatMap(revision => Array.isArray(revision.parents) ? revision.parents : []));
     const heads = revisions.filter(revision => !parentIds.has(revision.id));
     const draft = heads.length === 1 ? heads[0].value : null;
-    return { roster: draft?.roster || [], startingFive: draft?.startingFive || [] };
+    return { roster: draft?.roster || [], startingFive: draft?.startingFive || [], events: [] };
   }
 
   function drawDetail() {
@@ -149,9 +196,9 @@ BT.games = (function() {
     const nominatedCount = preparation.roster.filter(player => player.gameStatus !== 'dnp').length;
     const starterCount = preparation.startingFive.length;
     const selectedSession = game.liveStats?.sessions?.find(session => session.id === game.liveStats.selectedSessionId);
-    const releasedIds=selectedSession?new Set((selectedSession.roster||[]).filter(player=>player.gameStatus!=='dnp').map(player=>player.id)):null;
+    const releasedIds=selectedSession?new Set(preparation.roster.filter(player=>player.gameStatus!=='dnp').map(player=>player.id)):null;
     const players = BT.storage.getPlayers().filter(player => !player.archived&&(!releasedIds||releasedIds.has(player.id))).sort((a, b) => a.name.localeCompare(b.name, 'de'));
-    const gameFinished = selectedSession?.events?.some(event => event.kind === 'finish');
+    const gameFinished = preparation.events.some(event => event.kind === 'finish');
     const preparationLabel = gameFinished ? 'Spieltag ansehen' : game.liveStats ? 'Spieltag fortsetzen' : game.matchday ? 'Vorbereitung fortsetzen' : 'Kader & Starting Five festlegen';
 
     wrap.innerHTML = `<div class="game-detail-head">

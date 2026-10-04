@@ -846,14 +846,14 @@ async function testMatchday(browser, name, options) {
     assert((await player.innerText()).includes('1/1'), `${name}: Wurfstatistik fehlt`);
     const dnp=page.locator('.live-report-dnp');
     if(await dnp.count())await dnp.locator('> summary').tap();
-    assert((await page.locator('[data-role="report"]').innerText()).includes('E2E Spieler 7') === false, `${name}: verletzter Spieler erscheint in der Auswertung`);
+    assert((await page.locator('[data-role="report"]').innerText()).includes('E2E Spieler 8') === false, `${name}: verletzter Spieler erscheint in der Auswertung`);
     await noOverflow('Auswertung mit aufgeklappten Details');
   }
   try {
     await page.goto(baseUrl + '/#/dashboard', { waitUntil: 'domcontentloaded' });
     await page.locator('#app > *').first().waitFor();
     const gameId = await page.evaluate(() => {
-      for (let i = 1; i <= 7; i++) window.BT.storage.upsertPlayer({ name: `E2E Spieler ${i}`, jerseyNumber: String(i) });
+      for (let i = 1; i <= 8; i++) window.BT.storage.upsertPlayer({ name: `E2E Spieler ${i}`, jerseyNumber: String(i) });
       const game = window.BT.storage.upsertGame({ date: '2026-09-30', home: 'TSV Lindau', away: 'E2E Gast', source: 'manual' });
       window.BT.storage.upsertOpponent({
         key: 'e2e-gast', name: 'E2E Gast', source: 'manual', games: [game],
@@ -867,10 +867,10 @@ async function testMatchday(browser, name, options) {
     await page.getByRole('button', { name: 'Kader & Starting Five festlegen', exact: true }).tap();
     await page.locator('[data-player-roster][data-status="bench"]').first().waitFor();
     const rosterButtons = page.locator('[data-player-roster][data-status="bench"]');
-    assert(await rosterButtons.count() === 7, `${name}: synthetischer Kader fehlt`);
-    for (let i = 0; i < 6; i++) await rosterButtons.nth(i).tap();
-    await page.locator('[data-player-roster][data-status="injured"]').nth(6).tap();
-    assert(await page.evaluate(() => window.BT.storage.getPlayers().find(player => player.name === 'E2E Spieler 7')?.availability) === 'injured', `${name}: Verletzung wird nicht ins Spielerprofil übernommen`);
+    assert(await rosterButtons.count() === 8, `${name}: synthetischer Kader fehlt`);
+    for (let i = 0; i < 7; i++) await rosterButtons.nth(i).tap();
+    await page.locator('[data-player-roster][data-status="injured"]').nth(7).tap();
+    assert(await page.evaluate(() => window.BT.storage.getPlayers().find(player => player.name === 'E2E Spieler 8')?.availability) === 'injured', `${name}: Verletzung wird nicht ins Spielerprofil übernommen`);
     await page.getByRole('button', { name: 'Starting Five', exact: true }).tap();
     const starterButtons = page.locator('[data-player-lineup][data-status="starter"]:visible');
     for (let i = 0; i < 5; i++) await starterButtons.nth(i).tap();
@@ -895,13 +895,27 @@ async function testMatchday(browser, name, options) {
     await liveRosterPlayer.locator('summary').tap();
     await liveRosterPlayer.locator('select').last().selectOption('pg');
     await liveRosterPlayer.locator('input[type="text"]').last().fill('Backup Ballhandler');
+    const removedPlayer = page.locator('.matchday-pregame-player').filter({ hasText: 'E2E Spieler 7' });
+    await removedPlayer.locator('[data-live-roster-status]').selectOption('out');
     await page.getByRole('button', { name: 'Kader übernehmen', exact: true }).tap();
     await page.getByRole('button', { name: 'Kader ändern', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Starting Five ändern', exact: true }).tap();
     await page.locator('[data-starting-five-player]').nth(4).uncheck();
     await page.locator('[data-starting-five-player]').nth(5).check();
-    await page.getByRole('button', { name: 'Starting Five übernehmen', exact: true }).tap();
+    const saveStartingFive = page.getByRole('button', { name: 'Starting Five übernehmen', exact: true });
+    await saveStartingFive.tap();
+    await saveStartingFive.waitFor({ state: 'hidden' });
     await noOverflow('Starting Five vor Spielstart geändert');
+    await page.goto(baseUrl + '/#/games', { waitUntil: 'domcontentloaded' });
+    await page.locator(`[data-game-id="${gameId}"]`).tap();
+    const preparationSummary = await page.locator('[data-role="game-preparation-summary"]').innerText();
+    assert(/Kader\s+6\b/.test(preparationSummary), `${name}: Spielübersicht übernimmt den geänderten Live-Kader nicht: ${preparationSummary}`);
+    assert(/Starting Five\s+5\/5/.test(preparationSummary), `${name}: Spielübersicht übernimmt die geänderte Starting Five nicht: ${preparationSummary}`);
+    assert(await page.locator('.game-boxscore [data-player-id]').filter({ hasText: 'E2E Spieler 7' }).count() === 0, `${name}: abgewählter Spieler bleibt in der Spielstatistik`);
+    assert(await page.locator('.game-boxscore [data-player-id]').filter({ hasText: 'E2E Spieler 8' }).count() === 0, `${name}: verletzter Spieler bleibt in der Spielstatistik`);
+    await page.getByRole('button', { name: 'Spieltag fortsetzen', exact: true }).tap();
+    await page.getByRole('button', { name: 'Uhr starten', exact: true }).waitFor();
+    assert(await page.getByRole('button', { name: 'Kader ändern', exact: true }).count() === 1, `${name}: dynamischer Kader ist nach Rückkehr vor Spielstart nicht mehr bearbeitbar`);
     await page.getByRole('button', { name: 'Uhr starten', exact: true }).tap();
     await page.getByText('Spiel wirklich starten?', { exact: true }).waitFor();
     assert((await page.locator('.live-panel').innerText()).includes('Kader und Starting Five können danach nicht mehr verändert werden'), `${name}: Warnung vor dem verbindlichen Start fehlt`);

@@ -120,6 +120,32 @@ assert(window.document.querySelector('.game-boxscore'), 'Spieler-Boxscore fehlt'
 assert(window.document.querySelector('.game-opponent-plan')?.textContent.includes('Mannverteidigung'), 'Gegnerplan fehlt in der Spielvorbereitung');
 assert(window.document.querySelector('[data-action="open-matchday"]')?.textContent === 'Kader & Starting Five festlegen', 'Der sichtbare Einstieg zur Mannschaftsplanung fehlt');
 assert(/Kader\s+0.*Starting Five\s+0\/5/.test(window.document.querySelector('[data-role="game-preparation-summary"]')?.textContent || ''), 'Der Spielkarte fehlt der sichtbare Stand von Kader und Starting Five');
+const livePlayers = [player, ...Array.from({ length: 5 }, (_, index) => window.BT.storage.upsertPlayer({
+  name: 'Live Spieler ' + (index + 1), position: 'Guard', jerseyNumber: String(index + 20), availability: 'ready', goals: []
+}))];
+const liveRoster = livePlayers.map((entry, index) => ({
+  id: entry.id, name: entry.name, jerseyNumber: entry.jerseyNumber, gameStatus: index < 5 ? 'starter' : 'bench'
+}));
+const changedRoster = liveRoster.map((entry, index) => Object.assign({}, entry, {
+  gameStatus: index === 4 ? 'dnp' : index === 5 ? 'starter' : entry.gameStatus,
+  ...(index === 4 ? { absenceReason: 'not-selected', jerseyNumber: null } : {})
+}));
+game.liveStats = { schemaVersion: 1, selectedSessionId: 'live-summary', resolutionRevision: 0, sessions: [{
+  schemaVersion: 3, id: 'live-summary', deviceId: 'smoke-device', actorId: 'smoke-coach', roster: liveRoster,
+  startingFive: liveRoster.slice(0, 5).map(entry => entry.id), config: { periods: 4, periodMs: 600000, overtimeMs: 300000 },
+  events: [
+    { id: 'roster-change', sessionId: 'live-summary', seq: 1, kind: 'roster', period: 1, remainingMs: 600000, recordedAt: '2026-10-04T08:00:00.000Z', payload: { players: changedRoster } },
+    { id: 'lineup-change', sessionId: 'live-summary', seq: 2, kind: 'starting-five', period: 1, remainingMs: 600000, recordedAt: '2026-10-04T08:00:01.000Z', payload: { playerIds: [liveRoster[0].id, liveRoster[1].id, liveRoster[2].id, liveRoster[3].id, liveRoster[5].id] } }
+  ]
+}] };
+window.BT.storage.upsertGame(game);
+route('#/dashboard');route('#/games');
+await new Promise(resolveWait => window.setTimeout(resolveWait, 20));
+window.document.querySelector('[data-game-id="' + game.id + '"]').click();
+const dynamicPreparation = window.document.querySelector('[data-role="game-preparation-summary"]')?.textContent || '';
+assert(/Kader\s+5.*Starting Five\s+5\/5/.test(dynamicPreparation), 'Die Spielübersicht liest nicht den fortgeschriebenen Live-Kader: ' + dynamicPreparation);
+assert(!window.document.querySelector('[data-player-id="' + liveRoster[4].id + '"]'), 'Ein abgewählter Spieler bleibt in der Spielstatistik sichtbar');
+assert(window.document.querySelector('[data-player-id="' + liveRoster[5].id + '"]'), 'Ein nachnominierter Spieler fehlt in der Spielstatistik');
 window.BT.api.getAtlasAnalysis = async () => ({
   importedAt: new Date().toISOString(),
   package: {
