@@ -622,7 +622,7 @@
         <div class="section-title-block"><span class="section-kicker">Saison · Gegner · Defense</span><h2>Gegner-Scouting</h2></div>
         <div class="head-actions"><button class="btn small primary" type="button" data-action="sync-opponents">↻ Ligadaten aktualisieren</button></div>
       </div>
-      <p class="muted">CourtHub verbindet offizielle Ergebnisse mit geprüften Spielberichten und Trainerbeobachtungen. Aktiv sind Mannverteidigung mit No-Middle sowie die Zonen 2-1-2, 2-3 und 3-2.</p>
+      <p class="muted">CourtHub verbindet offizielle Ergebnisse mit geprüften Spielberichten und Trainerbeobachtungen. Empfehlungen verwenden ausschließlich die im aktiven Teamkonzept freigegebenen Verteidigungen.</p>
       <p class="auth-status" data-role="opponents-status" aria-live="polite"></p>
       <div class="games-layout opponents-layout">
         <ul class="game-list" data-role="opponent-list"></ul>
@@ -892,9 +892,35 @@
         </div>
         <p class="muted">Die spezialisierte Basketball-KI verbindet Trainingslehre, Technik, Taktik und Belastungssteuerung mit dem offiziellen Spielplan. Bayerische Schulferien und Feiertage werden ausgelassen; absolvierte oder manuell bearbeitete Trainings bleiben geschützt.</p>
         <div class="season-plan-summary" data-role="season-plan-summary"></div>
+        <section class="team-strategy-card" data-role="team-strategy-card">
+          <div class="section-head compact">
+            <div><span class="section-kicker">Verbindliche KI-Grundlage</span><h4>Aktives Teamkonzept</h4></div>
+            <span class="att-chip ok" data-role="team-strategy-version">PnR-Basis</span>
+          </div>
+          <p class="muted">Nur die hier aktivierten Prinzipien und Taktiken werden für neue Trainings- und Spieltagspläne verwendet. Frühere Systeme bleiben archiviert, haben aber keinen Einfluss mehr auf die KI.</p>
+          <div class="form-row season-coach-inputs">
+            <label class="grow">Offense-Prinzipien<textarea rows="4" maxlength="2000" data-role="strategy-offense"></textarea></label>
+            <label class="grow">Defense-Prinzipien<textarea rows="4" maxlength="2000" data-role="strategy-defense"></textarea></label>
+          </div>
+          <fieldset class="strategy-tactics">
+            <legend>Aktive Teamtaktiken</legend>
+            <div class="strategy-tactic-grid" data-role="strategy-tactics"></div>
+          </fieldset>
+          <fieldset class="strategy-tactics">
+            <legend>Freigegebene Verteidigungen</legend>
+            <div class="strategy-tactic-grid">
+              <label class="strategy-tactic-option"><input type="checkbox" data-strategy-defense="man"><span><strong>Mannverteidigung</strong><small>Aktuelle Grundlagen</small></span></label>
+              <label class="strategy-tactic-option"><input type="checkbox" data-strategy-defense="zone212"><span><strong>Zone 2-1-2</strong><small>Nur bei erneuter Freigabe</small></span></label>
+              <label class="strategy-tactic-option"><input type="checkbox" data-strategy-defense="zone23"><span><strong>Zone 2-3</strong><small>Nur bei erneuter Freigabe</small></span></label>
+              <label class="strategy-tactic-option"><input type="checkbox" data-strategy-defense="zone32"><span><strong>Zone 3-2</strong><small>Nur bei erneuter Freigabe</small></span></label>
+            </div>
+          </fieldset>
+          <label class="strategy-replace"><input type="checkbox" data-role="strategy-replaces-previous" checked> Dieses Konzept ersetzt alle früheren Teamprinzipien vollständig</label>
+          <div class="form-actions"><button class="btn" type="button" data-action="save-team-strategy">Teamkonzept speichern</button></div>
+        </section>
         <div class="form-row season-coach-inputs">
           <label class="grow">Saisonziel<textarea rows="3" maxlength="1000" data-role="season-goal" placeholder="Was soll die Mannschaft bis zum Saisonende erreichen?"></textarea></label>
-          <label class="grow">Aktueller Schwerpunkt<textarea rows="3" maxlength="1000" data-role="season-focus" placeholder="z. B. Horns, 5-Out, No-Middle, Rebounding …"></textarea></label>
+          <label class="grow">Zusätzlicher aktueller Schwerpunkt<textarea rows="3" maxlength="1000" data-role="season-focus" placeholder="z. B. Screen eng nutzen, Roller lesen und Passfenster erkennen …"></textarea></label>
           <label class="grow">Beobachtung aus Spiel oder Training · max. 25 % Gewichtung<textarea rows="3" maxlength="1500" data-role="season-problems" placeholder="Was soll die KI gezielt mitbearbeiten, ohne den Gesamtplan darauf auszurichten?"></textarea></label>
           <label class="grow">Kader- und Belastungshinweise<textarea rows="3" maxlength="1000" data-role="season-roster" placeholder="Ausfälle, begrenzte Belastung, besondere Vorgaben …"></textarea></label>
         </div>
@@ -1189,7 +1215,7 @@
       <div class="tactics-library" aria-label="Taktikbibliothek">
         <label>Taktik <select data-role="saved-tactic"><option value="">Neuer Entwurf</option></select></label>
         <label>Vorlage <select data-role="tactic-template"><option value="">Leere Halbplatz-Taktik</option></select></label>
-        <label>Titel <input type="text" maxlength="80" data-role="tactic-title" placeholder="z. B. Horns gegen Mann"></label>
+        <label>Titel <input type="text" maxlength="80" data-role="tactic-title" placeholder="z. B. Pick & Roll gegen Mann"></label>
         <label>Beschreibung <input type="text" maxlength="180" data-role="tactic-description" placeholder="Kurzer Coaching-Fokus"></label>
         <button type="button" class="btn small" data-action="new-tactic">Neu</button>
       </div>
@@ -1516,6 +1542,7 @@
   <script defer src="js/drills.js"></script>
   <script defer src="js/phase3-playbook.js"></script>
   <script defer src="js/tactics.js"></script>
+  <script defer src="js/team-strategy.js"></script>
   <script defer src="js/screen-academy.js"></script>
   <script defer src="js/history.js"></script>
   <script defer src="js/ai-core.js"></script>

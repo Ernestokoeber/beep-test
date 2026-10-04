@@ -2,7 +2,7 @@ import {effectiveEvents} from '../live-game/core.mjs';
 import {clockAt,position} from '../live-game/clock.mjs';
 
 export const DEFENSES=Object.freeze({
-  man:'Mannverteidigung · No-Middle',
+  man:'Mannverteidigung · Grundlagen',
   zone212:'Zone 2-1-2',
   zone23:'Zone 2-3',
   zone32:'Zone 3-2'
@@ -61,7 +61,7 @@ export function createOpponentPlan({game,context,now=Date.now()}={}){
     },
     defense:{
       start,startLabel:DEFENSES[start],alternative,alternativeLabel:DEFENSES[alternative],
-      reasons:compact(defense.reasons).slice(0,5),triggers:compact(defense.triggers).slice(0,5),
+      reasons:compact(defense.reasons).slice(0,5),triggers:compact(defense.triggers).slice(0,5),allowedDefenseIds:(defense.allowedDefenseIds||Object.keys(DEFENSES)).filter(id=>Object.hasOwn(DEFENSES,id)),
       risk:clean(defense.risk,400),confidence:['low','medium','high'].includes(defense.confidence)?defense.confidence:'low'
     },
     aiPlan:null
@@ -84,10 +84,10 @@ export function fallbackGamePlan(plan){
       scoringEvidence,
       'Wir entscheiden nach beobachtbaren Auslösern und wechseln die Defense nicht aus Gefühl.'
     ],
-    gameGoals:['No-Middle und frühe Helpside konsequent umsetzen.','Jeden Defensiv-Rebound mit Kontakt und klarer Zuständigkeit sichern.','Nach Ballgewinn oder Rebound schnell, aber kontrolliert in die Transition kommen.'],
-    offenseKeys:['In den ersten Angriffen Matchups und Help-Positionen lesen.','Mit Spacing und Paint-Touches Vorteile erzeugen.','Gute Würfe wiederholen und Ballverluste durch klare Passwinkel vermeiden.'],
+    gameGoals:['Ball stoppen, früh helfen und anschließend die eigene Zuordnung wiederfinden.','Jeden Defensiv-Rebound mit Kontakt und klarer Zuständigkeit sichern.','Nach Ballgewinn oder Rebound schnell, aber kontrolliert in die Transition kommen.'],
+    offenseKeys:['Pick-and-Roll mit gutem Screenwinkel und engem Laufweg eröffnen.','Roller oder Popper lesen und Hilfe mit dem Pass nach außen bestrafen.','Reject nur gegen echtes Überplay, sonst den Screen nutzen oder erneut stellen lassen.'],
     defenseKeys:[shotEvidence,...(plan.defense.reasons||[]).slice(0,2)],
-    warmupFocus:['Closeouts mit No-Middle-Fußarbeit.','Box-out, Ball sichern und erster Outlet-Pass.','Spielnahe Abschlüsse aus den vorgesehenen Offense-Spots.'],
+    warmupFocus:['Pick-and-Roll-Timing zwischen Ballführer und Screensteller.','Box-out, Ball sichern und erster Outlet-Pass.','Abschlüsse und Kick-out-Pässe aus dem Pick-and-Roll.'],
     halftimeChecks:['Welche Abschlüsse erzielt der Gegner tatsächlich?','Welche Defense verhindert Paint-Touches und offene Würfe besser?','Rebound, Fouls und Ballverluste mit dem Gameplan abgleichen.']
   };
 }
@@ -154,13 +154,23 @@ export function projectOpponentLive(session,plan,now=Date.now()){
     if(event.kind==='opponent-score'){unanswered+=event.payload.points;maxUnanswered=Math.max(maxUnanswered,unanswered);}
     else if(event.kind==='stat'&&/(ft|two|three)-made/.test(event.payload.action))unanswered=0;
   }
+  const allowedDefenseIds=new Set(plan?.defense?.allowedDefenseIds?.length?plan.defense.allowedDefenseIds:['man','zone212','zone23','zone32']);
   const suggestions=[];
-  const add=(code,message,recommendedDefense)=>{if(!suggestions.some(item=>item.code===code))suggestions.push({code,message,recommendedDefense});};
-  if(counts.paint>=2&&currentDefense!=='zone23')add('paint','Mehrere Paint-/Drive-Aktionen seit dem letzten Wechsel: 2-3 für mehr Korbschutz prüfen.','zone23');
-  if(counts['open-three']>=2&&currentDefense!=='zone32')add('open-three','Mehrere offene Dreier seit dem letzten Wechsel: 3-2 prüfen.','zone32');
+  const add=(code,message,recommendedDefense)=>{if(allowedDefenseIds.has(recommendedDefense)&&!suggestions.some(item=>item.code===code))suggestions.push({code,message,recommendedDefense});};
+  if(counts.paint>=2&&currentDefense!=='zone23'){
+    if(allowedDefenseIds.has('zone23'))add('paint','Mehrere Paint-/Drive-Aktionen seit dem letzten Wechsel: 2-3 für mehr Korbschutz prüfen.','zone23');
+    else add('paint','Mehrere Paint-/Drive-Aktionen: Ball früher stoppen, Hilfe verkürzen und Zuordnung wiederfinden.','man');
+  }
+  if(counts['open-three']>=2&&currentDefense!=='zone32'){
+    if(allowedDefenseIds.has('zone32'))add('open-three','Mehrere offene Dreier seit dem letzten Wechsel: 3-2 prüfen.','zone32');
+    else add('open-three','Mehrere offene Dreier: Closeout-Winkel, Kommunikation und Rückrotation korrigieren.','man');
+  }
   if(counts.oreb>=2&&currentDefense!=='man')add('oreb','Zwei Offensiv-Rebounds seit dem letzten Wechsel: Mannverteidigung und klare Box-outs prüfen.','man');
   if(counts['free-throw-pressure']>=2)add('free-throw-pressure','Wiederholter Freiwurfdruck: No-Middle, vertikale Hilfe und Hände zurück betonen.','man');
-  if(made.three>=3&&currentDefense!=='zone32')add('three-made','Mindestens drei gegnerische Dreier erfasst: Perimeter-Abdeckung und 3-2 prüfen.','zone32');
+  if(made.three>=3&&currentDefense!=='zone32'){
+    if(allowedDefenseIds.has('zone32'))add('three-made','Mindestens drei gegnerische Dreier erfasst: Perimeter-Abdeckung und 3-2 prüfen.','zone32');
+    else add('three-made','Mindestens drei gegnerische Dreier erfasst: Ball-Druck, Closeout und Rückrotation in der Mannverteidigung prüfen.','man');
+  }
   if(unanswered>=6)add('run',`${unanswered} unbeantwortete Gegnerpunkte: stoppen, Matchups klären und Defense bewusst bestätigen.`,currentDefense);
   return {currentDefense,currentDefenseLabel:DEFENSES[currentDefense],counts,totalCounts,made,unanswered,maxUnanswered,changes,suggestions,byDefense,playerScoring,comparison};
 }

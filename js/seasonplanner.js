@@ -290,19 +290,26 @@ BT.seasonplanner = (function() {
   }
 
   function buildAIPayload(slots, preferences) {
+    const strategy = BT.teamStrategy?.ensure?.() || BT.teamStrategy?.current?.() || {};
+    const strategyForAI = BT.teamStrategy?.forAI?.(strategy) || strategy;
+    const tacticalPlaybook = BT.teamStrategy?.tacticSummaries?.(strategy) || [];
+    const coachInput = Object.assign({}, preferences || {}, {
+      strategyChange: strategyForAI.replacesPrevious
+        ? 'Das aktuelle Teamkonzept ersetzt frühere Systeme vollständig. Ausgeschlossene oder archivierte Taktiken dürfen nicht reaktiviert werden.'
+        : 'Das aktuelle Teamkonzept ergänzt die bisherigen Prinzipien.'
+    });
     return {
       team: scheduleConfig().teamName,
       durationMinutes: Math.max(60, Number(BT.storage.getSetting('trainingDurationMinutes', 105)) || 105),
       principles: {
-        offense: 'Horns, 5-Out, Spacing, Entscheidungen und Transition',
-        defense: 'No-Middle, Helpside-Kommunikation, Rebounding und Transition Defense',
-        allowedDefenses: ['Mannverteidigung · No-Middle', 'Zone 2-1-2', 'Zone 2-3', 'Zone 3-2'],
-        defenseRule: 'Nur diese vier trainierten Verteidigungen empfehlen. Mannverteidigung bleibt bei unzureichender Gegnerdatenlage die Basis.'
+        offense: strategyForAI.offensePrinciples,
+        defense: strategyForAI.defensePrinciples,
+        transition: strategyForAI.transitionPrinciples,
+        allowedDefenses: strategyForAI.allowedDefenseIds,
+        defenseRule: 'Nur die im aktuellen teamStrategy.allowedDefenseIds genannten Verteidigungen empfehlen.'
       },
-      tacticalPlaybook: (BT.phase3Playbook?.entries || []).map(item => ({
-        id: item.id, title: item.title, usage: item.usage, description: item.description,
-        coachingPoints: item.coachingPoints, reads: item.reads
-      })),
+      teamStrategy: strategyForAI,
+      tacticalPlaybook,
       weeklyStructure: {
         tuesday: 'Haupttrainingstag: höchste Wochenbelastung, neue Systeme und alle wichtigen Lerninhalte.',
         fridayGameWeek: 'Die KI erstellt für jede Spielwoche neu: 105 Minuten ausschließlich individuelles Stationstraining mit fünf neuen Stationen, Readiness, Belastungsampel und Session-RPE.',
@@ -320,13 +327,13 @@ BT.seasonplanner = (function() {
         maxProblemSharePercent: 25,
         fridayMaxProblemStations: 1,
         maxOpponentSpecificSharePercent: 25,
-        preserve: ['langfristige Mannschaftsprinzipien', 'aktueller Schwerpunkt', 'technische Grundlagen', 'ausgewogene Belastung'],
+        preserve: ['aktives Teamkonzept', 'aktueller Schwerpunkt', 'technische Grundlagen', 'ausgewogene Belastung'],
         safetyException: 'Schmerzen, Verletzungen und Belastungsgrenzen haben immer Vorrang'
       },
-      coachInput: preferences || {},
+      coachInput,
       slots,
       performanceContext: performanceContext(slots),
-      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Die Defense-Auswahl ist verbindlich auf Mannverteidigung mit No-Middle, Zone 2-1-2, Zone 2-3 und Zone 3-2 begrenzt. Verwende für Teamtaktik ausschließlich Inhalte aus tacticalPlaybook. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift; verwende keine feste Rotation.'
+      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor älteren Trainings-, Spiel- und Texteingaben. Bei replacesPrevious=true dürfen excludedConcepts selbst dann nicht verwendet werden, wenn sie in historischen Daten vorkommen. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Verwende für Teamtaktik ausschließlich Inhalte aus tacticalPlaybook. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift; verwende keine feste Rotation.'
     };
   }
 
@@ -568,7 +575,8 @@ BT.seasonplanner = (function() {
       });
       base.planning = {
         source: 'ai-season', status: 'draft', coachEdited: false,
-        generatedAt: new Date().toISOString(), loadTarget: slot.load
+        generatedAt: new Date().toISOString(), loadTarget: slot.load,
+        strategyRevision: BT.teamStrategy?.current?.().revision || null
       };
       BT.storage.upsertTraining(base);
       saveToLibraries(plan, slot.date);

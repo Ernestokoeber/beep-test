@@ -223,7 +223,42 @@ BT.tactics = (function() {
     const set = (step, id, x, y) => Object.assign(elementById(step, id), { x, y });
     const move = (id, path, start = 0, duration = first.duration) => { const end = path[path.length - 1]; set(next, id, end.x, end.y); first.transition.motions.push({ id: uid('motion_'), type: 'move', elementId: id, start, duration, path: path.map(point) }); };
     const pass = (fromId, toId, start, duration, curve) => { first.transition.passes.push({ id: uid('pass_'), type: 'pass', fromId, toId, start, duration, curve }); const receiver = elementById(next, toId), ball = elementById(next, 'ball'); if (receiver && ball) Object.assign(ball, ballPointForPlayer(receiver)); };
-    if (name === 'horns') {
+    if (name === 'pick-and-roll' || name === 'pick-and-pop' || name === 'pick-and-roll-reject') {
+      const isPop = name === 'pick-and-pop';
+      const isReject = name === 'pick-and-roll-reject';
+      board.id = name;
+      board.title = isPop ? 'Pick & Pop · Basis' : isReject ? 'Pick & Roll · Reject & Re-Screen' : 'Pick & Roll · Basis';
+      board.description = isPop
+        ? 'Ballführer nutzt den Screen eng; der Big poppt mit Sicht zum Ball und schafft das Passfenster.'
+        : isReject
+          ? 'Reject nur gegen Überplay; ohne Vorteil sofort Re-Screen stellen und den Block eng nutzen.'
+          : 'Screen mit Kontakt und Winkel stellen, Schulter an Hüfte nutzen und Roller oder eigenen Abschluss lesen.';
+      board.category = 'Pick & Roll'; board.usage = 'offense'; board.playbook = 'TSV PnR-Basis'; board.builtIn = true; board.published = true;
+      board.tags = ['Pick & Roll', isPop ? 'Pop' : isReject ? 'Reject Re-Screen' : 'Roll'];
+      board.coachingPoints = isPop
+        ? ['Screen treffen lassen', 'Popper öffnet sich mit Sicht zum Ball', 'Pass erst nach gebundener Hilfe']
+        : isReject
+          ? ['Reject nur gegen Überplay', 'Ohne Vorteil sofort Re-Screen', 'Nach dem zweiten Screen klare Roll- und Kick-out-Reads']
+          : ['Screen mit Kontakt und passendem Winkel', 'Ballführer Schulter an Hüfte', 'Roller zeigt Hände und zieht bis zum Korb'];
+      board.reads = isPop
+        ? ['Eigener Abschluss', 'Pass zum Popper', 'Kick-out gegen Hilfe']
+        : isReject
+          ? ['Reject bei Überplay', 'Re-Screen ohne Vorteil', 'Roller oder Weakside-Pass']
+          : ['Eigener Abschluss', 'Roll-Pass', 'Kick-out gegen Low-Man-Hilfe'];
+      [[250,395],[72,295],[428,295],[82,145],[305,285]].forEach((c,i) => { set(first,'o'+(i+1),c[0],c[1]); set(next,'o'+(i+1),c[0],c[1]); });
+      first.duration = 2.8;
+      if (isReject) {
+        move('o1',[{x:250,y:395},{x:218,y:350},{x:205,y:318},{x:250,y:300},{x:325,y:235}],.15,2.25);
+        move('o5',[{x:305,y:285},{x:272,y:305},{x:286,y:282},{x:255,y:168}],.45,2.05);
+        first.transition.screens.push({ id: uid('screen_'), type: 'screen', elementId: 'o5', beneficiaryId: 'o1', relation: 'simultaneous', groupType: 'pick-and-roll', start: .35, duration: 1.9, x: 282, y: 300, angle: -18 });
+      } else {
+        move('o1',[{x:250,y:395},{x:280,y:350},{x:315,y:300},{x:345,y:235}],.2,1.85);
+        move('o5', isPop
+          ? [{x:305,y:285},{x:338,y:300},{x:392,y:265}]
+          : [{x:305,y:285},{x:280,y:235},{x:250,y:160}],.75,1.45);
+        first.transition.screens.push({ id: uid('screen_'), type: 'screen', elementId: 'o5', beneficiaryId: 'o1', relation: 'simultaneous', groupType: 'pick-and-roll', start: .25, duration: 1.35, x: 292, y: 302, angle: -18 });
+      }
+    } else if (name === 'horns') {
       board.title = 'Horns – Elbow Entry'; board.description = 'Point Guard nutzt den rechten Screen, der linke Big setzt den Backscreen.'; board.category = 'Horns'; first.duration = 2.6;
       [[250,395],[66,302],[434,302],[176,214],[324,214]].forEach((c,i) => { set(first,'o'+(i+1),c[0],c[1]); set(next,'o'+(i+1),c[0],c[1]); });
       move('o1',[{x:250,y:395},{x:286,y:342},{x:324,y:282},{x:348,y:220}],.35,1.6); move('o4',[{x:176,y:214},{x:216,y:244},{x:256,y:266}],.7,1.1);
@@ -243,16 +278,22 @@ BT.tactics = (function() {
     board.currentStep = 0;
     return normalizeBoard(board);
   }
-  function starterTemplates() { return [['horns','Horns','Elbow Entry'],['five-out','5-Out','Drive-and-Kick'],['no-middle','No-Middle','Baseline Help'],['zone-2-3','2–3 Zone','Skip Rotation']].map(([id,title,description]) => ({ id, title, description, board: templateBoard(id) })); }
+  function starterTemplates() { return [
+    ['pick-and-roll','Pick & Roll','Screen nutzen, Roller lesen und Vorteil ausspielen'],
+    ['pick-and-pop','Pick & Pop','Popper bindet den Big und öffnet das Passfenster'],
+    ['pick-and-roll-reject','Reject & Re-Screen','Reject nur gegen Überplay, sonst Re-Screen'],
+    ['horns','Horns','Elbow Entry'],['five-out','5-Out','Drive-and-Kick'],['no-middle','No-Middle','Baseline Help'],['zone-2-3','2–3 Zone','Skip Rotation']
+  ].map(([id,title,description]) => ({ id, title, description, board: templateBoard(id) })); }
   function phase3Templates() {
     return (BT.phase3Playbook?.entries || []).map(raw => {
       const board = normalizeBoard(raw);
       return { id: board.id, title: board.title, description: board.description, board };
     });
   }
+  function strategyTemplates() { return starterTemplates().filter(item => item.id.startsWith('pick-and-')); }
   function templates() { return [...phase3Templates(), ...starterTemplates()]; }
   function availableTactics() {
-    const merged = new Map(phase3Templates().map(item => [item.board.id, item.board]));
+    const merged = new Map([...phase3Templates(), ...strategyTemplates()].map(item => [item.board.id, item.board]));
     for (const stored of BT.storage?.getTactics?.() || []) merged.set(String(stored.id || uid('tactic_')), normalizeBoard(stored));
     return [...merged.values()];
   }
@@ -283,5 +324,5 @@ BT.tactics = (function() {
   }
 
   const core = { uid, clamp, number, copy, positionBounds: POSITION_BOUNDS, clampX, clampY, point, ballPointForPlayer, currentUser, canEdit, startingElements, emptyTransition, defaultStep, defaultBoard, normalizeTransition, normalizeStep, normalizeBoard, cloneStep, elements, elementById, arrowStyle, boardDuration, stepStartTime, locateTime, distance, pointOnPath, quadraticPoint, positionDuring, interpolateStep, snapshotAt };
-  return { render, renderPlayer, normalizeBoard, templates, phase3Templates, availableTactics, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
+  return { render, renderPlayer, normalizeBoard, templates, phase3Templates, strategyTemplates, availableTactics, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
 })();

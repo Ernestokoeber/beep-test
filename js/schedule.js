@@ -107,6 +107,72 @@ BT.schedule = (function() {
     };
   }
 
+  function readTeamStrategy(root) {
+    const current = BT.teamStrategy.current();
+    const allowedDefenseIds = $$('[data-strategy-defense]', root).filter(input => input.checked).map(input => input.dataset.strategyDefense);
+    const defenseConcepts = { zone212: 'Zone 2-1-2', zone23: 'Zone 2-3', zone32: 'Zone 3-2' };
+    const excludedConcepts = current.excludedConcepts.filter(concept => !Object.values(defenseConcepts).includes(concept));
+    Object.entries(defenseConcepts).forEach(([id, concept]) => { if (!allowedDefenseIds.includes(id)) excludedConcepts.push(concept); });
+    return {
+      ...current,
+      offensePrinciples: $('[data-role="strategy-offense"]', root).value.trim(),
+      defensePrinciples: $('[data-role="strategy-defense"]', root).value.trim(),
+      replacesPrevious: $('[data-role="strategy-replaces-previous"]', root).checked,
+      allowedDefenseIds,
+      excludedConcepts,
+      activeTacticIds: $$('[data-strategy-tactic]', root).filter(input => input.checked && !input.disabled).map(input => input.dataset.strategyTactic)
+    };
+  }
+
+  function sameStrategy(left, right) {
+    const fields = ['name', 'effectiveFrom', 'replacesPrevious', 'offensePrinciples', 'defensePrinciples', 'transitionPrinciples'];
+    const sameList = (a, b) => JSON.stringify([...(a || [])].map(String).sort()) === JSON.stringify([...(b || [])].map(String).sort());
+    return fields.every(key => left[key] === right[key]) &&
+      sameList(left.activeTacticIds, right.activeTacticIds) &&
+      sameList(left.allowedDefenseIds, right.allowedDefenseIds) &&
+      sameList(left.excludedConcepts, right.excludedConcepts);
+  }
+
+  function persistTeamStrategy(root) {
+    const current = BT.teamStrategy.current();
+    const next = BT.teamStrategy.normalize(readTeamStrategy(root));
+    if (sameStrategy(current, next)) return current;
+    const saved = BT.teamStrategy.save(next);
+    BT.seasonDraft.clear(seasonDraftScope());
+    return saved;
+  }
+
+  function renderTeamStrategy(root) {
+    const strategy = BT.teamStrategy.ensure();
+    $('[data-role="strategy-offense"]', root).value = strategy.offensePrinciples;
+    $('[data-role="strategy-defense"]', root).value = strategy.defensePrinciples;
+    $('[data-role="strategy-replaces-previous"]', root).checked = strategy.replacesPrevious;
+    $$('[data-strategy-defense]', root).forEach(input => { input.checked = strategy.allowedDefenseIds.includes(input.dataset.strategyDefense); });
+    $('[data-role="team-strategy-version"]', root).textContent = strategy.name + ' · V' + strategy.revision;
+    const active = new Set(strategy.activeTacticIds);
+    const list = $('[data-role="strategy-tactics"]', root);
+    list.replaceChildren();
+    BT.teamStrategy.tacticCandidates()
+      .sort((left, right) => Number(active.has(String(right.id))) - Number(active.has(String(left.id))) || String(left.title || '').localeCompare(String(right.title || ''), 'de'))
+      .forEach(tactic => {
+        const label = document.createElement('label');
+        label.className = 'strategy-tactic-option' + (tactic.archived ? ' is-archived' : '');
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.dataset.strategyTactic = String(tactic.id);
+        input.checked = active.has(String(tactic.id)) && !tactic.archived;
+        input.disabled = tactic.archived === true;
+        const copy = document.createElement('span');
+        const title = document.createElement('strong');
+        title.textContent = tactic.title || 'Unbenannte Taktik';
+        const meta = document.createElement('small');
+        meta.textContent = tactic.archived ? 'Archiviert · kein KI-Einfluss' : (tactic.playbook || tactic.category || 'Eigene Taktik');
+        copy.append(title, meta);
+        label.append(input, copy);
+        list.append(label);
+      });
+  }
+
   function seasonGames() {
     const config = BT.seasonplanner.scheduleConfig();
     return BT.storage.getGames().filter(game =>
@@ -146,9 +212,10 @@ BT.schedule = (function() {
   }
 
   function setupSeasonPlanner(root) {
+    renderTeamStrategy(root);
     const saved = BT.storage.getSetting('seasonCoachInput', {
       goal: '',
-      focus: 'Horns, 5-Out, No-Middle Defense, Helpside-Kommunikation, Rebounding und Transition',
+      focus: 'Pick-and-Roll-Basis, Screen-Nutzung, Roller/Popper lesen, Passentscheidungen und Spieltransfer',
       problems: '', roster: ''
     });
     $('[data-role="season-goal"]', root).value = saved.goal || '';
@@ -156,6 +223,17 @@ BT.schedule = (function() {
     $('[data-role="season-problems"]', root).value = saved.problems || '';
     $('[data-role="season-roster"]', root).value = saved.roster || '';
     renderSeasonSummary(root);
+
+    $('[data-action="save-team-strategy"]', root).addEventListener('click', () => {
+      const previousRevision = BT.teamStrategy.current().revision;
+      const savedStrategy = persistTeamStrategy(root);
+      $('[data-role="team-strategy-version"]', root).textContent = savedStrategy.name + ' · V' + savedStrategy.revision;
+      const message = savedStrategy.revision === previousRevision
+        ? 'Teamkonzept ist bereits aktuell.'
+        : 'Teamkonzept gespeichert. Offene KI-Saisonentwürfe wurden verworfen.';
+      $('[data-role="season-ai-status"]', root).textContent = message;
+      BT.util.toast(message);
+    });
 
     $('[data-action="preview-season"]', root).addEventListener('click', async event => {
       const button = event.currentTarget;
@@ -191,6 +269,7 @@ BT.schedule = (function() {
       try {
         delete status.dataset.status;
         status.removeAttribute('role');
+        persistTeamStrategy(root);
         const preferences = seasonCoachInput(root);
         BT.storage.setSetting('seasonCoachInput', preferences);
         status.textContent = 'Offizieller Herren-Spielplan wird synchronisiert …';

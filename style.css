@@ -4282,6 +4282,80 @@ table.results tr:last-child td { border-bottom: none; }
   resize: vertical;
 }
 
+.team-strategy-card {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--primary) 42%, var(--border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.team-strategy-card h4,
+.team-strategy-card p {
+  margin: 0;
+}
+
+.strategy-tactics {
+  min-width: 0;
+  margin: 0;
+  padding: 0.85rem;
+  border: 0.0625rem solid var(--border);
+  border-radius: 0.85rem;
+}
+
+.strategy-tactics legend {
+  padding: 0 0.35rem;
+  font-weight: 800;
+}
+
+.strategy-tactic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.strategy-tactic-option,
+.strategy-replace {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.strategy-tactic-option {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 0.0625rem solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--surface-2);
+}
+
+.strategy-tactic-option input,
+.strategy-replace input {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+}
+
+.strategy-tactic-option span,
+.strategy-tactic-option strong,
+.strategy-tactic-option small {
+  display: block;
+  min-width: 0;
+}
+
+.strategy-tactic-option small {
+  margin-top: 0.18rem;
+  color: var(--muted);
+}
+
+.strategy-tactic-option.is-archived {
+  opacity: 0.62;
+}
+
+.strategy-replace {
+  font-weight: 700;
+}
+
 .season-source-note {
   margin: 0;
   font-size: 0.75rem;
@@ -4342,6 +4416,7 @@ table.results tr:last-child td { border-bottom: none; }
   .tablecrew-roster-row { grid-template-columns: 1fr 1fr; }
   .tablecrew-player { grid-column: 1 / -1; }
   .season-coach-inputs { grid-template-columns: 1fr; }
+  .strategy-tactic-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 420px) {

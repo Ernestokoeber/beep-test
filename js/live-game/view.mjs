@@ -7,7 +7,7 @@ const select=(parent,label,items,value)=>{const l=el('label',label),s=el('select
 const parseTime=value=>{const m=/^(\d{1,2}):([0-5]\d)$/.exec(value.trim());if(!m)throw Error('Zeit als MM:SS eingeben, z. B. 08:30.');return (+m[1]*60 + +m[2])*1000;};
 const playerLabel=p=>(p.jerseyNumber==null?'Ohne Nummer':'#'+p.jerseyNumber)+' · '+p.name;
 const observationLabels={paint:'Paint / Drive','open-three':'Offener Dreier',oreb:'Offensiv-Rebound','free-throw-pressure':'Freiwurfdruck'};
-const defenseLabels={man:'Mannverteidigung · No-Middle',zone212:'Zone 2-1-2',zone23:'Zone 2-3',zone32:'Zone 3-2'};
+const defenseLabels={man:'Mannverteidigung · Grundlagen',zone212:'Zone 2-1-2',zone23:'Zone 2-3',zone32:'Zone 3-2'};
 const eventLabel=e=>e.kind==='opponent-score'?`Gegner${e.payload.opponentPlayerName?' · '+e.payload.opponentPlayerName:''} +${e.payload.points}`:e.kind==='score-coverage'?(e.payload.complete?'Punkteverlauf bestätigt':'Punkteverlauf unvollständig'):e.kind==='starting-five'?'Starting Five geändert':e.kind==='opponent-observation'?'Gegner: '+(observationLabels[e.payload.type]||e.payload.type):e.kind==='defense-change'?'Defense: '+(defenseLabels[e.payload.defense]||e.payload.defense):(actions[e.payload.action]||e.kind);
 const opponentCandidates=session=>{
   const plan=session?.gameplan?.opponentPlan,list=[...(plan?.topScorers||[]),...(plan?.bestShooters||[])],seen=new Set(),result=[];

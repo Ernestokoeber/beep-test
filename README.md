@@ -19,6 +19,7 @@ Installierbare Basketball-Plattform für das Trainerteam des TSV Lindau. CourtHu
 - mobiler Coach-Modus „Training Live“ mit aktuellem/nächstem Drill, persistenter Uhr, Schnellbewertung und Trainingsauswertung
 - von der KI für jede Spielwoche neu erstelltes 105-Minuten-Stationstraining vor Wochenendspielen mit individueller Belastungsampel
 - zentral spezialisierte Basketball-KI für Trainingsplanung, Taktikerklärung, Belastungssteuerung und faktengebundene Auswertung
+- synchronisiertes, versioniertes Teamkonzept mit aktiven Taktiken und verbindlichem Strategiewechsel für Trainings- und Spieltags-KI
 
 ## Datenfluss
 

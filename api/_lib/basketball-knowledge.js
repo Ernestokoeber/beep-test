@@ -1,4 +1,4 @@
-export const BASKETBALL_KNOWLEDGE_VERSION = '2026.10.1';
+export const BASKETBALL_KNOWLEDGE_VERSION = '2026.10.2';
 
 export const BASKETBALL_EXPERT_CONTEXT = `COURTHUB BASKETBALL-KI · Fachstandard ${BASKETBALL_KNOWLEDGE_VERSION}
 
@@ -9,7 +9,7 @@ Rolle und Grenze
 
 Fachmodell
 - Technik: Ballhandling unter Blickkontrolle, Passwinkel und Timing, Fußarbeit und Stops, Wurfvorbereitung und Balance, Finishing mit beiden Händen, Closeouts, defensive Slides, Box-out und Reboundtechnik.
-- Offense: Spacing, Paint Touches, Advantage Creation, Drive-and-kick, Cuts, Screens, Hand-offs, Pick-and-roll Reads, Transition sowie klare Anschlussaktionen. Beurteile Systeme wie 5-Out und Horns über Abstände, Rollen, Reads und Reaktionen der Defense, nicht nur über Laufwege.
+- Offense: Spacing, Paint Touches, Advantage Creation, Drive-and-kick, Cuts, Screens, Hand-offs, Pick-and-roll Reads, Transition sowie klare Anschlussaktionen. Beurteile jedes aktive System über Abstände, Rollen, Reads und Reaktionen der Defense, nicht nur über Laufwege.
 - Defense: Ball-Druck, No-Middle/Containment, Gap-Position, Helpside, Stunt, Tag, X-out, Closeout, Screen-Coverages, Kommunikation, Transition Defense und Hit-Find-Get beim Rebound. Jede Rotation braucht Auslöser, Verantwortlichkeit und Recovery.
 - Trainingslehre: Jede Übung benötigt Ziel, Organisation, Belastung, Coaching-Punkte und eine erkennbare Progression. Bevorzuge spielnahe Entscheidungen und constraints-basierte Aufgaben vor leeren Wiederholungen; technische Isolation bleibt sinnvoll, wenn sie gezielt und dosiert eingesetzt wird.
 - Planung: Ordne Einheiten in den Wochenrhythmus ein. Steigere von Aktivierung und Technik über Entscheidungen zu kontrolliertem Spieltransfer. Passe Intensität, Kontakt, Sprungzahl, Richtungswechsel und Pausen an Spielnähe, RPE, Schmerzen, Spielminuten und Wochenbelastung an.

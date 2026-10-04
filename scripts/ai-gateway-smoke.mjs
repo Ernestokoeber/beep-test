@@ -34,6 +34,15 @@ function candidate(text, finishReason = 'STOP') {
 const validSeasonPayload = {
   data: {
     durationMinutes: 90,
+    teamStrategy: {
+      schemaVersion: 1, revision: 1, name: 'PnR-Basis', replacesPrevious: true,
+      offensePrinciples: 'Pick-and-Roll, Pick-and-Pop und Reject-Read',
+      defensePrinciples: 'Mannverteidigungs-Grundlagen', allowedDefenseIds: ['man'],
+      activeTacticIds: ['pick-and-roll'],
+      excludedConcepts: ['Horns', '5-Out', 'Zone 2-3']
+    },
+    tacticalPlaybook: [{ id: 'pick-and-roll', title: 'Pick & Roll · Basis', usage: 'offense' }],
+    performanceContext: { completedTrainings: [{ summary: 'Historisches Horns-Training' }] },
     slots: [{ date: '2026-10-06', weekday: 'tue', intensity: 'high' }]
   }
 };
@@ -53,8 +62,8 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 8, 'KI-Vertrag wurde für den verknüpften Gegner-Gameplan nicht angehoben');
-assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.1', 'Basketball-Fachstandard ist nicht versioniert');
+assert(AI_CONTRACT_VERSION === 9, 'KI-Vertrag wurde für den verbindlichen Strategiewechsel nicht angehoben');
+assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.2', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
 assert(promptText(season).includes('COURTHUB BASKETBALL-KI') && promptText(season).includes('Trainingslehre'), 'Saisonplanung nutzt den Basketball-Fachstandard nicht');
@@ -64,7 +73,9 @@ assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema 
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.drills.items.required.includes('intensity'), 'Saison-Schema verlangt die validierte Drillintensität nicht');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining.properties.stations.minItems === 5, 'Saison-Schema verlangt nicht genau fünf KI-Stationen');
 assert(season.parts[0].text.includes('höchstens 25 Prozent') && season.parts[0].text.includes('Höchstens eine der fünf Stationen'), 'KI-Prompt begrenzt die Problemgewichtung nicht');
-assert(season.parts[0].text.includes('Zone 2-1-2') && season.parts[0].text.includes('Zone 2-3') && season.parts[0].text.includes('Zone 3-2'), 'KI-Prompt begrenzt die Defense-Auswahl nicht auf das TSV-Repertoire');
+assert(season.parts[0].text.includes('teamStrategy ist die verbindliche aktuelle Wahrheit') && season.parts[0].text.includes('excludedConcepts'), 'Der aktuelle Strategiewechsel hat im KI-Prompt keinen Vorrang');
+assert(season.parts[0].text.includes('"allowedDefenseIds":["man"]'), 'Die KI erhält nicht die aktuell freigegebene Verteidigung');
+assert(season.parts[0].text.includes('Historisches Horns-Training') && season.parts[0].text.includes('Vergangenheitsdaten'), 'Historische Taktiknamen werden nicht ausdrücklich von aktiven Vorgaben getrennt');
 assert(season.parts[0].text.includes('summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen'), 'KI-Prompt begrenzt den Trainingsschwerpunkt nicht');
 assert(season.timeoutMs === 48_000, 'Saison-Timeout ist nicht begrenzt');
 
@@ -257,9 +268,11 @@ assert(requestBody.generationConfig.responseSchema.type === 'object', 'Schema wu
 const tacticRequest = buildAIRequest('explainTactic', { tactic: { title: 'Horns', phases: [{ number: 1, offense: [], defense: [], actions: [] }] } });
 assert(promptText(tacticRequest).includes('COURTHUB BASKETBALL-KI') && promptText(tacticRequest).includes('Screenwinkel'), 'Taktikerklärung nutzt das Basketball-Fachwissen nicht');
 
-const gamePlanRequest=buildAIRequest('planGame',{game:{date:'2026-10-04',home:'TSV Lindau',away:'TSV Ottobeuren',leagueName:'Bezirkspokal'},opponentPlan:{schemaVersion:1,opponent:'TSV Ottobeuren',defense:{start:'man',alternative:'zone23'},dataQuality:{confidence:'medium'}},selectedTactics:[{id:'phase3-zone-2-3',title:'Zone 2-3 · Korbschutz',usage:'defense',playbook:'TSV Phase 3',coachingPoints:['Auf den Pass shiften'],reads:['High-Post zustellen']}]});
+const gamePlanRequest=buildAIRequest('planGame',{game:{date:'2026-10-04',home:'TSV Lindau',away:'TSV Ottobeuren',leagueName:'Bezirkspokal'},teamStrategy:validSeasonPayload.data.teamStrategy,opponentPlan:{schemaVersion:1,opponent:'TSV Ottobeuren',defense:{start:'man',alternative:'zone23'},dataQuality:{confidence:'medium'}},selectedTactics:[{id:'pick-and-roll',title:'Pick & Roll · Basis',usage:'offense',playbook:'TSV PnR-Basis',coachingPoints:['Screen eng nutzen'],reads:['Roller lesen']},{id:'phase3-zone-2-3',title:'Alte Zone',usage:'defense'}]});
 assert(promptText(gamePlanRequest).includes('bestätigten opponentPlan')&&promptText(gamePlanRequest).includes('nicht als gegnerische Schwäche'),'Gameplan-KI ist nicht an bestätigte Gegnerfakten gebunden');
-assert(promptText(gamePlanRequest).includes('phase3-zone-2-3')&&promptText(gamePlanRequest).includes('selectedTactics'),'Ausgewählte Phase-3-Taktik fehlt im KI-Gameplan.');
+assert(promptText(gamePlanRequest).includes('pick-and-roll')&&promptText(gamePlanRequest).includes('selectedTactics'),'Aktive PnR-Taktik fehlt im KI-Gameplan.');
+assert(!promptText(gamePlanRequest).includes('phase3-zone-2-3'),'Nicht mehr aktive Taktik gelangt weiterhin in den KI-Gameplan.');
+assert(promptText(gamePlanRequest).includes('"allowedDefenseIds":["man"]')&&promptText(gamePlanRequest).includes('alle früheren Mannschaftsprinzipien'),'Spieltags-KI beachtet den Strategiewechsel nicht.');
 assert(gamePlanRequest.timeoutMs===38_000&&gamePlanRequest.generationConfig.responseSchema.properties.lockerRoom.minItems===3,'Gameplan-KI hat keinen begrenzten, strukturierten Vertrag');
 const gamePlanValue=gamePlanRequest.parse(JSON.stringify({
   lockerRoom:['Satz 1','Satz 2','Satz 3'],gameGoals:['Ziel 1','Ziel 2','Ziel 3'],offenseKeys:['Offense 1','Offense 2','Offense 3'],

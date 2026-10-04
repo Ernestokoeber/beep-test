@@ -208,7 +208,7 @@ BT.games = (function() {
 
     <section class="boxscore-panel game-preparation-card"><h3>Spielvorbereitung</h3><p>Kader, Gegneranalyse und Gameplan bestätigen und danach in die freie Live-Erfassung wechseln.</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live">Live Game mit Gegnerplan</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
     <section class="opponent-defense-card game-opponent-plan confidence-${escapeHTML(defensePlan?.confidence || 'low')}">
-      <div class="section-head compact"><div><span class="section-kicker">Gegnerplan</span><h3>${escapeHTML(defensePlan?.startLabel || 'Mannverteidigung · No-Middle')}</h3></div><a class="btn small" href="#/opponents">Scouting öffnen</a></div>
+      <div class="section-head compact"><div><span class="section-kicker">Gegnerplan</span><h3>${escapeHTML(defensePlan?.startLabel || 'Mannverteidigung · Grundlagen')}</h3></div><a class="btn small" href="#/opponents">Scouting öffnen</a></div>
       <p><strong>Alternative:</strong> ${escapeHTML(defensePlan?.alternativeLabel || 'nach den ersten Angriffen festlegen')}</p>
       ${defensePlan?.triggers?.length ? `<ul>${defensePlan.triggers.map(trigger => `<li>${escapeHTML(trigger)}</li>`).join('')}</ul>` : '<p class="muted">Noch keine belastbaren Gegnerdaten. Mannverteidigung bleibt die Basis.</p>'}
     </section>
@@ -488,7 +488,7 @@ BT.games = (function() {
       host.replaceChildren();const heading=document.createElement('h1');heading.textContent=game.home+' – '+game.away;host.append(heading);
       const meta=document.createElement('p');meta.textContent=formatDate(game.date)+(game.time?' · '+game.time:'');host.append(meta);
       const content=document.createElement('div');host.append(content);
-      matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.tactics?.availableTactics?.()||BT.storage.getTactics(),getOpponentPlan:currentOpponentPlan,onPlayerInjury:(player,match)=>{
+      matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.teamStrategy?.activeTactics?.()||[],getOpponentPlan:currentOpponentPlan,onPlayerInjury:(player,match)=>{
         if(!BT.storage.getPlayer(player.id))return;
         BT.storage.upsertPlayer({id:player.id,availability:'injured',availabilityUntil:null,availabilityNote:`Am Spieltag ${BT.util.formatDate(match?.date||BT.util.todayISO())} verletzt / beim Aufwärmen`});
       }});

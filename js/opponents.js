@@ -2,7 +2,7 @@ window.BT = window.BT || {};
 
 BT.opponents = (function() {
   const DEFENSE_LABELS = {
-    man: 'Mannverteidigung · No-Middle',
+    man: 'Mannverteidigung · Grundlagen',
     zone212: 'Zone 2-1-2',
     zone23: 'Zone 2-3',
     zone32: 'Zone 3-2'
@@ -334,9 +334,12 @@ BT.opponents = (function() {
     }
 
     const defenseOrder = ['man', 'zone212', 'zone23', 'zone32'];
-    const order = defenseOrder.slice().sort((left, right) => scores[right] - scores[left] || defenseOrder.indexOf(left) - defenseOrder.indexOf(right));
+    const configured = BT.teamStrategy?.current?.().allowedDefenseIds;
+    const allowedDefenseIds = (Array.isArray(configured) ? configured : defenseOrder).filter(id => defenseOrder.includes(id));
+    if (!allowedDefenseIds.length) allowedDefenseIds.push('man');
+    const order = allowedDefenseIds.slice().sort((left, right) => scores[right] - scores[left] || defenseOrder.indexOf(left) - defenseOrder.indexOf(right));
     const start = order[0];
-    const alternative = order[1];
+    const alternative = order[1] || start;
     const triggers = {
       man: ['Zwei klare Paint-Touches oder direkte Drives in drei Angriffen: 2-3 prüfen.', 'Zwei offene Abschlüsse von Guards oder Flügeln oberhalb der Freiwurflinie: 3-2 prüfen.'],
       zone212: ['Wiederholte High-Post-Touches oder zwei offene Distanzwürfe aus derselben Zone: zurück zur Mannverteidigung.', 'Zwei verlorene Defensiv-Rebounds in drei Angriffen: Mannverteidigung und klare Box-outs.'],
@@ -355,10 +358,13 @@ BT.opponents = (function() {
       alternative,
       alternativeLabel: DEFENSE_LABELS[alternative],
       reasons: [...new Set(reasons)].slice(0, 5),
-      triggers: triggers[start],
+      triggers: allowedDefenseIds.length === 1
+        ? ['Bei wiederholten Paint-Touches: Ball früher stoppen, Hilfe verkürzen und Zuordnung klären.', 'Bei offenen Würfen: Closeout-Winkel, Kommunikation und Rückrotation korrigieren.']
+        : triggers[start],
       risk: risks[start],
       confidence: quality.confidence,
-      allowedDefenses: Object.values(DEFENSE_LABELS)
+      allowedDefenseIds,
+      allowedDefenses: allowedDefenseIds.map(id => DEFENSE_LABELS[id])
     };
   }
 
@@ -390,7 +396,7 @@ BT.opponents = (function() {
         confidence: quality.confidence,
         sources: quality.sources,
         lastUpdated: profile.updatedAt || null,
-        warning: quality.confidence === 'low' ? 'Zu wenig Daten für eine gegnerspezifische Zonen-Startempfehlung.' : null
+        warning: quality.confidence === 'low' ? 'Zu wenig Daten für eine belastbare gegnerspezifische Anpassung.' : null
       }
     };
   }

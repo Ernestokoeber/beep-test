@@ -31,7 +31,8 @@ assert(phase3.every(item => item.board.steps.slice(0, -1).every(step => {
   const transition = step.transition;
   return transition.motions.length + transition.passes.length + transition.screens.length > 0;
 })), 'Jeder Phase-3-Übergang benötigt mindestens eine sichtbare Basketballaktion.');
-assert(phase3.some(item => item.id === 'phase3-zone-2-3' && item.board.usage === 'defense'), 'Die 2-3-Zone ist nicht als aktive Defense integriert.');
+assert(phase3.some(item => item.id === 'phase3-zone-2-3' && item.board.usage === 'defense'), 'Die historische 2-3-Zone fehlt im archivierten Playbook.');
+assert(phase3.every(item => item.board.archived === true && item.board.published === false), 'Die abgelösten Phase-3-Taktiken sind weiterhin aktiv oder veröffentlicht.');
 const fiveOut = phase3.find(item => item.id === 'phase3-five-out')?.board;
 assert(fiveOut?.steps.some(step => step.transition.passes.length > 0), 'Five-Out benötigt animierte Pässe.');
 assert(fiveOut?.steps.some(step => step.transition.motions.some(motion => motion.kind === 'dribble')), 'Five-Out benötigt eine echte Dribbelbewegung.');
@@ -65,5 +66,11 @@ const movingGuard = during.elements.find(item => item.id === 'o1');
 assert(startGuard && movingGuard, 'Point Guard fehlt in der Animation');
 assert(startGuard.x !== movingGuard.x || startGuard.y !== movingGuard.y, 'Gebogener Laufweg wird nicht interpoliert');
 assert(tactics.boardDuration(horns) > 0, 'Play-Dauer ist ungültig');
+
+for (const id of ['pick-and-roll', 'pick-and-pop', 'pick-and-roll-reject']) {
+  const board = tactics.templates().find(item => item.id === id)?.board;
+  assert(board?.builtIn && board.playbook === 'TSV PnR-Basis' && board.published, `${id} fehlt als aktive PnR-Basistaktik.`);
+  assert(board.steps[0].transition.screens.some(screen => screen.groupType === 'pick-and-roll'), `${id} enthält keinen verbundenen Pick-and-Roll-Screen.`);
+}
 
 console.log('CourtHub Play Designer V2: Kernprüfungen erfolgreich.');

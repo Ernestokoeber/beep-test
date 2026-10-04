@@ -19,8 +19,8 @@ export async function prepareMatchdayEntry(controller,defaultOwnSide,opponentPla
   if(!result.ok)throw Error(result.error||controller.getState().error||'Spielvorbereitung konnte nicht geöffnet werden.');
   return true;
 }
-export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,getOpponentPlan=()=>null,onPlayerInjury=()=>{},requestGamePlan=async({game,opponentPlan,selectedTactics})=>{
-  const response=await window.BT.api.ai('planGame',{game,opponentPlan,selectedTactics});return response.data;
+export function mountMatchdayView(container,controller,{players=()=>[],tactics=()=>[],game=null,getOpponentPlan=()=>null,onPlayerInjury=()=>{},requestGamePlan=async({game,opponentPlan,selectedTactics,teamStrategy})=>{
+  const response=await window.BT.api.ai('planGame',{game,opponentPlan,selectedTactics,teamStrategy});return response.data;
  },onOpponentFeedback=payload=>window.BT?.opponents?.recordMatchdayFeedback?.(payload),prepareRosterPdf=()=>import('./roster-pdf.mjs').then(module=>module.prepareRosterPdf()),onRosterPdf=payload=>import('./roster-pdf.mjs').then(module=>module.exportRosterPdf(payload)),onLive=(host,c)=>mountMatchdayLive(host,c,{tactics,game,players,onPlayerInjury,onOpponentFeedback})}={}){
   container.classList.add('matchday');let stage='',draft,parents,read=()=>draft,dirty=false,saving=false,revision=0,liveCleanup=null,dead=false,pending=Promise.resolve(true),selectionPane='roster';
   const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div'),conflicts=el('section');let conflictKey='';status.setAttribute('role','status');container.append(title,steps,status,body,conflicts);
@@ -60,7 +60,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
             id:item.id,title:item.title,usage:tacticUsage(item),description:item.description||'',
             coachingPoints:item.coachingPoints||[],reads:item.reads||[],playbook:item.playbook||''
           }));
-          const generated=await requestGamePlan({game,opponentPlan:base.opponentPlan,selectedTactics});
+          const generated=await requestGamePlan({game,opponentPlan:base.opponentPlan,selectedTactics,teamStrategy:window.BT?.teamStrategy?.forAI?.()||{}});
           const opponentPlan=mergeAIPlan(base.opponentPlan,generated),active=activeGamePlan(opponentPlan);
           const next={...base,opponentPlan};
           if(!String(next.goals||'').trim())next.goals=(active.gameGoals||[]).join('\n');

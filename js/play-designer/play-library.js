@@ -75,7 +75,7 @@ function createPlayCard(play, collections, options) {
     <div class="chl-card-meta"><span data-state></span><div class="chl-badges"></div><p></p></div>`;
   card.querySelector('h3').textContent = play.title || 'Unbenanntes Play';
   card.querySelector('.chl-card-copy small').textContent = play.category || 'Play';
-  card.querySelector('[data-state]').textContent = play.builtIn ? 'TSV Phase 3' : play.published ? 'Veröffentlicht' : play.archived ? 'Archiviert' : 'Entwurf';
+  card.querySelector('[data-state]').textContent = play.archived ? 'Archiviert' : play.builtIn ? String(play.playbook || 'Systemvorlage') : play.published ? 'Veröffentlicht' : 'Entwurf';
   card.querySelector('p').textContent = play.description || 'Keine Beschreibung hinterlegt.';
   const badges = card.querySelector('.chl-badges');
   [...new Set(play.tags || [])].forEach(value => {

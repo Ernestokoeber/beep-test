@@ -71,8 +71,8 @@ BT.phase3Playbook = (() => {
     coachingPoints,
     reads,
     reference: { label: 'Original-PDF', url: `assets/playbooks/phase3/${reference}` },
-    archived: false,
-    published: true,
+    archived: true,
+    published: false,
     steps,
     currentStep: 0
   });

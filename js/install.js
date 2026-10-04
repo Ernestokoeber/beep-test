@@ -51,7 +51,7 @@ window.BT = window.BT || {};
   const tactics = window.BT.tactics;
   const originalTemplates = tactics.templates.bind(tactics);
   tactics.templates = () => {
-    const order = ['zone-2-3', 'five-out', 'horns', 'no-middle'];
+    const order = ['pick-and-roll', 'pick-and-pop', 'pick-and-roll-reject', 'zone-2-3', 'five-out', 'horns', 'no-middle'];
     const items = originalTemplates();
     return order.map(id => items.find(item => item.id === id)).filter(Boolean);
   };

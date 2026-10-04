@@ -398,6 +398,11 @@ const batchPayload = window.BT.seasonplanner.buildAIPayload(
   })),
   { focus: 'Defense' }
 );
+assert(batchPayload.teamStrategy.replacesPrevious === true, 'Der Strategiewechsel ersetzt die alten Teamprinzipien nicht verbindlich');
+assert(batchPayload.teamStrategy.allowedDefenseIds.join(',') === 'man', 'Die neue Basis lässt weiterhin alte Zonenverteidigungen zu');
+assert(batchPayload.tacticalPlaybook.map(item => item.id).join(',') === 'pick-and-roll,pick-and-pop,pick-and-roll-reject', 'Die KI erhält nicht ausschließlich die aktive PnR-Basis');
+assert(!batchPayload.tacticalPlaybook.some(item => /horns|five-out|5-out|zone/i.test(`${item.id} ${item.title}`)), 'Archivierte Systeme gelangen weiterhin in das aktive KI-Playbook');
+assert(batchPayload.coachInput.strategyChange.includes('ersetzt'), 'Der vollständige Strategiewechsel fehlt im Trainerkontext');
 assert(batchPayload.balancePolicy.maxProblemSharePercent === 25, 'Problemeingaben werden im KI-Payload nicht auf 25 Prozent begrenzt');
 assert(batchPayload.balancePolicy.fridayMaxProblemStations === 1, 'Ein Problem darf zu viele Freitagstationen bestimmen');
 assert(batchPayload.performanceContext.games.some(game => game.opponent === 'Trendgegner' && game.teamBoxscore.fieldGoalPct === 45), 'Vorherige Spielwerte fehlen in der KI-Auswertung');
@@ -487,6 +492,9 @@ assert(rejectedBatch, 'Ein Trainingsfehler bricht die Saisonplanung nicht zuverl
 route('#/schedule');
 assert(window.document.querySelector('[data-action="generate-season"]'), 'KI-Saisonplanung fehlt im Trainingsplan');
 assert(window.document.querySelector('[data-role="season-plan-summary"]'), 'Saisonübersicht fehlt');
+assert(window.document.querySelector('[data-role="team-strategy-card"]'), 'Das verbindliche Teamkonzept fehlt in der Saisonplanung');
+assert(window.document.querySelectorAll('[data-strategy-tactic]:checked').length === 3, 'Die drei PnR-Basistaktiken sind nicht aktiv vorausgewählt');
+assert([...window.document.querySelectorAll('[data-strategy-tactic]:checked')].every(input => input.dataset.strategyTactic.startsWith('pick-and-')), 'Eine alte Taktik ist im Teamkonzept weiterhin aktiv');
 
 const migratedTactic = window.BT.tactics.normalizeBoard({
   players: [{ id: 'p1', label: '1', x: 120, y: 380 }],
@@ -505,7 +513,7 @@ assert(window.document.querySelector('[data-action="export-pdf"]'), 'PDF-Export 
 assert(window.document.querySelector('[data-role="tactic-template"]'), 'Vorlagenauswahl fehlt');
 assert(window.document.querySelectorAll('.tactics-token.offense').length === 5, 'Startboard enthÃ¤lt nicht fÃ¼nf Angreifer');
 assert(window.document.querySelectorAll('.tactics-token.defense').length === 5, 'Startboard enthÃ¤lt nicht fÃ¼nf Verteidiger');
-assert(window.BT.tactics.templates().map(template => template.id).join(',') === 'zone-2-3,five-out,horns,no-middle', 'Die vier freigegebenen Taktikvorlagen fehlen');
+assert(window.BT.tactics.templates().map(template => template.id).join(',') === 'pick-and-roll,pick-and-pop,pick-and-roll-reject,zone-2-3,five-out,horns,no-middle', 'PnR-Basis und historische Taktikvorlagen fehlen');
 const clonedTacticStep = window.BT.tactics.cloneStep(migratedTactic.steps[0]);
 assert(clonedTacticStep.elements.find(item => item.type === 'offense').id === migratedTactic.steps[0].elements.find(item => item.type === 'offense').id, 'Schrittklone verlieren Token-IDs und können nicht animiert werden');
 const exportStyles = ['run', 'pass', 'dribble', 'screen', 'closeout', 'rotation'].map(kind => window.BT.tactics.arrowStyle(kind).color);
@@ -515,6 +523,12 @@ assert(pdfLayout.courtY + pdfLayout.courtHeight < pdfLayout.legendY && pdfLayout
 assert(css.includes('.tactics-preview-court .tactics-arrow.run') && css.includes('.tactics-preview-court .tactics-arrow.pass'), 'Spieleransicht zeichnet Lauf- und Passpfeile nicht');
 const storedTactic = window.BT.storage.upsertTactic({ title: 'Smoke Play', steps: migratedTactic.steps, published: true });
 assert(window.BT.storage.getTactics().some(item => item.id === storedTactic.id), 'Gespeicherte Taktik fehlt im gemeinsamen Speicher');
+const strategyWithCustomPlay = window.BT.teamStrategy.save({
+  ...window.BT.teamStrategy.current(),
+  activeTacticIds: [...window.BT.teamStrategy.current().activeTacticIds, storedTactic.id]
+});
+const customTacticPayload = window.BT.seasonplanner.buildAIPayload([{ date: '2027-06-22', weekday: 'tue' }], { focus: 'Test' });
+assert(strategyWithCustomPlay.activeTacticIds.includes(storedTactic.id) && customTacticPayload.tacticalPlaybook.some(item => item.id === storedTactic.id), 'Eine neu aktivierte eigene Taktik wird nicht an die KI übergeben');
 route('#/tactics/player');
 assert(window.document.querySelector('[data-role="player-tactics"]'), 'Spieleransicht fÃ¼r angemeldete Teammitglieder fehlt');
 assert(window.document.body.textContent.includes('Bitte zuerst anmelden'), 'Die Spieleransicht ist ohne Anmeldung nicht geschÃ¼tzt');

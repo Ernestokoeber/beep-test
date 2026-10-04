@@ -257,7 +257,7 @@ BT.trainingLive = (() => {
 
   function tacticFor(block) {
     const source = slug(`${block?.name || ''} ${block?.description || ''}`);
-    const stored = (BT.tactics?.availableTactics?.() || BT.storage?.getTactics?.() || []).filter(tactic => !tactic.archived);
+    const stored = (BT.teamStrategy?.activeTactics?.() || []).filter(tactic => !tactic.archived);
     if (block?.tacticId) {
       const exact = stored.find(tactic => tactic.id === block.tacticId);
       if (exact) return exact;
@@ -273,17 +273,10 @@ BT.trainingLive = (() => {
     }).sort((a, b) => b.score - a.score)[0];
     if (scored?.score >= 5) return scored.tactic;
 
-    const templates = BT.tactics?.templates?.() || [];
-    const key = /horns\s*2/.test(source) ? 'phase3-horns-2'
-      : /horns/.test(source) ? 'phase3-horns-1'
-        : /5 out|five out/.test(source) ? 'phase3-five-out'
-          : /no middle/.test(source) ? 'phase3-no-middle'
-            : /pick and roll|pick roll|pnr/.test(source) ? 'phase3-pnr-defense'
-              : /2 1 2/.test(source) ? 'phase3-zone-2-1-2'
-                : /3 2/.test(source) ? 'phase3-zone-3-2'
-                  : /2 3/.test(source) ? 'phase3-zone-2-3' : null;
-    const template = templates.find(item => item.id === key);
-    return template ? { ...template.board, id: `template:${template.id}` } : null;
+    const key = /pick and pop|pick pop|pnp/.test(source) ? 'pick-and-pop'
+      : /reject|re screen|rescreen/.test(source) ? 'pick-and-roll-reject'
+        : /pick and roll|pick roll|pnr/.test(source) ? 'pick-and-roll' : null;
+    return key ? stored.find(tactic => tactic.id === key) || null : null;
   }
 
   function button(label, action, className = '') {

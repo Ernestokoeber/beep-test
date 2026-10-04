@@ -880,7 +880,7 @@ async function testMatchday(browser, name, options) {
     await noOverflow('Kader');
     await page.getByRole('button', { name: 'Gameplan', exact: true }).tap();
     const opponentPlan = await page.locator('.matchday-opponent-plan').innerText();
-    assert(opponentPlan.includes('E2E Gast') && opponentPlan.includes('Zone 2-3'), `${name}: Gegnerplan fehlt in der Vorbereitung`);
+    assert(opponentPlan.includes('E2E Gast') && opponentPlan.includes('Mannverteidigung · Grundlagen') && !opponentPlan.includes('Start: Zone'), `${name}: aktives Teamkonzept fehlt im Gegnerplan`);
     await page.locator('[data-field="goals"]').fill('Rebounds sichern');
     await noOverflow('Vorbereitung');
     await page.getByRole('button', { name: 'Optionale Angaben überspringen' }).tap();
@@ -937,9 +937,9 @@ async function testMatchday(browser, name, options) {
     await page.getByText(/Gegnerplan ·/).waitFor();
     await page.getByRole('button', { name: 'Paint / Drive +1', exact: true }).tap();
     await page.getByRole('button', { name: 'Paint / Drive +1', exact: true }).tap();
-    await page.getByText(/2-3.*prüfen/).waitFor();
-    await page.getByRole('button', { name: 'Zone 2-3', exact: true }).tap();
-    await page.getByText('Aktuell: Zone 2-3', { exact: true }).waitFor();
+    await page.getByText(/Ball früher stoppen, Hilfe verkürzen/).waitFor();
+    assert(await page.getByRole('button', { name: 'Zone 2-3', exact: true }).count() === 0, `${name}: archivierte Zonenverteidigung ist im Live-Spiel weiterhin auswählbar`);
+    await page.getByText('Aktuell: Mannverteidigung · Grundlagen', { exact: true }).waitFor();
     await noOverflow('Live-Gegnerscouting');
     await page.getByText('Gameplan & Abschluss', { exact: true }).tap();
     const frozenGameplan = await page.locator('.matchday-frozen-plan').innerText();
