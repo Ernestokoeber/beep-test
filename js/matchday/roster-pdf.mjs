@@ -1,3 +1,4 @@
+import {staffLines,isCoachOnly} from '../coaching-staff.mjs';
 import {gamePositionLabel,sortRosterByGamePosition} from '../basketball-positions.mjs';
 
 const GREEN=[0,92,57],ORANGE=[242,158,65],INK=[24,39,32],MUTED=[94,109,101],PAPER=[247,249,247],LINE=[214,222,217];
@@ -8,7 +9,7 @@ function formatDate(value){
   const date=new Date(`${value}T12:00:00`);
   return Number.isNaN(date.getTime())?String(value):new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
 }
-function nominatedPlayers(draft){return sortRosterByGamePosition((draft?.roster||[]).filter(player=>player.gameStatus!=='dnp'));}
+function nominatedPlayers(draft){return sortRosterByGamePosition((draft?.roster||[]).filter(player=>player.gameStatus!=='dnp'&&!isCoachOnly(draft,player.id)));}
 function loadJsPdf(){
   if(globalThis.window?.jspdf?.jsPDF)return Promise.resolve(window.jspdf.jsPDF);
   if(jsPdfPromise)return jsPdfPromise;
@@ -39,6 +40,12 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
   if(!roster.length)throw Error('Für den PDF-Export ist noch kein Spieler nominiert.');
   const width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight(),margin=42,contentWidth=width-margin*2-39;
   let page=1,y=0;
+  const drawStaff=()=>{
+    if(!draft.staff?.length)return;
+    doc.setFont('helvetica','normal').setFontSize(8).setTextColor(...MUTED);
+    for(const line of staffLines(draft.staff)){const lines=doc.splitTextToSize(line,width-margin*2);doc.text(lines,margin,y+8,{lineHeightFactor:1.2});y+=lines.length*10+4;}
+    y+=6;
+  };
   const drawHeader=(continued,compact=false)=>{
     const matchup=`${game.home||'Heim'} - ${game.away||'Gast'}`;
     if(compact){
@@ -54,7 +61,7 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
       doc.setFont('helvetica','normal').setFontSize(8).setTextColor(...MUTED).text(meta,margin+14,136+headerExtra);
       doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(14).text('Nominierter Kader',margin,171+headerExtra);
       doc.setFont('helvetica','normal').setFontSize(8).setTextColor(...MUTED).text(`${roster.length} ${roster.length===1?'Spieler':'Spieler'}`,width-margin,171+headerExtra,{align:'right'});
-      y=182+headerExtra;return;
+      y=182+headerExtra;drawStaff();return;
     }
     doc.setFont('helvetica','bold').setFontSize(16);
     const matchupLines=doc.splitTextToSize(matchup,width-margin*2-36),headerExtra=Math.max(0,matchupLines.length-1)*18;
@@ -68,7 +75,7 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
     doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...MUTED).text(meta,margin+18,192+headerExtra);
     doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(17).text('Nominierter Kader',margin,254+headerExtra);
     doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...MUTED).text(`${roster.length} ${roster.length===1?'Spieler':'Spieler'}`,width-margin,254+headerExtra,{align:'right'});
-    y=267+headerExtra;
+    y=267+headerExtra;drawStaff();
   };
   const drawFooter=()=>{
     doc.setDrawColor(...LINE).line(margin,height-45,width-margin,height-45);
@@ -137,3 +144,4 @@ export async function exportRosterPdf(payload){
   const delivery=await deliverRosterPdf(blob,filename);
   return {blob,filename,delivery};
 }
+

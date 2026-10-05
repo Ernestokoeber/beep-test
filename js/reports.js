@@ -65,7 +65,7 @@ BT.reports = (function() {
     };
 
     trainings.forEach(training => {
-      (training.attendance || []).forEach(entry => {
+      (BT.staff?.playerAttendance(training) || training.attendance || []).forEach(entry => {
         if (!entry.status) return;
         const row = byPlayer.get(entry.playerId);
         team.attendance.total++;
@@ -571,3 +571,4 @@ BT.reports = (function() {
 
   return { render, buildReport, buildPDF };
 })();
+

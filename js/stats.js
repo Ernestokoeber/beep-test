@@ -35,7 +35,7 @@ BT.stats = (function() {
     const trainings = endedTrainings();
     const stats = { total: 0, present: 0, late: 0, absent: 0, excused: 0, injured: 0, pct: 0 };
     for (const t of trainings) {
-      const a = (t.attendance || []).find(x => x.playerId === playerId);
+      const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(x => x.playerId === playerId);
       if (!a || !a.status) continue;
       stats.total++;
       if (stats[a.status] !== undefined) stats[a.status]++;
@@ -83,7 +83,7 @@ BT.stats = (function() {
     const trainings = endedTrainings();
     let slots = 0, present = 0;
     for (const t of trainings) {
-      for (const a of (t.attendance || [])) {
+      for (const a of (BT.staff?.playerAttendance(t) || t.attendance || [])) {
         if (!a.status) continue;
         slots++;
         if (a.status === 'present') present++;
@@ -169,7 +169,7 @@ BT.stats = (function() {
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const out = [];
     for (const t of trainings) {
-      const a = (t.attendance || []).find(x => x.playerId === playerId);
+      const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(x => x.playerId === playerId);
       if (!a || !a.status) continue;
       out.push({ date: t.date, status: a.status, late: !!a.late });
     }
@@ -302,7 +302,7 @@ BT.stats = (function() {
     }
     function aggAtt(x) {
       let n = 0;
-      for (const a of (x.attendance || [])) {
+      for (const a of (BT.staff?.playerAttendance(x) || x.attendance || [])) {
         if (a.status === 'present') { n++; if (a.late) n++; }
       }
       return n;
@@ -338,7 +338,7 @@ BT.stats = (function() {
   function presentIdSet(training) {
     const archived = new Set(BT.storage.getPlayers().filter(p => p.archived).map(p => p.id));
     const ids = new Set();
-    for (const a of (training.attendance || [])) {
+    for (const a of (BT.staff?.playerAttendance(training) || training.attendance || [])) {
       if (a && a.status === 'present' && !archived.has(a.playerId)) ids.add(a.playerId);
     }
     return ids;
@@ -486,7 +486,7 @@ BT.stats = (function() {
       const last3 = trainingsChrono.slice(-3);
       if (last3.length === 3) {
         const statuses = last3.map(t => {
-          const a = (t.attendance || []).find(x => x.playerId === p.id);
+          const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(x => x.playerId === p.id);
           return a && a.status;
         });
         const missedAll = statuses.every(s => s === 'absent' || s === 'excused');
@@ -581,7 +581,7 @@ BT.stats = (function() {
     let lastMissed = null;
 
     for (const t of trainings) {
-      const a = (t.attendance || []).find(function(x) { return x.playerId === playerId; });
+      const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(function(x) { return x.playerId === playerId; });
       // Entscheidung: Trainings ohne Eintrag oder mit status=null werden ignoriert (nicht-bewertbar, kein Streak-Reset).
       if (!a || !a.status) continue;
       const attended = a.status === 'present' || a.late === true;
@@ -596,7 +596,7 @@ BT.stats = (function() {
     // current = Streak vom juengsten Training rueckwaerts
     for (let i = trainings.length - 1; i >= 0; i--) {
       const t = trainings[i];
-      const a = (t.attendance || []).find(function(x) { return x.playerId === playerId; });
+      const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(function(x) { return x.playerId === playerId; });
       if (!a || !a.status) continue;
       const attended = a.status === 'present' || a.late === true;
       if (attended) current++;
@@ -773,3 +773,4 @@ BT.stats = (function() {
     playerFTSparkline, statsByPosition, improvingPlayers
   };
 })();
+

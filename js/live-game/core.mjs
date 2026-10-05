@@ -1,3 +1,4 @@
+import {validateStaff,isCoachOnly} from '../coaching-staff.mjs';
 import { validateTimeline } from './clock.mjs';
 import {GAME_POSITION_VALUES} from '../basketball-positions.mjs';
 export class LiveValidationError extends Error {
@@ -39,6 +40,7 @@ function validateRosterFields(roster) {
 }
 function validateGameplan(gameplan) {
   if(gameplan===undefined)return;
+  validateStaff(gameplan?.staff);
   ensure(gameplan&&typeof gameplan==='object'&&!Array.isArray(gameplan),'gameplan','Ungültiger bestätigter Gameplan.');
   ensure(['home','away'].includes(gameplan.ownSide)&&['match','training'].includes(gameplan.kind),'gameplan','Ungültiger bestätigter Gameplan.');
   ensure(['goals','warmup','coachingNote'].every(key=>typeof gameplan[key]==='string'&&gameplan[key].length<=4000),'gameplan','Ungültige Gameplan-Notiz.');
@@ -59,6 +61,7 @@ export function createSession({schemaVersion=1,id,deviceId,actorId,roster,starti
   ensure(roster.every(p=>p.gameStatus===undefined||(p.gameStatus==='starter')===startingFive.includes(p.id)),'lineup','Starting Five und Spielerstatus stimmen nicht überein.');
   ensure(config && Number.isInteger(config.periods) && config.periods >= 1 && config.periods <= 12 && ['periodMs','overtimeMs'].every(k => Number.isInteger(config[k]) && config[k] >= 1000 && config[k] <= 3600000),'config','Ungültige Abschnittsdauer.');
   validateGameplan(gameplan);
+  ensure(roster.filter(player=>player.gameStatus!=='dnp').every(player=>!isCoachOnly(gameplan,player.id)),'roster','Trainer ohne Spielerrolle dürfen keinen Spielerplatz belegen.');
   return clone({schemaVersion,id,deviceId,actorId,roster,startingFive,config,...(gameplan===undefined?{}:{gameplan}),events:[]});
 }
 function validateEvent(s,e) {
@@ -83,7 +86,7 @@ function validateEvent(s,e) {
   ensure(typeof e.recordedAt === 'string' && Number.isFinite(Date.parse(e.recordedAt)),'time','Ungültige Erfassungszeit.');
   const known = s.roster.concat(s.events.filter(x=>x.kind==='roster' && x.seq<e.seq).flatMap(x=>x.payload.players||[]));
   if (e.kind === 'roster') ensure(Array.isArray(e.payload.players) && e.payload.players.length>0 && e.payload.players.length<=40 && e.payload.players.every(p=>idOK(p.id)&&typeof p.name==='string'&&p.name.length>0&&p.name.length<=100),'roster','Ungültige Kaderkorrektur.');
-  if(e.kind==='roster'){validateJerseys(e.payload.players);validateRosterFields(e.payload.players);}
+  if(e.kind==='roster'){validateJerseys(e.payload.players);validateRosterFields(e.payload.players);ensure(e.payload.players.filter(player=>player.gameStatus!=='dnp').every(player=>!isCoachOnly(s.gameplan,player.id)),'roster','Trainer ohne Spielerrolle dürfen keinen Spielerplatz belegen.');}
   if(e.kind==='starting-five'){
     const playerIds=e.payload.playerIds;
     ensure(s.schemaVersion>=3&&Object.keys(e.payload).length===1&&Array.isArray(playerIds)&&playerIds.length===5&&new Set(playerIds).size===5&&
@@ -162,3 +165,4 @@ export function sessionRoster(s) {
   ensure(roster.size<=40,'roster','Höchstens 40 Spieler pro Spiel.');
   return [...roster.values()];
 }
+

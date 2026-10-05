@@ -1,4 +1,5 @@
 import {canonical,clone,ensure} from '../live-game/core.mjs';
+import {validateStaff} from '../coaching-staff.mjs';
 import {GAME_POSITION_VALUES} from '../basketball-positions.mjs';
 const idOK=x=>typeof x==='string'&&x.length>0&&x.length<=120&&!['__proto__','prototype','constructor'].includes(x);
 const text=(x,max)=>typeof x==='string'&&x.length<=max;
@@ -24,6 +25,7 @@ function validateOpponentPlan(plan){
   }
 }
 function validateDraft(v){
+  validateStaff(v?.staff);
   ensure(v&&[null,'home','away'].includes(v.ownSide)&&['match','training'].includes(v.kind)&&['game','roster','preparation','review'].includes(v.step),'schema','Ungültige Spieltagsvorbereitung.');
   ensure(['goals','warmup','coachingNote','closingNote'].every(k=>text(v[k],4000)),'schema','Notizen dürfen höchstens 4000 Zeichen enthalten.');
   ensure(Array.isArray(v.roster)&&v.roster.length<=40&&v.roster.every(p=>p&&idOK(p.id)&&text(p.name,100)&&(p.jerseyNumber===null||text(p.jerseyNumber,100))&&
@@ -78,3 +80,4 @@ export function resolveMatchday(value,chosenId,metadata){
   const selection=selectDraft(value);ensure(selection.heads.includes(chosenId),'selection','Diese Entwurfsversion ist nicht mehr aktuell.');
   return reviseMatchday(value,{...metadata,parents:selection.heads,value:clone(value.revisions.find(r=>r.id===chosenId).value)});
 }
+

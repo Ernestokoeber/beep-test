@@ -1,3 +1,4 @@
+import {mountStaffEditor,renderStaffSummary,isCoachOnly} from '../coaching-staff.mjs';
 import {clone,canonical} from '../live-game/core.mjs';
 import {buildSetup} from './flow.mjs';
 import {mountMatchdayLive} from './live-shell.mjs';
@@ -124,6 +125,8 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       lineupPanel.append(el('h4','Wer startet?'),el('p','Wähle aus dem nominierten Kader genau fünf Starter.'));
       const lineupEmpty=el('p','Noch niemand im Kader. Wähle zuerst Spieler unter Kader aus.');lineupEmpty.className='matchday-empty-hint';lineupPanel.append(lineupEmpty);
       group.append(rosterPanel,lineupPanel);
+      const staffHost=el('div');group.insertBefore(staffHost,summary);
+      const staffEditor=mountStaffEditor(staffHost,{staff:draft.staff||[],players:players(),readOnly:s.readOnly,onChange(staff){draft.staff=staff;mark();updateSelection();}});
       const all=new Map(players().filter(p=>!p.archived).map(p=>[p.id,p]));for(const p of draft.roster)all.set(p.id,{...players().find(x=>x.id===p.id),...p});
       const rows=[];
       const choice=(parent,label,player,value,kind)=>{const n=button(parent,label,kind==='roster'?'choose-roster':'choose-lineup',()=>setStatus(player.id,value,kind));n.dataset[kind==='roster'?'playerRoster':'playerLineup']=player.id;n.dataset.status=value;n.setAttribute('aria-label',`${player.name}: ${label}`);n.setAttribute('aria-pressed','false');return n;};
@@ -142,6 +145,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       }
       function setStatus(playerId,value,kind){const row=rows.find(item=>item.p.id===playerId);if(!row)return;const injured=kind==='roster'&&value==='injured',next=injured?'dnp':kind==='roster'&&value==='bench'&&row.status==='starter'?'starter':value,nextReason=next==='dnp'?(injured?'injured':'not-selected'):null;if(next===row.status&&nextReason===row.absenceReason)return;row.status=next;row.absenceReason=nextReason;if(injured){onPlayerInjury(row.p,game);status.textContent=`${row.p.name} wird als verletzt geführt und im Training geschont.`;}mark();updateSelection();}
       function updateSelection(){
+        for(const row of rows){const coaching=isCoachOnly(draft,row.p.id);row.row.hidden=coaching;if(coaching){row.status='dnp';row.absenceReason='not-selected';}}
         const nominated=rows.filter(row=>row.status!=='dnp'),starters=rows.filter(row=>row.status==='starter');
         const rosterStat=el('span');rosterStat.append(el('small','Kader '),el('strong',`${nominated.length} Spieler`));
         const lineupStat=el('span');lineupStat.append(el('small','Starting Five '),el('strong',`${starters.length}/5`));summary.replaceChildren(rosterStat,lineupStat);
@@ -152,7 +156,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
         }
       }
       function showPane(pane){selectionPane=pane;const lineup=pane==='lineup';rosterPanel.hidden=lineup;lineupPanel.hidden=!lineup;rosterTab.classList.toggle('active',!lineup);lineupTab.classList.toggle('active',lineup);}
-      read=()=>{const roster=rows.map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null,gameStatus:r.status,...(r.status==='dnp'?{absenceReason:r.absenceReason||'not-selected'}:{}),gamePosition:r.position.value||null,role:r.status==='dnp'?'':r.role.value.trim()}));return {...draft,roster,startingFive:roster.filter(player=>player.gameStatus==='starter').map(player=>player.id)};};
+      read=()=>{const roster=rows.filter(r=>!isCoachOnly(draft,r.p.id)).map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null,gameStatus:r.status,...(r.status==='dnp'?{absenceReason:r.absenceReason||'not-selected'}:{}),gamePosition:r.position.value||null,role:r.status==='dnp'?'':r.role.value.trim()}));return {...draft,staff:staffEditor.read(),roster,startingFive:roster.filter(player=>player.gameStatus==='starter').map(player=>player.id)};};
       updateSelection();showPane(selectionPane);
       button(actions,'Zurück','back',()=>save('game'));
       button(actions,'Weiter zum Gameplan','next',()=>{try{buildSetup(read());save('preparation');}catch(e){status.textContent=e.message;}});
@@ -175,6 +179,7 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       button(actions,'Gameplan prüfen','next',()=>save('review'));
     }else{
       group.append(el('h3','Gameplan bestätigen'),el('p',`${draft.kind==='training'?'Trainingsspiel':'Spiel'} · ${draft.ownSide==='home'?'Heim':'Gast'} · ${draft.config.periods} × ${draft.config.periodMs/60000} Minuten`),el('p','Mit der Kaderfreigabe wird dieser Gameplan eingefroren. Bis dahin kannst du Kader und Starting Five jederzeit ändern.'));
+      renderStaffSummary(group,draft.staff);
       group.append(opponentSection(draft.opponentPlan,{review:true}));
       const lineup=el('div');lineup.className='matchday-lineup-board';for(const [key,label]of Object.entries(playerStatusLabels)){const section=el('section');section.dataset.status=key;section.append(el('h4',label));const list=el('ul');for(const p of draft.roster.filter(player=>(player.gameStatus||(draft.startingFive.includes(player.id)?'starter':'bench'))===key))list.append(el('li',`${p.jerseyNumber===null?'Ohne Nummer':'#'+p.jerseyNumber} ${p.name} · ${key==='dnp'?(absenceReasonLabels[p.absenceReason]||absenceReasonLabels['not-selected']):gamePositionLabel(p.gamePosition)+(p.role?' · '+p.role:'')}`));if(!list.children.length)list.append(el('li','Keine Spieler'));section.append(list);lineup.append(section);}group.append(lineup);
       const plan=el('section');plan.className='matchday-plan-summary';plan.append(el('h4','Schwerpunkte'),el('p',draft.goals||'Keine Spielziele eingetragen.'),el('p',draft.warmup?'Aufwärmen: '+draft.warmup:'Kein Aufwärmplan eingetragen.'),el('p',draft.coachingNote?'Coaching: '+draft.coachingNote:'Keine Coaching-Notiz eingetragen.'));group.append(plan);
@@ -207,3 +212,4 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
   cleanup.flush=async()=>{if(liveCleanup?.flush)return liveCleanup.flush();if(saving)await pending;return save();};
   return cleanup;
 }
+

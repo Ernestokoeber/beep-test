@@ -67,7 +67,7 @@ BT.trainingLive = (() => {
       activeIndex: 0,
       totalElapsedMs: 0,
       totalRunningSince: timestamp,
-      presentCount: (training.attendance || []).filter(item => item.status === 'present').length,
+      presentCount: (BT.staff?.playerAttendance(training) || training.attendance || []).filter(item => item.status === 'present').length,
       plannedSeconds: blocks.reduce((sum, block) => sum + block.plannedSeconds, 0),
       blocks,
       events: [{ type: 'session-started', at: iso(timestamp) }],
@@ -482,7 +482,7 @@ BT.trainingLive = (() => {
   function finish() {
     if (!active || active.session.status === 'completed') return;
     const remaining = active.session.blocks.filter(block => block.status === 'pending').length;
-    const pendingAttendance = (active.training.attendance || []).filter(item => !item.status).length;
+    const pendingAttendance = (BT.staff?.playerAttendance(active.training) || active.training.attendance || []).filter(item => !item.status).length;
     const details = [remaining ? `${remaining} noch nicht gestartete Blöcke werden als übersprungen markiert.` : '', pendingAttendance ? `Bei ${pendingAttendance} Spielern ist die Anwesenheit noch offen.` : ''].filter(Boolean).join('\n\n');
     if (!window.confirm(`Training jetzt beenden und die Live-Auswertung speichern?${details ? `\n\n${details}` : ''}`)) return;
     finishSession(active.session);
@@ -719,3 +719,4 @@ BT.trainingLive = (() => {
     }
   };
 })();
+

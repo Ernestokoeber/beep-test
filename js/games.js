@@ -160,6 +160,7 @@ BT.games = (function() {
     }
     const starterIds = new Set(startingFive);
     return {
+      staff: session.gameplan?.staff || [],
       roster: [...roster.values()].map(player => player.gameStatus === 'dnp'
         ? player
         : Object.assign({}, player, { gameStatus: starterIds.has(player.id) ? 'starter' : 'bench' })),
@@ -176,7 +177,7 @@ BT.games = (function() {
     const parentIds = new Set(revisions.flatMap(revision => Array.isArray(revision.parents) ? revision.parents : []));
     const heads = revisions.filter(revision => !parentIds.has(revision.id));
     const draft = heads.length === 1 ? heads[0].value : null;
-    return { roster: draft?.roster || [], startingFive: draft?.startingFive || [], events: [] };
+    return { staff: draft?.staff || [], roster: draft?.roster || [], startingFive: draft?.startingFive || [], events: [] };
   }
 
   function drawDetail() {
@@ -197,7 +198,7 @@ BT.games = (function() {
     const starterCount = preparation.startingFive.length;
     const selectedSession = game.liveStats?.sessions?.find(session => session.id === game.liveStats.selectedSessionId);
     const releasedIds=selectedSession?new Set(preparation.roster.filter(player=>player.gameStatus!=='dnp').map(player=>player.id)):null;
-    const players = BT.storage.getPlayers().filter(player => !player.archived&&(!releasedIds||releasedIds.has(player.id))).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    const players = BT.storage.getPlayers().filter(player => !player.archived&&!BT.staff?.isCoachOnly(preparation,player.id)&&(!releasedIds||releasedIds.has(player.id))).sort((a, b) => a.name.localeCompare(b.name, 'de'));
     const gameFinished = preparation.events.some(event => event.kind === 'finish');
     const preparationLabel = gameFinished ? 'Spieltag ansehen' : game.liveStats ? 'Spieltag fortsetzen' : game.matchday ? 'Vorbereitung fortsetzen' : 'Kader & Starting Five festlegen';
 
@@ -207,6 +208,7 @@ BT.games = (function() {
     </div>
 
     <section class="boxscore-panel game-preparation-card"><h3>Spielvorbereitung</h3><p>Kader, Gegneranalyse und Gameplan bestätigen und danach in die freie Live-Erfassung wechseln.</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live">Live Game mit Gegnerplan</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
+    <section class="coaching-staff-summary" data-role="game-staff"><h3>Trainerteam</h3>${(BT.staff?.lines(preparation.staff) || []).map(line => `<p>${escapeHTML(line)}</p>`).join('') || '<p>Trainer und Co-Trainer im Spieltag unter Kader zuordnen.</p>'}</section>
     <section class="opponent-defense-card game-opponent-plan confidence-${escapeHTML(defensePlan?.confidence || 'low')}">
       <div class="section-head compact"><div><span class="section-kicker">Gegnerplan</span><h3>${escapeHTML(defensePlan?.startLabel || 'Mannverteidigung · Grundlagen')}</h3></div><a class="btn small" href="#/opponents">Scouting öffnen</a></div>
       <p><strong>Alternative:</strong> ${escapeHTML(defensePlan?.alternativeLabel || 'nach den ersten Angriffen festlegen')}</p>
@@ -497,3 +499,4 @@ BT.games = (function() {
   }
   return { render, renderMatchday, beforeLeave, cleanup, isLiveOpen: () => !!liveCleanup };
 })();
+

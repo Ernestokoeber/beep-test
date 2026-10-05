@@ -145,7 +145,7 @@ BT.stationTraining = (() => {
   function trainingLoad(playerId, date, trainings = BT.storage.getTrainings()) {
     const start = addDays(date, -6);
     return (trainings || []).filter(training => training.date >= start && training.date < date && (training.endedAt || training.status === 'completed')).reduce((sum, training) => {
-      const attendance = (training.attendance || []).find(item => item.playerId === playerId);
+      const attendance = (BT.staff?.playerAttendance(training) || training.attendance || []).find(item => item.playerId === playerId);
       if (attendance?.status !== 'present') return sum;
       const stationPlayer = training.stationTraining?.players?.[playerId];
       const drills = training.plan?.drills || [];
@@ -183,7 +183,7 @@ BT.stationTraining = (() => {
 
   function createState(training, game, stations = stationsForDate(training.date)) {
     const players = {};
-    BT.storage.getPlayers().filter(player => !player.archived).forEach(player => {
+    BT.storage.getPlayers().filter(player => !player.archived && !BT.staff?.isCoachOnly(training, player.id)).forEach(player => {
       const minutes = gameMinutes(player.id, training.date);
       const attendance=(training.attendance||[]).find(item=>item.playerId===player.id);
       const availabilityActive=!player.availabilityUntil||player.availabilityUntil>=training.date;
@@ -328,7 +328,7 @@ BT.stationTraining = (() => {
   function ensurePlayers(training) {
     if (!training.stationTraining) return;
     training.stationTraining.players ||= {};
-    BT.storage.getPlayers().filter(player => !player.archived).forEach(player => {
+    BT.storage.getPlayers().filter(player => !player.archived && !BT.staff?.isCoachOnly(training, player.id)).forEach(player => {
       if (training.stationTraining.players[player.id]) return;
       const minutes = gameMinutes(player.id, training.date);
       training.stationTraining.players[player.id] = {
@@ -345,7 +345,7 @@ BT.stationTraining = (() => {
     ensurePlayers(training);
     const escapeHTML = BT.util.escapeHTML;
     const state = training.stationTraining;
-    const players = BT.storage.getPlayers().filter(player => !player.archived).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    const players = BT.storage.getPlayers().filter(player => !player.archived && !BT.staff?.isCoachOnly(training, player.id)).sort((a, b) => a.name.localeCompare(b.name, 'de'));
     players.forEach(player => refreshPlayer(training, player.id));
     const counts = players.reduce((result, player) => {
       result[state.players[player.id]?.light || 'green'] += 1; return result;
@@ -402,3 +402,4 @@ BT.stationTraining = (() => {
     __test: { mondayFor, addDays, planFor, planFromAI, createState, normalizeAIStations }
   };
 })();
+

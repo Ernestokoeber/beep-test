@@ -27,3 +27,8 @@ Der Bericht enthält:
 - Trainernotizen je Block.
 
 Ein abgeschlossenes Training kann über `Live-Auswertung` erneut geöffnet werden. `Neue Durchführung starten` setzt nur die gespeicherte Live-Durchführung zurück; Trainingsplan und Anwesenheit bleiben erhalten.
+
+
+## Trainerteam
+
+Trainer und Co-Trainer werden pro Termin separat zugeordnet. Die Teilnahme als Spieler ist optional; Details und Prüfläufe: [Trainerteam](COACHING-STAFF.md).

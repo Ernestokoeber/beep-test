@@ -130,11 +130,12 @@ BT.dashboard = (function() {
   function renderCoachBriefing(root) {
     const grid = $('[data-role="coach-briefing-grid"]', root);
     const list = $('[data-role="coach-briefing-list"]', root);
-    const players = BT.storage.getPlayers().filter(player => !player.archived);
+    let players = BT.storage.getPlayers().filter(player => !player.archived);
     const today = todayISO();
     const next = BT.storage.getTrainings()
       .filter(training => (training.date || '') >= today)
       .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')))[0];
+    players = players.filter(player => !BT.staff?.isCoachOnly(next, player.id));
     const unavailable = players.filter(player => {
       if (player.availabilityUntil && player.availabilityUntil < today) return false;
       return player.availability && player.availability !== 'ready';
@@ -143,7 +144,7 @@ BT.dashboard = (function() {
       .filter(goal => goal.status !== 'done')
       .map(goal => ({ player, goal })));
     const dueGoals = activeGoals.filter(item => item.goal.targetDate && item.goal.targetDate <= today);
-    const openAttendance = next ? (next.attendance || []).filter(entry => !entry.status).length : 0;
+    const openAttendance = next ? (BT.staff?.playerAttendance(next) || next.attendance || []).filter(entry => !entry.status).length : 0;
     const plannedMinutes = next && next.plan ? (next.plan.drills || []).reduce((sum, drill) => sum + (Number(drill.minutes) || 0), 0) : 0;
 
     grid.innerHTML = `
@@ -154,6 +155,7 @@ BT.dashboard = (function() {
     `;
 
     const notes = [];
+    for (const text of BT.staff?.lines(next?.staff) || []) notes.push({cls: 'info', text});
     unavailable.forEach(player => notes.push({ cls: 'warn', text: player.name + ': ' + ({ limited: 'eingeschränkt', injured: 'verletzt', away: 'abwesend' }[player.availability] || player.availability) + (player.availabilityNote ? ' – ' + player.availabilityNote : '') }));
     dueGoals.forEach(item => notes.push({ cls: 'warn', text: 'Ziel fällig: ' + item.player.name + ' – ' + item.goal.title }));
     if (next && openAttendance) notes.push({ cls: 'info', text: openAttendance + ' Anwesenheitsstatus für das nächste Training noch offen' });
@@ -518,7 +520,7 @@ BT.dashboard = (function() {
       const row = [p.name, p.position || ''];
       let present = 0, total = 0;
       for (const t of trainings) {
-        const a = (t.attendance || []).find(x => x.playerId === p.id);
+        const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(x => x.playerId === p.id);
         if (!a) { row.push(''); continue; }
         total++;
         if (a.status === 'present') present++;
@@ -535,7 +537,7 @@ BT.dashboard = (function() {
     rows.push(['# Freiwürfe (alle Trainings)']);
     rows.push(['Datum', 'Spieler', 'Position', 'Treffer', 'Versuche', 'Quote %']);
     for (const t of trainings) {
-      const presentIds = new Set((t.attendance || []).filter(a => a.status === 'present').map(a => a.playerId));
+      const presentIds = new Set((BT.staff?.playerAttendance(t) || t.attendance || []).filter(a => a.status === 'present').map(a => a.playerId));
       const fts = (t.freethrows || []).filter(e => presentIds.has(e.playerId) && (e.attempted || 0) > 0);
       const sorted = fts.slice().sort((a, b) => {
         const pa = playerById(a.playerId), pb = playerById(b.playerId);
@@ -554,7 +556,7 @@ BT.dashboard = (function() {
       rows.push(['# Würfe – ' + cat]);
       rows.push(['Datum', 'Spieler', 'Position', 'Treffer', 'Versuche', 'Quote %']);
       for (const t of trainings) {
-        const presentIds = new Set((t.attendance || []).filter(a => a.status === 'present').map(a => a.playerId));
+        const presentIds = new Set((BT.staff?.playerAttendance(t) || t.attendance || []).filter(a => a.status === 'present').map(a => a.playerId));
         const c = (t.shots || []).find(s => s.category === cat);
         if (!c) continue;
         const entries = (c.entries || []).filter(e => presentIds.has(e.playerId) && (e.attempted || 0) > 0);
@@ -614,10 +616,10 @@ BT.dashboard = (function() {
         shotsByCategory: BT.stats.teamShotsByCategory()
       },
       trainings: trainings.map(t => {
-        const presentIds = new Set((t.attendance || []).filter(a => a.status === 'present').map(a => a.playerId));
+        const presentIds = new Set((BT.staff?.playerAttendance(t) || t.attendance || []).filter(a => a.status === 'present').map(a => a.playerId));
         return {
           id: t.id, date: t.date, startTime: t.startTime || null, note: t.note || null,
-          attendance: (t.attendance || []).map(a => {
+          attendance: (BT.staff?.playerAttendance(t) || t.attendance || []).map(a => {
             const p = playerById(a.playerId);
             return {
               playerId: a.playerId,
@@ -639,3 +641,4 @@ BT.dashboard = (function() {
 
   return { render };
 })();
+

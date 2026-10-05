@@ -1,3 +1,4 @@
+import {renderStaffSummary,isCoachOnly} from '../coaching-staff.mjs';
 import {canonical,clone,effectiveEvents} from '../live-game/core.mjs';
 import {mountLiveView} from '../live-game/view.mjs';
 import {renderLiveReport} from '../live-game/report.mjs';
@@ -20,7 +21,8 @@ function renderOpponentAnalysis(live,title='Defense-Vergleich'){
 }
 export function mountMatchdayLive(container,controller,{tactics=()=>[],players=()=>[],game=null,onPlayerInjury=()=>{},onOpponentFeedback=()=>{}}={}){
   let dirty=false,revision=0,parents=controller.getState().heads,base=clone(controller.getState().draft),saving=false,pending=Promise.resolve(true),dead=false,reportKey='',conflictKey='';
-  let scoutingKey='',feedbackKey='',rosterEditorKey='',resetKey='';
+  let scoutingKey='',feedbackKey='',rosterEditorKey='',resetKey='',staffKey='';
+  const staffOverview=el('div');staffOverview.dataset.role='live-staff';
   const hint=el('p'),pregameRoster=el('section'),resetLive=el('section'),scouting=el('details'),pause=el('section'),liveTools=el('details'),liveHost=el('section'),details=el('details'),report=el('section'),conflicts=el('section');
   pregameRoster.dataset.role='pregame-roster';pregameRoster.className='matchday-pregame-roster';
   resetLive.dataset.role='reset-live';resetLive.className='matchday-reset-live';
@@ -31,7 +33,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
   const save=el('button','Abschlussnotiz speichern');save.type='submit';form.append(save);
   const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;details.append(discard);
   discard.addEventListener('click',()=>{dirty=false;update(controller.getState());});
-  container.append(hint,pregameRoster,resetLive,scouting,pause,report,liveTools,details,conflicts);
+  container.append(hint,staffOverview,pregameRoster,resetLive,scouting,pause,report,liveTools,details,conflicts);
   // Base and parents belong to the displayed fields, including a focused field
   // whose remote update was deliberately held back.
   function mark(){dirty=true;revision++;status.textContent='Abschlussnotiz ungespeichert';}
@@ -49,7 +51,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
     const current=s.liveState.roster||[],onCourt=s.liveState.lineups?.onCourt||[],key=canonical([current,onCourt,s.readOnly,s.busy]);if(key===rosterEditorKey)return;rosterEditorKey=key;pregameRoster.replaceChildren();
     const head=el('div');head.className='matchday-pregame-head';const title=el('div');title.append(el('small','VOR DEM ERSTEN UHRSTART'),el('h3','Live-Kader anpassen'));const toggle=el('button','Kader ändern');toggle.type='button';toggle.dataset.action='edit-live-roster';toggle.disabled=s.readOnly||s.busy;head.append(title,toggle);pregameRoster.append(head,el('p','Verletzungen oder kurzfristige Ausfälle kannst du hier noch ändern. Mit dem ersten Uhrstart wird der Kader gesperrt.'));
     const editor=el('form');editor.className='matchday-pregame-editor';editor.hidden=true;const message=el('p');message.setAttribute('role','status');
-    const all=new Map(players().filter(player=>!player.archived).map(player=>[player.id,player]));for(const player of current)all.set(player.id,{...all.get(player.id),...player});
+    const all=new Map(players().filter(player=>!player.archived&&!isCoachOnly(s.draft,player.id)).map(player=>[player.id,player]));for(const player of current)all.set(player.id,{...all.get(player.id),...player});
     const currentIds=new Set(current.map(player=>player.id)),rows=[];
     for(const player of [...all.values()].sort((left,right)=>left.name.localeCompare(right.name,'de'))){
       const currentPlayer=current.find(item=>item.id===player.id),card=el('div');card.className='matchday-pregame-player';
@@ -104,6 +106,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
   function update(s){
     if(dead)return;
     hint.textContent=s.liveState.clock?.running?'Die Uhr läuft beim Verlassen weiter.':'Die Spieluhr startest und stoppst du selbst.';
+    const nextStaff=canonical(s.draft.staff||[]);if(staffKey!==nextStaff){staffKey=nextStaff;staffOverview.replaceChildren();renderStaffSummary(staffOverview,s.draft.staff);}
     renderPregameRoster(s);
     renderResetLive(s);
     pause.hidden=s.stage!=='pause';
@@ -118,6 +121,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
     closingNote.disabled=s.readOnly||s.conflict;save.disabled=s.readOnly||s.conflict||saving;
     status.textContent=s.error||(dirty?'Abschlussnotiz ungespeichert':s.localStatus==='synced'?'Gameplan synchronisiert':s.localStatus==='pending'?'Lokal gesichert · Synchronisation ausstehend':'Noch keine Abschlussnotiz gespeichert');
     overview.replaceChildren(el('p','Vor Spielbeginn festgelegt · während des Spiels nur lesbar.'));
+    renderStaffSummary(overview,s.draft.staff);
     const lineup=el('div');lineup.className='matchday-lineup-board';for(const [key,label]of Object.entries(playerStatusLabels)){const section=el('section');section.dataset.status=key;section.append(el('h4',label));const list=el('ul');for(const player of s.draft.roster.filter(item=>(item.gameStatus||(s.draft.startingFive.includes(item.id)?'starter':'bench'))===key))list.append(el('li',`${player.jerseyNumber===null?'Ohne Nummer':'#'+player.jerseyNumber} ${player.name} · ${gamePositionLabel(player.gamePosition)}${player.role?' · '+player.role:''}`));if(!list.children.length)list.append(el('li','Keine Spieler'));section.append(list);lineup.append(section);}overview.append(lineup);
     const notes=el('section');notes.className='matchday-plan-summary';notes.append(el('h4','Schwerpunkte'),el('p',s.draft.goals||'Keine Spielziele eingetragen.'),el('p',s.draft.warmup?'Aufwärmen: '+s.draft.warmup:'Kein Aufwärmplan eingetragen.'),el('p',s.draft.coachingNote?'Coaching: '+s.draft.coachingNote:'Keine Coaching-Notiz eingetragen.'));overview.append(notes);
     const planned=el('section');planned.className='matchday-plan-summary';planned.append(el('h4','Geplante Taktiken'));for(const [usage,label]of Object.entries(tacticUsageLabels)){const chosen=s.draft.tactics.filter(t=>(t.usage||'offense')===usage);if(chosen.length)planned.append(el('p',label+': '+chosen.map(t=>t.title+(tactics().some(x=>x.id===t.id)?'':' – Nicht mehr verfügbar')).join(', ')));}if(!s.draft.tactics.length)planned.append(el('p','Keine Taktik ausgewählt.'));overview.append(planned);
@@ -145,3 +149,4 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
   function cleanup(){dead=true;unsub();unmount();window.removeEventListener('beforeunload',unload);}
   cleanup.flush=flush;return cleanup;
 }
+

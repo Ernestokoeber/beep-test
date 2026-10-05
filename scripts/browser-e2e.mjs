@@ -987,9 +987,73 @@ async function testMatchday(browser, name, options) {
   }
 }
 
+async function testCoachingStaff(browser, name, options) {
+  const context = await browser.newContext({...options, locale:'de-DE', serviceWorkers:'block'});
+  const page = await context.newPage(), errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await context.addInitScript(()=>{
+    window.BT={};let sync;
+    Object.defineProperty(window.BT,'sync',{configurable:true,get:()=>sync,set(value){sync=value;const original=value.getState.bind(value);value.getState=()=>({...original(),user:{id:'staff-coach',role:'coach',organization:{id:'staff-e2e'}}});}});
+  });
+  const noOverflow=async()=>{const sizes=await page.evaluate(()=>[document.documentElement.scrollWidth,document.body.scrollWidth,document.documentElement.clientWidth]);assert(Math.max(sizes[0],sizes[1])<=sizes[2]+1,`${name}: Trainerteam läuft horizontal über`);assert(errors.length===0,`${name}: ${errors.join(' | ')}`);};
+  try {
+    await page.goto(baseUrl+'/#/dashboard');await page.waitForFunction(()=>window.BT?.staff&&window.BT?.storage);
+    const data=await page.evaluate(()=>{
+      const players=Array.from({length:6},(_,i)=>window.BT.storage.upsertPlayer({name:i===0?'Ernesto Testtrainer':`Staff-Test Spieler ${i}`,jerseyNumber:String(i)}));
+      const training=window.BT.storage.upsertTraining({date:'2026-10-06',attendance:players.map(p=>({playerId:p.id,status:'present'})),plan:{drills:[]}});
+      const game=window.BT.storage.upsertGame({date:'2026-10-10',home:'TSV Lindau',away:'Staff-Test Gast',source:'manual'});
+      return {players:players.map(p=>p.id),training:training.id,game:game.id};
+    });
+    await page.goto(baseUrl+'/#/training/'+data.training);
+    await page.locator('[data-role="staff-editor"] > summary').tap();
+    await page.getByLabel('Trainer: Person',{exact:true}).selectOption(data.players[0]);
+    await page.getByLabel('Co-Trainer: Person',{exact:true}).selectOption('external');
+    await page.getByLabel('Co-Trainer: Name',{exact:true}).fill('Externer Test Co-Trainer');
+    await page.getByLabel('Co-Trainer: Anwesenheit',{exact:true}).selectOption('present');
+    await page.locator('[data-role="summary"]').filter({hasText:'Gesamt 5'}).waitFor();await noOverflow();
+    await page.reload();await page.locator('[data-role="staff-editor"] > summary').tap();await page.getByLabel('Trainer: Person',{exact:true}).waitFor();
+    assert(await page.getByLabel('Trainer: Person',{exact:true}).inputValue()===data.players[0],`${name}: Trainer fehlt nach Reload`);
+    assert(await page.getByLabel('Co-Trainer: Name',{exact:true}).inputValue()==='Externer Test Co-Trainer',`${name}: Co-Trainer fehlt nach Reload`);
+    await page.getByLabel('Trainer: Auch als Spieler',{exact:true}).check();
+    await page.locator('[data-role="summary"]').filter({hasText:'Gesamt 6'}).waitFor();
+    await page.getByLabel('Trainer: Auch als Spieler',{exact:true}).uncheck();await noOverflow();
+    if(name==='320 px' && process.env.E2E_STAFF_SCREENSHOT)await page.screenshot({path:process.env.E2E_STAFF_SCREENSHOT,fullPage:true});
+    await page.goto(baseUrl+'/#/games');await page.locator(`[data-game-id="${data.game}"]`).tap();
+    await page.getByRole('button',{name:'Kader & Starting Five festlegen',exact:true}).tap();
+    const roster=page.locator('[data-player-roster][data-status="bench"]');await roster.first().waitFor();
+    for(let i=0;i<6;i++)await roster.nth(i).tap();
+    await page.getByRole('button',{name:'Starting Five',exact:true}).tap();
+    for(const id of data.players.slice(0,5))await page.locator(`[data-player-lineup="${id}"][data-status="starter"]`).tap();
+    await page.locator('[data-role="staff-editor"] > summary').tap();
+    await page.getByLabel('Trainer: Person',{exact:true}).selectOption(data.players[0]);
+    await page.getByLabel('Co-Trainer: Person',{exact:true}).selectOption('external');
+    await page.getByLabel('Co-Trainer: Name',{exact:true}).fill('Spiel Co-Trainer');
+    await page.getByLabel('Co-Trainer: Anwesenheit',{exact:true}).selectOption('present');
+    assert((await page.locator('[data-role="selection-summary"]').innerText()).includes('4/5'),`${name}: Trainer zählt weiter als Starter`);
+    await page.locator(`[data-player-lineup="${data.players[5]}"][data-status="starter"]`).tap();
+    await noOverflow();
+    await page.getByRole('button',{name:'Vorbereitung speichern',exact:true}).tap();
+    await page.locator('.matchday > [role="status"]').filter({hasText:'Lokal gesichert'}).waitFor();
+    await page.reload();await page.locator('[data-role="staff-editor"] > summary').tap();await page.getByLabel('Trainer: Person',{exact:true}).waitFor();
+    assert(await page.getByLabel('Co-Trainer: Name',{exact:true}).inputValue()==='Spiel Co-Trainer',`${name}: Spiel-Co-Trainer fehlt nach Reload`);
+    await page.getByRole('button',{name:'Weiter zum Gameplan',exact:true}).tap();
+    await page.getByRole('button',{name:'Optionale Angaben überspringen',exact:true}).tap();
+    await page.getByRole('button',{name:'Kader freigeben & Live öffnen',exact:true}).tap();
+    await page.locator('[data-role="live-staff"]').filter({hasText:'Spiel Co-Trainer'}).waitFor();
+    assert(await page.evaluate(({game,coach})=>{const live=window.BT.storage.getGame(game).liveStats;const session=live.sessions.find(s=>s.id===live.selectedSessionId);return session.roster.length===5&&!session.roster.some(p=>p.id===coach)&&session.gameplan.staff.length===2;},{game:data.game,coach:data.players[0]}),`${name}: Trainer belegt einen Live-Spielerplatz`);
+    await noOverflow();console.log(`Trainerteam Browser-E2E erfolgreich: ${name}, Training, Spielertrainer, Spielkader und Reload.`);
+  } finally {await context.close();}
+}
+
 const browser = await chromium.launch({ headless: true, ...(process.env.E2E_BROWSER_PATH ? { executablePath: process.env.E2E_BROWSER_PATH } : {}) });
 try {
-  if (process.env.E2E_SCREEN_ONLY) {
+  if (!process.env.E2E_SCREEN_ONLY) {
+    await testCoachingStaff(browser, 'iPhone 15', devices['iPhone 15']);
+    await testCoachingStaff(browser, '320 px', {...devices['iPhone 15'], viewport:{width:320,height:720}});
+  }
+  if (process.env.E2E_STAFF_ONLY) {
+    console.log('CourtHub Trainerteam-Browserabnahme erfolgreich.');
+  } else if (process.env.E2E_SCREEN_ONLY) {
     await testScreenAcademy(browser, 'iPhone 15', devices['iPhone 15']);
     await testScreenAcademy(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
   } else if (!process.env.E2E_MATCHDAY_ONLY) {
@@ -1001,11 +1065,13 @@ try {
     await testTrainingLive(browser, 'iPhone 15', devices['iPhone 15']);
     await testTrainingLive(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
   }
-  if (!process.env.E2E_SCREEN_ONLY) {
+  if (!process.env.E2E_SCREEN_ONLY && !process.env.E2E_STAFF_ONLY) {
     await testMatchday(browser, 'iPhone 15', devices['iPhone 15']);
     await testMatchday(browser, '320 px', { ...devices['iPhone 15'], viewport: { width: 320, height: 720 } });
   }
-  console.log(process.env.E2E_SCREEN_ONLY
+  console.log(process.env.E2E_STAFF_ONLY
+    ? 'CourtHub Trainerteam Browser-E2E erfolgreich: iPhone und 320 px.'
+    : process.env.E2E_SCREEN_ONLY
     ? 'CourtHub Screen-Akademie Browser-E2E erfolgreich: iPhone und 320 px.'
     : process.env.E2E_MATCHDAY_ONLY
     ? 'CourtHub Matchday Browser-E2E erfolgreich: iPhone und 320 px.'
@@ -1013,3 +1079,4 @@ try {
 } finally {
   await browser.close();
 }
+

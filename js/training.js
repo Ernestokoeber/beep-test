@@ -199,7 +199,7 @@ BT.training = (function() {
 
   function activeAttendance(training) {
     const archived = archivedPlayerIdSet();
-    return (training.attendance || []).filter(a => !archived.has(a.playerId));
+    return (BT.staff?.playerAttendance(training) || training.attendance || []).filter(a => !archived.has(a.playerId));
   }
 
   function presentPlayerIds(training) {
@@ -244,6 +244,15 @@ BT.training = (function() {
     target.appendChild(detailRoot);
 
     syncAttendanceWithPlayers();
+    const staffHost = $('[data-role="training-staff"]', detailRoot);
+    if (staffHost && BT.staff) BT.staff.mountEditor(staffHost, {staff: training.staff || [], players: BT.storage.getPlayers(),
+      readOnly: BT.sync?.getState?.().user?.role === 'viewer',
+      onChange(staff) {
+        currentTraining.staff = staff; save();
+        renderAttendance(); renderSummary(); renderFreethrows(); renderShots(); renderFitness(); renderSprints();
+        renderFitnessBilanz(); renderSprintBilanz(); renderPlayerNotes(); syncStationTrainingUI();
+      }
+    });
 
     $('[data-role="title"]', detailRoot).textContent = 'Training vom ' + formatDate(training.date);
     $('[data-role="date"]', detailRoot).value = training.date;
@@ -321,8 +330,8 @@ BT.training = (function() {
     const resetBtn = $('[data-action="reset-attendance"]', detailRoot);
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        const backup = (currentTraining.attendance || []).map(a => ({ status: a.status, late: a.late }));
-        for (const a of (currentTraining.attendance || [])) {
+        const backup = (BT.staff?.playerAttendance(currentTraining) || currentTraining.attendance || []).map(a => ({ status: a.status, late: a.late }));
+        for (const a of (BT.staff?.playerAttendance(currentTraining) || currentTraining.attendance || [])) {
           a.status = null;
           a.late = false;
         }
@@ -338,7 +347,7 @@ BT.training = (function() {
         BT.util.toast('Anwesenheit zurückgesetzt', {
           actionLabel: 'Rückgängig',
           action: () => {
-            (currentTraining.attendance || []).forEach((a, i) => {
+            (BT.staff?.playerAttendance(currentTraining) || currentTraining.attendance || []).forEach((a, i) => {
               if (backup[i]) { a.status = backup[i].status; a.late = backup[i].late; }
             });
             save();
@@ -392,8 +401,8 @@ BT.training = (function() {
   }
 
   function syncAttendanceWithPlayers() {
-    const active = BT.storage.getPlayers().filter(p => !p.archived);
-    const existingIds = new Set((currentTraining.attendance || []).map(a => a.playerId));
+    const active = BT.storage.getPlayers().filter(p => !p.archived && !BT.staff?.isCoachOnly(currentTraining, p.id));
+    const existingIds = new Set((BT.staff?.playerAttendance(currentTraining) || currentTraining.attendance || []).map(a => a.playerId));
     for (const p of active) {
       if (!existingIds.has(p.id)) {
         const seeded = BT.storage.attendanceForActivePlayers(currentTraining.date).find(entry => entry.playerId === p.id);
@@ -555,7 +564,7 @@ BT.training = (function() {
     applyBtn.addEventListener('click', () => {
       let changed = 0;
       for (const item of checkinSubmissions) {
-        const attendance = (currentTraining.attendance || []).find(entry => entry.playerId === item.playerId);
+        const attendance = (BT.staff?.playerAttendance(currentTraining) || currentTraining.attendance || []).find(entry => entry.playerId === item.playerId);
         if (attendance && attendance.status !== 'present') { attendance.status = 'present'; attendance.late = false; changed++; }
       }
       save(); renderAttendance(); renderSummary(); renderFreethrows(); renderShots();
@@ -582,6 +591,7 @@ BT.training = (function() {
       ${s.late > 0 ? '<span class="att-chip">Zu spät: ' + s.late + '</span>' : ''}
       ${s.pending > 0 ? '<span class="att-chip muted-chip">○ Offen ' + s.pending + '</span>' : ''}
       <span class="att-chip muted-chip">Gesamt ${s.total}</span>
+      ${(currentTraining.staff || []).length ? `<span class="att-chip">Trainerteam: ${(currentTraining.staff || []).filter(member => member.status === 'present').length}/${currentTraining.staff.length} anwesend</span>` : ''}
       <button type="button" class="btn small" data-action="toggle-ended">${ended ? 'Wieder öffnen' : 'Als beendet markieren'}</button>
     `;
     if (!el._toggleEndedBound) {
@@ -1631,11 +1641,11 @@ BT.training = (function() {
   function renderPlayerNotes() {
     const list = $('[data-role="player-notes"]', detailRoot);
     list.innerHTML = '';
-    const allPlayers = BT.storage.getPlayers().filter(p => !p.archived);
+    const allPlayers = BT.storage.getPlayers().filter(p => !p.archived && !BT.staff?.isCoachOnly(currentTraining, p.id));
     const sorted = allPlayers.slice().sort((a, b) => a.name.localeCompare(b.name, 'de'));
 
     for (const p of sorted) {
-      let att = (currentTraining.attendance || []).find(a => a.playerId === p.id);
+      let att = (BT.staff?.playerAttendance(currentTraining) || currentTraining.attendance || []).find(a => a.playerId === p.id);
       if (!att) {
         att = { playerId: p.id, status: null, late: false, note: '' };
         currentTraining.attendance.push(att);
@@ -2790,9 +2800,10 @@ BT.training = (function() {
     const posOf = id => (allPlayers.find(p => p.id === id) || {}).position || '';
 
     const rows = [];
+    if (training.staff?.length) { rows.push(['# Trainerteam']); rows.push(['Rolle', 'Name', 'Anwesenheit', 'Auch als Spieler']); for (const member of training.staff) rows.push([member.role === 'coach' ? 'Trainer' : 'Co-Trainer', member.name, member.status, member.alsoPlayer ? 'ja' : 'nein']); rows.push([]); }
     rows.push(['# Anwesenheit']);
     rows.push(['Datum', 'Startzeit', 'Spieler', 'Position', 'Status', 'Symbol', 'Zu spät', 'Notiz', 'Training-Notiz']);
-    const attSorted = (training.attendance || []).slice()
+    const attSorted = (BT.staff?.playerAttendance(training) || training.attendance || []).slice()
       .map(a => ({ a, p: allPlayers.find(p => p.id === a.playerId) }))
       .filter(x => x.p)
       .sort((x, y) => x.p.name.localeCompare(y.p.name, 'de'));
@@ -2854,7 +2865,8 @@ BT.training = (function() {
       date: training.date,
       startTime: training.startTime || null,
       note: training.note || null,
-      attendance: (training.attendance || []).map(a => {
+      staff: training.staff || [],
+      attendance: (BT.staff?.playerAttendance(training) || training.attendance || []).map(a => {
         const p = allPlayers.find(x => x.id === a.playerId);
         return {
           playerId: a.playerId,
@@ -2878,7 +2890,7 @@ BT.training = (function() {
   // ====== Spieler-Detail-Modal + Einzel-Report ======
 
   function gatherPlayerStats(player, training) {
-    const att = (training.attendance || []).find(a => a.playerId === player.id) || null;
+    const att = (BT.staff?.playerAttendance(training) || training.attendance || []).find(a => a.playerId === player.id) || null;
     const ftEntry = (training.freethrows || []).find(e => e.playerId === player.id) || null;
     const shotEntries = [];
     for (const cat of (training.shots || [])) {
@@ -3353,3 +3365,4 @@ BT.training = (function() {
 
   return { renderList, renderDetail, openPlayerStatsModal, cleanup };
 })();
+

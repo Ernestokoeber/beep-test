@@ -180,3 +180,8 @@ Mit einem Testspiel, nicht während eines echten Spiels, prüfen:
   Der Konflikt muss sichtbar werden; keine Version darf still verschwinden.
 - Auf dem tatsächlichen Trainingshandy Sperrbildschirm und App-Wechsel testen.
   Die App-Uhr ist eine eigene Erfassung und kein Ersatz für die offizielle Hallenuhr.
+
+
+## Trainerteam
+
+Trainer und Co-Trainer werden pro Termin separat zugeordnet. Die Teilnahme als Spieler ist optional; Details und Prüfläufe: [Trainerteam](COACHING-STAFF.md).

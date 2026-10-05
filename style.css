@@ -8173,3 +8173,22 @@ body {
     -webkit-backdrop-filter: none;
   }
 }
+
+
+/* Event-specific coaching staff: never consumes a player slot. */
+.coaching-staff, .coaching-staff-summary { margin: 16px 0; padding: 16px; border: 1px solid var(--border, #65766e); border-radius: 14px; min-width: 0; overflow-wrap: anywhere; }
+.coaching-staff h3, .coaching-staff-summary h3 { margin: 0 0 8px; }
+.coaching-staff p { margin: 0 0 12px; }
+.coaching-staff-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.coaching-staff-grid fieldset { margin: 0; padding: 12px; display: grid; gap: 10px; min-width: 0; border: 1px solid var(--border, #65766e); border-radius: 10px; }
+.coaching-staff-grid label { display: grid; gap: 5px; min-width: 0; }
+.coaching-staff-grid input:not([type=checkbox]), .coaching-staff-grid select { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; }
+.coaching-staff-grid .coaching-staff-playing { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.coaching-staff-playing input { width: 20px; height: 20px; flex-shrink: 0; }
+.coaching-staff-error { color: var(--danger, #c52b2b); }
+.coaching-staff-error:empty { display: none; }
+@media (max-width: 600px) { .coaching-staff-grid { grid-template-columns: minmax(0, 1fr); } .coaching-staff, .coaching-staff-summary { padding: 12px; } }
+
+.coaching-staff > summary { cursor: pointer; font-weight: 700; min-height: 32px; }
+.coaching-staff[open] > summary { margin-bottom: 12px; }
+.coaching-staff-grid label[hidden] { display: none; }
