@@ -932,6 +932,9 @@ async function testMatchday(browser, name, options) {
     await page.getByRole('button', { name: 'Uhr starten', exact: true }).tap();
     await page.getByRole('button', { name: 'Spiel verbindlich starten', exact: true }).tap();
     await page.locator('[data-player]').filter({ hasText: 'E2E Spieler 6' }).waitFor();
+    assert(await page.evaluate(()=>document.body.classList.contains('live-game-active')),`${name}: Live-Modus aktiviert die feste Spieluhr nicht`);
+    assert(await page.locator('.mobile-dock').evaluate(element=>getComputedStyle(element).display)==='none',`${name}: untere App-Navigation bleibt im Live-Modus sichtbar`);
+    assert(await page.locator('.live-clock').evaluate(element=>{const style=getComputedStyle(element),box=element.getBoundingClientRect();return style.position==='fixed'&&Math.abs(innerHeight-box.bottom)<2;}),`${name}: Spieluhr sitzt nicht fest am unteren Bildschirmrand`);
     assert(await page.getByRole('button', { name: 'Kader ändern', exact: true }).count() === 0, `${name}: Kader bleibt nach Spielstart veränderbar`);
     assert(await page.getByRole('button', { name: 'Starting Five ändern', exact: true }).count() === 0, `${name}: Starting Five bleibt nach Spielstart veränderbar`);
     await page.getByText(/Gegnerplan ·/).waitFor();
@@ -983,6 +986,7 @@ async function testMatchday(browser, name, options) {
     await noOverflow('Abschlussformular');
     await page.getByRole('button', { name: 'Abschluss speichern', exact: true }).tap();
     await report();
+    assert(await page.evaluate(()=>!document.body.classList.contains('live-game-active')),`${name}: Live-Modus bleibt nach Spielende aktiv`);
     await page.getByText('Gameplan & Abschluss', { exact: true }).tap();
     assert((await page.locator('.matchday-frozen-plan').innerText()).includes('Rebounds sichern'), `${name}: gespeicherte Ziele fehlen`);
     await page.locator('[data-field="closingNote"]').fill('Ausboxen weiter trainieren');

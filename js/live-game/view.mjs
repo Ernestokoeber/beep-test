@@ -156,6 +156,8 @@ export function mountLiveView(container,controller){
     current=s;header.hidden=!s.session;periodText.textContent=s.clock?'Abschnitt '+s.clock.period+' · Eigene '+s.stats.points+(s.session.schemaVersion>=2?' : Gegner '+s.boxscore.opponentPoints:' Punkte')+' · erfasst':'';
     clockText.textContent=s.clock?formatTime(s.clock.remainingMs):'';
     start.textContent=s.clock?.running?'Uhr anhalten':'Uhr starten';start.disabled=s.busy||s.readOnly||s.needsTakeover||s.clock?.ended;
+    const gameplayStarted=!!s.session&&effectiveEvents(s.session).some(event=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(event.kind));
+    document.body.classList.toggle('live-game-active',gameplayStarted&&!s.clock?.ended&&!s.readOnly&&!s.needsTakeover);
     status.textContent=s.error||s.syncError||(s.clock?.needsCorrection?'Gerätezeit geändert: Restzeit über „Uhr korrigieren“ abgleichen.':s.busy?'Wird lokal gespeichert …':s.status==='synced'?'Lokal gesichert und synchronisiert.':'Lokal gesichert · Synchronisierung ausstehend.');
     const key=JSON.stringify([s.live,s.readOnly,s.needsTakeover]);
     if(key===signature){body.querySelectorAll('button').forEach(b=>{b.disabled=!!s.busy;});actionSheet.querySelectorAll('button[data-live-action]').forEach(b=>{b.disabled=!!s.busy;});return;}signature=key;
@@ -165,7 +167,6 @@ export function mountLiveView(container,controller){
       s.live.sessions.forEach((x,i)=>body.append(button('Erfassung '+(i+1)+' · '+x.events.length+' Aktionen',()=>confirmCommand('Diese Erfassung auswählen','Diese Auswahl bestimmt die Live-Auswertung.','select-session',{id:x.id}))));return;}
     if(s.readOnly){body.append(el('p','Lesender Zugriff. Keine Eingabe möglich.'));return;}
     if(s.needsTakeover){body.append(button('Erfassung auf diesem Gerät übernehmen',()=>confirmCommand('Erfassung übernehmen','Am bisherigen Gerät zuerst synchronisieren und die Erfassung schließen. Es wird eine fortsetzbare Kopie angelegt; die alte Sitzung bleibt erhalten.','takeover')));return;}
-    const gameplayStarted=effectiveEvents(s.session).some(event=>['clock-start','stat','opponent-score','substitution','period-start','finish'].includes(event.kind));
     if(!s.clock.ended&&!gameplayStarted){body.append(el('h2','Spiel noch nicht gestartet'),el('p','Prüfe Live-Kader, Trikotnummern und Starting Five. Erst der bestätigte erste Uhrstart schaltet Statistik, Gegnerpunkte und Wechsel frei.'));if(s.session.schemaVersion===1)body.append(el('p','Alte Erfassung: Gegnerpunkte und Plus/Minus sind hier nicht verfügbar. Neue Spiele unterstützen den vollständigen Punkteverlauf.','live-warning'));if(s.session.schemaVersion>=3)body.append(button('Starting Five ändern',startingFiveChange));return;}
     if(s.clock.ended){body.append(el('h2','Spiel abgeschlossen'));body.append(button(correctionMode?'Korrekturmodus schließen':'Korrekturmodus öffnen',()=>{correctionMode=!correctionMode;signature='';render(current);}));if(!correctionMode)return;}
     if(!s.clock.ended){
@@ -195,5 +196,5 @@ export function mountLiveView(container,controller){
     for(const e of effectiveEvents(s.session).slice().reverse()){const item=el('li','#'+e.seq+' · '+e.period+'/'+formatTime(e.remainingMs)+' · '+(s.roster.find(p=>p.id===e.payload.playerId)?.name||'')+' '+eventLabel(e));item.title=e.id;list.append(item);}history.append(list);body.append(history);
   }
   const unsubscribe=controller.subscribe(render);
-  return()=>{unsubscribe();container.replaceChildren();};
+  return()=>{unsubscribe();document.body.classList.remove('live-game-active');container.replaceChildren();};
 }

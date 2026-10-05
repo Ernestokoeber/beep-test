@@ -23,6 +23,11 @@ Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
 
 ## Während des Spiels
 
+- Mit dem verbindlichen Spielstart verschwindet auf Handys die normale untere
+  App-Navigation. An ihrer Stelle bleibt die Spieluhr mit großem
+  **Uhr starten**-/ **Uhr anhalten**-Button fest am unteren Bildschirmrand. Sie
+  ist damit auch nach dem Scrollen jederzeit erreichbar. Nach dem Spiel oder
+  beim Verlassen der Live-Erfassung erscheint die normale Navigation wieder.
 - Spieler antippen. Dadurch öffnet sich ein bildschirmfestes Aktionsmenü mit den
   Gruppen **Treffer & Fehlwürfe**, **Rebound & Zusammenspiel**, **Defense** sowie
   **Ballverlust & Foul**. Nach der Auswahl wird die Aktion gespeichert, das Menü
