@@ -23,6 +23,11 @@ Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
 
 ## Während des Spiels
 
+- Feldspieler und beide Schritte des Wechselmenüs sind nach Spielposition
+  sortiert: Point Guard, Shooting Guard, Small Forward, Power Forward, Center.
+  Innerhalb einer Position stehen die Namen alphabetisch; Spieler ohne
+  zugeordnete Position folgen am Ende. Die Position steht direkt auf dem Button.
+  Nach Wechseln und beim Wiederöffnen gilt dieselbe Reihenfolge.
 - Mit dem verbindlichen Spielstart verschwindet auf Handys die normale untere
   App-Navigation. An ihrer Stelle bleibt die Spieluhr mit großem
   **Uhr starten**-/ **Uhr anhalten**-Button fest am unteren Bildschirmrand. Sie

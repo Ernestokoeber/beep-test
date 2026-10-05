@@ -1,11 +1,14 @@
 import {actions,effectiveEvents,duration} from './core.mjs';
+import {gamePositionLabel,normalizeGamePosition,sortRosterByGamePosition} from '../basketball-positions.mjs';
 export const formatTime=ms=>{const sec=Math.ceil(Math.max(0,ms)/1000);return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');};
 const el=(tag,text,className)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;};
 const button=(text,fn)=>{const n=el('button',text);n.type='button';n.addEventListener('click',fn);return n;};
 const field=(parent,label,type,value)=>{const l=el('label',label),i=el('input');i.type=type;i.value=value??'';l.append(i);parent.append(l);return i;};
 const select=(parent,label,items,value)=>{const l=el('label',label),s=el('select');for(const [v,t]of items){const o=el('option',t);o.value=v;s.append(o);}s.value=value;l.append(s);parent.append(l);return s;};
 const parseTime=value=>{const m=/^(\d{1,2}):([0-5]\d)$/.exec(value.trim());if(!m)throw Error('Zeit als MM:SS eingeben, z. B. 08:30.');return (+m[1]*60 + +m[2])*1000;};
-const playerLabel=p=>(p.jerseyNumber==null?'Ohne Nummer':'#'+p.jerseyNumber)+' · '+p.name;
+const playerPosition=p=>normalizeGamePosition(p.gamePosition===undefined?p.position:p.gamePosition);
+const sortedPlayers=players=>sortRosterByGamePosition(players.map(p=>({...p,gamePosition:playerPosition(p)})));
+const playerLabel=p=>gamePositionLabel(playerPosition(p))+' · '+(p.jerseyNumber==null?'Ohne Nummer':'#'+p.jerseyNumber)+' · '+p.name;
 const observationLabels={paint:'Paint / Drive','open-three':'Offener Dreier',oreb:'Offensiv-Rebound','free-throw-pressure':'Freiwurfdruck'};
 const defenseLabels={man:'Mannverteidigung · Grundlagen',zone212:'Zone 2-1-2',zone23:'Zone 2-3',zone32:'Zone 3-2'};
 const actionGroups=[
@@ -49,7 +52,7 @@ export function mountLiveView(container,controller){
   }
   function form(title){mode=title;panel.replaceChildren(el('h3',title));const f=el('form');panel.append(f);f.append(button('Abbrechen',()=>{mode=null;panel.replaceChildren();}));return f;}
   function submit(f,text,fn){const b=el('button',text);b.type='submit';f.append(b);f.addEventListener('submit',async e=>{e.preventDefault();if(b.disabled)return;b.disabled=true;try{await fn();}catch(error){showError(error);}finally{b.disabled=false;}});queueMicrotask(()=>f.querySelector('input,select,button')?.focus());}
-  function checks(f,title,players,selected=[]){const group=el('fieldset');group.append(el('legend',title));f.append(group);const fields=players.map(p=>{const i=field(group,playerLabel(p),'checkbox',p.id);i.checked=selected.includes(p.id);return i;});return ()=>fields.filter(i=>i.checked).map(i=>i.value);}
+  function checks(f,title,players,selected=[]){const group=el('fieldset');group.append(el('legend',title));f.append(group);const fields=sortedPlayers(players).map(p=>{const i=field(group,playerLabel(p),'checkbox',p.id);i.checked=selected.includes(p.id);return i;});return ()=>fields.filter(i=>i.checked).map(i=>i.value);}
   function toggleClock(){
     if(current.clock.running)return send({kind:'clock-pause'});
     const firstStart=!effectiveEvents(current.session).some(event=>event.kind==='clock-start');
@@ -60,16 +63,16 @@ export function mountLiveView(container,controller){
   function setup(s){
     body.replaceChildren(el('h2','Spieltagskader'),el('p','Eigene Mannschaft auswählen, anschließend genau fünf Starter markieren.'),el('p','Für Plus/Minus alle Treffer beider Teams erfassen. Die Trikotnummer gilt nur für dieses Spiel.'));
     const f=el('form');body.append(f);const rows=[];
-    for(const p of s.roster){const row=el('div',undefined,'live-roster-row');const active=field(row,p.name,'checkbox',p.id);active.checked=true;
+    for(const p of sortedPlayers(s.roster)){const row=el('div',undefined,'live-roster-row');const active=field(row,gamePositionLabel(p.gamePosition)+' · '+p.name,'checkbox',p.id);active.checked=true;
       const starter=field(row,'Startet','checkbox',p.id);starter.dataset.starter='';const jersey=jerseyField(row,p);jersey.dataset.jerseyPlayer=p.id;active.addEventListener('change',()=>{jersey.disabled=!active.checked;starter.disabled=!active.checked;if(!active.checked)starter.checked=false;});rows.push({p,active,starter,jersey});f.append(row);}
     const periods=field(f,'Reguläre Abschnitte','number',4);periods.min='1';periods.max='12';
     const minutes=field(f,'Minuten je Abschnitt','number',10);minutes.min='1';minutes.max='60';
     const overtime=field(f,'Minuten je Verlängerung','number',5);overtime.min='1';overtime.max='60';
-    submit(f,'Erfassung starten',()=>send({kind:'setup',payload:{roster:rows.filter(r=>r.active.checked).map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null})),startingFive:rows.filter(r=>r.starter.checked).map(r=>r.p.id),config:{periods:+periods.value,periodMs:+minutes.value*60000,overtimeMs:+overtime.value*60000}}}));
+    submit(f,'Erfassung starten',()=>send({kind:'setup',payload:{roster:rows.filter(r=>r.active.checked).map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null,gamePosition:r.p.gamePosition})),startingFive:rows.filter(r=>r.starter.checked).map(r=>r.p.id),config:{periods:+periods.value,periodMs:+minutes.value*60000,overtimeMs:+overtime.value*60000}}}));
   }
   async function substitutions(){
     if(current.clock.running){const r=await send({kind:'clock-pause'});if(!r.ok)return;}
-    const outgoing=new Set(),incoming=new Set(),onCourt=current.roster.filter(p=>current.lineups.onCourt.includes(p.id)),bench=current.roster.filter(p=>p.gameStatus!=='dnp'&&!current.lineups.onCourt.includes(p.id));
+    const outgoing=new Set(),incoming=new Set(),roster=sortedPlayers(current.roster),onCourt=roster.filter(p=>current.lineups.onCourt.includes(p.id)),bench=roster.filter(p=>p.gameStatus!=='dnp'&&!current.lineups.onCourt.includes(p.id));
     function choice(player,selected,dataName,onChange,canAdd=()=>true){const b=button(playerLabel(player),()=>{if(selected.has(player.id))selected.delete(player.id);else if(canAdd())selected.add(player.id);b.setAttribute('aria-pressed',String(selected.has(player.id)));onChange?.();});b.dataset[dataName]=player.id;b.setAttribute('aria-pressed',String(selected.has(player.id)));return b;}
     function sheetHead(kicker,title,onClose=closeActionMenu){const head=el('header',undefined,'live-action-sheet-head'),copy=el('div');copy.append(el('small',kicker),el('h2',title));const close=button('Schließen',onClose);close.setAttribute('aria-label','Wechselmenü schließen');head.append(copy,close);return head;}
     function chooseOutgoing(){
@@ -185,7 +188,7 @@ export function mountLiveView(container,controller){
       }
       body.append(el('h2','Spieler antippen'));body.append(el('p','Danach öffnet sich das Aktionsmenü direkt auf dem Bildschirm.','live-player-hint'));const players=el('div',undefined,'live-players');
       if(!s.lineups.onCourt.includes(chosen))closeActionMenu();
-      for(const id of s.lineups.onCourt){const p=s.stats.players[id],b=button(playerLabel(p)+' · '+p.points+' P · '+p.fouls+' F',()=>openActionMenu(id));b.dataset.player=id;b.setAttribute('aria-label',playerLabel(p)+' · '+p.points+' Punkte · '+p.fouls+' Fouls · Aktionen öffnen');players.append(b);}body.append(players);
+      for(const player of sortedPlayers(s.roster.filter(p=>s.lineups.onCourt.includes(p.id)))){const id=player.id,p=s.stats.players[id],label=playerLabel(player),b=button(label+' · '+p.points+' P · '+p.fouls+' F',()=>openActionMenu(id));b.dataset.player=id;b.setAttribute('aria-label',label+' · '+p.points+' Punkte · '+p.fouls+' Fouls · Aktionen öffnen');players.append(b);}body.append(players);
       if(Object.values(s.stats.players).some(p=>p.fouls>=5))body.append(el('p','Foulgrenze erreicht: Aufstellung prüfen. Kein automatischer Wechsel.','live-warning'));
       const controls=el('div',undefined,'live-controls');controls.append(button(startingFiveOpen?'Starting Five ändern':s.clock.running?'Uhr anhalten und wechseln':'Wechsel erfassen',startingFiveOpen?startingFiveChange:substitutions),button('Letzte Aktion rückgängig',async()=>{const result=await send({kind:'undo-last'});if(result.ok)showCapture('letzte Aktion rückgängig gemacht');}),button('Uhr korrigieren',clockCorrection),button('Nächster Abschnitt',()=>confirmCommand('Nächsten Abschnitt vorbereiten',s.clock.period>=s.session.config.periods?'Eine Verlängerung vorbereiten? Uhr muss bei 0:00 stehen.':'Uhr muss bei 0:00 stehen. Der nächste Abschnitt startet pausiert.','period-start')),button('Spiel abschließen',()=>s.session.schemaVersion>=2?confirmScore(true):confirmCommand('Spiel abschließen','Die Uhr wird angehalten. Danach sind nur noch ausdrückliche Korrekturen möglich.','finish')));body.append(controls);
     }
