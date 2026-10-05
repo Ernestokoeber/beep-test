@@ -900,8 +900,8 @@ async function testMatchday(browser, name, options) {
     await page.getByRole('button', { name: 'Kader übernehmen', exact: true }).tap();
     await page.getByRole('button', { name: 'Kader ändern', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Starting Five ändern', exact: true }).tap();
-    await page.locator('[data-starting-five-player]').nth(4).uncheck();
-    await page.locator('[data-starting-five-player]').nth(5).check();
+    await page.locator('.live-panel label').filter({hasText:'E2E Spieler 5'}).locator('[data-starting-five-player]').uncheck();
+    await page.locator('.live-panel label').filter({hasText:'E2E Spieler 6'}).locator('[data-starting-five-player]').check();
     const saveStartingFive = page.getByRole('button', { name: 'Starting Five übernehmen', exact: true });
     await saveStartingFive.tap();
     await saveStartingFive.waitFor({ state: 'hidden' });
@@ -921,6 +921,7 @@ async function testMatchday(browser, name, options) {
     assert((await page.locator('.live-panel').innerText()).includes('Kader und Starting Five können danach nicht mehr verändert werden'), `${name}: Warnung vor dem verbindlichen Start fehlt`);
     await page.getByRole('button', { name: 'Spiel verbindlich starten', exact: true }).tap();
     await page.locator('[data-player]').filter({ hasText: 'E2E Spieler 6' }).waitFor();
+    assert((await page.locator('.live-players [data-player]').first().innerText()).includes('Point Guard · #66 · E2E Spieler 6'),`${name}: Point Guard steht in der Live-Auswahl nicht zuerst`);
     assert(await page.locator('[data-player]').filter({ hasText: 'E2E Spieler 5' }).count() === 0, `${name}: alter Starter bleibt nach dem bestätigten Start auf dem Feld`);
     await page.getByRole('button', { name: 'Live-Spiel zurücksetzen', exact: true }).tap();
     await page.getByRole('button', { name: 'Ja, Live-Spiel zurücksetzen', exact: true }).tap();
