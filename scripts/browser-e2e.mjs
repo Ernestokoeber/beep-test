@@ -946,8 +946,25 @@ async function testMatchday(browser, name, options) {
     assert(frozenGameplan.includes('Rebounds sichern') && frozenGameplan.includes('Ballhandler'), `${name}: eingefrorener Gameplan fehlt`);
     assert(await page.locator('[data-field="goals"]').count() === 0, `${name}: Gameplan bleibt nach Spielstart bearbeitbar`);
     await page.getByText('Gameplan & Abschluss', { exact: true }).tap();
+    await page.getByRole('button', { name: 'Uhr anhalten und wechseln', exact: true }).tap();
+    await page.locator('[data-sub-out]').first().waitFor();
+    assert(await page.locator('[data-sub-out]').count()===5,`${name}: Wechselmenü zeigt nicht die fünf Feldspieler`);
+    await page.locator('[data-sub-out]').filter({hasText:'E2E Spieler 6'}).tap();
+    await page.getByRole('button',{name:'Weiter',exact:true}).tap();
+    assert(await page.locator('[data-sub-in]').count()===1,`${name}: Wechselmenü zeigt nicht die verfügbaren Bankspieler`);
+    await page.locator('[data-sub-in]').filter({hasText:'E2E Spieler 5'}).tap();
+    await page.getByRole('button',{name:'Fertig',exact:true}).tap();
+    await page.locator('.live-action-sheet').waitFor({state:'hidden'});
+    await page.locator('[data-player]').filter({hasText:'E2E Spieler 5'}).waitFor();
+    assert(await page.locator('[data-player]').filter({hasText:'E2E Spieler 6'}).count()===0,`${name}: Mehrschritt-Wechsel wurde nicht übernommen`);
+    await noOverflow('Wechsel-Untermenüs');
     await page.locator('[data-player]').first().tap();
+    await page.locator('.live-action-sheet').waitFor();
+    const actionMenu=(await page.locator('.live-action-sheet').innerText()).toLocaleLowerCase('de-DE');
+    assert(actionMenu.includes('treffer & fehlwürfe')&&actionMenu.includes('rebound & zusammenspiel')&&actionMenu.includes('defense')&&actionMenu.includes('ballverlust & foul'),`${name}: vollständiges Spieler-Aktionsmenü fehlt`);
+    await noOverflow('Spieler-Aktionsmenü');
     await page.getByRole('button', { name: 'Zweier getroffen', exact: true }).tap();
+    await page.locator('.live-action-sheet').waitFor({state:'hidden'});
     await page.locator('.live-clock').filter({ hasText: 'Eigene 2' }).waitFor();
     await page.getByRole('button', { name: 'E2E Guard', exact: true }).tap();
     await page.getByRole('button', { name: 'Gegner +3', exact: true }).tap();
@@ -1079,4 +1096,3 @@ try {
 } finally {
   await browser.close();
 }
-

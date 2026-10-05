@@ -23,8 +23,11 @@ Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
 
 ## Während des Spiels
 
-- Spieler antippen, anschließend Treffer, Fehlwurf, Rebound oder andere Aktion.
-  Jede Aktion wird vor der Anzeige in IndexedDB gespeichert.
+- Spieler antippen. Dadurch öffnet sich ein bildschirmfestes Aktionsmenü mit den
+  Gruppen **Treffer & Fehlwürfe**, **Rebound & Zusammenspiel**, **Defense** sowie
+  **Ballverlust & Foul**. Nach der Auswahl wird die Aktion gespeichert, das Menü
+  schließt sich und die fünf Spieler stehen wieder zur Auswahl. Jede Aktion wird
+  vor der Anzeige in IndexedDB gespeichert.
 - Gegnerische Treffer über **Gegner +1**, **+2**, **+3** erfassen. Ist ein
   Gegnerplan mit bekannten Topscorern oder Schützen vorhanden, kann der Werfer
   vorher optional ausgewählt werden. Ohne Auswahl werden die Punkte weiterhin
@@ -32,9 +35,11 @@ Statistikquelle. Ablauf und Wiederaufnahme: [Spieltag-Modus](MATCHDAY-MODE.md).
   Werferauswahl zurückgesetzt. Eigene Treffer ausschließlich beim jeweiligen Spieler buchen. Angezeigt wird
   der selbst erfasste, nicht der offizielle Spielstand.
 - Spieluhr bei Unterbrechungen selbst stoppen. Nur laufende Spielzeit zählt.
-- **Uhr anhalten und wechseln** stoppt zuerst die Uhr. Aus- und Einwechslungen
-  gemeinsam auswählen, dann bestätigen. Bei weniger als fünf Spielern Unterzahl
-  ausdrücklich bestätigen. Die Uhr danach selbst wieder starten.
+- **Uhr anhalten und wechseln** stoppt zuerst die Uhr und öffnet den
+  Wechsel-Assistenten. Im ersten Menü einen oder mehrere der fünf Feldspieler
+  auswählen und **Weiter** drücken. Im zweiten Menü dieselbe Anzahl verfügbarer
+  Bankspieler auswählen und mit **Fertig** den gesamten Wechsel übernehmen. Die
+  Uhr danach selbst wieder starten.
 - Fünf Fouls erzeugen einen Hinweis, keine automatische Auswechslung.
 - Im Spieltag-Modus bleiben Gegnerplan und aktuelle Defense sichtbar. Paint/Drive,
   offene Dreier, Offensiv-Rebounds und Freiwurfdruck lassen sich als schnelle

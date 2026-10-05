@@ -8,6 +8,12 @@ const parseTime=value=>{const m=/^(\d{1,2}):([0-5]\d)$/.exec(value.trim());if(!m
 const playerLabel=p=>(p.jerseyNumber==null?'Ohne Nummer':'#'+p.jerseyNumber)+' · '+p.name;
 const observationLabels={paint:'Paint / Drive','open-three':'Offener Dreier',oreb:'Offensiv-Rebound','free-throw-pressure':'Freiwurfdruck'};
 const defenseLabels={man:'Mannverteidigung · Grundlagen',zone212:'Zone 2-1-2',zone23:'Zone 2-3',zone32:'Zone 3-2'};
+const actionGroups=[
+  ['Treffer & Fehlwürfe',['ft-made','ft-missed','two-made','two-missed','three-made','three-missed']],
+  ['Rebound & Zusammenspiel',['oreb','dreb','assist']],
+  ['Defense',['steal','block']],
+  ['Ballverlust & Foul',['turnover','foul']]
+];
 const eventLabel=e=>e.kind==='opponent-score'?`Gegner${e.payload.opponentPlayerName?' · '+e.payload.opponentPlayerName:''} +${e.payload.points}`:e.kind==='score-coverage'?(e.payload.complete?'Punkteverlauf bestätigt':'Punkteverlauf unvollständig'):e.kind==='starting-five'?'Starting Five geändert':e.kind==='opponent-observation'?'Gegner: '+(observationLabels[e.payload.type]||e.payload.type):e.kind==='defense-change'?'Defense: '+(defenseLabels[e.payload.defense]||e.payload.defense):(actions[e.payload.action]||e.kind);
 const opponentCandidates=session=>{
   const plan=session?.gameplan?.opponentPlan,list=[...(plan?.topScorers||[]),...(plan?.bestShooters||[])],seen=new Set(),result=[];
@@ -18,14 +24,29 @@ function jerseyField(parent,player){const n=field(parent,'Trikotnummer für dies
 
 export function mountLiveView(container,controller){
   container.classList.add('live-game');
-  let chosen=null,opponentChosen=null,mode=null,signature='',current,correctionMode=false,inFlight=false;
+  let chosen=null,opponentChosen=null,mode=null,signature='',current,correctionMode=false,inFlight=false,lastCapture='';
   const status=el('p','','live-status');status.setAttribute('role','status');
   const header=el('header',undefined,'live-clock'),clockText=el('strong',''),periodText=el('span','');
   const start=button('Uhr starten',()=>toggleClock());
   header.append(periodText,clockText,start);
-  const body=el('div'),panel=el('section',undefined,'live-panel');container.append(header,status,body,panel);
+  const body=el('div'),panel=el('section',undefined,'live-panel'),capture=el('p','','live-capture-feedback');capture.setAttribute('role','status');capture.hidden=true;
+  const actionOverlay=el('div',undefined,'live-action-overlay');actionOverlay.hidden=true;
+  const actionSheet=el('section',undefined,'live-action-sheet');actionSheet.setAttribute('role','dialog');actionSheet.setAttribute('aria-modal','true');actionSheet.setAttribute('aria-label','Spieleraktion auswählen');actionOverlay.append(actionSheet);
+  actionOverlay.addEventListener('click',event=>{if(event.target===actionOverlay)closeActionMenu();});
+  container.append(header,status,capture,body,panel,actionOverlay);
   function showError(e){status.textContent=e.message;status.setAttribute('role','alert');}
   async function send(command){if(inFlight)return {ok:false};inFlight=true;try{const result=await controller.dispatch(command);if(result.ok){mode=null;panel.replaceChildren();}return result;}finally{inFlight=false;}}
+  function showCapture(text){lastCapture=text;capture.textContent='Erfasst: '+text;capture.hidden=false;}
+  function closeActionMenu(){chosen=null;actionOverlay.hidden=true;actionSheet.replaceChildren();}
+  function openActionMenu(playerId){
+    const player=current?.stats?.players?.[playerId];if(!player)return;
+    chosen=playerId;actionSheet.replaceChildren();
+    const head=el('header',undefined,'live-action-sheet-head'),title=el('div');title.append(el('small','AKTION FÜR'),el('h2',playerLabel(player)));
+    const close=button('Schließen',closeActionMenu);close.setAttribute('aria-label','Aktionsmenü schließen');head.append(title,close);actionSheet.append(head);
+    for(const [label,ids] of actionGroups){const group=el('section',undefined,'live-action-group');group.append(el('h3',label));const grid=el('div',undefined,'live-action-options');
+      for(const id of ids){const action=button(actions[id],async()=>{const result=await send({kind:'stat',payload:{playerId,action:id}});if(result.ok){showCapture(player.name+' · '+actions[id]);closeActionMenu();}});action.dataset.liveAction=id;grid.append(action);}group.append(grid);actionSheet.append(group);}
+    actionOverlay.hidden=false;actionSheet.querySelector('button[data-live-action]')?.focus();
+  }
   function form(title){mode=title;panel.replaceChildren(el('h3',title));const f=el('form');panel.append(f);f.append(button('Abbrechen',()=>{mode=null;panel.replaceChildren();}));return f;}
   function submit(f,text,fn){const b=el('button',text);b.type='submit';f.append(b);f.addEventListener('submit',async e=>{e.preventDefault();if(b.disabled)return;b.disabled=true;try{await fn();}catch(error){showError(error);}finally{b.disabled=false;}});queueMicrotask(()=>f.querySelector('input,select,button')?.focus());}
   function checks(f,title,players,selected=[]){const group=el('fieldset');group.append(el('legend',title));f.append(group);const fields=players.map(p=>{const i=field(group,playerLabel(p),'checkbox',p.id);i.checked=selected.includes(p.id);return i;});return ()=>fields.filter(i=>i.checked).map(i=>i.value);}
@@ -48,11 +69,26 @@ export function mountLiveView(container,controller){
   }
   async function substitutions(){
     if(current.clock.running){const r=await send({kind:'clock-pause'});if(!r.ok)return;}
-    const f=form('Wechsel gemeinsam erfassen');
-    const out=checks(f,'Vom Feld',current.roster.filter(p=>current.lineups.onCourt.includes(p.id)));
-    const incoming=checks(f,'Von der Bank',current.roster.filter(p=>p.gameStatus!=='dnp'&&!current.lineups.onCourt.includes(p.id)));
-    const short=field(f,'Unterzahl ausdrücklich bestätigen','checkbox','yes');
-    submit(f,'Wechsel bestätigen',()=>send({kind:'substitution',payload:{out:out(),in:incoming(),allowShortHanded:short.checked}}));
+    const outgoing=new Set(),incoming=new Set(),onCourt=current.roster.filter(p=>current.lineups.onCourt.includes(p.id)),bench=current.roster.filter(p=>p.gameStatus!=='dnp'&&!current.lineups.onCourt.includes(p.id));
+    function choice(player,selected,dataName,onChange,canAdd=()=>true){const b=button(playerLabel(player),()=>{if(selected.has(player.id))selected.delete(player.id);else if(canAdd())selected.add(player.id);b.setAttribute('aria-pressed',String(selected.has(player.id)));onChange?.();});b.dataset[dataName]=player.id;b.setAttribute('aria-pressed',String(selected.has(player.id)));return b;}
+    function sheetHead(kicker,title,onClose=closeActionMenu){const head=el('header',undefined,'live-action-sheet-head'),copy=el('div');copy.append(el('small',kicker),el('h2',title));const close=button('Schließen',onClose);close.setAttribute('aria-label','Wechselmenü schließen');head.append(copy,close);return head;}
+    function chooseOutgoing(){
+      actionSheet.setAttribute('aria-label','Auszuwechselnde Spieler auswählen');actionSheet.replaceChildren(sheetHead('WECHSEL · SCHRITT 1 VON 2','Wer geht raus?'));
+      actionSheet.append(el('p','Einen oder mehrere der fünf Spieler auswählen.','live-sheet-hint'));
+      const grid=el('div',undefined,'live-substitution-players'),next=button('Weiter',chooseIncoming);next.dataset.action='substitution-next';next.disabled=outgoing.size===0;
+      const refresh=()=>{next.disabled=outgoing.size===0;};for(const player of onCourt)grid.append(choice(player,outgoing,'subOut',refresh));
+      const actionsRow=el('div',undefined,'live-sheet-actions');actionsRow.append(next);actionSheet.append(grid,actionsRow);actionOverlay.hidden=false;
+    }
+    function chooseIncoming(){
+      incoming.clear();actionSheet.setAttribute('aria-label','Einzuwechselnde Spieler auswählen');actionSheet.replaceChildren(sheetHead('WECHSEL · SCHRITT 2 VON 2','Wer kommt rein?'));
+      const hint=el('p',`${outgoing.size} Spieler ausgewählt · genauso viele Bankspieler auswählen.`,'live-sheet-hint'),grid=el('div',undefined,'live-substitution-players');
+      const back=button('Zurück',chooseOutgoing),finish=button('Fertig',async()=>{const result=await send({kind:'substitution',payload:{out:[...outgoing],in:[...incoming],allowShortHanded:false}});if(result.ok){showCapture(`${outgoing.size}er-Wechsel übernommen`);closeActionMenu();}});finish.dataset.action='substitution-finish';finish.disabled=true;
+      const refresh=()=>{finish.disabled=incoming.size!==outgoing.size;hint.textContent=`${outgoing.size} raus · ${incoming.size} rein${incoming.size===outgoing.size?' · bereit zum Übernehmen':''}`;};
+      for(const player of bench)grid.append(choice(player,incoming,'subIn',refresh,()=>incoming.size<outgoing.size));
+      if(!bench.length)grid.append(el('p','Keine verfügbaren Bankspieler.','live-warning'));
+      const actionsRow=el('div',undefined,'live-sheet-actions');actionsRow.append(back,finish);actionSheet.append(hint,grid,actionsRow);
+    }
+    chooseOutgoing();
   }
   function startingFiveChange(){
     const f=form('Starting Five ändern');
@@ -122,7 +158,7 @@ export function mountLiveView(container,controller){
     start.textContent=s.clock?.running?'Uhr anhalten':'Uhr starten';start.disabled=s.busy||s.readOnly||s.needsTakeover||s.clock?.ended;
     status.textContent=s.error||s.syncError||(s.clock?.needsCorrection?'Gerätezeit geändert: Restzeit über „Uhr korrigieren“ abgleichen.':s.busy?'Wird lokal gespeichert …':s.status==='synced'?'Lokal gesichert und synchronisiert.':'Lokal gesichert · Synchronisierung ausstehend.');
     const key=JSON.stringify([s.live,s.readOnly,s.needsTakeover]);
-    if(key===signature){body.querySelectorAll('button').forEach(b=>{b.disabled=!!s.busy||(b.dataset.liveAction==='stat'&&!chosen);});return;}signature=key;
+    if(key===signature){body.querySelectorAll('button').forEach(b=>{b.disabled=!!s.busy;});actionSheet.querySelectorAll('button[data-live-action]').forEach(b=>{b.disabled=!!s.busy;});return;}signature=key;
     body.replaceChildren();
     if(!s.live){if(s.readOnly)body.append(el('p','Für Live-Erfassung mit einem Trainerkonto anmelden.'));else setup(s);return;}
     if(!s.session){body.append(el('h2','Mehrere Erfassungen vorhanden'),el('p','Eine Sitzung zur Auswertung auswählen. Andere Protokolle bleiben erhalten.'));
@@ -143,15 +179,14 @@ export function mountLiveView(container,controller){
           for(const player of candidates){const b=button(player.name,()=>{opponentChosen=player.key;signature='';render(current);});b.dataset.opponentPlayer=player.key;b.setAttribute('aria-pressed',String(opponentChosen===player.key));players.append(b);}opponent.append(title,players);
         }else opponentChosen=null;
         const buttons=el('div',undefined,'live-opponent-buttons');
-        for(const points of [1,2,3]){const b=button('Gegner +'+points,async()=>{const player=candidates.find(item=>item.key===opponentChosen),payload={points,...(player?{...(player.id?{opponentPlayerId:player.id}:{}),opponentPlayerName:player.name}:{})},result=await send({kind:'opponent-score',payload});if(result.ok){opponentChosen=null;signature='';render(current);}});b.disabled=s.busy;buttons.append(b);}
+        for(const points of [1,2,3]){const b=button('Gegner +'+points,async()=>{const player=candidates.find(item=>item.key===opponentChosen),payload={points,...(player?{...(player.id?{opponentPlayerId:player.id}:{}),opponentPlayerName:player.name}:{})},result=await send({kind:'opponent-score',payload});if(result.ok){showCapture(`Gegner · +${points}`);opponentChosen=null;signature='';render(current);}});b.disabled=s.busy;buttons.append(b);}
         opponent.append(buttons);body.append(opponent);
       }
-      body.append(el('h2','Spieler wählen'));const players=el('div',undefined,'live-players');
-      if(!s.lineups.onCourt.includes(chosen))chosen=null;
-      for(const id of s.lineups.onCourt){const p=s.stats.players[id];const b=button(playerLabel(p)+' · '+p.points+' P · '+p.fouls+' F',()=>{chosen=id;signature='';render(current);});b.dataset.player=id;b.setAttribute('aria-pressed',String(chosen===id));players.append(b);}body.append(players);
-      const actionGrid=el('div',undefined,'live-actions');for(const [id,label]of Object.entries(actions)){const b=button(label,async()=>{if(!chosen)return;const r=await send({kind:'stat',payload:{playerId:chosen,action:id}});if(r.ok){chosen=null;signature='';render(current);}});b.dataset.liveAction='stat';b.disabled=!chosen||s.busy;actionGrid.append(b);}body.append(actionGrid);
+      body.append(el('h2','Spieler antippen'));body.append(el('p','Danach öffnet sich das Aktionsmenü direkt auf dem Bildschirm.','live-player-hint'));const players=el('div',undefined,'live-players');
+      if(!s.lineups.onCourt.includes(chosen))closeActionMenu();
+      for(const id of s.lineups.onCourt){const p=s.stats.players[id],b=button(playerLabel(p)+' · '+p.points+' P · '+p.fouls+' F',()=>openActionMenu(id));b.dataset.player=id;b.setAttribute('aria-label',playerLabel(p)+' · '+p.points+' Punkte · '+p.fouls+' Fouls · Aktionen öffnen');players.append(b);}body.append(players);
       if(Object.values(s.stats.players).some(p=>p.fouls>=5))body.append(el('p','Foulgrenze erreicht: Aufstellung prüfen. Kein automatischer Wechsel.','live-warning'));
-      const controls=el('div',undefined,'live-controls');controls.append(button(startingFiveOpen?'Starting Five ändern':s.clock.running?'Uhr anhalten und wechseln':'Wechsel erfassen',startingFiveOpen?startingFiveChange:substitutions),button('Letzte Aktion rückgängig',()=>send({kind:'undo-last'})),button('Uhr korrigieren',clockCorrection),button('Nächster Abschnitt',()=>confirmCommand('Nächsten Abschnitt vorbereiten',s.clock.period>=s.session.config.periods?'Eine Verlängerung vorbereiten? Uhr muss bei 0:00 stehen.':'Uhr muss bei 0:00 stehen. Der nächste Abschnitt startet pausiert.','period-start')),button('Spiel abschließen',()=>s.session.schemaVersion>=2?confirmScore(true):confirmCommand('Spiel abschließen','Die Uhr wird angehalten. Danach sind nur noch ausdrückliche Korrekturen möglich.','finish')));body.append(controls);
+      const controls=el('div',undefined,'live-controls');controls.append(button(startingFiveOpen?'Starting Five ändern':s.clock.running?'Uhr anhalten und wechseln':'Wechsel erfassen',startingFiveOpen?startingFiveChange:substitutions),button('Letzte Aktion rückgängig',async()=>{const result=await send({kind:'undo-last'});if(result.ok)showCapture('letzte Aktion rückgängig gemacht');}),button('Uhr korrigieren',clockCorrection),button('Nächster Abschnitt',()=>confirmCommand('Nächsten Abschnitt vorbereiten',s.clock.period>=s.session.config.periods?'Eine Verlängerung vorbereiten? Uhr muss bei 0:00 stehen.':'Uhr muss bei 0:00 stehen. Der nächste Abschnitt startet pausiert.','period-start')),button('Spiel abschließen',()=>s.session.schemaVersion>=2?confirmScore(true):confirmCommand('Spiel abschließen','Die Uhr wird angehalten. Danach sind nur noch ausdrückliche Korrekturen möglich.','finish')));body.append(controls);
     }
     if(s.session.schemaVersion<3)body.append(button('Kader korrigieren',rosterCorrection));
     body.append(button('Protokoll korrigieren',corrections));

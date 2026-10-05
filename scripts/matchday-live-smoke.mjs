@@ -53,8 +53,10 @@ assert.equal(host.querySelector('[data-field="goals"]'),null,'Der eingefrorene G
 await c.live.dispatch({kind:'clock-pause'});assert.equal(c.getState().stage,'live');
 assert.equal([...host.querySelectorAll('button')].some(button=>button.textContent==='Starting Five ändern'),false);
 const substitution=[...host.querySelectorAll('button')].find(button=>button.textContent==='Wechsel erfassen');substitution.click();await new Promise(resolve=>setTimeout(resolve,0));
-assert.doesNotMatch(host.querySelector('.live-panel').textContent,/Spieler 4/,'Verletzte Spieler dürfen nicht als Einwechselspieler angeboten werden.');
-[...host.querySelectorAll('button')].find(button=>button.textContent==='Abbrechen').click();
+assert.equal(host.querySelectorAll('[data-sub-out]').length,5,'Das erste Wechselmenü zeigt nicht die fünf Feldspieler.');
+host.querySelector('[data-sub-out]').click();[...host.querySelectorAll('button')].find(button=>button.textContent==='Weiter').click();
+assert.doesNotMatch(host.querySelector('.live-action-sheet').textContent,/Spieler 4/,'Verletzte Spieler dürfen nicht als Einwechselspieler angeboten werden.');
+[...host.querySelectorAll('button')].find(button=>button.textContent==='Schließen').click();
 const note=host.querySelector('[data-field="closingNote"]');note.value='Nicht verlieren';note.dispatchEvent(new window.Event('input',{bubbles:true}));note.focus();
 await c.live.dispatch({kind:'clock-start'});f.advance(600000);await c.refresh();assert.equal(c.getState().stage,'pause');assert.equal(document.activeElement,note);assert.equal(note.value,'Nicht verlieren');
 assert.match(host.querySelector('[data-role="pause"]').textContent,/Abschnittspause/);
