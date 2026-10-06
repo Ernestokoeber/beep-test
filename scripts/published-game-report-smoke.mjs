@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {publishedGamePatch,renderPublishedReport} from '../js/published-game-report.mjs';
@@ -27,3 +28,8 @@ rejects(p=>p.schemaVersion='atlas',/Format/);
 const hostile=structuredClone(packet),hostileRoster=structuredClone(roster);hostile.players[0].name='<img src=x onerror=alert(1)>';hostileRoster[0].name=hostile.players[0].name;
 assert.equal(renderPublishedReport(publishedGamePatch(hostile,game,hostileRoster).publishedReport).querySelectorAll('img').length,0);
 dom.window.close();console.log('Veröffentlichter Spielbericht: Zuordnung, Summen, offene Werte, Nummern, Quellen und unverändertes Live-Journal geprüft.');
+
+const published=JSON.parse(fs.readFileSync(new URL('../data/published-game-reports/2026-10-04-lindau-ottobeuren.json',import.meta.url)));
+const template=publishedGamePatch(published,{id:'ottobeuren',...published.target},published.players.map((p,i)=>({id:'actual-'+i,name:p.name})));
+assert.equal(template.score,'30:93');assert.equal(template.publishedReport.players.length,9);assert.equal(template.playerStats.reduce((s,p)=>s+p.fouls,0),19);assert.equal(template.playerStats.reduce((s,p)=>s+p.freeThrowsAttempted,0),7);
+console.log('Ottobeuren-Vorlage: neun Spieler, 30:93, 19 Fouls und 1/7 Freiwürfe validiert.');

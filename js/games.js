@@ -379,7 +379,7 @@ BT.games = (function() {
     if(wrap.querySelector('[data-role="published-import"]'))return;
     const {publishedGamePatch,renderPublishedReport}=await import('./published-game-report.mjs');
     const section=document.createElement('section');section.className='boxscore-panel';section.dataset.role='published-import';
-    section.innerHTML='<h3>Veröffentlichten Spielbericht übernehmen</h3><p>Endergebnis und Spielerstatistik ergänzen. Die manuelle Live-Erfassung bleibt separat erhalten. Nicht veröffentlichte Werte bleiben offen.</p><label>Spielbericht (JSON)<textarea data-role="published-report-input" rows="6"></textarea></label><p role="status" data-role="published-import-status"></p><button class="btn" data-action="preview-published-report">Bericht prüfen</button><button class="btn" data-action="cancel-published-report">Abbrechen</button><div data-role="published-preview"></div><button class="btn primary" data-action="save-published-report" hidden>Spielbericht speichern</button>';
+    section.innerHTML='<h3>Veröffentlichten Spielbericht übernehmen</h3><p>Endergebnis und Spielerstatistik ergänzen. Die manuelle Live-Erfassung bleibt separat erhalten. Nicht veröffentlichte Werte bleiben offen.</p><details data-role="published-other-report" open><summary>Anderen Spielbericht verwenden</summary><label>Spielbericht (JSON)<textarea data-role="published-report-input" rows="6"></textarea></label></details><p role="status" data-role="published-import-status"></p><button class="btn" data-action="preview-published-report">Bericht prüfen</button><button class="btn" data-action="cancel-published-report">Abbrechen</button><div data-role="published-preview"></div><button class="btn primary" data-action="save-published-report" hidden>Spielbericht speichern</button>';
     wrap.querySelector('[data-role="game-archive"]').after(section);section.scrollIntoView({block:'start',behavior:'instant'});
     let packet=null;const input=section.querySelector('textarea'),status=section.querySelector('[role="status"]'),preview=section.querySelector('[data-role="published-preview"]'),save=section.querySelector('[data-action="save-published-report"]');
     input.addEventListener('input',()=>{packet=null;save.hidden=true;preview.replaceChildren();});
@@ -391,6 +391,16 @@ BT.games = (function() {
       if(!packet)return;
       try{const current=BT.storage.getGame(game.id);if(!canEdit(current))throw Error('Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.');const patch=publishedGamePatch(packet,current,BT.storage.getPlayers());if(!saveGame(patch))return;drawList();drawDetail();$('[data-role="games-status"]',root).textContent='Veröffentlichter Spielbericht mit Endergebnis und Spielerstatistik gespeichert.';}catch(error){status.textContent=error.message;}
     });
+    if(game.date==='2026-10-04'&&game.home==='TSV Lindau'&&game.away==='TSV Ottobeuren'){
+      status.textContent='Veröffentlichten Bericht für dieses Spiel laden …';
+      try{
+        const response=await fetch('./data/published-game-reports/2026-10-04-lindau-ottobeuren.json');
+        if(!response.ok)throw Error('Spielbericht konnte nicht geladen werden.');
+        const candidate=await response.json();if(!section.isConnected)return;
+        input.value=JSON.stringify(candidate);section.querySelector('[data-action="preview-published-report"]').click();
+        if(packet){section.querySelector('[data-role="published-other-report"]').open=false;save.scrollIntoView({block:'nearest',behavior:'instant'});}
+      }catch(error){if(section.isConnected)status.textContent=error.message;}
+    }
   }
 
   function normalizedAtlas(pkg) {

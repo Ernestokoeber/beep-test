@@ -213,3 +213,5 @@ Mit einem Testspiel, nicht während eines echten Spiels, prüfen:
 ## Trainerteam
 
 Trainer und Co-Trainer werden pro Termin separat zugeordnet. Die Teilnahme als Spieler ist optional; Details und Prüfläufe: [Trainerteam](COACHING-STAFF.md).
+
+Für Lindau – Ottobeuren vom 04.10.2026 steht der geprüfte Bericht als offline verfügbare Importvorlage bereit. Der Importzugang im Hamburger-Menü lädt die Vorschau automatisch. Gespeichert wird erst mit „Spielbericht speichern“ nach der bestehenden Archivfreigabe.
