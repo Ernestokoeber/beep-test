@@ -1,6 +1,6 @@
 // Bump this whenever the offline asset manifest changes so installed clients
 // cannot keep an older editor or planner bundle.
-const CACHE = 'courthub-v188';
+const CACHE = 'courthub-v189';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,9 @@ const ASSETS = [
   './live-game.css',
   './matchday.css',
   './vendor/jspdf.umd.min.js',
+  './vendor/three/three.module.min.js',
+  './vendor/three/three.core.min.js',
+  './vendor/three/OrbitControls.js',
   './js/basketball-positions.mjs',
   './js/matchday/model.mjs',
   './js/matchday/flow.mjs',
@@ -89,6 +92,8 @@ const ASSETS = [
   './js/play-designer/phase-instructions.js',
   './js/play-designer/play-preview.js',
   './js/play-designer/animation-player.js',
+  './js/play-designer/court-view.js',
+  './js/play-designer/court-3d.js',
   './js/play-designer/export-dialog.js',
   './js/play-designer/play-library.js',
   './js/play-designer/ai-explanation.js',

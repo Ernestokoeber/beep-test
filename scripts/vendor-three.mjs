@@ -1,0 +1,11 @@
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const source = root + 'node_modules/three/';
+const target = root + 'vendor/three/';
+mkdirSync(target, { recursive: true });
+for (const file of ['three.module.min.js', 'three.core.min.js']) copyFileSync(source + 'build/' + file, target + file);
+copyFileSync(source + 'LICENSE', target + 'LICENSE.txt');
+const controls = readFileSync(source + 'examples/jsm/controls/OrbitControls.js', 'utf8').replace("from 'three'", "from './three.module.min.js'");
+writeFileSync(target + 'OrbitControls.js', controls);
+console.log('Three.js and OrbitControls copied for local and offline use.');

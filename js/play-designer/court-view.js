@@ -1,0 +1,80 @@
+import { createCourt, drawCourt } from './rendering.js';
+
+function styles() {
+  if (document.getElementById('courthub-court-view')) return;
+  const style = document.createElement('style'); style.id = 'courthub-court-view';
+  style.textContent = `
+    .chcv{width:100%;min-width:0;max-width:58rem;margin:auto;display:grid;gap:.65rem}
+    .chcv-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}
+    .chcv-toolbar button{min-height:44px;padding:.5rem .85rem;border:1px solid #c4d0ca;border-radius:.5rem;background:#fff;color:#173e2d;font-family:inherit;font-weight:600;font-size:.875rem;cursor:pointer}
+    .chcv-toolbar button[aria-pressed=true]{background:#006b40;border-color:#006b40;color:#fff}
+    .chcv-toolbar button:focus-visible,.chcv-scene canvas:focus-visible{outline:3px solid #e99326;outline-offset:3px}
+    .chcv-scene{width:100%;height:clamp(19rem,57dvh,38rem);overflow:hidden;border-radius:.6rem;background:#e9efed}
+    .chcv-scene canvas{display:block;width:100%;height:100%;touch-action:none}
+    .chcv [hidden]{display:none!important}.chcv-hint,.chcv-status{margin:0;font-size:.875rem;line-height:1.5;color:#3d5147}
+    .chcv-status:empty{display:none}.chcv-2d{display:grid;place-items:center}.chcv-2d svg{width:100%;max-height:60dvh}
+    @media(max-width:680px){.chcv-scene{height:clamp(19rem,48dvh,32rem)}.chcv-toolbar button{padding:.5rem .7rem}}
+  `; document.head.append(style);
+}
+
+// Both viewers consume exactly the same snapshot and transport position.
+export function createCourtView(host, board, options = {}) {
+  styles();
+  const element = document.createElement('div'); element.className = 'chcv';
+  element.innerHTML = `<div class="chcv-toolbar" role="group" aria-label="Feldansicht"><button type="button" data-view="2d" aria-pressed="true">2D</button><button type="button" data-view="3d" aria-pressed="false">3D</button><button type="button" data-camera="reset" hidden>Kamera zurücksetzen</button><button type="button" data-camera="top" hidden>Von oben</button></div><div class="chcv-2d"></div><div class="chcv-scene" hidden></div><p class="chcv-hint" hidden>Ziehen: drehen · Zwei Finger: zoomen · Grün: Angriff · Rot: Defense · Gelb: Screen</p><p class="chcv-status" role="status"></p>`;
+  const flat = element.querySelector('.chcv-2d'), sceneHost = element.querySelector('.chcv-scene');
+  const status = element.querySelector('.chcv-status');
+  const svg = createCourt('chpd-court cha-animation-court'); flat.append(svg); host.append(element);
+  let scene = null, pending = null, disposed = false, mode = '2d', snapshot = null, seconds = 0, drawOptions = {};
+  let wasConnected = element.isConnected;
+  const lifecycle = new window.MutationObserver(() => {
+    if (element.isConnected) wasConnected = true;
+    else if (wasConnected) destroy();
+  });
+  lifecycle.observe(document.body, { childList: true, subtree: true });
+  function destroy() {
+    if (disposed) return; disposed = true; lifecycle.disconnect();
+    scene?.destroy(); scene = null; element.remove();
+  }
+  function show(view) {
+    mode = view; element.dataset.view = view;
+    flat.hidden = view === '3d'; sceneHost.hidden = view !== '3d';
+    element.querySelector('.chcv-hint').hidden = view !== '3d';
+    element.querySelectorAll('[data-camera]').forEach(button => button.hidden = view !== '3d');
+    element.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === view)));
+    if (view === '3d') { scene?.resize(); if (snapshot) scene?.draw(snapshot, seconds); }
+    else if (snapshot) drawCourt(svg, snapshot, drawOptions);
+  }
+  function fallback() {
+    if (disposed) return;
+    scene?.destroy(); scene = null; show('2d');
+    status.textContent = '3D ist auf diesem Gerät nicht verfügbar. Die Animation läuft in 2D weiter.';
+  }
+  async function select(view) {
+    if (disposed) return;
+    status.textContent = ''; show(view);
+    if (view !== '3d' || scene) return;
+    status.textContent = '3D wird geladen …';
+    if (!pending) pending = import('./court-3d.js');
+    try {
+      const module = await pending;
+      if (disposed || mode !== '3d') return;
+      // A second click during import must not allocate another WebGL context.
+      if (!scene) scene = module.createCourt3D(sceneHost, fallback);
+      status.textContent = ''; if (snapshot) scene.draw(snapshot, seconds);
+    } catch { pending = null; fallback(); }
+  }
+  element.querySelectorAll('[data-view]').forEach(button => button.onclick = () => select(button.dataset.view));
+  element.querySelectorAll('[data-camera]').forEach(button => button.onclick = () => scene?.setCamera(button.dataset.camera === 'top'));
+  const isPnR = /pick.?\s*(?:&|and)?\s*(?:roll|pop)|pnr/i.test(`${board.id || ''} ${board.title || ''} ${board.category || ''}`);
+  if (isPnR && options.auto3D !== false) select('3d'); else show('2d');
+  return {
+    element,
+    draw(value, time = 0, settings = {}) {
+      if (disposed) return;
+      snapshot = value; seconds = time; drawOptions = settings;
+      if (mode === '3d' && scene) scene.draw(value, time); else drawCourt(svg, value, settings);
+    },
+    destroy
+  };
+}
