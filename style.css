@@ -8314,3 +8314,12 @@ body {
   .mobile-extra-section { display: block !important; }
   .home-heading, .home-events, .home-briefing-link, .context-navigation { break-inside: avoid; }
 }
+.opponent-game-notes details { margin-top: 12px; }
+.opponent-game-notes summary { cursor: pointer; padding: 10px 0; font-weight: 700; }
+.opponent-game-note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.opponent-form > * { min-width: 0; max-width: 100%; }
+.opponent-detail .section-head > div { min-width: 0; }
+@media (max-width: 760px) {
+  .opponent-detail .section-head > div { display: block; width: 100%; }
+  .opponent-detail .section-head h3 { overflow-wrap: anywhere; }
+}

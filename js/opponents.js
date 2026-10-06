@@ -368,6 +368,24 @@ BT.opponents = (function() {
     };
   }
 
+  function gameNotesFor(profile) {
+    if (!profile) return [];
+    const config = BT.seasonplanner?.scheduleConfig?.() || { teamName: 'TSV Lindau', teamId: 0 };
+    return (BT.storage.getGames?.() || []).filter(game => {
+      const target = opponentFromOwnGame(game, config.teamName, config.teamId);
+      if (!target || !String(game.coachSummary || '').trim()) return false;
+      // A known team ID takes precedence over spelling variations and similarly named squads.
+      if (Number(profile.teamId) && Number(target.teamId)) return Number(profile.teamId) === Number(target.teamId);
+      return keyFor(profile.name) === keyFor(target.name);
+    }).sort((a, b) => compareGamesChronologically(b, a)).map(game => ({
+      gameId: game.id,
+      date: game.date || '',
+      seasonId: seasonForGame(game),
+      title: /\bgameplan\b/i.test(game.coachSummary) ? 'Gameplan' : 'Trainerfazit',
+      text: String(game.coachSummary).trim()
+    }));
+  }
+
   function contextForProfile(profile) {
     if (!profile) return null;
     const metrics = metricsFor(profile);
@@ -391,6 +409,7 @@ BT.opponents = (function() {
         notes: String(profile.scouting?.notes || '').slice(0, 800)
       },
       matchdayReports: (Array.isArray(profile.matchdayReports) ? profile.matchdayReports : []).slice(-5),
+      gameNotes: gameNotesFor(profile),
       defenseRecommendation: recommendDefense(profile),
       dataQuality: {
         confidence: quality.confidence,
@@ -498,7 +517,11 @@ BT.opponents = (function() {
       byTeam.set(key, entry);
     }
     for (const [key, entry] of byTeam) {
-      const existing = BT.storage.getOpponents().find(item => item.key === key);
+      const existing = BT.storage.getOpponents().find(item =>
+        (Number(entry.teamId) && Number(item.teamId))
+          ? Number(entry.teamId) === Number(item.teamId)
+          : item.key === key || keyFor(item.name) === key
+      );
       if (existing) continue;
       BT.storage.upsertOpponent({ key, name: entry.name, teamId: entry.teamId || null, seasonId: seasonForGame(entry.games[0]), source: 'own-schedule', games: entry.games, scouting: {}, manualTotals: {}, playerStats: [] });
     }
@@ -606,6 +629,15 @@ BT.opponents = (function() {
     const liveReports = context.matchdayReports || [];
     host.innerHTML = `
       <div class="game-detail-head"><div><span class="section-kicker">Gegner-Scouting · ${BT.util.escapeHTML(profile.seasonId || 'Saison')}</span><h3>${BT.util.escapeHTML(profile.name)}</h3><p class="muted">Quellen: ${BT.util.escapeHTML(context.dataQuality.sources.join(', ') || 'noch keine belastbare Quelle')} · ${qualityLabel(context.dataQuality.confidence)}</p></div></div>
+      ${context.gameNotes.length ? `<section class="boxscore-panel opponent-game-notes">
+        <div class="section-head compact"><div><span class="section-kicker">Aus der Spielvorbereitung</span><h3>Gespeicherte Gameplans &amp; Trainerfazit</h3></div></div>
+        <p class="muted">Direkt mit den Spielnotizen verknüpft. Die Datenbasis und Einschränkungen im Text gelten weiterhin; daraus werden keine aktuellen Spielerwerte oder Wurfquoten abgeleitet.</p>
+        ${context.gameNotes.map((note, index) => `<details${index === 0 ? ' open' : ''}>
+          <summary>${BT.util.escapeHTML(note.title)} · ${BT.util.escapeHTML(note.date || 'Datum offen')}${note.seasonId ? ` · ${BT.util.escapeHTML(note.seasonId)}` : ''}</summary>
+          <p class="opponent-game-note-text">${BT.util.escapeHTML(note.text)}</p>
+          <a class="btn small" href="#/games/${BT.util.escapeHTML(encodeURIComponent(note.gameId))}">Spiel öffnen &amp; Notiz bearbeiten</a>
+        </details>`).join('')}
+      </section>` : ''}
       <section class="boxscore-panel opponent-screenshot-panel">
         <div class="section-head compact"><div><span class="section-kicker">DBB.Scores</span><h3>Screenshots auswerten</h3></div></div>
         <p class="muted">Wähle bis zu ${MAX_SCREENSHOTS} Fotos oder Screenshots gemeinsam aus. CourtHub verarbeitet sie automatisch in sicheren Paketen, liest sichtbare Spiele, Ergebnisse, Fouls, Wurfwerte und Spielerzeilen aus und speichert die Bilder selbst nicht.</p>
@@ -1047,6 +1079,7 @@ BT.opponents = (function() {
     recommendDefense,
     contextForProfile,
     contextForGame,
+    gameNotesFor,
     mergeGames,
     orderOpponentProfiles,
     sortScreenshotFiles,

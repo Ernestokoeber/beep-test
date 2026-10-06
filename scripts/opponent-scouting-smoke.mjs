@@ -9,11 +9,12 @@ const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const dom = new JSDOM(index, { url: 'https://coach.tsv-lindau.de/', runScripts: 'outside-only' });
 const window = dom.window;
 const opponents = [];
+let ownGames = [];
 window.BT = {
   util: {
     uuid: prefix => `${prefix}${opponents.length + 1}`,
     seasonForDate: () => '26/27',
-    escapeHTML: value => String(value),
+    escapeHTML: value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
     renderTemplate: id => window.document.getElementById(id).content.firstElementChild.cloneNode(true),
     toast: () => {}
   },
@@ -26,7 +27,7 @@ window.BT = {
       else opponents.push({ ...opponent, id: `opp_${opponents.length + 1}`, updatedAt: '2026-10-03T10:00:00Z' });
       return index >= 0 ? opponents[index] : opponents.at(-1);
     },
-    getGames: () => []
+    getGames: () => ownGames
   },
   seasonplanner: { scheduleConfig: () => ({ teamName: 'TSV Lindau', teamId: 258298 }) },
   api: {
@@ -103,6 +104,31 @@ assert(!analyzeButton.disabled, 'Die Auswertung wird nach der Fotoauswahl nicht 
 assert(fileLabel.textContent === 'Auswahl ändern', 'Der Foto-Button bestätigt die Auswahl nicht');
 assert(fileCount.textContent === '12 Fotos ausgewählt.', 'Die Anzahl ausgewählter Fotos wird nicht angezeigt');
 assert(index.includes('href="#/opponents" data-nav="opponents"'), 'Im Menü fehlt der Einstieg zur Gegneranalyse');
+
+// A plan formerly saved in a game's coachSummary must also be visible in opponent scouting.
+// Keep the live source intact; do not infer current statistics from historical prose.
+const planText = 'GAMEPLAN – BG Illertal 3\nNur vier historische Spiele; aktueller Kader offen.\n' + 'PnR Reads & Rückrotation. '.repeat(100) + '<script>untrusted</script>';
+ownGames = [
+  { id: 'illertal-game', date: '2026-10-11', seasonId: '26/27', home: 'TSV Lindau', homeTeamId: 258298, away: 'BG Illertal 3', awayTeamId: 900, coachSummary: planText },
+  { id: 'other-squad', date: '2026-10-18', home: 'TSV Lindau', homeTeamId: 258298, away: 'BG Illertal 3', awayTeamId: 901, coachSummary: 'Anderer Kader' },
+  { id: 'third-party', date: '2026-10-01', home: 'Andere Mannschaft', away: 'BG Illertal 3', awayTeamId: 900, coachSummary: 'Kein eigenes Spiel' }
+];
+const illertal = window.BT.storage.upsertOpponent({ key: 'bg-illertal-iii', name: 'BG Illertal III', teamId: 900, scouting: { notes: 'Geprüfte separate Beobachtung' }, manualTotals: {}, playerStats: [] });
+window.BT.opponents.ensureFromOwnGames();
+assert(opponents.filter(item => item.teamId === 900).length === 1, 'Geänderte Schreibweise erzeugt ein zweites Gegnerprofil trotz gleicher Team-ID');
+const savedContext = window.BT.opponents.contextForProfile(illertal);
+assert(savedContext.gameNotes.length === 1 && savedContext.gameNotes[0].text === planText, 'Gameplan fehlt, wird gekürzt oder mit anderer Mannschaft vermischt');
+assert(savedContext.topScorers.length === 0 && savedContext.scouting.notes === 'Geprüfte separate Beobachtung', 'Spielnotiz überschreibt geprüfte Gegnerdaten');
+target.replaceChildren();
+window.BT.opponents.render(target);
+target.querySelector(`[data-opponent-id="${illertal.id}"]`).click();
+assert(target.querySelector('.opponent-game-note-text')?.textContent === planText, 'Vollständiger Gameplan wird im Gegnerprofil nicht angezeigt');
+assert(!target.querySelector('.opponent-game-notes script'), 'Spielnotiz wird als ausführbares HTML angezeigt');
+assert(target.querySelector('.opponent-game-notes a').getAttribute('href') === '#/games/illertal-game', 'Link führt nicht zur ursprünglichen Spielnotiz');
+ownGames[0].coachSummary = 'GAMEPLAN – Überarbeitet';
+assert(window.BT.opponents.gameNotesFor(illertal)[0].text === ownGames[0].coachSummary, 'Änderungen am Spiel werden im Gegnerprofil nicht übernommen');
+ownGames = [];
+assert(window.BT.opponents.gameNotesFor(illertal).length === 0, 'Gelöschte Spiele hinterlassen veraltete Gameplan-Kopien');
 
 const orderedProfiles = window.BT.opponents.orderOpponentProfiles([
   { id: 'kauf', name: 'Kaufbeuren', teamId: 300 },

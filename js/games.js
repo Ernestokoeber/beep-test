@@ -10,8 +10,9 @@ BT.games = (function() {
   function cleanup() { liveGeneration++; matchdayView=null; if(liveCleanup){liveCleanup();liveCleanup=null;} }
   function beforeLeave(){return matchdayView?.flush?.()||null;}
 
-  function render(target) {
+  function render(target, gameId) {
     cleanup();
+    if (gameId) selectedGameId = gameId;
     root = renderTemplate('tpl-games');
     target.appendChild(root);
     const form = $('[data-role="game-form"]', root);
@@ -73,6 +74,7 @@ BT.games = (function() {
 
     $('[data-action="import-atlas"]', root).addEventListener('click', importAtlasFile);
     drawList();
+    if (gameId) drawDetail();
   }
 
   function openForm(game) {
@@ -499,4 +501,3 @@ BT.games = (function() {
   }
   return { render, renderMatchday, beforeLeave, cleanup, isLiveOpen: () => !!liveCleanup };
 })();
-

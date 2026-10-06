@@ -216,8 +216,8 @@
       BT.training.renderDetail(app, id);
     } else if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
       BT.games.renderMatchday(app,decodeURIComponent(hash.split('/')[2]),hash.endsWith('?training'));
-    } else if (hash === '#/games') {
-      BT.games.render(app);
+    } else if (hash === '#/games' || /^#\/games\/[^/]+$/.test(hash)) {
+      BT.games.render(app, hash === '#/games' ? undefined : decodeURIComponent(hash.split('/')[2]));
     } else if (hash === '#/opponents') {
       BT.opponents.render(app);
     } else if (hash === '#/tablecrew') {

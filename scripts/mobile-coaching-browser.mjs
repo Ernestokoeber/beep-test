@@ -28,9 +28,10 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
       const training = BT.storage.upsertTraining({date: today, startTime: '20:15', location: 'Trainingshalle',
         attendance: [{playerId: regular.id, status: 'present'}, {playerId: newcomer.id, status: null}],
         plan: {summary: 'PnR und frühe Rückrotation', durationMinutes: 30, drills: [{name: 'Pick-and-Roll', minutes: 15, description: 'Screen eng nutzen; Roller lesen'}, {name: 'Umschalten', minutes: 15, description: 'Ball stoppen'}]}});
-      BT.storage.upsertGame({date: today, home: 'TSV Lindau', away: 'Illertal', source: 'manual'});
+      const game = BT.storage.upsertGame({date: today, home: 'TSV Lindau', away: 'Illertal', source: 'manual', team: 'herren',
+        coachSummary: 'GAMEPLAN – Historische Hinweise\n' + 'PnR Reads & Rückrotation. '.repeat(90)});
       BT.storage.setActiveSeason('all');
-      return {training: training.id, regular: regular.id};
+      return {training: training.id, regular: regular.id, game: game.id, gameplan: game.coachSummary};
     });
     await page.reload(); await page.locator('.mobile-home').waitFor();
     const header = await page.locator('.topbar').boundingBox();
@@ -115,6 +116,23 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await page.locator('[data-context-action="Geprüfte Videoanalyse"]').tap();
     await page.locator('.atlas-panel').waitFor();
     await check('Videoanalyse im Menü');
+    await page.goto(baseUrl + '/#/opponents');
+    await page.locator('.opponent-game-note-text').waitFor();
+    assert.equal(await page.locator('.opponent-game-note-text').textContent(), data.gameplan.trim());
+    await check('Vollständiger verknüpfter Gameplan');
+    await page.locator('.opponent-game-notes a').tap();
+    await page.locator('[data-game-field="coachSummary"]').waitFor();
+    assert.equal(await page.locator('[data-game-field="coachSummary"]').inputValue(), data.gameplan);
+    assert.equal(await page.locator('.game-list-card.active').getAttribute('data-game-id'), data.game);
+    await check('Gameplan öffnet richtiges Spiel');
+    await page.locator('[data-game-field="coachSummary"]').fill('GAMEPLAN – Aktualisiert');
+    await page.waitForTimeout(500); // The existing game editor saves after its 350 ms debounce.
+    assert.equal(await page.evaluate(id => window.BT.storage.getGame(id)?.coachSummary, data.game), 'GAMEPLAN – Aktualisiert');
+    await page.goto(baseUrl + '/#/opponents');
+    assert.equal(await page.locator('.opponent-game-note-text').textContent(), 'GAMEPLAN – Aktualisiert');
+    await page.reload();
+    await page.locator('.opponent-game-note-text').waitFor();
+    assert.equal(await page.locator('.opponent-game-note-text').textContent(), 'GAMEPLAN – Aktualisiert');
     console.log(`CourtHub: ${name} · mobile Startseite, Menüs, Statistik, Briefing, Trainingsdetails und Reload erfolgreich.`);
   } finally { await context.close(); }
 }
