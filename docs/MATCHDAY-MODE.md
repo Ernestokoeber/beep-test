@@ -37,6 +37,14 @@ wird durch die lokale Browserabnahme nicht bestätigt.
 
 ## Während des Spiels
 
+Ein vorhandener veröffentlichter Spielbericht lässt sich nach dem Spiel unter
+**Spiele → Spielbericht übernehmen** prüfen und speichern. Bei geschlossenen
+Spielen gilt die ausdrückliche Archivfreigabe. Der Import prüft Spielerzuordnung,
+Punkte, Wurfwerte, fünf Starter und Viertelsummen. Endergebnis, Spieltagsnummern,
+Trainer und veröffentlichte Spielerwerte stehen anschließend auch im Spieltag
+als primäre Auswertung. Fehlende Werte bleiben offen; die ursprüngliche
+Live-Erfassung und der eingefrorene Gameplan bleiben separat erhalten.
+
 Die vorhandenen Aktionen für eigene Spieler, Gegnerpunkte, Wechsel, Uhr und
 Korrekturen bleiben frei bedienbar. Es gibt keinen Pflicht-Assistenten zwischen
 Statistikaktionen. Bekannte gegnerische Topscorer und Schützen können vor **Gegner

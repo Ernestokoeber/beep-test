@@ -265,7 +265,7 @@ BT.games = (function() {
     const lindauHome = /lindau/i.test(game.home || '');
     const lifecycle = statusFor(game), editable = canEdit(game);
     const result = lifecycle.cancelled ? lifecycle.label : scoreParts ? (Number(scoreParts[1]) === Number(scoreParts[2]) ? 'Unentschieden' : (lindauHome ? Number(scoreParts[1]) > Number(scoreParts[2]) : Number(scoreParts[2]) > Number(scoreParts[1])) ? 'Sieg' : 'Niederlage') : lifecycle.completed ? 'Absolviert · Ergebnis offen' : lifecycle.label;
-    const preparation = preparationState(game);
+    const preparation = game.publishedReport ? {...preparationState(game),roster:game.publishedReport.players.map(p=>({...p,id:p.playerId})),startingFive:game.publishedReport.players.filter(p=>p.gameStatus==='starter').map(p=>p.playerId),staff:game.publishedReport.staff} : preparationState(game);
     const nominatedCount = preparation.roster.filter(player => player.gameStatus !== 'dnp').length;
     const starterCount = preparation.startingFive.length;
     const selectedSession = game.liveStats?.sessions?.find(session => session.id === game.liveStats.selectedSessionId);
@@ -276,7 +276,7 @@ BT.games = (function() {
 
     wrap.innerHTML = `<div class="game-detail-head">
       <div><span class="section-kicker">${escapeHTML(game.team === 'u18' ? 'U18' : 'Herren')} · ${escapeHTML(result)}</span><h3>${escapeHTML(game.home)} <span>${escapeHTML(game.score || '–:–')}</span> ${escapeHTML(game.away)}</h3><p class="muted">${formatDate(game.date)}${game.time ? ' · ' + escapeHTML(game.time) + ' Uhr' : ''} · Quelle: ${game.source === 'basketball-bund' ? 'DBB TeamSL' : game.source === 'tsv-website' ? 'TSV-Webseite' : 'manuell'}${game.matchNo ? ' · Spiel ' + escapeHTML(game.matchNo) : ''}</p></div>
-      <div class="head-actions"><button class="btn small" data-action="edit-selected">Bearbeiten</button><button class="btn small" data-action="share-game">Bericht teilen</button></div>
+      <div class="head-actions"><button class="btn small" data-action="edit-selected">Bearbeiten</button><button class="btn small" data-action="share-game">Bericht teilen</button><button class="btn small mobile-extra-action" data-menu-label="Spielbericht übernehmen" data-action="import-published-report">Spielbericht übernehmen</button></div>
     </div>
 
     <section class="boxscore-panel game-preparation-card"><h3>${lifecycle.closed ? 'Gespeicherter Spieltag' : 'Spielvorbereitung'}</h3><p>${lifecycle.closed ? 'Gespeicherten Kader, Gameplan und die vorhandene Auswertung ansehen.' : 'Kader, Gegneranalyse und Gameplan bestätigen und danach in die freie Live-Erfassung wechseln.'}</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live"${lifecycle.closed ? ' hidden' : ''}>Live Game mit Gegnerplan</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
@@ -337,6 +337,7 @@ BT.games = (function() {
       saveGame(game);
     })));
     $('[data-action="edit-selected"]', wrap).addEventListener('click', () => openForm(game));
+    $('[data-action="import-published-report"]',wrap).addEventListener('click',()=>openPublishedReportImport(game,wrap));
     $('[data-action="load-atlas"]', wrap).addEventListener('click', () => loadAtlas(game));
     $('[data-action="create-training"]', wrap).addEventListener('click', () => createTrainingFromGame(game, analysis));
     $('[data-action="share-game"]', wrap).addEventListener('click', () => shareGame(game, analysis));
@@ -364,12 +365,32 @@ BT.games = (function() {
       const game=BT.storage.getGame(gameId),live=game?.liveStats;
       const session=live?.sessions.find(s=>s.id===live.selectedSessionId);
       host.replaceChildren();
+      if(game.publishedReport){const {renderPublishedReport}=await import('./published-game-report.mjs');if(generation!==liveGeneration)return;host.append(renderPublishedReport(game.publishedReport,session?buildLiveReport(session,Date.now()):null));return;}
       if(!session){host.textContent=live?'Mehrere Erfassungen: In „Live erfassen“ zuerst eine Sitzung auswählen.':'Noch keine Live-Erfassung vorhanden.';return;}
       const report=buildLiveReport(session,Date.now());host.append(renderLiveReport(report));
       const score=String(game.score||'').match(/^(\d+)\s*:\s*(\d+)$/);
       const home=/\blindau\b/i.test(game.home||''),away=/\blindau\b/i.test(game.away||'');
       if(score&&home!==away&&report.teamPoints!==null){const official=Number(score[home?1:2]);const p=document.createElement('p');p.textContent='Gepflegtes Ergebnis: '+official+' eigene Punkte · Differenz zur Live-Erfassung: '+(report.teamPoints-official)+'.';host.append(p);}
     }catch(error){host.textContent=error.message;}
+  }
+
+  async function openPublishedReportImport(game,wrap){
+    if(!requestEdit(BT.storage.getGame(game.id)))return;
+    if(wrap.querySelector('[data-role="published-import"]'))return;
+    const {publishedGamePatch,renderPublishedReport}=await import('./published-game-report.mjs');
+    const section=document.createElement('section');section.className='boxscore-panel';section.dataset.role='published-import';
+    section.innerHTML='<h3>Veröffentlichten Spielbericht übernehmen</h3><p>Endergebnis und Spielerstatistik ergänzen. Die manuelle Live-Erfassung bleibt separat erhalten. Nicht veröffentlichte Werte bleiben offen.</p><label>Spielbericht (JSON)<textarea data-role="published-report-input" rows="6"></textarea></label><p role="status" data-role="published-import-status"></p><button class="btn" data-action="preview-published-report">Bericht prüfen</button><button class="btn" data-action="cancel-published-report">Abbrechen</button><div data-role="published-preview"></div><button class="btn primary" data-action="save-published-report" hidden>Spielbericht speichern</button>';
+    wrap.querySelector('[data-role="game-archive"]').after(section);section.scrollIntoView({block:'start',behavior:'instant'});
+    let packet=null;const input=section.querySelector('textarea'),status=section.querySelector('[role="status"]'),preview=section.querySelector('[data-role="published-preview"]'),save=section.querySelector('[data-action="save-published-report"]');
+    input.addEventListener('input',()=>{packet=null;save.hidden=true;preview.replaceChildren();});
+    section.querySelector('[data-action="cancel-published-report"]').addEventListener('click',()=>{section.remove();drawDetail();});
+    section.querySelector('[data-action="preview-published-report"]').addEventListener('click',()=>{
+      try{if(input.value.length>1000000)throw Error('Spielbericht ist zu groß.');const candidate=JSON.parse(input.value),patch=publishedGamePatch(candidate,BT.storage.getGame(game.id),BT.storage.getPlayers());packet=candidate;preview.replaceChildren(renderPublishedReport(patch.publishedReport));save.hidden=false;status.textContent=`Geprüft: ${patch.score} · ${patch.publishedReport.players.length} Spieler · fünf Starter.`;}catch(error){packet=null;save.hidden=true;preview.replaceChildren();status.textContent=error.message;}
+    });
+    save.addEventListener('click',()=>{
+      if(!packet)return;
+      try{const current=BT.storage.getGame(game.id);if(!canEdit(current))throw Error('Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.');const patch=publishedGamePatch(packet,current,BT.storage.getPlayers());if(!saveGame(patch))return;drawList();drawDetail();$('[data-role="games-status"]',root).textContent='Veröffentlichter Spielbericht mit Endergebnis und Spielerstatistik gespeichert.';}catch(error){status.textContent=error.message;}
+    });
   }
 
   function normalizedAtlas(pkg) {

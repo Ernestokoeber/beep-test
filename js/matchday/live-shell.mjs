@@ -2,6 +2,7 @@ import {renderStaffSummary,isCoachOnly} from '../coaching-staff.mjs';
 import {canonical,clone,effectiveEvents} from '../live-game/core.mjs';
 import {mountLiveView} from '../live-game/view.mjs';
 import {renderLiveReport} from '../live-game/report.mjs';
+import {renderPublishedReport} from '../published-game-report.mjs';
 import {GAME_POSITIONS,gamePositionLabel,normalizeGamePosition} from '../basketball-positions.mjs';
 import {activeGamePlan,buildOpponentFeedback,DEFENSES,OBSERVATIONS,projectOpponentLive} from './opponent-plan.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
@@ -105,12 +106,17 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
   }
   function update(s){
     if(dead)return;
+    const published=(window.BT?.storage?.getGame?.(game?.id)||game)?.publishedReport;
+    const reported=s.stage==='finished'&&published;
     hint.textContent=s.liveState.clock?.running?'Die Uhr läuft beim Verlassen weiter.':'Die Spieluhr startest und stoppst du selbst.';
-    const nextStaff=canonical(s.draft.staff||[]);if(staffKey!==nextStaff){staffKey=nextStaff;staffOverview.replaceChildren();renderStaffSummary(staffOverview,s.draft.staff);}
+    if(reported)hint.textContent='Spiel abgeschlossen · Endergebnis und Statistik aus dem veröffentlichten Spielbericht.';
+    const displayedStaff=reported?published.staff:s.draft.staff;
+    const nextStaff=canonical(displayedStaff||[]);if(staffKey!==nextStaff){staffKey=nextStaff;staffOverview.replaceChildren();renderStaffSummary(staffOverview,displayedStaff);}
     renderPregameRoster(s);
     renderResetLive(s);
     pause.hidden=s.stage!=='pause';
     const opponentLive=renderScouting(s);
+    if(reported)scouting.hidden=true;
     if(!pause.hidden){const half=s.liveState.session.config.periods%2===0&&s.liveState.clock.period===s.liveState.session.config.periods/2;
       const box=s.liveState.boxscore;pause.replaceChildren(el('h3',half?'Halbzeit':'Abschnittspause'),el('p',`Erfasster Stand: ${box.teamPoints} : ${box.opponentPoints??'–'}`),el('p','Aufstellung und Spielziele prüfen. Nächsten Abschnitt unten bewusst vorbereiten und starten.'),el('p',s.draft.goals));
       const list=el('ul');for(const id of s.liveState.lineups.onCourt){const p=box.players.find(p=>p.id===id);if(p)list.append(el('li',`${p.name} · ${p.fouls} Fouls`));}pause.append(list);
@@ -139,9 +145,9 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
       }
     }
     const finished=s.stage==='finished';liveTools.querySelector(':scope > summary').hidden=!finished;if(!finished)liveTools.open=true;
-    if(finished){const next=canonical([s.liveState.boxscore,opponentLive]);if(reportKey!==next){reportKey=next;liveTools.open=false;report.replaceChildren(renderLiveReport(s.liveState.boxscore));if(opponentLive)report.append(renderOpponentAnalysis(opponentLive,'Gegner & Defense'));}
+    if(finished){const next=canonical([s.liveState.boxscore,opponentLive,published]);if(reportKey!==next){reportKey=next;liveTools.open=false;report.replaceChildren(reported?renderPublishedReport(published,s.liveState.boxscore):renderLiveReport(s.liveState.boxscore));if(opponentLive&&!reported)report.append(renderOpponentAnalysis(opponentLive,'Gegner & Defense'));}
       const feedback=buildOpponentFeedback({game,plan:s.draft.opponentPlan,session:s.liveState.session});const nextFeedback=feedback?canonical(feedback):'';
-      if(feedback&&feedbackKey!==nextFeedback){feedbackKey=nextFeedback;try{onOpponentFeedback(feedback);}catch(error){status.textContent='Spiel gespeichert; Gegnerbeobachtungen konnten nicht übernommen werden: '+error.message;}}
+      if(feedback&&!reported&&feedbackKey!==nextFeedback){feedbackKey=nextFeedback;try{onOpponentFeedback(feedback);}catch(error){status.textContent='Spiel gespeichert; Gegnerbeobachtungen konnten nicht übernommen werden: '+error.message;}}
     }else{reportKey='';feedbackKey='';report.replaceChildren();}
   }
   const unmount=mountLiveView(liveHost,controller.live),unsub=controller.subscribe(update);
@@ -149,4 +155,3 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
   function cleanup(){dead=true;unsub();unmount();window.removeEventListener('beforeunload',unload);}
   cleanup.flush=flush;return cleanup;
 }
-

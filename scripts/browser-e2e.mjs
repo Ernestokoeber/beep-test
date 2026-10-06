@@ -1020,6 +1020,37 @@ async function testMatchday(browser, name, options) {
     assert(await page.locator('[data-field="closingNote"]').isDisabled(), `${name}: Reload hebt die Archivsperre auf`);
     assert(JSON.stringify(await page.evaluate(id => window.BT.storage.getGame(id), gameId)) === JSON.stringify(finished), `${name}: Abschluss/Entwurf nach Reload verändert`);
     await noOverflow('Abgeschlossener Spieltag nach Reload');
+    // An aggregate published report must supersede a partial manual capture,
+    // without rewriting any scoring events, substitutions or frozen gameplan.
+    const publishedPacket=await page.evaluate(id=>{
+      const game=window.BT.storage.getGame(id),players=window.BT.storage.getPlayers().slice(0,5);
+      return {schemaVersion:'courthub.published-game.v1',ownSide:'home',target:{date:game.date,home:game.home,away:game.away},score:'30:93',periodScores:[{period:1,home:7,away:36},{period:2,home:9,away:12},{period:3,home:4,away:18},{period:4,home:10,away:27}],staff:[{role:'coach',name:'Bericht Trainer',playerId:null,alsoPlayer:false,status:'present'}],players:players.map((p,i)=>({playerId:p.id,name:p.name,jerseyNumber:String(i+30),gameStatus:'starter',minutesMs:2400000,points:i===0?30:0,twoMade:i===0?15:0,threeMade:0,freeThrowsMade:0,freeThrowsAttempted:0,fouls:i,plusMinus:-63})),sources:[{url:'https://www.tsv-lindau.de/spielplan/'}]};
+    },gameId);
+    await page.goto(baseUrl+`/#/games/${gameId}`,{waitUntil:'domcontentloaded'});
+    page.once('dialog',dialog=>dialog.dismiss());
+    await page.locator('[data-role="hamburger"]').tap();
+    await page.locator('[data-context-action="import-published-report"]').tap();
+    assert(await page.locator('[data-role="published-import"]').count()===0,`${name}: Spielbericht umgeht abgelehnte Archivfreigabe`);
+    page.once('dialog',dialog=>dialog.accept());
+    await page.locator('[data-role="hamburger"]').tap();
+    await page.locator('[data-context-action="import-published-report"]').tap();
+    await page.getByLabel('Spielbericht (JSON)',{exact:true}).fill(JSON.stringify(publishedPacket));
+    await page.getByRole('button',{name:'Bericht prüfen',exact:true}).tap();
+    await page.locator('[data-role="published-import-status"]').filter({hasText:'Geprüft: 30:93'}).waitFor();
+    await noOverflow('Spielbericht-Vorschau');
+    await page.getByRole('button',{name:'Spielbericht speichern',exact:true}).tap();
+    await page.locator('[data-role="games-status"]').filter({hasText:'Spielbericht mit Endergebnis'}).waitFor();
+    assert(await page.evaluate(({id,before})=>JSON.stringify(window.BT.storage.getGame(id).liveStats)===JSON.stringify(before.liveStats)&&JSON.stringify(window.BT.storage.getGame(id).matchday)===JSON.stringify(before.matchday),{id:gameId,before:finished}),`${name}: Import verändert Live-Journal oder Vorbereitung`);
+    await page.getByRole('button',{name:'Live-Auswertung',exact:true}).tap();
+    await page.locator('[data-role="published-report"] [data-team="own"] strong').filter({hasText:'30'}).waitFor();
+    await page.goto(baseUrl+`/#/games/${gameId}/matchday`,{waitUntil:'domcontentloaded'});
+    await page.locator('[data-role="published-report"] [data-team="opponent"] strong').filter({hasText:'93'}).waitFor();
+    await page.getByText('Quellen und Erfassung',{exact:true}).tap();
+    assert((await page.locator('[data-role="published-report"]').innerText()).includes('Manuelle Live-Erfassung: 2:3'),`${name}: Herkunft des ursprünglichen Teilstands fehlt`);
+    assert(await page.locator('.matchday-scout-alerts:visible').count()===0,`${name}: abgeschlossene Teil-Erfassung erzeugt aktuelle Gegnerwarnungen`);
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.locator('[data-role="published-report"] [data-team="own"] strong').filter({hasText:'30'}).waitFor();
+    await noOverflow('Veröffentlichte Auswertung nach Reload');
     console.log(`Matchday Browser-E2E erfolgreich: ${name}, Vorbereitung, Live, Abschluss, Auswertung und zwei Reloads.`);
   } catch (error) {
     console.error(`${name} Matchday-Diagnose:`, page.url(), await page.locator('#app').innerText(), errors);
