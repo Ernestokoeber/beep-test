@@ -23,7 +23,7 @@ const scripts = [
   'js/play-designer/phase-rail.js', 'js/play-designer/court-stage.js',
   'js/play-designer/action-timeline.js', 'js/play-designer/phase-instructions.js',
   'js/play-designer/play-preview.js', 'js/play-designer/animation-player.js',
-  'js/play-designer/court-view.js', 'js/play-designer/court-3d.js',
+  'js/play-designer/court-view.js', 'js/play-designer/court-3d.js', 'js/play-designer/basketball-film.js',
   'js/play-designer/export-dialog.js', 'js/play-designer/play-library.js',
   'js/play-designer/ai-explanation.js',
   'js/play-designer/quick-workflow.js',

@@ -1,0 +1,10 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><title>Courthub PnR Film Studio</title><style>html,body{margin:0;background:#202d30}canvas{display:block}#caption{position:fixed;left:34px;top:24px;color:#fff;font:600 24px system-ui;letter-spacing:.05em;text-shadow:0 2px 8px #000}#phase{position:fixed;bottom:28px;left:34px;color:#fff;font:500 18px system-ui;background:#003c2dcc;padding:10px 18px;border-radius:5px}</style><div id="stage"></div><div id="caption">COURTHUB · PICK & ROLL</div><div id="phase">Aufstellung</div><script type="module">
+import {createBasketballFilm} from '../js/play-designer/basketball-film.js';
+window.film=await createBasketballFilm(document.getElementById('stage'));
+window.renderFilm=(time,variant='pick-and-roll')=>{
+ film.render(time,variant);
+ document.getElementById('caption').textContent='COURTHUB · '+({'pick-and-roll':'PICK & ROLL','pick-and-pop':'PICK & POP','pick-and-roll-reject':'REJECT & RE-SCREEN'}[variant]);
+ document.getElementById('phase').textContent=variant==='pick-and-roll-reject'?(time<2?'Aufstellung':time<4?'Reject gegen Überplay':time<6.5?'Re-Screen stellen':time<9?'Block nutzen · zum Korb rollen':time<10.6?'Pass zum Roller':'Abschluss'):(time<2?'Aufstellung':time<4.5?'Screen stellen · eng vorbeidribbeln':time<7.6?(variant==='pick-and-pop'?'Pop nach außen · Passfenster öffnen':'Zum Korb abrollen · Hände zeigen'):time<9.2?(variant==='pick-and-pop'?'Pass zum Popper':'Pass zum Roller'):'Abschluss');
+};
+window.ready=true;
+</script></html>

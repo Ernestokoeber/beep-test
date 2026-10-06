@@ -1,6 +1,6 @@
 // Bump this whenever the offline asset manifest changes so installed clients
 // cannot keep an older editor or planner bundle.
-const CACHE = 'courthub-v189';
+const CACHE = 'courthub-v190';
 const ASSETS = [
   './',
   './index.html',
@@ -156,6 +156,9 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   if (new URL(req.url).pathname.startsWith('/api/')) return;
+  // Leave native video byte ranges to the browser/CDN. Cache API cannot store
+  // partial (206) responses or synthesize the ranges required for seeking.
+  if (req.headers.has('Range') || new URL(req.url).pathname.startsWith('/assets/pnr/films/')) return;
 
   event.respondWith(
     caches.match(req).then((cached) => {

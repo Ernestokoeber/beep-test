@@ -45,7 +45,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Start static app
         run: |
-          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/courthub-e2e-server.log 2>&1 &
+          node scripts/static-server.mjs > /tmp/courthub-e2e-server.log 2>&1 &
           echo $! > /tmp/courthub-e2e-server.pid
           for attempt in {1..30}; do
             curl --fail --silent http://127.0.0.1:4173/ >/dev/null && exit 0

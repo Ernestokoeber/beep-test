@@ -1,30 +1,55 @@
-# PnR in 3D
+# PnR basketball films
 
-Open a PnR play and choose **Animation abspielen**. Pick & Roll, Pick & Pop,
-Reject/Re-Screen and PnR-labelled plays open in 3D. The published player view
-has the same 2D/3D controls. Other plays initially retain the 2D view.
+The built-in Pick & Roll, Pick & Pop and Reject & Re-Screen examples open in
+**3D-Spielszene**, in both the animation modal and published Team-Plays view.
+Each is a 14-second 1280×720 H.264 film at 24 fps, rendered from an actual 3D
+scene with ten fictional human characters, basketball uniforms, a gym, screen,
+dribbling, roll/pop, pass and finish. Native video controls provide playback,
+pause, seeking, speed selection and fullscreen. Playback starts paused.
 
-Drag to rotate; use the wheel or a two-finger pinch to zoom. Camera reset and
-top view are available as buttons. With keyboard focus on the canvas, arrow
-keys rotate, +/- zoom and Home resets the camera. Existing playback, pause,
-speed and scrub controls apply to both views, retaining the playback position.
+These are authored teaching examples, not renders of a coach's edited phase
+recording. The accompanying text makes this distinction explicit. The 2D and
+rotatable 3D tactical views still follow the recorded board and retain their
+existing transport. Changing views pauses the film; closing releases its media
+source. A failed video request returns to 2D with a message. The video can play
+on devices without WebGL. The existing WebGL tactical view keeps its own 2D
+fallback and disposal behavior.
 
-Green players are offense, red players defense. Labels retain board roles.
-The ball and players follow `BT.tactics.snapshotAt` without rewriting the
-saved play. A yellow ground marker indicates an active screen near its actor.
-Player meshes are schematic; leg motion and ball bounce are presentation cues,
-not a physics simulation. Existing PDF and GIF exports use the 2D renderer.
+This is a functional visual prototype. Character proportions and faces come
+from anatomical human meshes; movement is authored procedurally. The graphics,
+cloth and foot contact are simpler than a modern commercial basketball game.
+Further artwork and motion capture can improve that quality without replacing
+the native film player.
 
-Three.js 0.180.0 and matching OrbitControls are pinned and vendored locally
-with their MIT license. After changing that dependency, run
-`node scripts/vendor-three.mjs` and commit the resulting vendor files. The
-service-worker manifest caches the complete dependency chain for offline use.
-The 3D module loads only when selected. If WebGL2 is unavailable, initialization
-fails or the graphics context is lost, the same animation stays available in 2D.
-Closing or removing a viewer disposes controls, observers and GPU resources;
-closing while the module loads cannot create an orphaned renderer.
+Films are fetched only when selected and are not service-worker precached.
+Native media byte-range requests bypass the service worker, allowing CDN seeking
+and avoiding invalid caching of 206 responses. 2D remains available offline;
+the films require a successful media download. No external runtime CDN or API
+is used. Model licenses and provenance are in assets/pnr/players/SOURCES.md.
 
-Validation: `npm test`; with Playwright installed and a local server running,
-`node scripts/pnr-3d-browser.mjs`. Browser CI runs the 3D checks after the existing
-E2E suite. Optional `E2E_BROWSER_CHANNEL` selects an installed browser, and
-`E2E_SCREENSHOTS` saves desktop/mobile screenshots to a supplied directory.
+## Re-rendering
+
+Install repository dependencies, Playwright and an ffmpeg build with libx264.
+Serve the checkout with node scripts/static-server.mjs. Then run
+E2E_BASE_URL=http://127.0.0.1:4173 node scripts/render-pnr-films.mjs.
+PNR_FFMPEG selects ffmpeg; PNR_BROWSER_CHANNEL or PNR_CHROMIUM selects a
+browser. scripts/pnr-film-studio.html is the render studio; its deterministic
+window.renderFilm(seconds, variant) entry point renders any frame.
+
+To regenerate player assets, put the three original mh_*.glb files listed in
+SOURCES.md and MakeHuman's base.obj in a scratch directory outside the repo.
+Run python scripts/prepare-pnr-players.py <scratch-directory> followed by
+python scripts/complete-pnr-bodies.py <scratch-directory>. The first removes
+all motion capture and non-bundled accessories; the second reconstructs the
+full anatomical body, keeping individual faces. Original files are not shipped.
+
+Three.js 0.180.0, GLTFLoader and SkeletonUtils are pinned and locally vendored
+with the MIT license. Run node scripts/vendor-three.mjs after upgrading.
+
+## Validation
+
+npm test covers existing behavior and syntax. With the range-capable local
+server running, node scripts/pnr-3d-browser.mjs checks desktop and mobile:
+14-second film loading, actual playback, seeking, pausing on view change,
+tactical playback and reset, 320px layout, unavailable WebGL and failed media
+download. CI uses the same static server and browser checks.

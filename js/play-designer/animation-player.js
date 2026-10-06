@@ -40,7 +40,10 @@ export function createAnimationPlayer(boardInput, suppliedCore) {
       <div class="cha-speeds" aria-label="Wiedergabegeschwindigkeit"><button class="chq-btn" type="button" data-speed="0.5">0,5x</button><button class="chq-btn active" type="button" data-speed="1">1x</button><button class="chq-btn" type="button" data-speed="1.5">1,5x</button></div>
     </div>`;
   element.querySelector('h2').textContent = board.title || 'CourtHub Play';
-  const courtView = createCourtView(element.querySelector('[data-role="animation-court"]'), board);
+  const courtView = createCourtView(element.querySelector('[data-role="animation-court"]'), board, { onModeChange(mode) {
+    element.querySelector('.cha-controls').hidden = mode === 'film';
+    if (mode === 'film') { stop(); render(); }
+  }});
   const markers = element.querySelector('[data-role="phase-markers"]');
   let elapsed = 0;
   phases.forEach((phase, index) => {
