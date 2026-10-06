@@ -3,6 +3,12 @@ window.BT = window.BT || {};
 BT.dashboard = (function() {
   const { $, renderTemplate, escapeHTML, downloadCSV, downloadJSON, todayISO, formatDate } = BT.util;
 
+  function nextTraining(trainings, today) {
+    return trainings.filter(training => (training.date || '') >= today && !training.endedAt &&
+      !['completed', 'cancelled', 'abgesagt'].includes(training.status))
+      .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')))[0];
+  }
+
   function render(target) {
     if (BT.storage.withReadCache) {
       return BT.storage.withReadCache(() => renderDashboard(target));
@@ -12,93 +18,70 @@ BT.dashboard = (function() {
 
   function renderDashboard(target) {
     const root = renderTemplate('tpl-dashboard');
-    target.appendChild(root);
+    const briefing = buildCoachBriefing();
+    const next = briefing.next;
+    $('[data-role="next-training-time"]', root).textContent = next ? formatDate(next.date) + (next.startTime ? ' · ' + next.startTime + ' Uhr' : '') : 'Noch nicht geplant';
+    $('[data-role="next-training-place"]', root).textContent = next?.location || next?.place || '';
+    $('[data-role="home-training-focus"]', root).textContent = next?.plan?.summary || (next ? 'Schwerpunkt noch offen' : 'Lege deinen nächsten Trainingstermin an.');
+    $('[data-role="home-training-attendance"]', root).textContent = next ? briefing.present + ' anwesend eingetragen · ' + briefing.open + ' Status offen' : '';
+    const link = $('[data-role="next-training-card"]', root);
+    link.href = next ? '#/training/' + encodeURIComponent(next.id) : '#/schedule';
+    link.textContent = next ? 'Training öffnen' : 'Training planen';
+    $('[data-role="dashboard-date"]', root).textContent = formatDate(todayISO());
+    const notices = briefing.notes.filter(note => note.cls === 'warn');
+    const restricted = briefing.sections.find(section => section.title === 'Teilnahme und Einschränkungen')?.lines.slice(2) || [];
+    if (restricted.length) notices.unshift({text: restricted.length + ' Spieler mit Abmeldung oder Einschränkung. Im Briefing prüfen.'});
+    if (notices.length) {
+      $('[data-role="home-notices"]', root).hidden = false;
+      $('[data-role="home-notices-list"]', root).innerHTML = notices.slice(0, 3).map(note => '<li>' + escapeHTML(note.text) + '</li>').join('') +
+        (notices.length > 3 ? '<li><a href="#/briefing">' + (notices.length - 3) + ' weitere Hinweise im Briefing</a></li>' : '');
+    }
+    renderNextGame(root);
+    renderAlerts(root);
+    target.append(root);
+  }
 
+  function cachedRender(target, renderView) {
+    return BT.storage.withReadCache ? BT.storage.withReadCache(() => renderView(target)) : renderView(target);
+  }
+
+  function renderBriefing(target) {
+    return cachedRender(target, host => {
+      const root = renderTemplate('tpl-coach-briefing');
+      renderCoachBriefing(root);
+      renderCurrentPhase(root);
+      host.append(root);
+    });
+  }
+
+  function renderStatistics(target) {
+    return cachedRender(target, host => {
+      const root = renderTemplate('tpl-statistics');
+      renderSeasonSelect(root, renderStatistics);
+      const attendance = BT.stats.teamAttendance();
+      $('[data-role="team-att-pct"]', root).textContent = attendance.pct;
+      $('[data-role="team-att-sub"]', root).textContent = attendance.present + ' von ' + attendance.slots + ' erfassten Terminen';
+      const ft = BT.stats.teamFreethrows();
+      $('[data-role="team-ft-pct"]', root).textContent = ft.pct;
+      $('[data-role="team-ft-sub"]', root).textContent = ft.attempted ? ft.made + '/' + ft.attempted + ' aus ' + ft.sessions + ' Trainings' : 'Noch keine Daten';
+      renderFormOfWeek(root);
+      renderTopAttenders(root);
+      renderTopFT(root);
+      renderShotCategories(root);
+      renderPositionStats(root);
+      renderTeamHeatmap(root);
+      host.append(root);
+    });
+  }
+
+  function renderData(target) {
+    const root = renderTemplate('tpl-dashboard-data');
+    renderSeasonSelect(root, renderData);
     $('[data-action="share-backup"]', root).addEventListener('click', () => BT.history.shareBackup());
     $('[data-action="import-backup"]', root).addEventListener('click', () => BT.history.importBackup());
     $('[data-action="export-season-csv"]', root).addEventListener('click', exportSeasonCSV);
     $('[data-action="export-season-json"]', root).addEventListener('click', exportSeasonJSON);
-
-    renderSeasonSelect(root);
-
-    const active = BT.storage.getActiveSeason();
-    const allTrainings = BT.storage.getTrainings();
-    const trainings = active === 'all' ? allTrainings : allTrainings.filter(t => t.seasonId === active);
-    $('[data-role="trainings-count"]', root).textContent = trainings.length;
-
-    const today = todayISO();
-    const nextTraining = allTrainings
-      .filter(training => (training.date || '') >= today)
-      .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')))[0];
-    const nextTime = $('[data-role="next-training-time"]', root);
-    const nextPlace = $('[data-role="next-training-place"]', root);
-    const nextLegacy = $('[data-role="next-training"]', root);
-    const nextCard = $('[data-role="next-training-card"]', root);
-    if (nextTraining) {
-      nextTime.textContent = formatDate(nextTraining.date) + (nextTraining.startTime ? ', ' + nextTraining.startTime : '');
-      nextPlace.textContent = nextTraining.location || nextTraining.place || 'TSV Lindau';
-      nextLegacy.textContent = nextTime.textContent;
-      nextCard.href = '#/training/' + encodeURIComponent(nextTraining.id);
-    } else {
-      nextTime.textContent = 'Noch offen';
-      nextPlace.textContent = 'Training planen';
-      nextLegacy.textContent = 'Noch nicht geplant';
-      nextCard.href = '#/schedule';
-    }
-
-    const activePlayers = BT.storage.getPlayers().filter(player => !player.archived);
-    $('[data-role="player-count"]', root).textContent = activePlayers.length;
-    renderNextTrainingAgenda(root, nextTraining);
-
-    const ta = BT.stats.teamAttendance();
-    $('[data-role="team-att-pct"]', root).textContent = ta.pct;
-    $('[data-role="team-att-sub"]', root).textContent = ta.present + ' von ' + ta.slots + ' Slots';
-
-    const tf = BT.stats.teamFreethrows();
-    $('[data-role="team-ft-pct"]', root).textContent = tf.pct;
-    $('[data-role="team-ft-sub"]', root).textContent = tf.attempted > 0
-      ? tf.made + '/' + tf.attempted + ' aus ' + tf.sessions + ' Sessions'
-      : 'Noch keine Daten';
-
-    renderNextGame(root);
-
-    renderCurrentPhase(root);
-    renderAlerts(root);
-    renderCoachBriefing(root);
-    renderFormOfWeek(root);
-    renderTopAttenders(root);
-    renderTopFT(root);
-    renderShotCategories(root);
-    renderPositionStats(root);
-    renderTeamHeatmap(root);
-  }
-
-  function renderNextTrainingAgenda(root, training) {
-    const container = $('[data-role="next-training-agenda"]', root);
-    if (!container) return;
-    const drills = training && training.plan && Array.isArray(training.plan.drills) ? training.plan.drills : [];
-    if (!training) {
-      container.innerHTML = '<div class="agenda-empty"><strong>Noch kein Training geplant</strong><span>Lege den nächsten Termin und den Ablauf im Trainingsplan an.</span><a class="btn primary small" href="#/schedule">Training planen</a></div>';
-      return;
-    }
-    if (!drills.length) {
-      container.innerHTML = '<div class="agenda-empty"><strong>' + formatDate(training.date) + (training.startTime ? ' · ' + escapeHTML(training.startTime) : '') + '</strong><span>Für dieses Training ist noch kein Ablauf hinterlegt.</span><a class="btn primary small" href="#/training/' + encodeURIComponent(training.id) + '">Ablauf ergänzen</a></div>';
-      return;
-    }
-
-    const start = /^\d{2}:\d{2}$/.test(training.startTime || '') ? training.startTime : '20:15';
-    let elapsed = 0;
-    container.innerHTML = drills.slice(0, 8).map((drill, index) => {
-      const minutes = Math.max(0, Number(drill.minutes) || 0);
-      const time = addMinutes(start, elapsed);
-      elapsed += minutes;
-      const icon = agendaIcon(drill.name, index);
-      return '<a class="agenda-row" href="#/training/' + encodeURIComponent(training.id) + '">' +
-        '<span class="agenda-row-icon agenda-icon-' + (index % 4) + '" aria-hidden="true">' + icon + '</span>' +
-        '<span class="agenda-row-copy"><strong>' + escapeHTML(drill.name || 'Trainingsblock') + '</strong>' +
-        (drill.description ? '<small>' + escapeHTML(drill.description) + '</small>' : '') + '</span>' +
-        '<time>' + time + '</time><span class="agenda-arrow" aria-hidden="true">›</span></a>';
-    }).join('');
+    target.append(root);
   }
 
   function addMinutes(time, minutes) {
@@ -107,76 +90,150 @@ BT.dashboard = (function() {
     return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
   }
 
-  function agendaIcon(name, index) {
-    const value = String(name || '').toLowerCase();
-    if (/warm|aktiv|mobil/.test(value)) return '●';
-    if (/ball|drib|handling/.test(value)) return '▲';
-    if (/team|takt|horns|5-out|defen/.test(value)) return '●●';
-    if (/wurf|freiwurf|abschluss|shoot/.test(value)) return '▣';
-    if (/cool|feedback|stretch/.test(value)) return '▤';
-    return ['●', '▲', '●●', '▣'][index % 4];
-  }
-
   function renderNextGame(root) {
     const today = todayISO();
-    const game = BT.storage.getGames().filter(item => (item.date || '') >= today && !item.score && item.status !== 'cancelled' && item.status !== 'abgesagt')
+    const game = BT.storage.getGames().filter(item => (item.date || '') >= today && !item.score && !['cancelled', 'abgesagt', 'played', 'completed'].includes(item.status))
       .sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')))[0];
     if (!game) return;
+    $('.next-game-strip', root).href = '#/games/' + encodeURIComponent(game.id) + '/matchday';
     const opponent = /lindau/i.test(game.home || '') ? game.away : game.home;
     $('[data-role="next-game-opponent"]', root).textContent = opponent || 'Gegner offen';
     $('[data-role="next-game-meta"]', root).textContent = formatDate(game.date) + (game.time ? ' · ' + game.time : '') + ' · ' + (game.team === 'u18' ? 'U18' : 'Herren') + ' →';
   }
 
-  function renderCoachBriefing(root) {
-    const grid = $('[data-role="coach-briefing-grid"]', root);
-    const list = $('[data-role="coach-briefing-list"]', root);
-    let players = BT.storage.getPlayers().filter(player => !player.archived);
+  function buildCoachBriefing() {
     const today = todayISO();
-    const next = BT.storage.getTrainings()
-      .filter(training => (training.date || '') >= today)
-      .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')))[0];
-    players = players.filter(player => !BT.staff?.isCoachOnly(next, player.id));
-    const unavailable = players.filter(player => {
-      if (player.availabilityUntil && player.availabilityUntil < today) return false;
-      return player.availability && player.availability !== 'ready';
-    });
-    const activeGoals = players.flatMap(player => (player.goals || [])
-      .filter(goal => goal.status !== 'done')
-      .map(goal => ({ player, goal })));
-    const dueGoals = activeGoals.filter(item => item.goal.targetDate && item.goal.targetDate <= today);
-    const openAttendance = next ? (BT.staff?.playerAttendance(next) || next.attendance || []).filter(entry => !entry.status).length : 0;
-    const plannedMinutes = next && next.plan ? (next.plan.drills || []).reduce((sum, drill) => sum + (Number(drill.minutes) || 0), 0) : 0;
-
-    grid.innerHTML = `
-      <div><span>Nächstes Training</span><strong>${next ? formatDate(next.date) + (next.startTime ? ' · ' + escapeHTML(next.startTime) : '') : 'Noch nicht geplant'}</strong></div>
-      <div><span>Kader bereit</span><strong>${players.length - unavailable.length} / ${players.length}</strong></div>
-      <div><span>Planumfang</span><strong>${plannedMinutes ? plannedMinutes + ' min' : 'Noch offen'}</strong></div>
-      <div><span>Aktive Ziele</span><strong>${activeGoals.length}</strong></div>
-    `;
-
+    const next = nextTraining(BT.storage.getTrainings(), today);
+    const targetDate = next?.date || today;
+    const players = BT.storage.getPlayers().filter(player => !player.archived && !BT.staff?.isCoachOnly(next, player.id));
+    const availability = player => player.availabilityUntil && player.availabilityUntil < targetDate ? 'ready' : player.availability || 'ready';
+    const attendance = BT.staff?.playerAttendance(next) || next?.attendance || [];
+    const byPlayer = new Map(attendance.map(entry => [entry.playerId, entry]));
+    const present = players.filter(player => byPlayer.get(player.id)?.status === 'present').length;
+    const open = next ? players.filter(player => !byPlayer.get(player.id)?.status || byPlayer.get(player.id)?.status === 'pending').length : 0;
+    const unavailable = players.filter(player => ['injured', 'away'].includes(availability(player)));
+    const plan = next?.plan || {};
+    const drills = Array.isArray(plan.drills) ? plan.drills : [];
+    const plannedMinutes = drills.reduce((sum, drill) => sum + Math.max(0, Number(drill.minutes) || 0), 0);
+    const goals = players.flatMap(player => (player.goals || []).filter(goal => goal.status !== 'done').map(goal => ({player, goal})));
+    const sections = [];
     const notes = [];
-    for (const text of BT.staff?.lines(next?.staff) || []) notes.push({cls: 'info', text});
-    unavailable.forEach(player => notes.push({ cls: 'warn', text: player.name + ': ' + ({ limited: 'eingeschränkt', injured: 'verletzt', away: 'abwesend' }[player.availability] || player.availability) + (player.availabilityNote ? ' – ' + player.availabilityNote : '') }));
-    dueGoals.forEach(item => notes.push({ cls: 'warn', text: 'Ziel fällig: ' + item.player.name + ' – ' + item.goal.title }));
-    if (next && openAttendance) notes.push({ cls: 'info', text: openAttendance + ' Anwesenheitsstatus für das nächste Training noch offen' });
-    if (!next) notes.push({ cls: 'info', text: 'Nächstes Training im Trainingsplan anlegen' });
-    if (!notes.length) notes.push({ cls: 'ok', text: 'Kader, Ziele und nächstes Training sind aktuell ohne offene Hinweise.' });
-    list.innerHTML = notes.slice(0, 8).map(item => '<li class="briefing-' + item.cls + '">' + escapeHTML(item.text) + '</li>').join('');
+    const text = value => String(value || '').trim();
+    const unique = values => [...new Set(values.map(text).filter(Boolean))];
+    const add = (title, lines, href, linkLabel) => sections.push({title, lines: unique(lines), href, linkLabel});
+    const trainingLink = next ? '#/training/' + encodeURIComponent(next.id) : '#/schedule';
+    const strategy = BT.teamStrategy?.current?.();
 
-    const briefingText = [
-      'TSV Lindau Basketball · Trainerbriefing',
-      next ? 'Training: ' + formatDate(next.date) + (next.startTime ? ' · ' + next.startTime + ' Uhr' : '') : 'Training: noch nicht geplant',
-      'Kader bereit: ' + (players.length - unavailable.length) + '/' + players.length,
-      plannedMinutes ? 'Planumfang: ' + plannedMinutes + ' Minuten' : 'Planumfang: noch offen',
-      ...notes.map(item => '• ' + item.text)
-    ].join('\n');
+    add('Ziel und Schwerpunkt', next ? [plan.summary || 'Noch kein Trainingsschwerpunkt hinterlegt.', next.note,
+      plan.evidenceBasis?.planningDecision,
+      ...(plan.evidenceBasis?.observedTrends || []).map(value => 'Planungsgrundlage: ' + value)]
+      : ['Noch kein nächstes Training geplant.'], trainingLink, next ? 'Trainingsplan bearbeiten' : 'Training planen');
+    if (strategy) add('Aktuelles Teamkonzept', [strategy.name, 'Offense: ' + strategy.offensePrinciples,
+      'Defense: ' + strategy.defensePrinciples, 'Umschalten: ' + strategy.transitionPrinciples], '#/schedule/team-concept', 'Teamkonzept öffnen');
+
+    const blocks = [];
+    let elapsed = 0;
+    const tactics = BT.teamStrategy?.activeTactics?.() || [];
+    for (const [index, drill] of drills.entries()) {
+      const minutes = Math.max(0, Number(drill.minutes) || 0);
+      const start = /^\d{2}:\d{2}$/.test(next?.startTime || '') ? addMinutes(next.startTime, elapsed) + ' Uhr' : 'ab Minute ' + elapsed;
+      const tactic = tactics.find(item => drill.tacticId ? item.id === drill.tacticId : item.title === drill.name);
+      const points = unique([...(Array.isArray(drill.coachingPoints) ? drill.coachingPoints : []), drill.description,
+        ...(tactic?.coachingPoints || [])]);
+      blocks.push({title: `${index + 1}. ${drill.name || 'Trainingsblock'}`, meta: `${start} · ${minutes} min · Intensität: ${({low: 'niedrig', medium: 'mittel', high: 'hoch'})[drill.intensity] || 'nicht angegeben'}`,
+        lines: points.length ? points : ['Coaching-Punkte und Übungsregeln fehlen noch.']});
+      elapsed += minutes;
+    }
+    if (next && !drills.length) notes.push({cls: 'warn', text: 'Trainingsablauf und Coaching-Punkte sind noch nicht hinterlegt.'});
+    if (plan.durationMinutes && plannedMinutes !== Number(plan.durationMinutes)) notes.push({cls: 'warn', text:
+      plannedMinutes > Number(plan.durationMinutes) ? `${plannedMinutes - Number(plan.durationMinutes)} Minuten über der vorgesehenen Trainingsdauer.` : `${Number(plan.durationMinutes) - plannedMinutes} Minuten noch nicht verplant.`});
+    const planText = [plan.summary, ...drills.flatMap(drill => [drill.name, drill.description, ...(drill.coachingPoints || [])])].join(' ').toLocaleLowerCase('de');
+    const oldConcepts = (strategy?.excludedConcepts || []).filter(concept => planText.includes(concept.toLocaleLowerCase('de')));
+    if (oldConcepts.length) notes.push({cls: 'warn', text: 'Plan enthält ausgeschlossene Konzepte: ' + oldConcepts.join(', ') + '. Vor dem Training mit dem aktuellen Teamkonzept abgleichen.'});
+
+    const rosterLines = next ? [`${present} Teilnahme als anwesend eingetragen · ${open} Status offen.`,
+      `${players.length - unavailable.length} von ${players.length} Spielern grundsätzlich verfügbar; das ist keine Teilnahmezusage.`]
+      : ['Die Teilnahme kann erst für einen konkreten Trainingstermin angezeigt werden.'];
+    for (const player of players) {
+      const status = availability(player);
+      const entry = byPlayer.get(player.id);
+      if (status !== 'ready' || ['injured', 'absent', 'excused'].includes(entry?.status)) {
+        const labels = {limited: 'eingeschränkt', injured: 'verletzt', away: 'abwesend', absent: 'abgemeldet', excused: 'entschuldigt'};
+        const details = unique([status !== 'ready' ? labels[status] || status : '', labels[entry?.status], status !== 'ready' ? player.availabilityNote : '', entry?.note]);
+        rosterLines.push(player.name + ': ' + details.join(' · '));
+      }
+    }
+    add('Teilnahme und Einschränkungen', rosterLines, trainingLink, 'Teilnahme und Trainerteam bearbeiten');
+
+    const loadLines = [plan.loadTarget ? 'Geplante Belastung: ' + (({low: 'niedrig', medium: 'mittel', high: 'hoch', individual: 'individuell'})[plan.loadTarget] || plan.loadTarget) : 'Belastungsziel noch nicht hinterlegt.',
+      plan.loadReason, ...(plan.evidenceBasis?.loadConsiderations || [])];
+    for (const player of players) {
+      if (['absent', 'excused'].includes(byPlayer.get(player.id)?.status) || availability(player) === 'away') continue;
+      const entry = next?.stationTraining?.players?.[player.id];
+      if (entry && BT.stationTraining?.recommendation) {
+        const recommendation = BT.stationTraining.recommendation({...entry, injured: entry.injured || availability(player) === 'injured' || byPlayer.get(player.id)?.status === 'injured'}, next.stationTraining.gameDate, next.date);
+        if (recommendation.light !== 'green') loadLines.push(`${player.name}: Ampel ${({yellow: 'Gelb', red: 'Rot'})[recommendation.light]} · Ziel-RPE ${recommendation.targetRpe}. ${recommendation.message}`);
+      }
+      if (availability(player) === 'limited') loadLines.push(player.name + ': Belastung vor Beginn individuell abstimmen; Einschränkung beachten.');
+    }
+    if (!next?.stationTraining) loadLines.push('Individuelle Tagesform und Schmerzen für dieses Training noch nicht erfasst.');
+    add('Belastung und Anpassungen', loadLines, trainingLink, 'Belastung im Training prüfen');
+
+    const staff = next?.staff || [];
+    const staffLines = BT.staff?.lines(staff) || [];
+    for (const role of ['coach', 'assistant']) {
+      const member = staff.find(item => item.role === role);
+      if (!member) staffLines.push((role === 'coach' ? 'Trainer' : 'Co-Trainer') + ': noch nicht zugeordnet.');
+      else if (member.status === 'present') staffLines.push('Aufgabenvorschlag für ' + member.name + ': ' + (role === 'coach'
+        ? 'Ziel erklären, Ablauf und Zeit steuern, Spieltransfer und Abschlussfeedback führen.'
+        : 'Ausführung beobachten, individuelle Korrekturen geben und wiederkehrende Fehler für das Feedback notieren.'));
+    }
+    add('Trainerteam und Aufgaben', staffLines, trainingLink, 'Trainerteam zuordnen');
+    add('Individuelle Spielerziele', goals.length ? goals.map(({player, goal}) => player.name + ': ' + goal.title +
+      (goal.targetDate ? ' · ' + (goal.targetDate <= today ? 'fällig: ' : 'Termin: ') + formatDate(goal.targetDate) : '')) : ['Keine aktiven Spielerziele hinterlegt.'], '#/players', 'Spielerziele öffnen');
+
+    const opponent = plan.opponentPlan;
+    const defense = opponent?.defenseRecommendation;
+    if (opponent) add('Vorbereitung auf ' + (opponent.opponent || 'den nächsten Gegner'), [
+      defense?.startLabel ? 'Startverteidigung: ' + defense.startLabel : 'Startverteidigung noch offen.',
+      defense?.alternativeLabel ? 'Alternative: ' + defense.alternativeLabel : '',
+      ...(defense?.reasons || []).map(reason => 'Begründung: ' + reason),
+      ...(defense?.triggers || []).map(trigger => 'Wechsel-Auslöser: ' + trigger),
+      'Datenlage: ' + (({high: 'hoch', medium: 'mittel', low: 'gering'})[opponent.dataQuality?.confidence] || 'nicht angegeben')], trainingLink, 'Gegnerplan im Training öffnen');
+
+    if (next && open) notes.push({cls: 'info', text: `${open} Teilnahmestatus noch offen; tatsächliche Gruppengröße vor Beginn prüfen.`});
+    if (next && !staff.some(member => member.role === 'coach' && member.status === 'present')) notes.push({cls: 'warn', text: 'Noch kein anwesender Trainer für dieses Training eingetragen.'});
+    const shareText = ['TSV Lindau Basketball · Trainerbriefing', next ? 'Training: ' + formatDate(next.date) + (next.startTime ? ' · ' + next.startTime + ' Uhr' : '') + (next.location || next.place ? ' · ' + (next.location || next.place) : '') : 'Training: noch nicht geplant',
+      ...sections.flatMap(section => ['', section.title, ...section.lines.map(line => '• ' + line)]),
+      '', 'Ablauf und Coaching-Punkte', ...blocks.flatMap(block => [block.title + ' · ' + block.meta, ...block.lines.map(line => '• ' + line)]),
+      '', 'Vor Beginn klären', ...notes.map(note => '• ' + note.text)].join('\n');
+    return {next, present, open, players: players.length, goals: goals.length, plannedMinutes, sections, blocks, notes, shareText};
+  }
+
+  function renderCoachBriefing(root) {
+    const briefing = buildCoachBriefing();
+    const {next, present, open, plannedMinutes} = briefing;
+    $('[data-role="coach-briefing-grid"]', root).innerHTML = `
+      <div><span>Nächstes Training</span><strong>${next ? formatDate(next.date) + (next.startTime ? ' · ' + escapeHTML(next.startTime) : '') : 'Noch nicht geplant'}</strong></div>
+      <div><span>Teilnahme eingetragen</span><strong>${next ? present + ' / ' + briefing.players : 'Noch offen'}</strong><small>${next ? open + ' Status offen' : 'Training zuerst planen'}</small></div>
+      <div><span>Planumfang</span><strong>${plannedMinutes ? plannedMinutes + ' min' : 'Noch offen'}</strong></div>
+      <div><span>Aktive Ziele</span><strong>${briefing.goals}</strong></div>`;
+    const listMarkup = lines => '<ul>' + lines.map(line => '<li>' + escapeHTML(line) + '</li>').join('') + '</ul>';
+    $('[data-role="coach-briefing-content"]', root).innerHTML = briefing.sections.map((section, index) =>
+      '<details class="briefing-section"' + (index === 0 ? ' open' : '') + '><summary>' + escapeHTML(section.title) + '</summary>' + listMarkup(section.lines) +
+      '<a class="btn small" href="' + section.href + '">' + escapeHTML(section.linkLabel) + '</a></details>').join('') +
+      '<details class="briefing-section" data-role="briefing-blocks"><summary>Ablauf und Coaching-Punkte · ' + briefing.blocks.length + ' Blöcke</summary>' +
+      (briefing.blocks.length ? briefing.blocks.map(block => '<article class="briefing-block"><h4>' + escapeHTML(block.title) + '</h4><p class="muted">' + escapeHTML(block.meta) + '</p>' + listMarkup(block.lines) + '</article>').join('') : '<p>Noch keine Übungen geplant.</p>') + '</details>';
+    $('[data-role="coach-briefing-list"]', root).innerHTML = briefing.notes.map(item => '<li class="briefing-' + item.cls + '">' + escapeHTML(item.text) + '</li>').join('');
     $('[data-action="share-briefing"]', root).addEventListener('click', async () => {
+      // Read again when sharing: another view or sync may have updated the plan.
+      const briefingText = BT.storage.withReadCache ? BT.storage.withReadCache(() => buildCoachBriefing().shareText) : buildCoachBriefing().shareText;
       if (navigator.share) {
         try { await navigator.share({ title: 'Trainerbriefing', text: briefingText }); return; }
         catch (error) { if (error.name === 'AbortError') return; }
       }
       try { await navigator.clipboard.writeText(briefingText); BT.util.toast('Trainerbriefing kopiert.'); }
-      catch { BT.util.downloadBlob('trainerbriefing-' + today + '.txt', new Blob([briefingText], { type: 'text/plain;charset=utf-8' })); }
+      catch { BT.util.downloadBlob('trainerbriefing-' + todayISO() + '.txt', new Blob([briefingText], { type: 'text/plain;charset=utf-8' })); }
     });
   }
 
@@ -365,7 +422,7 @@ BT.dashboard = (function() {
     }).join('');
   }
 
-  function renderSeasonSelect(root) {
+  function renderSeasonSelect(root, renderView) {
     const sel = $('[data-role="season-select"]', root);
     if (!sel) return;
     const seasons = BT.storage.getSeasons();
@@ -377,7 +434,7 @@ BT.dashboard = (function() {
       BT.storage.setActiveSeason(sel.value);
       const main = document.getElementById('app');
       main.innerHTML = '';
-      render(main);
+      renderView(main);
     });
   }
 
@@ -412,25 +469,14 @@ BT.dashboard = (function() {
 
   function renderTopAttenders(root) {
     const list = $('[data-role="top-att"]', root);
-    list.innerHTML = '';
-    const top = BT.stats.topAttenders(10);
-    if (top.length === 0) {
-      const li = document.createElement('li');
-      li.className = 'rank-empty';
-      li.textContent = 'Noch keine Anwesenheits-Daten.';
-      list.appendChild(li);
-      return;
-    }
-    top.forEach((row, i) => {
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <span class="rank-pos">${i + 1}</span>
-        <a class="rank-name" href="#/player/${row.player.id}">${escapeHTML(row.player.name)}</a>
-        <span class="rank-bar"><span class="rank-fill" style="width:${row.stats.pct}%"></span></span>
-        <span class="rank-val">${row.stats.pct}% <span class="muted-chip">(${row.stats.present}/${row.stats.total})</span></span>
-      `;
-      list.appendChild(li);
-    });
+    const ranking = BT.stats.attendanceRanking();
+    const row = (entry, index) => '<li class="attendance-rank-row">' + (index === null ? '<span class="rank-pending">–</span>' : '<span class="rank-pos">' + (index + 1) + '</span>') +
+      '<a class="rank-name" href="#/player/' + encodeURIComponent(entry.player.id) + '">' + escapeHTML(entry.player.name) + '</a>' +
+      '<span class="attendance-rank-value"><strong>' + entry.stats.present + ' Teilnahmen</strong><small>' + entry.stats.present + '/' + entry.stats.total + ' · ' + entry.stats.pct + ' %</small></span></li>';
+    list.innerHTML = ranking.ranked.length ? ranking.ranked.map((entry, index) => row(entry, index)).join('') :
+      '<li class="rank-empty">Noch keine belastbare Rangliste: mindestens ' + ranking.minSessions + ' erfasste Termine pro Spieler.</li>';
+    $('[data-role="attendance-provisional-count"]', root).textContent = '(' + ranking.provisional.length + ')';
+    $('[data-role="attendance-provisional"]', root).innerHTML = ranking.provisional.length ? ranking.provisional.map(entry => row(entry, null)).join('') : '<li class="rank-empty">Keine Spieler mit weniger als ' + ranking.minSessions + ' erfassten Terminen.</li>';
   }
 
   function renderTopFT(root) {
@@ -639,6 +685,5 @@ BT.dashboard = (function() {
     downloadJSON('saison_' + activeSeasonSuffix() + '_' + todayISO() + '.json', payload);
   }
 
-  return { render };
+  return { render, renderBriefing, renderStatistics, renderData, __test: { buildCoachBriefing, nextTraining } };
 })();
-

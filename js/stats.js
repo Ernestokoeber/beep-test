@@ -5,6 +5,7 @@ BT.stats = (function() {
 
   function isEnded(t) {
     if (!t) return false;
+    if (['cancelled', 'abgesagt'].includes(t.status)) return false;
     if (t.endedAt || t.status === 'completed') return true;
     // Fallback fuer Altdaten ohne explizites endedAt:
     // Trainings deren Datum in der Vergangenheit liegt gelten als abgeschlossen.
@@ -36,7 +37,7 @@ BT.stats = (function() {
     const stats = { total: 0, present: 0, late: 0, absent: 0, excused: 0, injured: 0, pct: 0 };
     for (const t of trainings) {
       const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(x => x.playerId === playerId);
-      if (!a || !a.status) continue;
+      if (!a || !['present', 'absent', 'excused', 'injured'].includes(a.status)) continue;
       stats.total++;
       if (stats[a.status] !== undefined) stats[a.status]++;
       if (a.late && a.status === 'present') stats.late++;
@@ -84,7 +85,7 @@ BT.stats = (function() {
     let slots = 0, present = 0;
     for (const t of trainings) {
       for (const a of (BT.staff?.playerAttendance(t) || t.attendance || [])) {
-        if (!a.status) continue;
+        if (!['present', 'absent', 'excused', 'injured'].includes(a.status)) continue;
         slots++;
         if (a.status === 'present') present++;
       }
@@ -125,14 +126,20 @@ BT.stats = (function() {
     return out;
   }
 
-  function topAttenders(limit) {
+  function attendanceRanking(minSessions = 5) {
     const players = BT.storage.getPlayers().filter(p => !p.archived);
     const rows = players.map(p => ({ player: p, stats: playerAttendance(p.id) }))
-      .filter(r => r.stats.total > 0)
-      .sort((a, b) => {
-        if (b.stats.pct !== a.stats.pct) return b.stats.pct - a.stats.pct;
-        return b.stats.present - a.stats.present;
-      });
+      .filter(r => r.stats.total > 0);
+    const sort = (a, b) => b.stats.present - a.stats.present ||
+      (b.stats.present / b.stats.total) - (a.stats.present / a.stats.total) ||
+      b.stats.total - a.stats.total || (a.player.name || '').localeCompare(b.player.name || '', 'de') ||
+      a.player.id.localeCompare(b.player.id);
+    return {minSessions, ranked: rows.filter(row => row.stats.total >= minSessions).sort(sort),
+      provisional: rows.filter(row => row.stats.total < minSessions).sort((a, b) => (a.player.name || '').localeCompare(b.player.name || '', 'de'))};
+  }
+
+  function topAttenders(limit) {
+    const rows = attendanceRanking().ranked;
     return rows.slice(0, limit || rows.length);
   }
 
@@ -170,7 +177,7 @@ BT.stats = (function() {
     const out = [];
     for (const t of trainings) {
       const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(x => x.playerId === playerId);
-      if (!a || !a.status) continue;
+      if (!a || !['present', 'absent', 'excused', 'injured'].includes(a.status)) continue;
       out.push({ date: t.date, status: a.status, late: !!a.late });
     }
     return out;
@@ -583,7 +590,7 @@ BT.stats = (function() {
     for (const t of trainings) {
       const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(function(x) { return x.playerId === playerId; });
       // Entscheidung: Trainings ohne Eintrag oder mit status=null werden ignoriert (nicht-bewertbar, kein Streak-Reset).
-      if (!a || !a.status) continue;
+      if (!a || !['present', 'absent', 'excused', 'injured'].includes(a.status)) continue;
       const attended = a.status === 'present' || a.late === true;
       if (attended) {
         running++;
@@ -597,7 +604,7 @@ BT.stats = (function() {
     for (let i = trainings.length - 1; i >= 0; i--) {
       const t = trainings[i];
       const a = (BT.staff?.playerAttendance(t) || t.attendance || []).find(function(x) { return x.playerId === playerId; });
-      if (!a || !a.status) continue;
+      if (!a || !['present', 'absent', 'excused', 'injured'].includes(a.status)) continue;
       const attended = a.status === 'present' || a.late === true;
       if (attended) current++;
       else break;
@@ -770,7 +777,6 @@ BT.stats = (function() {
     nextTrainingCountdown,
     trainingTeamShotQuote, trainingDelta, trainingFitnessSummary, trainingSprintSummary, attendanceStreak,
     teamAlerts, playerFitness,
-    playerFTSparkline, statsByPosition, improvingPlayers
+    playerFTSparkline, statsByPosition, improvingPlayers, attendanceRanking
   };
 })();
-

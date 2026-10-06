@@ -220,14 +220,14 @@ BT.games = (function() {
       <label>Trainerfazit<textarea data-game-field="coachSummary" rows="4" placeholder="Kurzes internes Fazit …">${escapeHTML(game.coachSummary || '')}</textarea></label>
     </div>
 
-    <section class="atlas-panel ${analysis ? 'has-analysis' : ''}">
+    <section data-menu-label="Geprüfte Videoanalyse" class="mobile-extra-section atlas-panel ${analysis ? 'has-analysis' : ''}">
       <div class="atlas-head"><div><span class="section-kicker">Project Atlas</span><h3>Geprüfte Spielanalyse</h3></div>${analysis ? '<span class="att-chip ok">Analyse verbunden</span>' : '<span class="att-chip muted-chip">Noch nicht verbunden</span>'}</div>
       <div class="atlas-connect"><label class="grow">Atlas-Spiel-ID<input data-role="atlas-game-id" value="${escapeHTML(game.atlasGameId || '')}" placeholder="Game-ID aus Project Atlas"></label><button class="btn small primary" type="button" data-action="load-atlas">Analyse laden</button></div>
       <p class="auth-status" data-role="atlas-status"></p>
-      ${analysis ? renderAtlas(analysis) : '<p class="muted">Nach dem Review in Project Atlas wird der echte Vertrag <code>game-analysis-overview.v1</code> übernommen. Nur validierte Events fließen in die Statistiken ein.</p>'}
+      ${analysis ? renderAtlas(analysis) : '<p class="muted">Lade eine geprüfte Videoanalyse, um Spielbeobachtungen und Trainingsaufgaben zu übernehmen.</p>'}
     </section>
 
-    <section class="boxscore-panel"><div class="section-head"><div><span class="section-kicker">Spieldaten</span><h3>Spieler-Boxscore &amp; Coaching-Notizen</h3></div></div>
+    <section class="boxscore-panel mobile-extra-section" data-menu-label="Boxscore und Spielnotizen"><div class="section-head"><div><span class="section-kicker">Spieldaten</span><h3>Spieler-Boxscore &amp; Coaching-Notizen</h3></div></div>
       <div class="table-scroll"><table class="results game-boxscore"><thead><tr><th>Spieler</th><th>Min</th><th>PTS</th><th>FG</th><th>FT</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>+/−</th><th>Notiz</th></tr></thead><tbody>
       ${players.map(player => {
         const stat = game.playerStats.find(item => item.playerId === player.id) || {};

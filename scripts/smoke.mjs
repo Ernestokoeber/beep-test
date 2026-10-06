@@ -89,8 +89,9 @@ function route(hash) {
   window.dispatchEvent(new window.HashChangeEvent('hashchange'));
 }
 
-assert(window.document.querySelector('[data-role="coach-briefing"]'), 'Dashboard-Briefing fehlt');
-assert(window.document.querySelectorAll('.preview-kpi-card[href]').length === 4, 'Dashboard-Karten sind nicht vollständig verlinkt');
+assert(window.document.querySelector('.home-briefing-link[href="#/briefing"]'), 'Dashboard-Briefing-Einstieg fehlt');
+assert(window.document.querySelector('[data-role="next-training-card"][href]') && window.document.querySelector('.next-game-strip[href]'), 'Dashboard-Termine sind nicht verlinkt');
+assert(!window.document.querySelector('[data-role="top-att"]'), 'Ranglisten gehören in die Statistik, nicht auf die Startseite');
 
 const storagePrototype = Object.getPrototypeOf(window.localStorage);
 const originalStorageGetItem = storagePrototype.getItem;
@@ -103,7 +104,7 @@ const dashboardProbe = window.document.createElement('div');
 window.BT.dashboard.render(dashboardProbe);
 storagePrototype.getItem = originalStorageGetItem;
 assert(dashboardDataReads === 1, 'Dashboard lädt den vollständigen Datenbestand mehrfach: ' + dashboardDataReads);
-assert(dashboardProbe.querySelector('[data-role="coach-briefing"]'), 'Optimiertes Dashboard wurde nicht vollständig gerendert');
+assert(dashboardProbe.querySelector('.home-briefing-link'), 'Optimiertes Dashboard wurde nicht vollständig gerendert');
 
 const player = window.BT.storage.upsertPlayer({ name: 'Test Spieler', position: 'Guard', jerseyNumber: '11', availability: 'limited', goals: [] });
 route('#/player/' + player.id);

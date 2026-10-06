@@ -107,6 +107,8 @@
       document.body.classList.toggle('nav-open', open);
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       if (moreBtn) moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      app.inert = open;
+      if (open) (nav.querySelector('a.active') || nav.querySelector('a'))?.focus();
     };
 
     btn.addEventListener('click', () => {
@@ -117,13 +119,53 @@
       moreBtn.addEventListener('click', () => setOpen(!nav.classList.contains('open')));
     }
     nav.addEventListener('click', (e) => {
-      if (e.target.closest('a')) {
+      if (e.target.closest('a, [data-context-action]')) {
         setOpen(false);
       }
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && nav.classList.contains('open')) setOpen(false);
+      if (e.key === 'Escape' && nav.classList.contains('open')) { setOpen(false); btn.focus(); }
+      if (e.key === 'Tab' && nav.classList.contains('open')) {
+        const controls = [btn, ...nav.querySelectorAll('a, button:not(:disabled)')].filter(node => node.getClientRects().length);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
     });
+    window.addEventListener('resize', () => { if (window.innerWidth > 900) setOpen(false); });
+  }
+
+  function updateContextNavigation() {
+    const container = document.querySelector('[data-role="context-navigation"]');
+    if (!container) return;
+    container.replaceChildren();
+    const training = app.querySelector('.training-detail-view');
+    const sections = [...app.querySelectorAll('.mobile-extra-section[data-menu-label]')];
+    const controls = [...app.querySelectorAll('.mobile-extra-action')];
+    if (training) {
+      controls.push(...[...training.querySelectorAll('.subnav-btn')].filter(button => !['overview', 'attendance', 'load'].includes(button.dataset.pane) && !button.hidden));
+      controls.push(...training.querySelectorAll('[data-action="training-timer"], [data-action="end-training"], .head-menu-panel button'));
+    }
+    container.hidden = !controls.length && !sections.length;
+    if (container.hidden) return;
+    const title = document.createElement('span'); title.className = 'nav-section-label'; title.textContent = training ? 'Dieses Training · Details' : 'Dieser Bereich · Details'; container.append(title);
+    for (const original of controls) {
+      const button = document.createElement('button'); button.type = 'button'; button.dataset.contextAction = original.dataset.pane || original.dataset.action;
+      button.textContent = original.dataset.menuLabel || original.textContent; button.disabled = original.disabled;
+      if (original.classList.contains('active')) button.classList.add('active');
+      button.addEventListener('click', () => { original.click(); updateContextNavigation(); });
+      container.append(button);
+    }
+    for (const section of sections) {
+      const button = document.createElement('button'); button.type = 'button'; button.dataset.contextAction = section.dataset.menuLabel;
+      button.textContent = section.dataset.menuLabel;
+      button.addEventListener('click', () => {
+        for (const other of sections) other.classList.toggle('mobile-extra-open', other === section);
+        if (section.tagName === 'DETAILS') section.open = true;
+        requestAnimationFrame(() => section.scrollIntoView({block: 'start', behavior: 'instant'}));
+      });
+      container.append(button);
+    }
   }
 
   let renderedHash = location.hash || '#/dashboard';
@@ -182,8 +224,15 @@
       BT.tablecrew.render(app);
     } else if (hash === '#/reports') {
       BT.reports.render(app);
-    } else if (hash === '#/schedule') {
+    } else if (hash === '#/briefing') {
+      BT.dashboard.renderBriefing(app);
+    } else if (hash === '#/statistics') {
+      BT.dashboard.renderStatistics(app);
+    } else if (hash === '#/data') {
+      BT.dashboard.renderData(app);
+    } else if (hash === '#/schedule' || hash === '#/schedule/team-concept') {
       BT.schedule.render(app);
+      if (hash === '#/schedule/team-concept') app.querySelector('[data-menu-label="Saisonplanung und Teamkonzept"]')?.classList.add('mobile-extra-open');
     } else if (hash === '#/notes') {
       BT.notes.renderList(app);
     } else if (hash.startsWith('#/notes/')) {
@@ -213,6 +262,7 @@
       location.hash = '#/dashboard';
     }
     if (BT.install && BT.install.refresh) requestAnimationFrame(BT.install.refresh);
+    updateContextNavigation();
   }
 
   function setActiveNav(hash) {
@@ -235,6 +285,14 @@
       active = 'tablecrew';
     } else if (hash.startsWith('#/reports')) {
       active = 'reports';
+    } else if (hash.startsWith('#/briefing')) {
+      active = 'briefing';
+    } else if (hash.startsWith('#/statistics')) {
+      active = 'statistics';
+    } else if (hash.startsWith('#/data')) {
+      active = 'data';
+    } else if (hash.startsWith('#/settings')) {
+      active = 'settings';
     } else if (hash.startsWith('#/test')) {
       active = 'setup';
     } else if (hash.startsWith('#/schedule')) {
@@ -262,6 +320,14 @@
     if (initialized) return;
     initialized = true;
     setupTheme(); setupHamburger(); setupViewportMetrics(); setupTopbarHeight();
+    // Selected games and edited plans can rebuild inside the current route.
+    if (window.MutationObserver) {
+      let menuFrame = 0;
+      new MutationObserver(() => {
+        if (menuFrame) return;
+        menuFrame = requestAnimationFrame(() => { menuFrame = 0; updateContextNavigation(); });
+      }).observe(app, {childList: true, subtree: true});
+    }
     if (BT.sync && BT.sync.init) initialSync = Promise.resolve(BT.sync.init()).catch(() => {});
     route();
   }

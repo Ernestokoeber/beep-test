@@ -1,4 +1,5 @@
 import { chromium, devices } from 'playwright';
+import { verifyMobileCoaching } from './mobile-coaching-browser.mjs';
 
 const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
 
@@ -1069,6 +1070,10 @@ async function testCoachingStaff(browser, name, options) {
 
 const browser = await chromium.launch({ headless: true, ...(process.env.E2E_BROWSER_PATH ? { executablePath: process.env.E2E_BROWSER_PATH } : {}) });
 try {
+  if (!process.env.E2E_SCREEN_ONLY && !process.env.E2E_STAFF_ONLY && !process.env.E2E_MATCHDAY_ONLY) {
+    await verifyMobileCoaching(browser, devices['iPhone 13'], 'iPhone', baseUrl);
+    await verifyMobileCoaching(browser, {...devices['iPhone SE'], viewport: {width: 320, height: 568}}, '320 px', baseUrl);
+  }
   if (!process.env.E2E_SCREEN_ONLY) {
     await testCoachingStaff(browser, 'iPhone 15', devices['iPhone 15']);
     await testCoachingStaff(browser, '320 px', {...devices['iPhone 15'], viewport:{width:320,height:720}});

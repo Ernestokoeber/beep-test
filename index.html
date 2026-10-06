@@ -43,20 +43,23 @@
         </button>
         <button class="theme-toggle" type="button" aria-label="Theme wechseln" data-role="theme-toggle">🌙</button>
         <a class="settings-btn" href="#/settings" aria-label="Einstellungen" title="Einstellungen">⚙️</a>
-        <button class="hamburger" type="button" aria-label="Menü" aria-expanded="false" data-role="hamburger">
+        <button class="hamburger" type="button" aria-label="Menü" aria-controls="app-navigation" aria-expanded="false" data-role="hamburger">
           <span></span><span></span><span></span>
         </button>
       </div>
     </div>
-    <nav data-role="nav" aria-label="App-Navigation">
+    <nav id="app-navigation" data-role="nav" aria-label="App-Navigation">
+      <div class="context-navigation" data-role="context-navigation" hidden></div>
       <span class="nav-section-label">Coaching</span>
-      <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></a>
+      <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon" aria-hidden="true">⌂</span><span>Start</span></a>
       <a href="#/training" data-nav="training"><span class="nav-icon" aria-hidden="true">▶</span><span>Training</span></a>
       <a href="#/games" data-nav="games"><span class="nav-icon" aria-hidden="true">◉</span><span>Spiele &amp; Atlas</span></a>
       <a href="#/tablecrew" data-nav="tablecrew"><span class="nav-icon" aria-hidden="true">▤</span><span>Kampfgericht</span></a>
       <a href="#/test/setup" data-nav="setup"><span class="nav-icon" aria-hidden="true">◷</span><span>Beep-Test</span></a>
       <a href="#/players" data-nav="players"><span class="nav-icon" aria-hidden="true">◎</span><span>Spieler</span></a>
       <a href="#/reports" data-nav="reports"><span class="nav-icon" aria-hidden="true">▥</span><span>Auswertung</span></a>
+      <a href="#/briefing" data-nav="briefing"><span class="nav-icon" aria-hidden="true">▤</span><span>Trainerbriefing</span></a>
+      <a href="#/statistics" data-nav="statistics"><span class="nav-icon" aria-hidden="true">▥</span><span>Statistik &amp; Ranglisten</span></a>
       <span class="nav-section-label">Planung & Analyse</span>
       <a href="#/opponents" data-nav="opponents"><span class="nav-icon" aria-hidden="true">◈</span><span>Gegner-Scouting</span></a>
       <a href="#/schedule" data-nav="schedule"><span class="nav-icon" aria-hidden="true">▦</span><span>Trainingsplan</span></a>
@@ -64,7 +67,10 @@
       <a href="#/tactics" data-nav="tactics"><span class="nav-icon" aria-hidden="true">⌁</span><span>Taktikboard</span></a>
       <a href="#/notes" data-nav="notes"><span class="nav-icon" aria-hidden="true">□</span><span>Notizen</span></a>
       <a href="#/history" data-nav="history"><span class="nav-icon" aria-hidden="true">↺</span><span>Historie</span></a>
+      <a href="#/data" data-nav="data"><span class="nav-icon" aria-hidden="true">↓</span><span>Daten &amp; Export</span></a>
+      <a href="#/settings" data-nav="settings"><span class="nav-icon" aria-hidden="true">⚙</span><span>Einstellungen</span></a>
       <a href="#/account" data-nav="account"><span class="nav-icon" aria-hidden="true">◉</span><span>Konto & Sync</span></a>
+      <button class="nav-install hidden" type="button" data-role="pwa-install">CourtHub installieren</button>
       <a class="club-link" href="https://www.tsv-lindau.de" target="_blank" rel="noopener noreferrer"><span class="nav-icon" aria-hidden="true">↗</span><span>Vereinswebsite</span></a>
     </nav>
   </header>
@@ -72,109 +78,52 @@
   <main id="app"></main>
 
   <nav class="mobile-dock" aria-label="Schnellnavigation">
-    <a href="#/dashboard" data-mobile-nav="dashboard"><span aria-hidden="true">⌂</span><small>Dashboard</small></a>
+    <a href="#/dashboard" data-mobile-nav="dashboard"><span aria-hidden="true">⌂</span><small>Start</small></a>
     <a href="#/training" data-mobile-nav="training"><span aria-hidden="true">▶</span><small>Training</small></a>
-    <a class="mobile-dock-main" href="#/test/setup" data-mobile-nav="setup"><span aria-hidden="true">⌁</span><small>Beep-Test</small></a>
-    <a href="#/players" data-mobile-nav="players"><span aria-hidden="true">◎</span><small>Spieler</small></a>
-    <a href="#/account" data-mobile-nav="account"><span aria-hidden="true">⚙</span><small>Konto &amp; Sync</small></a>
+    <a href="#/games" data-mobile-nav="games"><span aria-hidden="true">◉</span><small>Spiele</small></a>
+    <button type="button" data-role="mobile-more" aria-label="Menü öffnen" aria-controls="app-navigation" aria-expanded="false"><span aria-hidden="true">☰</span><small>Mehr</small></button>
   </nav>
 
   <template id="tpl-dashboard">
-    <section class="view dashboard-view">
-      <section class="coach-hero" aria-labelledby="coach-hero-title">
-        <div class="coach-hero-copy">
-          <span class="coach-eyebrow">Coaching Center</span>
-          <h2 id="coach-hero-title">Bereit fürs<br>nächste Training?</h2>
-          <div class="coach-hero-actions">
-            <a class="hero-action hero-action-primary" href="#/schedule"><span aria-hidden="true">▣</span><strong>Training planen</strong></a>
-            <a class="hero-action hero-action-secondary" href="#/tactics"><span aria-hidden="true">⌗</span><strong>Taktikboard öffnen</strong></a>
-            <a class="hero-action hero-action-secondary" href="#/opponents"><span aria-hidden="true">◈</span><strong>Gegner analysieren</strong></a>
-          </div>
-          <div class="coach-status-row">
-            <span class="connection-chip" data-role="connection-status"><i></i><span>Online</span></span>
-            <span class="today-chip" data-role="dashboard-date"></span>
-          </div>
-        </div>
-        <div class="coach-hero-visual" aria-hidden="true">
-          <svg viewBox="0 0 360 250" role="presentation">
-            <g class="hero-court-lines" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M80 20h245v205H80z"/>
-              <path d="M80 72h74v101H80M154 72a51 51 0 0 1 0 101"/>
-              <path d="M80 104h36v37H80M116 123h15"/>
-              <path d="M265 20v46"/>
-              <path class="hero-play-accent" d="M205 100c-18 18-12 40 12 49"/>
-              <path class="hero-play-accent" d="m211 141 7 8-10 4"/>
-              <path d="M249 150c17 10 24 3 28-13"/>
-              <path d="m270 139 8-5 2 9"/>
-            </g>
-            <g class="hero-markers" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round">
-              <path d="m194 67 12 12m0-12-12 12m51-9 12 12m0-12-12 12m-51 99 12 12m0-12-12 12m69-14 12 12m0-12-12 12"/>
-              <circle cx="296" cy="69" r="8"/><circle cx="227" cy="195" r="8"/><circle cx="302" cy="190" r="8"/>
-            </g>
-            <g class="hero-ball" transform="translate(26 148)">
-              <circle cx="51" cy="51" r="46"/>
-              <path d="M9 38c28 2 55 28 67 54M27 10c2 29 26 60 64 69M13 73c29-18 57-20 83-5M67 8c-17 27-20 57-8 87"/>
-            </g>
-          </svg>
-        </div>
-        <button class="hero-install hidden" type="button" data-role="pwa-install">CourtHub installieren</button>
-      </section>
-
-      <div class="dash-grid preview-kpi-grid">
-        <a class="dash-card preview-kpi-card" data-role="next-training-card" href="#/schedule" aria-label="Nächstes Training öffnen">
-          <div class="dash-label">Nächstes Training</div>
-          <svg class="dash-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h3v3H8z"/></svg>
-          <div class="dash-big dash-big-copy" data-role="next-training-time">Noch offen</div>
-          <div class="dash-sub" data-role="next-training-place">Training planen</div>
-          <span class="hidden" data-role="trainings-count">0</span>
-          <span class="hidden" data-role="next-training"></span>
-        </a>
-        <a class="dash-card preview-kpi-card" href="#/players" aria-label="Spielerliste öffnen">
-          <div class="dash-label">Spieler</div>
-          <svg class="dash-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M15 14a5 5 0 0 1 6 5v1"/></svg>
-          <div class="dash-big" data-role="player-count">0</div>
-          <div class="dash-sub">im Team</div>
-        </a>
-        <a class="dash-card preview-kpi-card" href="#/reports" aria-label="Anwesenheitsauswertung öffnen">
-          <div class="dash-label">Anwesenheit</div>
-          <svg class="dash-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 10-4.5"/><circle cx="17" cy="16" r="4"/><path d="m15.5 16 1 1 2-2"/></svg>
-          <div class="dash-big"><span data-role="team-att-pct">0</span>%</div>
-          <div class="dash-sub" data-role="team-att-sub">Team Ø</div>
-        </a>
-        <a class="dash-card preview-kpi-card" href="#/reports" aria-label="Wurfquoten-Auswertung öffnen">
-          <div class="dash-label">Freiwürfe</div>
-          <svg class="dash-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v9H5zM8 13l1 7h6l1-7M9 16h6M12 13v7"/><circle cx="12" cy="9" r="2"/></svg>
-          <div class="dash-big"><span data-role="team-ft-pct">0</span>%</div>
-          <div class="dash-sub" data-role="team-ft-sub">Team Ø</div>
+    <section class="view dashboard-view mobile-home">
+      <div class="home-heading"><div><span class="section-kicker">CourtHub</span><h2>Dein nächster Einsatz</h2></div>
+        <div class="coach-status-row"><span class="connection-chip" data-role="connection-status"><i></i><span>Online</span></span><span class="today-chip" data-role="dashboard-date"></span></div>
+      </div>
+      <div class="home-events">
+        <section class="home-event-card" data-role="next-training-panel">
+          <span class="section-kicker">Nächstes Training</span>
+          <h3 data-role="next-training-time">Noch nicht geplant</h3>
+          <p class="muted" data-role="next-training-place"></p>
+          <p class="home-event-focus" data-role="home-training-focus"></p>
+          <p class="home-event-meta" data-role="home-training-attendance"></p>
+          <a class="btn primary" data-role="next-training-card" href="#/schedule">Training öffnen</a>
+        </section>
+        <a class="home-event-card home-game-card next-game-strip" href="#/games">
+          <span><small>Nächstes Spiel</small><strong data-role="next-game-opponent">Spielplan öffnen</strong></span>
+          <span data-role="next-game-meta">Spiele öffnen →</span>
         </a>
       </div>
+      <section class="home-notices" data-role="home-notices" hidden><h3>Vor Beginn klären</h3><ul data-role="home-notices-list"></ul></section>
+      <a class="home-briefing-link" href="#/briefing"><span><strong>Trainerbriefing</strong><small>Ziele, Coaching-Punkte und Traineraufgaben</small></span><span aria-hidden="true">→</span></a>
+      <section class="alerts-card hidden" data-role="alerts"><h3 class="alerts-head">Heute beachten</h3><ul class="alerts-list" data-role="alerts-list"></ul></section>
+    </section>
+  </template>
 
-      <section class="next-training-panel" data-role="next-training-panel">
-        <div class="next-training-panel-head">
+  <template id="tpl-coach-briefing">
+    <section class="view briefing-view"><div class="section-head"><a class="btn small" href="#/dashboard">← Start</a></div>
+      <section class="coach-briefing" data-role="coach-briefing">
+        <div class="coach-briefing-head">
           <div>
-            <span class="section-kicker">Planung</span>
-            <h3>Nächstes Training</h3>
+            <span class="section-kicker">Nächster Einsatz</span>
+            <h3>Trainerbriefing</h3>
           </div>
-          <a class="btn small" href="#/schedule">Plan bearbeiten</a>
+          <button class="btn small" type="button" data-action="share-briefing">Briefing teilen</button>
         </div>
-        <div class="next-training-agenda" data-role="next-training-agenda"></div>
+        <p class="muted">Ziele, Coaching-Punkte, Teilnahme und Aufgaben für das nächste Training – aus deinen aktuellen Daten.</p>
+        <div class="coach-briefing-grid" data-role="coach-briefing-grid"></div>
+        <div class="coach-briefing-content" data-role="coach-briefing-content"></div>
+        <ul class="coach-briefing-list" data-role="coach-briefing-list"></ul>
       </section>
-
-      <details class="dashboard-tools">
-        <summary>Daten, Saison und Export</summary>
-        <div class="dashboard-tools-row">
-          <label class="season-select"><span class="sr-only">Saison</span><select data-role="season-select"></select></label>
-          <button class="btn small" data-action="share-backup">Backup teilen</button>
-          <button class="btn small" data-action="import-backup">Importieren</button>
-          <button class="btn small" data-action="export-season-csv">Saison CSV</button>
-          <button class="btn small" data-action="export-season-json">Saison JSON</button>
-        </div>
-      </details>
-
-      <a class="next-game-strip" href="#/games">
-        <span><small>Nächstes Spiel</small><strong data-role="next-game-opponent">Spielplan öffnen</strong></span>
-        <span data-role="next-game-meta">Spiele &amp; Atlas →</span>
-      </a>
 
       <section class="phase-banner hidden" data-role="phase-banner">
         <div class="phase-banner-top">
@@ -189,30 +138,22 @@
         <button class="phase-banner-toggle" type="button" data-action="toggle-phase-goals">Ziele anzeigen</button>
       </section>
 
-      <section class="alerts-card hidden" data-role="alerts">
-        <h3 class="alerts-head">🔔 Heute beachten</h3>
-        <ul class="alerts-list" data-role="alerts-list"></ul>
-      </section>
+    </section>
+  </template>
 
-      <section class="coach-briefing" data-role="coach-briefing">
-        <div class="coach-briefing-head">
-          <div>
-            <span class="section-kicker">Nächster Einsatz</span>
-            <h3>Trainerbriefing</h3>
-          </div>
-          <button class="btn small" type="button" data-action="share-briefing">Briefing teilen</button>
-        </div>
-        <div class="coach-briefing-grid" data-role="coach-briefing-grid"></div>
-        <ul class="coach-briefing-list" data-role="coach-briefing-list"></ul>
-      </section>
-
+  <template id="tpl-statistics">
+    <section class="view statistics-view"><div class="section-head"><div><span class="section-kicker">Entwicklung im Team</span><h2>Statistik &amp; Ranglisten</h2></div><a class="btn small" href="#/reports">Gesamtauswertung</a></div>
+      <label class="season-select">Zeitraum <select data-role="season-select"></select></label>
+      <div class="statistics-summary"><a href="#/reports"><span>Anwesenheit</span><strong><span data-role="team-att-pct">0</span> %</strong><small data-role="team-att-sub"></small></a><a href="#/reports"><span>Freiwürfe</span><strong><span data-role="team-ft-pct">0</span> %</strong><small data-role="team-ft-sub"></small></a></div>
       <section class="form-of-week hidden" data-role="form-of-week">
         <h3 class="form-of-week-head">📈 Form der Woche</h3>
         <div class="form-of-week-grid" data-role="form-of-week-grid"></div>
       </section>
 
-      <h3>Top Anwesende</h3>
+      <h3>Regelmäßig im Training</h3>
+      <p class="muted ranking-method">Ab 5 erfassten Terminen. Sortiert nach Teilnahmen, bei Gleichstand nach Quote. Fehlende Angaben zählen nicht als Fehlzeit.</p>
       <ol class="ranking" data-role="top-att"></ol>
+      <details class="provisional-attendance"><summary>Noch zu wenig Daten <span data-role="attendance-provisional-count"></span></summary><p class="muted">Unter 5 erfassten Terminen: sichtbar ohne Rang.</p><ul class="ranking unranked-list" data-role="attendance-provisional"></ul></details>
 
       <h3>Top Freiwurf-Schützen <span class="muted-chip">(min. 10 Versuche)</span></h3>
       <ol class="ranking" data-role="top-ft"></ol>
@@ -268,6 +209,14 @@
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-5"/></svg>
         <p class="empty-body">Noch keine Würfe auf der Karte erfasst.</p>
       </div>
+    </section>
+  </template>
+
+  <template id="tpl-dashboard-data">
+    <section class="view data-view"><div class="section-head"><div><span class="section-kicker">Verwaltung</span><h2>Daten &amp; Export</h2></div></div>
+      <label class="season-select">Saison <select data-role="season-select"></select></label>
+      <section class="data-actions"><h3>Sicherungen</h3><button class="btn" data-action="share-backup">Backup teilen</button><button class="btn" data-action="import-backup">Backup importieren</button></section>
+      <section class="data-actions"><h3>Saison exportieren</h3><button class="btn" data-action="export-season-csv">Saison als CSV</button><button class="btn" data-action="export-season-json">Saison als JSON</button><a class="btn" href="#/reports">Auswertung und PDF</a></section>
     </section>
   </template>
 
@@ -569,18 +518,18 @@
   <template id="tpl-games">
     <section class="view games-view">
       <div class="section-head">
-        <div class="section-title-block"><span class="section-kicker">Website · Spiel · Analyse · Training</span><h2>Spiele &amp; Project Atlas</h2></div>
+        <div class="section-title-block"><span class="section-kicker">Website · Spiel · Analyse · Training</span><h2>Spiele</h2></div>
         <div class="head-actions">
           <button class="btn small primary" type="button" data-action="sync-games">↻ Offizieller Spielplan</button>
           <button class="btn small" type="button" data-action="new-game">+ Spiel</button>
-          <button class="btn small" type="button" data-action="new-training-game">+ Trainingsspiel</button>
-          <button class="btn small" type="button" data-action="import-atlas">Atlas-Paket</button>
+          <button class="btn small mobile-extra-action" type="button" data-menu-label="Trainingsspiel anlegen" data-action="new-training-game">+ Trainingsspiel</button>
+          <button class="btn small mobile-extra-action" type="button" data-menu-label="Atlas-Paket importieren" data-action="import-atlas">Atlas-Paket</button>
         </div>
       </div>
       <p class="muted">Spieltermine kommen direkt aus TeamSL des Deutschen Basketball Bundes. Project Atlas liefert geprüfte Videoanalyse; CourtHub übernimmt daraus konkrete Trainingsaufgaben.</p>
       <p class="auth-status" data-role="games-status" aria-live="polite"></p>
 
-      <details class="player-form schedule-source" data-role="schedule-source">
+      <details class="player-form schedule-source mobile-extra-section" data-menu-label="Mannschaft und Liga konfigurieren" data-role="schedule-source">
         <summary><strong>Eigene Mannschaft und Liga konfigurieren</strong></summary>
         <p class="muted">Die Konfiguration gilt für den gemeinsamen Team-Workspace. So kann jedes Trainerteam seinen eigenen offiziellen Spielplan anbinden.</p>
         <div class="form-row">
@@ -632,7 +581,7 @@
   </template>
 
   <template id="tpl-training-detail">
-    <section class="view">
+    <section class="view training-detail-view">
       <div class="section-head">
         <div class="head-left">
           <a href="#/training" class="btn">← Zurück</a>
@@ -670,20 +619,25 @@
         <button class="subnav-btn" type="button" data-pane="load" hidden>Belastung</button>
         <button class="subnav-btn" type="button" data-pane="map">Karte</button>
         <button class="subnav-btn" type="button" data-pane="notes">Notizen</button>
+        <button class="subnav-btn" type="button" data-pane="plan">Trainingsplan bearbeiten</button>
+        <button class="subnav-btn" type="button" data-pane="analysis">Trainingsauswertung</button>
+        <button class="subnav-btn" type="button" data-pane="timer">Kurzzeit-Timer</button>
+        <button class="subnav-btn" type="button" data-pane="event">Termin und Trainingsnotiz</button>
       </div>
 
       <div class="pane" data-pane="overview">
-        <div class="form-row">
-          <label>Datum<input type="date" data-role="date" required></label>
-          <label>Startzeit<input type="time" data-role="time" required></label>
-        </div>
-
+        <section class="training-plan-preview" data-role="training-plan-preview"></section>
+        <div class="att-summary" data-role="summary"></div>
+      </div>
+      <div class="pane hidden" data-pane="plan"><h3>Trainingsplan bearbeiten</h3>
         <div class="plan-box hidden" data-role="plan-box">
           <div class="plan-head">📋 Plan</div>
           <div data-role="plan-summary"></div>
           <ol class="plan-drills" data-role="plan-drills"></ol>
         </div>
 
+      </div>
+      <div class="pane hidden" data-pane="timer"><h3>Kurzzeit-Timer</h3>
         <div class="timer-box" data-role="timer-box">
           <div class="timer-display" data-role="timer-display">00:00</div>
           <div class="timer-state" data-role="timer-state">Bereit</div>
@@ -698,12 +652,19 @@
           </div>
         </div>
 
+      </div>
+      <div class="pane hidden" data-pane="event"><h3>Termin und Trainingsnotiz</h3>
+        <div class="form-row">
+          <label>Datum<input type="date" data-role="date" required></label>
+          <label>Startzeit<input type="time" data-role="time" required></label>
+        </div>
+
         <label class="block-label">Notiz zum Training
           <textarea data-role="note" rows="2" placeholder="z.B. Schwerpunkt Verteidigung"></textarea>
         </label>
 
-        <div class="att-summary" data-role="summary"></div>
-
+      </div>
+      <div class="pane hidden" data-pane="analysis"><h3>Trainingsauswertung</h3>
         <div class="team-quote-card" data-role="team-quote"></div>
 
         <div class="fitness-bilanz hidden" data-role="fitness-bilanz"></div>
@@ -733,7 +694,6 @@
           </div>
         </div>
       </div>
-
       <div class="pane hidden" data-pane="load">
         <div data-role="station-training"></div>
       </div>
@@ -865,6 +825,7 @@
     <section class="view">
       <h2>Trainingsplan</h2>
 
+      <div class="mobile-extra-section" data-menu-label="Reguläre Trainingszeiten">
       <div class="player-form">
         <h3 style="margin-top:0">Reguläre Trainingszeiten</h3>
         <p class="muted">Wähle die Wochentage und die Uhrzeit. Die App berechnet daraus die nächsten Termine.</p>
@@ -879,6 +840,7 @@
         </div>
       </div>
 
+      </div>
       <h3>Nächste Termine</h3>
       <ul class="session-list" data-role="upcoming"></ul>
       <div class="empty empty--field hidden" data-role="upcoming-empty">
@@ -886,6 +848,7 @@
         <p class="empty-body">Bitte zuerst Wochentage auswählen.</p>
       </div>
 
+      <div class="mobile-extra-section" data-menu-label="Saisonplanung und Teamkonzept">
       <h3>CourtHub Basketball-KI</h3>
       <div class="player-form season-ai-panel">
         <div class="section-head compact">
@@ -934,6 +897,8 @@
         <p class="muted season-source-note">Ferienquelle: Bayerisches Staatsministerium für Unterricht und Kultus, Schuljahr 2026/27.</p>
       </div>
 
+      </div>
+      <div class="mobile-extra-section" data-menu-label="Trainingsplan aus PDF importieren">
       <h3>KI-Import (Plan aus PDF)</h3>
       <div class="player-form">
         <p class="muted">Lade einen Trainingsplan als PDF hoch — die serverseitig geschützte KI extrahiert Inhalte und füllt die nächsten Termine vor.</p>
@@ -942,6 +907,7 @@
           <button class="btn primary" data-action="upload-pdf">📄 Plan-PDF hochladen</button>
         </div>
         <p class="muted" data-role="ai-status"></p>
+      </div>
       </div>
     </section>
   </template>
@@ -1061,6 +1027,7 @@
         <div class="goal-list" data-role="goal-list"></div>
       </section>
 
+      <div class="mobile-extra-section player-analytics" data-menu-label="Spielerstatistik und Verlauf">
       <h3>Saison-Statistik</h3>
       <div class="dash-grid" data-role="player-stats"></div>
 
@@ -1125,6 +1092,7 @@
           </thead>
           <tbody data-role="rows"></tbody>
         </table>
+      </div>
       </div>
     </section>
   </template>
@@ -1560,4 +1528,3 @@
   <div class="toast-host" data-role="toast-host" aria-live="polite"></div>
 </body>
 </html>
-

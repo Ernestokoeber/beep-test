@@ -1248,7 +1248,8 @@ BT.training = (function() {
         if (target === 'map') renderShotMap();
         if (target === 'fitness') renderFitness();
         if (target === 'sprints') renderSprints();
-        if (target === 'overview') { renderFitnessBilanz(); renderSprintBilanz(); renderTeamQuoteCard(); }
+        if (target === 'overview') renderPlanPreview();
+        if (target === 'overview' || target === 'analysis') { renderFitnessBilanz(); renderSprintBilanz(); renderTeamQuoteCard(); }
         if (btn.scrollIntoView) btn.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
         if (detailRoot && detailRoot.scrollIntoView) detailRoot.scrollIntoView({ block: 'start', behavior: 'instant' });
       });
@@ -1679,7 +1680,19 @@ BT.training = (function() {
     return 'muted-chip';
   }
 
+  function renderPlanPreview() {
+    const preview = $('[data-role="training-plan-preview"]', detailRoot);
+    if (!preview || !currentTraining) return;
+    const plan = currentTraining.plan || {};
+    const drills = plan.drills || [];
+    preview.innerHTML = '<h3>Heute im Training</h3><p>' + escapeHTML(plan.summary || 'Schwerpunkt noch offen') + '</p>' +
+      (drills.length ? '<ol class="training-preview-blocks">' + drills.map(drill => '<li><span>' + escapeHTML(drill.name || 'Trainingsblock') + '</span><strong>' + (Number(drill.minutes) || 0) + ' min</strong></li>').join('') + '</ol>' : '<p class="muted">Noch kein Trainingsablauf hinterlegt.</p>') +
+      '<button class="btn small" type="button" data-action="open-plan">Plan bearbeiten</button>';
+    $('[data-action="open-plan"]', preview).addEventListener('click', () => $('.subnav-btn[data-pane="plan"]', detailRoot)?.click());
+  }
+
   function renderPlanBox() {
+    renderPlanPreview();
     const box = $('[data-role="plan-box"]', detailRoot);
     const plan = currentTraining.plan || (currentTraining.plan = { drills: [] });
     plan.drills = plan.drills || [];
@@ -3365,4 +3378,3 @@ BT.training = (function() {
 
   return { renderList, renderDetail, openPlayerStatsModal, cleanup };
 })();
-

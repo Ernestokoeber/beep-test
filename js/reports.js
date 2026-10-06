@@ -66,7 +66,7 @@ BT.reports = (function() {
 
     trainings.forEach(training => {
       (BT.staff?.playerAttendance(training) || training.attendance || []).forEach(entry => {
-        if (!entry.status) return;
+        if (!['present', 'absent', 'excused', 'injured'].includes(entry.status)) return;
         const row = byPlayer.get(entry.playerId);
         team.attendance.total++;
         if (entry.status === 'present') team.attendance.present++;
