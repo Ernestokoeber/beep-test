@@ -14,6 +14,12 @@ wird durch die lokale Browserabnahme nicht bestätigt.
    festlegen. Genau fünf Spieler müssen starten. Spieltagsnummern kontrollieren;
    `0` und `00` sind verschieden. Eine optionale Rolle beschreibt beispielsweise
    Ballhandler, Shooter oder Big.
+   **Weiter zum Gameplan** und der Reiter **Gameplan** führen bei fehlenden
+   Spielern oder Startern direkt zur passenden Auswahl und zeigen die fehlende
+   Anzahl. Bei ungültigen oder doppelten Trikotnummern öffnen sich die betroffenen
+   Spielerdetails. Hinweise bleiben bis zur Korrektur sichtbar; Speicherfehler
+   stehen bei den Aktionen. Nach erfolgreichem Weitergehen wird der neue Schritt
+   in den sichtbaren Bildschirmbereich gescrollt.
 3. Abschnittsanzahl und Dauer prüfen. Spielziele, Aufwärmen und Coaching-Notiz
    sind optional. Der aktuelle, geprüfte Gegnerstand wird als Snapshot angehängt.
    **Mit Basketball-KI vorbereiten** erzeugt daraus Kabinensätze, Spielziele,

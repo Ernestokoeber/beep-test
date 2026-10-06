@@ -24,12 +24,20 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
   const response=await window.BT.api.ai('planGame',{game,opponentPlan,selectedTactics,teamStrategy});return response.data;
  },onOpponentFeedback=payload=>window.BT?.opponents?.recordMatchdayFeedback?.(payload),prepareRosterPdf=()=>import('./roster-pdf.mjs').then(module=>module.prepareRosterPdf()),onRosterPdf=payload=>import('./roster-pdf.mjs').then(module=>module.exportRosterPdf(payload)),onLive=(host,c)=>mountMatchdayLive(host,c,{tactics,game,players,onPlayerInjury,onOpponentFeedback})}={}){
   container.classList.add('matchday');let stage='',draft,parents,read=()=>draft,dirty=false,saving=false,revision=0,liveCleanup=null,dead=false,pending=Promise.resolve(true),selectionPane='roster';
-  const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div'),conflicts=el('section');let conflictKey='';status.setAttribute('role','status');container.append(title,steps,status,body,conflicts);
+  const title=el('h2','Dein Spieltag'),steps=el('p'),status=el('p'),body=el('div'),conflicts=el('section');let conflictKey='',feedback=null;status.setAttribute('role','status');steps.tabIndex=-1;steps.dataset.role='matchday-step';container.append(title,steps,status,body,conflicts);
   const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;container.append(discard);
   discard.addEventListener('click',()=>{dirty=false;stage='';update(controller.getState());});
   function field(parent,label,key,type,value){const l=el('label',label),n=el(type==='textarea'?'textarea':type==='select'?'select':'input');if(n.tagName==='INPUT')n.type=type;n.dataset.field=key;if(type!=='select')n.value=value??'';l.append(n);parent.append(l);return n;}
   function button(parent,label,action,fn){const n=el('button',label);n.type='button';n.dataset.action=action;n.addEventListener('click',fn);parent.append(n);return n;}
-  function mark(){dirty=true;revision++;status.textContent='Ungespeichert';}
+  function reveal(node){node.focus({preventScroll:true});node.scrollIntoView?.({block:'start',behavior:'instant'});}
+  function showError(message,parent){
+    if(dead)return;
+    status.textContent=message;
+    if(!feedback)return;
+    const destination=parent||body.querySelector('.matchday-actions');if(destination)destination.prepend(feedback);
+    feedback.textContent=message;feedback.hidden=false;reveal(feedback);
+  }
+  function mark(){dirty=true;revision++;status.textContent='Ungespeichert';if(feedback)feedback.hidden=true;for(const input of body.querySelectorAll('[aria-invalid]'))input.removeAttribute('aria-invalid');}
   async function replaceAndRender(value){
     draft=clone(value);read=()=>clone(draft);dirty=true;revision++;
     const ok=await save();if(ok){stage='';update(controller.getState());}return ok;
@@ -82,13 +90,16 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
     pending=controller.saveDraft(value,{parents}).then(result=>{
       saving=false;if(dead)return result.ok;
       if(result.ok){parents=controller.getState().heads;if(version===revision){dirty=false;draft=clone(value);}}
-      update(controller.getState());return result.ok;
-    }).catch(e=>{saving=false;status.textContent=e.message;return false;});return pending;
+      update(controller.getState());
+      if(!result.ok)showError(result.error||controller.getState().error||'Vorbereitung konnte nicht gespeichert werden. Bitte erneut versuchen.');
+      else if(next&&stage===next)reveal(steps);
+      return result.ok;
+    }).catch(e=>{saving=false;showError(e.message);return false;});return pending;
   }
   function render(s){
     const newStage=['live','pause','finished'].includes(s.stage)||s.liveState.hasLiveData?'live':s.stage;
     if(stage===newStage)return;
-    liveCleanup?.();liveCleanup=null;stage=newStage;body.replaceChildren();
+    liveCleanup?.();liveCleanup=null;stage=newStage;feedback=null;body.replaceChildren();
     if(stage==='live'){steps.textContent='Spiel begleiten';liveCleanup=onLive(body,controller);read=()=>draft;return;}
     draft=clone(s.draft);parents=s.heads;dirty=false;
     if(stage==='conflict'){
@@ -100,18 +111,19 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
     form.addEventListener('input',mark);form.addEventListener('change',mark);
     form.addEventListener('focusout',()=>queueMicrotask(()=>{if(!dead&&dirty&&!saving&&!form.contains(document.activeElement))save();}));
     const actions=el('div');actions.className='matchday-actions';group.append(actions);
+    feedback=el('p');feedback.className='matchday-validation';feedback.dataset.role='preparation-error';feedback.setAttribute('role','alert');feedback.tabIndex=-1;feedback.hidden=true;actions.append(feedback);
     if(stage==='game'){
       const side=field(group,'Unsere Mannschaft spielt','ownSide','select');for(const [v,t]of [['','Bitte wählen'],['home','Heim'],['away','Gast']]){const o=el('option',t);o.value=v;side.append(o);}side.value=draft.ownSide||'';
       const kind=field(group,'Spielart','kind','select');for(const [v,t]of [['match','Spiel'],['training','Trainingsspiel']]){const o=el('option',t);o.value=v;kind.append(o);}kind.value=draft.kind;
       read=()=>({...draft,ownSide:side.value||null,kind:kind.value});
-      button(actions,'Weiter zur Mannschaft','next',()=>{if(!side.value){status.textContent='Heim oder Gast auswählen.';return;}save('roster');});
+      button(actions,'Weiter zur Mannschaft','next',()=>{if(!side.value){showError('Heim oder Gast auswählen.');return;}save('roster');});
     }else if(stage==='roster'){
       group.append(el('h3','Kader & Starting Five'),el('p','Lege zuerst den Spieltagskader fest und wähle danach genau fünf Starter. Bis zur Kaderfreigabe kannst du hier jederzeit reagieren – auch auf eine Verletzung beim Aufwärmen.'));
       const summary=el('div');summary.className='matchday-selection-summary';summary.dataset.role='selection-summary';group.append(summary);
       const nav=el('nav');nav.className='matchday-plan-nav';nav.setAttribute('aria-label','Spielvorbereitung');group.append(nav);
       const rosterTab=button(nav,'Kader','show-roster',()=>showPane('roster'));
       const lineupTab=button(nav,'Starting Five','show-lineup',()=>showPane('lineup'));
-      button(nav,'Gameplan','show-gameplan',()=>{try{buildSetup(read());save('preparation');}catch(e){status.textContent=e.message;}});
+      const gameplanButton=button(nav,'Gameplan','show-gameplan',advanceToGameplan);
       const rosterPanel=el('section'),lineupPanel=el('section');rosterPanel.dataset.role='roster-panel';lineupPanel.dataset.role='lineup-panel';
       rosterPanel.append(el('h4','Wer ist dabei?'),el('p','Tippe pro Spieler auf Dabei, Nicht dabei oder Verletzt. Nur nominierte Spieler werden ins Live Game und in die Statistik übernommen.'));
       const exportButton=button(rosterPanel,'Kader als PDF','export-roster-pdf',async()=>{
@@ -159,7 +171,31 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
       read=()=>{const roster=rows.filter(r=>!isCoachOnly(draft,r.p.id)).map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null,gameStatus:r.status,...(r.status==='dnp'?{absenceReason:r.absenceReason||'not-selected'}:{}),gamePosition:r.position.value||null,role:r.status==='dnp'?'':r.role.value.trim()}));return {...draft,staff:staffEditor.read(),roster,startingFive:roster.filter(player=>player.gameStatus==='starter').map(player=>player.id)};};
       updateSelection();showPane(selectionPane);
       button(actions,'Zurück','back',()=>save('game'));
-      button(actions,'Weiter zum Gameplan','next',()=>{try{buildSetup(read());save('preparation');}catch(e){status.textContent=e.message;}});
+      const nextButton=button(actions,'Weiter zum Gameplan','next',advanceToGameplan);
+      let advancing=false;
+      async function advanceToGameplan(){
+        if(advancing)return;
+        const value=read(),nominated=value.roster.filter(player=>player.gameStatus!=='dnp');
+        try{buildSetup(value);}catch(error){
+          if(nominated.length<5){
+            showPane('roster');showError(`Noch ${5-nominated.length} Spieler für den Kader auswählen (${nominated.length}/5).`,rosterPanel);
+          }else if(error.code==='lineup'){
+            const count=value.startingFive.length;
+            showPane('lineup');showError(count<5?`Noch ${5-count} Starter auswählen (${count}/5).`: `Nur fünf Starter auswählen – ${count-5} zurück auf die Bank setzen (${count}/5).`,lineupPanel);
+          }else if(error.code==='jersey'){
+            showPane('roster');
+            const included=rows.filter(row=>row.status!=='dnp'),numbers=new Map();
+            for(const row of included){const number=row.jersey.value.trim();if(number)numbers.set(number,(numbers.get(number)||0)+1);}
+            const invalid=included.filter(row=>{const number=row.jersey.value.trim();return number&&(!/^\d{1,2}$/.test(number)||numbers.get(number)>1);});
+            for(const row of invalid){row.row.querySelector('details').open=true;row.jersey.setAttribute('aria-invalid','true');}
+            const target=invalid[0];
+            showError(target?`${error.message} Bitte bei ${invalid.map(row=>row.p.name).join(', ')} korrigieren.`:error.message,target?.row||rosterPanel);
+          }else showError(error.message,actions);
+          return;
+        }
+        advancing=true;gameplanButton.disabled=true;nextButton.disabled=true;nextButton.textContent='Gameplan wird geöffnet …';
+        try{await save('preparation');}finally{advancing=false;if(nextButton.isConnected){gameplanButton.disabled=false;nextButton.disabled=false;nextButton.textContent='Weiter zum Gameplan';}}
+      }
     }else if(stage==='preparation'){
       const nav=el('nav');nav.className='matchday-plan-nav';nav.setAttribute('aria-label','Spielvorbereitung');group.append(nav);
       button(nav,'Kader','show-roster',()=>{selectionPane='roster';save('roster');});
@@ -212,4 +248,3 @@ export function mountMatchdayView(container,controller,{players=()=>[],tactics=(
   cleanup.flush=async()=>{if(liveCleanup?.flush)return liveCleanup.flush();if(saving)await pending;return save();};
   return cleanup;
 }
-
