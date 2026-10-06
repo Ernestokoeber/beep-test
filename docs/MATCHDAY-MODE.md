@@ -106,9 +106,12 @@ erfordern eine erneute Auswahl.
 
 ## Abschluss
 
+Zukünftige Spieltermine bleiben **Geplant** und werden durch eine Voraberfassung,
+ein vorab eingetragenes Ergebnis oder einen alten Importstatus nicht archiviert.
+Vorhandene Erfassungen bleiben dabei erhalten; abgesagte Spiele bleiben geschlossen.
 Spiele vor dem heutigen Datum werden als **Absolviert** angezeigt, auch wenn
-das Ergebnis fehlt (**Ergebnis offen**). Ein eingetragenes Endergebnis oder ein
-ausdrücklicher Live-Abschluss schließt das Spiel ebenfalls. Abgesagte Spiele
+das Ergebnis fehlt (**Ergebnis offen**). Am Spieltag schließt ein eingetragenes
+Endergebnis oder ein ausdrücklicher Live-Abschluss das Spiel ebenfalls. Abgesagte Spiele
 bleiben als **Abgesagt** gekennzeichnet. Ein bloßer Datumswechsel erzeugt weder
 ein Ergebnis noch neue Live-Aktionen.
 

@@ -18,9 +18,12 @@ BT.games = (function() {
     const events = session ? effectiveSessionEvents(session) : [];
     const finished = events.some(event => event.kind === 'finish');
     const hasScore = /^\s*\d+\s*:\s*\d+\s*$/.test(String(game?.score || ''));
-    const past = /^\d{4}-\d{2}-\d{2}$/.test(String(game?.date || '')) && game.date < today;
-    const completed = !cancelled && (past || finished || hasScore || ['played', 'completed', 'finished'].includes(game?.status));
-    const live = !cancelled && !completed && events.some(event => event.kind === 'clock-start');
+    const dated = /^\d{4}-\d{2}-\d{2}$/.test(String(game?.date || ''));
+    const past = dated && game.date < today, future = dated && game.date > today;
+    // A preliminary capture or stale imported status cannot complete a fixture
+    // before its scheduled day. Keep its records; only the calendar status changes.
+    const completed = !cancelled && !future && (past || finished || hasScore || ['played', 'completed', 'finished'].includes(game?.status));
+    const live = !cancelled && !completed && !future && events.some(event => event.kind === 'clock-start');
     return { closed: Boolean(cancelled || completed), completed, cancelled: Boolean(cancelled), hasScore,
       status: cancelled ? 'cancelled' : completed ? 'played' : live ? 'live' : 'upcoming',
       label: cancelled ? 'Abgesagt' : completed ? 'Absolviert' : live ? 'Läuft' : 'Geplant' };
