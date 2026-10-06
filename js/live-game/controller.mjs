@@ -4,26 +4,28 @@ import {mergeLiveStats} from './merge.mjs';
 import {getJournal} from './bridge.mjs';
 import {projectBoxscore} from './boxscore.mjs';
 
-function browserDependencies() {
+function browserDependencies(gameId) {
   const BT=window.BT;
   let deviceId=localStorage.getItem('courthub_live_device');
   if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem('courthub_live_device',deviceId);}
   return {deviceId,now:()=>Date.now(),load:()=>BT.storage.load(),save:data=>BT.storage.save(data),
     players:()=>BT.storage.getPlayers().filter(p=>!p.archived),wake:BT.wake||{},
+    isReadOnly:liveStats=>{const game=BT.storage.getGame(gameId);return Boolean(BT.games && (!game||!BT.games.canEdit({...game,...(liveStats?{liveStats}:{})})));},
     getIdentity:()=>{const s=BT.sync.getState();return {organizationId:s.user?.organization?.id,actorId:s.user?.id,sessionEpoch:s.sessionEpoch,role:s.user?.role,status:s.status,lastError:s.lastError};},
     subscribeIdentity:fn=>{window.addEventListener('bt-sync-change',fn);return()=>window.removeEventListener('bt-sync-change',fn);}};
 }
-export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
+export async function openLiveGame({gameId,scope,deps=browserDependencies(gameId)}) {
   const journal=deps.journal||await getJournal(scope),owner=crypto.randomUUID();
   let live=mergeLiveStats(deps.load().games?.find(g=>g.id===gameId)?.liveStats,await journal.read(gameId)).value;
   let closed=false,error=null,busy=false,chain=Promise.resolve(),leaseError=null;
   const listeners=new Set();
   const identityOK=()=>{const i=deps.getIdentity();return i.actorId===scope.actorId&&i.organizationId===scope.organizationId&&i.sessionEpoch===scope.sessionEpoch;};
+  const archiveReadOnly=()=>Boolean(deps.isReadOnly?.(live));
   function session(){return live?.sessions.find(s=>s.id===live.selectedSessionId);}
   function getState(){const s=session(),identity=deps.getIdentity();return {live:clone(live),hasLiveData:!!live,session:clone(s),roster:s?sessionRoster(s):deps.players(),
     clock:s?clockAt(s,deps.now()):null,stats:s?projectStats(s):null,lineups:s?projectLineups(s,deps.now()):null,
     boxscore:s?projectBoxscore(s,deps.now()):null,
-    readOnly:closed||identity.role==='viewer'||!identityOK(),needsTakeover:!!s&&s.deviceId!==deps.deviceId,
+    readOnly:closed||archiveReadOnly()||identity.role==='viewer'||!identityOK(),needsTakeover:!!s&&s.deviceId!==deps.deviceId,
     error:error||leaseError,busy,status:identity.status||'offline',syncError:identity.lastError};}
   function notify(){for(const fn of listeners)fn(getState());}
   const unsubscribe=deps.subscribeIdentity(()=>{
@@ -32,8 +34,10 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     notify();
   });
   async function write(value){
+    ensure(!archiveReadOnly(),'archive','Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.');
     ensure(identityOK()&&!closed,'identity','Konto oder Team wurde gewechselt. Ansicht neu öffnen.');
     await journal.acquire(gameId,owner);
+    ensure(!archiveReadOnly(),'archive','Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.');
     ensure(identityOK()&&!closed,'identity','Konto oder Team wurde gewechselt.');
     const saved=await journal.append(gameId,value);
     ensure(identityOK()&&!closed,'identity','Lokal gesichert. Konto wurde gewechselt; nicht in anderes Team übertragen.');
@@ -44,6 +48,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
     try{deps.save(data);}catch(e){error='Im Live-Journal gesichert; Teamdaten konnten nicht gespeichert werden: '+e.message;}
   }
   async function execute(command){
+    ensure(!archiveReadOnly(),'archive','Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.');
     ensure(identityOK()&&!closed,'identity','Konto gewechselt. Live-Ansicht neu öffnen.');
     ensure(deps.getIdentity().role!=='viewer','permission','Nur lesender Zugriff.');
     ensure(['admin','coach','assistant'].includes(deps.getIdentity().role),'permission','Kein Schreibrecht.');
@@ -126,10 +131,10 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies()}) {
   const timer=setInterval(()=>{
     if(closed)return;
     const s=session(),c=s&&clockAt(s,deps.now());
-    if(c?.clockSkew&&!busy&&s.deviceId===deps.deviceId&&deps.getIdentity().role!=='viewer')dispatch({kind:'clock-pause',payload:{clockSkew:true}});
+    if(c?.clockSkew&&!busy&&!archiveReadOnly()&&s.deviceId===deps.deviceId&&deps.getIdentity().role!=='viewer')dispatch({kind:'clock-pause',payload:{clockSkew:true}});
     notify();
   },500);
-  const heartbeat=setInterval(()=>{if(!closed&&session()?.deviceId===deps.deviceId&&deps.getIdentity().role!=='viewer')journal.acquire(gameId,owner).then(()=>{leaseError=null;},e=>{leaseError=e.message;notify();});},5000);
+  const heartbeat=setInterval(()=>{if(!closed&&!archiveReadOnly()&&session()?.deviceId===deps.deviceId&&deps.getIdentity().role!=='viewer')journal.acquire(gameId,owner).then(()=>{leaseError=null;},e=>{leaseError=e.message;notify();});},5000);
   async function close(){closed=true;clearInterval(timer);clearInterval(heartbeat);unsubscribe();deps.wake.release?.('live-game');listeners.clear();await chain;await journal.release(gameId,owner);}
   return {getState,dispatch,idle:()=>chain,subscribe(fn){listeners.add(fn);fn(getState());return()=>listeners.delete(fn);},close};
 }

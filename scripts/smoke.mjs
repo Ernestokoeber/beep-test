@@ -119,7 +119,7 @@ gameButton.click();
 assert(window.document.querySelector('.atlas-panel'), 'Atlas-Bereich fehlt');
 assert(window.document.querySelector('.game-boxscore'), 'Spieler-Boxscore fehlt');
 assert(window.document.querySelector('.game-opponent-plan')?.textContent.includes('Mannverteidigung'), 'Gegnerplan fehlt in der Spielvorbereitung');
-assert(window.document.querySelector('[data-action="open-matchday"]')?.textContent === 'Kader & Starting Five festlegen', 'Der sichtbare Einstieg zur Mannschaftsplanung fehlt');
+assert(window.document.querySelector('[data-action="open-matchday"]')?.textContent === 'Spieltag ansehen', 'Geschlossenes Spiel bietet keine lesende Ansicht an');
 assert(/Kader\s+0.*Starting Five\s+0\/5/.test(window.document.querySelector('[data-role="game-preparation-summary"]')?.textContent || ''), 'Der Spielkarte fehlt der sichtbare Stand von Kader und Starting Five');
 const livePlayers = [player, ...Array.from({ length: 5 }, (_, index) => window.BT.storage.upsertPlayer({
   name: 'Live Spieler ' + (index + 1), position: 'Guard', jerseyNumber: String(index + 20), availability: 'ready', goals: []
@@ -157,6 +157,8 @@ window.BT.api.getAtlasAnalysis = async () => ({
     events: [{ candidate_id: 'event-1', event_type: 'steal', timestamp_seconds: 42, player_ids: ['#11'], team_id: 'tsv-lindau', confidence: .96, result: null, verification_status: 'validated', review_task_id: null, review_reason: null }]
   }
 });
+window.document.querySelector('[data-action="unlock-game"]').click();
+await new Promise(resolveWait => window.setTimeout(resolveWait, 0));
 window.document.querySelector('[data-role="atlas-game-id"]').value = 'atlas-game-1';
 window.document.querySelector('[data-action="load-atlas"]').click();
 await new Promise(resolveWait => window.setTimeout(resolveWait, 100));

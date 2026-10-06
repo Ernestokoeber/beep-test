@@ -7,8 +7,61 @@ BT.games = (function() {
   let liveCleanup = null;
   let liveGeneration = 0;
   let matchdayView = null;
-  function cleanup() { liveGeneration++; matchdayView=null; if(liveCleanup){liveCleanup();liveCleanup=null;} }
-  function beforeLeave(){return matchdayView?.flush?.()||null;}
+  let editAccess = null;
+  let detailFlush = null;
+  function cleanup(keepEditing = false) { detailFlush?.(); detailFlush=null; if(!keepEditing)editAccess=null; liveGeneration++; matchdayView=null; if(liveCleanup){liveCleanup();liveCleanup=null;} }
+  function beforeLeave(){return matchdayView?.flush?.() ?? detailFlush?.() ?? null;}
+
+  function statusFor(game, today = todayISO()) {
+    const cancelled = game?.cancelled || ['cancelled', 'abgesagt'].includes(game?.status);
+    const session = game?.liveStats?.sessions?.find(item => item.id === game.liveStats.selectedSessionId);
+    const events = session ? effectiveSessionEvents(session) : [];
+    const finished = events.some(event => event.kind === 'finish');
+    const hasScore = /^\s*\d+\s*:\s*\d+\s*$/.test(String(game?.score || ''));
+    const past = /^\d{4}-\d{2}-\d{2}$/.test(String(game?.date || '')) && game.date < today;
+    const completed = !cancelled && (past || finished || hasScore || ['played', 'completed', 'finished'].includes(game?.status));
+    const live = !cancelled && !completed && events.some(event => event.kind === 'clock-start');
+    return { closed: Boolean(cancelled || completed), completed, cancelled: Boolean(cancelled), hasScore,
+      status: cancelled ? 'cancelled' : completed ? 'played' : live ? 'live' : 'upcoming',
+      label: cancelled ? 'Abgesagt' : completed ? 'Absolviert' : live ? 'Läuft' : 'Geplant' };
+  }
+
+  function accountKey() {
+    const state = BT.sync?.getState?.();
+    return JSON.stringify([state?.user?.id, state?.user?.organization?.id, state?.user?.role, state?.sessionEpoch]);
+  }
+  function canEdit(game) {
+    return Boolean(game && (!statusFor(game).closed || (editAccess?.gameId === game.id && editAccess.account === accountKey())));
+  }
+  function requestEdit(game) {
+    if (canEdit(game)) return true;
+    if (!game || BT.sync?.getState?.().user?.role === 'viewer') return false;
+    if (!confirm(`Sicherheitshinweis: Dieses Spiel ist geschlossen (${formatDate(game.date)} · ${game.home} – ${game.away}).\n\nNachträgliche Änderungen können Ergebnis, Spielnotizen, Atlas-Analyse und Statistik verändern. Die Spieluhr wird dadurch nicht neu gestartet.\n\nBearbeitung für diese Ansicht ausdrücklich freigeben?`)) return false;
+    editAccess = { gameId: game.id, account: accountKey() };
+    return true;
+  }
+
+  function archiveNotice(game, onChange, getCurrent = () => BT.storage.getGame(game.id) || game) {
+    const section = document.createElement('section'); section.className = 'game-archive-notice'; section.dataset.role = 'game-archive';
+    const title = document.createElement('strong'), note = document.createElement('p'), button = document.createElement('button');
+    const update = () => {
+      const current = getCurrent(), status = statusFor(current), editable = canEdit(current);
+      section.hidden = !status.closed;
+      title.textContent = `${status.label} · ${editable ? 'Bearbeitung freigegeben' : 'geschlossen'}`;
+      note.textContent = editable ? 'Nachträgliche Bearbeitung ist für dieses Spiel freigegeben. Beim Verlassen oder Neuladen wird es wieder gesperrt.' : 'Dieses Spiel ist nur lesbar. Nachträgliche Änderungen erfordern eine ausdrückliche Freigabe.';
+      button.textContent = editable ? 'Bearbeitung wieder sperren' : 'Bearbeitung freigeben';
+      button.dataset.action = editable ? 'lock-game' : 'unlock-game';
+    };
+    button.type = 'button'; button.className = 'btn small';
+    button.addEventListener('click', async () => {
+      const current = getCurrent();
+      if (canEdit(current)) { if (await beforeLeave() === false) return; editAccess = null; }
+      else if (!requestEdit(current)) return;
+      update(); onChange();
+    });
+    section.append(title, note, button); update();
+    return { section, update };
+  }
 
   function render(target, gameId) {
     cleanup();
@@ -32,12 +85,14 @@ BT.games = (function() {
     form.addEventListener('submit', event => {
       event.preventDefault();
       const fields = form.elements;
+      const existing = fields.id.value && BT.storage.getGame(fields.id.value);
+      if (existing && !canEdit(existing)) { BT.util.toast('Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.'); return; }
       const game = BT.storage.upsertGame({
         id: fields.id.value || undefined, team: fields.team.value,
         date: fields.date.value, time: fields.time.value,
         home: fields.home.value.trim(), away: fields.away.value.trim(),
         score: fields.score.value.trim(), source: 'manual',
-        status: fields.score.value.trim() ? 'played' : 'upcoming'
+        status: statusFor({ date: fields.date.value, score: fields.score.value.trim() }).status
       });
       selectedGameId = game.id;
       const trainingGame=form.dataset.trainingGame==='true';
@@ -61,12 +116,20 @@ BT.games = (function() {
       button.disabled = true; status.textContent = 'Offizieller TeamSL-Spielplan wird geladen …';
       try {
         const result = await BT.api.syncWebsiteGames(BT.seasonplanner.scheduleConfig());
-        result.games.forEach(game => BT.storage.upsertGame(game));
+        const imports = result.games.map(incoming => {
+          const existing = (incoming.id && BT.storage.getGame(incoming.id)) || (incoming.externalId && BT.storage.getGame(incoming.externalId));
+          const game = {...incoming, status: statusFor({...existing, ...incoming}).status};
+          const changes = existing && !canEdit(existing) && ['date','time','home','away','score','cancelled'].some(key => Object.hasOwn(incoming,key) && (key === 'cancelled' ? Boolean(incoming[key]) !== Boolean(existing[key]) : String(incoming[key] || '') !== String(existing[key] || '')));
+          return {game, existing, protected: Boolean(changes)};
+        });
+        const protectedImports = imports.filter(item => item.protected);
+        const allowArchived = !protectedImports.length || confirm(`Sicherheitshinweis: Der offizielle Spielplan enthält Änderungen an ${protectedImports.length} geschlossenen Spiel(en).\n\n${protectedImports.slice(0,5).map(({existing})=>`${formatDate(existing.date)} · ${existing.home} – ${existing.away}`).join('\n')}\n\nTermine und Ergebnisse dieser abgeschlossenen Spiele ausdrücklich aktualisieren?`);
+        imports.filter(item => !item.protected || allowArchived).forEach(({game}) => BT.storage.upsertGame(game));
         const opponentProfiles = BT.opponents?.syncLeague
           ? BT.opponents.syncLeague(result.leagueGames || result.games, { teamName: result.team.name, teamId: result.team.id })
           : [];
         BT.seasonplanner.saveScheduleConfig({ teamId: result.team.id, teamName: result.team.name });
-        status.textContent = result.games.length + ' eigene Spiele und ' + opponentProfiles.length + ' Gegner direkt aus TeamSL synchronisiert · ' + result.league.name + '.';
+        status.textContent = result.games.length + ' eigene Spiele und ' + opponentProfiles.length + ' Gegner direkt aus TeamSL synchronisiert · ' + result.league.name + '.' + (!allowArchived ? ' Änderungen an geschlossenen Spielen wurden nicht übernommen.' : '');
         drawList(); if (selectedGameId) drawDetail();
       } catch (error) { status.textContent = error.message; }
       finally { button.disabled = false; }
@@ -78,6 +141,8 @@ BT.games = (function() {
   }
 
   function openForm(game) {
+    if (game && !requestEdit(game)) return;
+    if (game) drawDetail();
     const form = $('[data-role="game-form"]', root);
     form.dataset.trainingGame='false';
     form.classList.remove('hidden');
@@ -110,18 +175,22 @@ BT.games = (function() {
       const isHome = /lindau/i.test(game.home || '');
       const opponent = isHome ? game.away : game.home;
       const selected = game.id === selectedGameId;
+      const status = statusFor(game);
       return `<li><button class="game-list-card ${selected ? 'active' : ''}" type="button" data-game-id="${game.id}">
         <span class="game-team">${game.team === 'u18' ? 'U18' : 'Herren'} · ${formatDate(game.date)}</span>
         <strong>${isHome ? 'vs.' : '@'} ${escapeHTML(opponent || 'Gegner offen')}</strong>
-        <span class="game-list-meta">${escapeHTML(game.time || '')}${game.score ? ' · ' + escapeHTML(game.score) : ' · geplant'}${game.atlas ? ' · Atlas ✓' : ''}</span>
+        <span class="game-list-meta">${escapeHTML(game.time || '')} · ${status.label}${status.hasScore ? ' · ' + escapeHTML(game.score) : status.completed ? ' · Ergebnis offen' : ''}${game.atlas ? ' · Atlas ✓' : ''}</span>
       </button></li>`;
     }).join('');
     list.querySelectorAll('[data-game-id]').forEach(button => button.addEventListener('click', () => {
-      selectedGameId = button.dataset.gameId; drawList(); drawDetail();
+      detailFlush?.(); editAccess = null; closeForm(); selectedGameId = button.dataset.gameId; drawList(); drawDetail();
     }));
   }
 
-  function saveGame(game) { BT.storage.upsertGame(game); }
+  function saveGame(game) {
+    if (!canEdit(BT.storage.getGame(game.id) || game)) { BT.util.toast('Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.'); return false; }
+    BT.storage.upsertGame(game); return true;
+  }
 
   function effectiveSessionEvents(session) {
     const originals = new Map();
@@ -183,7 +252,7 @@ BT.games = (function() {
   }
 
   function drawDetail() {
-    cleanup();
+    cleanup(true);
     const wrap = $('[data-role="game-detail"]', root);
     const game = BT.storage.getGame(selectedGameId);
     if (!game) { wrap.innerHTML = '<div class="empty empty--field"><p class="empty-body">Spiel auswählen.</p></div>'; return; }
@@ -194,7 +263,8 @@ BT.games = (function() {
     const analysis = normalizedAtlas(game.atlas && game.atlas.package);
     const scoreParts = String(game.score || '').match(/(\d+)\s*:\s*(\d+)/);
     const lindauHome = /lindau/i.test(game.home || '');
-    const result = scoreParts ? ((lindauHome ? Number(scoreParts[1]) > Number(scoreParts[2]) : Number(scoreParts[2]) > Number(scoreParts[1])) ? 'Sieg' : 'Niederlage') : 'Anstehend';
+    const lifecycle = statusFor(game), editable = canEdit(game);
+    const result = lifecycle.cancelled ? lifecycle.label : scoreParts ? (Number(scoreParts[1]) === Number(scoreParts[2]) ? 'Unentschieden' : (lindauHome ? Number(scoreParts[1]) > Number(scoreParts[2]) : Number(scoreParts[2]) > Number(scoreParts[1])) ? 'Sieg' : 'Niederlage') : lifecycle.completed ? 'Absolviert · Ergebnis offen' : lifecycle.label;
     const preparation = preparationState(game);
     const nominatedCount = preparation.roster.filter(player => player.gameStatus !== 'dnp').length;
     const starterCount = preparation.startingFive.length;
@@ -202,14 +272,14 @@ BT.games = (function() {
     const releasedIds=selectedSession?new Set(preparation.roster.filter(player=>player.gameStatus!=='dnp').map(player=>player.id)):null;
     const players = BT.storage.getPlayers().filter(player => !player.archived&&!BT.staff?.isCoachOnly(preparation,player.id)&&(!releasedIds||releasedIds.has(player.id))).sort((a, b) => a.name.localeCompare(b.name, 'de'));
     const gameFinished = preparation.events.some(event => event.kind === 'finish');
-    const preparationLabel = gameFinished ? 'Spieltag ansehen' : game.liveStats ? 'Spieltag fortsetzen' : game.matchday ? 'Vorbereitung fortsetzen' : 'Kader & Starting Five festlegen';
+    const preparationLabel = lifecycle.closed ? (editable ? 'Spieltag bearbeiten' : 'Spieltag ansehen') : gameFinished ? 'Spieltag ansehen' : game.liveStats ? 'Spieltag fortsetzen' : game.matchday ? 'Vorbereitung fortsetzen' : 'Kader & Starting Five festlegen';
 
     wrap.innerHTML = `<div class="game-detail-head">
       <div><span class="section-kicker">${escapeHTML(game.team === 'u18' ? 'U18' : 'Herren')} · ${escapeHTML(result)}</span><h3>${escapeHTML(game.home)} <span>${escapeHTML(game.score || '–:–')}</span> ${escapeHTML(game.away)}</h3><p class="muted">${formatDate(game.date)}${game.time ? ' · ' + escapeHTML(game.time) + ' Uhr' : ''} · Quelle: ${game.source === 'basketball-bund' ? 'DBB TeamSL' : game.source === 'tsv-website' ? 'TSV-Webseite' : 'manuell'}${game.matchNo ? ' · Spiel ' + escapeHTML(game.matchNo) : ''}</p></div>
       <div class="head-actions"><button class="btn small" data-action="edit-selected">Bearbeiten</button><button class="btn small" data-action="share-game">Bericht teilen</button></div>
     </div>
 
-    <section class="boxscore-panel game-preparation-card"><h3>Spielvorbereitung</h3><p>Kader, Gegneranalyse und Gameplan bestätigen und danach in die freie Live-Erfassung wechseln.</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live">Live Game mit Gegnerplan</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
+    <section class="boxscore-panel game-preparation-card"><h3>${lifecycle.closed ? 'Gespeicherter Spieltag' : 'Spielvorbereitung'}</h3><p>${lifecycle.closed ? 'Gespeicherten Kader, Gameplan und die vorhandene Auswertung ansehen.' : 'Kader, Gegneranalyse und Gameplan bestätigen und danach in die freie Live-Erfassung wechseln.'}</p><div class="game-preparation-summary" data-role="game-preparation-summary"><span>Kader <strong>${nominatedCount}</strong></span><span>Starting Five <strong>${starterCount}/5</strong></span></div><button class="btn primary" data-action="open-matchday">${preparationLabel}</button><button class="btn" data-action="open-live"${lifecycle.closed ? ' hidden' : ''}>Live Game mit Gegnerplan</button><button class="btn" data-action="live-report">Live-Auswertung</button><div data-role="live-game-host"></div></section>
     <section class="coaching-staff-summary" data-role="game-staff"><h3>Trainerteam</h3>${(BT.staff?.lines(preparation.staff) || []).map(line => `<p>${escapeHTML(line)}</p>`).join('') || '<p>Trainer und Co-Trainer im Spieltag unter Kader zuordnen.</p>'}</section>
     <section class="opponent-defense-card game-opponent-plan confidence-${escapeHTML(defensePlan?.confidence || 'low')}">
       <div class="section-head compact"><div><span class="section-kicker">Gegnerplan</span><h3>${escapeHTML(defensePlan?.startLabel || 'Mannverteidigung · Grundlagen')}</h3></div><a class="btn small" href="#/opponents">Scouting öffnen</a></div>
@@ -241,12 +311,26 @@ BT.games = (function() {
 
     <div class="game-next-actions"><button class="btn primary" type="button" data-action="create-training">Aus Spielanalyse Training erstellen</button><button class="btn danger" type="button" data-action="delete-game">Spiel löschen</button></div>`;
 
+    const notice = archiveNotice(game, () => { closeForm(); drawDetail(); });
+    wrap.querySelector('.game-detail-head').after(notice.section);
+    wrap.querySelectorAll('[data-game-field], [data-stat]').forEach(input => { input.readOnly = !editable; });
+    $('[data-role="atlas-game-id"]', wrap).disabled = !editable;
+    $('[data-action="load-atlas"]', wrap).disabled = !editable;
+    $('[data-action="delete-game"]', wrap).disabled = !editable;
+
     let saveTimer = null;
+    detailFlush = () => {
+      if (!saveTimer) return true;
+      clearTimeout(saveTimer); saveTimer = null;
+      return saveGame(game);
+    };
     wrap.querySelectorAll('[data-game-field]').forEach(input => input.addEventListener('input', () => {
+      if (!canEdit(BT.storage.getGame(game.id))) return;
       game[input.dataset.gameField] = input.value;
-      clearTimeout(saveTimer); saveTimer = setTimeout(() => saveGame(game), 350);
+      clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = null; saveGame(game); }, 350);
     }));
     wrap.querySelectorAll('[data-player-id]').forEach(row => row.querySelectorAll('[data-stat]').forEach(input => input.addEventListener('change', () => {
+      if (!canEdit(BT.storage.getGame(game.id))) return;
       let stat = game.playerStats.find(item => item.playerId === row.dataset.playerId);
       if (!stat) { stat = { playerId: row.dataset.playerId }; game.playerStats.push(stat); }
       stat[input.dataset.stat] = input.dataset.stat === 'note' ? input.value : (input.value === '' ? null : Number(input.value));
@@ -260,6 +344,7 @@ BT.games = (function() {
     $('[data-action="open-matchday"]',wrap).addEventListener('click',()=>{location.hash='#/games/'+encodeURIComponent(game.id)+'/matchday';});
     $('[data-action="live-report"]', wrap).addEventListener('click', () => showLiveReport(game.id, wrap));
     $('[data-action="delete-game"]', wrap).addEventListener('click', async () => {
+      if (!canEdit(BT.storage.getGame(game.id))) return;
       if (!confirm('Spiel und interne Spielnotizen löschen?')) return;
       try {
         if(BT.storage.getGame(game.id)?.liveStats||BT.storage.getGame(game.id)?.matchday){
@@ -272,7 +357,7 @@ BT.games = (function() {
   }
 
   async function showLiveReport(gameId, wrap){
-    cleanup();const generation=liveGeneration,host=$('[data-role="live-game-host"]',wrap);
+    cleanup(true);const generation=liveGeneration,host=$('[data-role="live-game-host"]',wrap);
     try{
       const {buildLiveReport,renderLiveReport}=await import('./live-game/report.mjs');
       if(generation!==liveGeneration)return;
@@ -413,6 +498,7 @@ BT.games = (function() {
   }
 
   async function loadAtlas(game) {
+    if (!canEdit(BT.storage.getGame(game.id))) return;
     const input = $('[data-role="atlas-game-id"]', root);
     const status = $('[data-role="atlas-status"]', root);
     const id = input.value.trim();
@@ -420,6 +506,7 @@ BT.games = (function() {
     game.atlasGameId = id; saveGame(game); status.textContent = 'Freigegebenes Atlas-Paket wird geladen …';
     try {
       const result = await BT.api.getAtlasAnalysis(id);
+      if (!canEdit(BT.storage.getGame(game.id))) return;
       game.atlasGameId = result.package.game_id || id;
       game.atlas = { package: result.package, importedAt: result.importedAt };
       applyAtlasPlayerStats(game, result.package);
@@ -436,6 +523,7 @@ BT.games = (function() {
       let game = gameId && BT.storage.getGames().find(item => item.atlasGameId === gameId || item.externalId === gameId);
       if (!game && selectedGameId) game = BT.storage.getGame(selectedGameId);
       if (!game) throw new Error('Bitte zuerst das passende Spiel auswählen.');
+      if (!requestEdit(game)) return;
       game.atlasGameId = gameId || game.atlasGameId || null;
       game.atlas = { package: pkg, importedAt: new Date().toISOString(), source: 'file' };
       applyAtlasPlayerStats(game, pkg);
@@ -484,20 +572,22 @@ BT.games = (function() {
       if(generation!==liveGeneration)return;
       const c=await openMatchday({gameId:game.id,scope:{organizationId:user.organization.id,actorId:user.id,sessionEpoch:state.sessionEpoch}});
       if(generation!==liveGeneration){await c.close();return;}
-      if(training&&!game.matchday&&!c.getState().liveState.hasLiveData)await c.saveDraft({...c.getState().draft,kind:'training'});
+      if(training&&!c.getState().readOnly&&!game.matchday&&!c.getState().liveState.hasLiveData)await c.saveDraft({...c.getState().draft,kind:'training'});
       const lindauHome=/\blindau\b/i.test(game.home||''),lindauAway=/\blindau\b/i.test(game.away||'');
       const currentOpponentPlan=()=>createOpponentPlan({game,context:BT.opponents?.contextForGame?.(game)});
       await prepareMatchdayEntry(c,lindauHome!==lindauAway?(lindauHome?'home':'away'):null,currentOpponentPlan());
       if(generation!==liveGeneration){await c.close();return;}
       host.replaceChildren();const heading=document.createElement('h1');heading.textContent=game.home+' – '+game.away;host.append(heading);
       const meta=document.createElement('p');meta.textContent=formatDate(game.date)+(game.time?' · '+game.time:'');host.append(meta);
+      const notice=archiveNotice(game,()=>{c.refresh().catch(error=>BT.util.toast(error.message));},()=>({...BT.storage.getGame(game.id)||game,liveStats:c.live.getState().live||game.liveStats}));host.append(notice.section);
+      const unarchive=c.subscribe(()=>notice.update());
       const content=document.createElement('div');host.append(content);
       matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.teamStrategy?.activeTactics?.()||[],getOpponentPlan:currentOpponentPlan,onPlayerInjury:(player,match)=>{
         if(!BT.storage.getPlayer(player.id))return;
         BT.storage.upsertPlayer({id:player.id,availability:'injured',availabilityUntil:null,availabilityNote:`Am Spieltag ${BT.util.formatDate(match?.date||BT.util.todayISO())} verletzt / beim Aufwärmen`});
       }});
-      const view=matchdayView;liveCleanup=()=>{view();c.close().catch(()=>{});};
+      const view=matchdayView;liveCleanup=()=>{unarchive();view();c.close().catch(()=>{});};
     }catch(e){if(generation===liveGeneration)host.textContent=e.message;}
   }
-  return { render, renderMatchday, beforeLeave, cleanup, isLiveOpen: () => !!liveCleanup };
+  return { render, renderMatchday, beforeLeave, cleanup, statusFor, canEdit, isLiveOpen: () => !!liveCleanup };
 })();

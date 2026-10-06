@@ -92,6 +92,20 @@ erfordern eine erneute Auswahl.
 
 ## Abschluss
 
+Spiele vor dem heutigen Datum werden als **Absolviert** angezeigt, auch wenn
+das Ergebnis fehlt (**Ergebnis offen**). Ein eingetragenes Endergebnis oder ein
+ausdrücklicher Live-Abschluss schließt das Spiel ebenfalls. Abgesagte Spiele
+bleiben als **Abgesagt** gekennzeichnet. Ein bloßer Datumswechsel erzeugt weder
+ein Ergebnis noch neue Live-Aktionen.
+
+Geschlossene Spiele sind zunächst nur lesbar. **Bearbeitung freigeben** zeigt
+einen Sicherheitshinweis und entsperrt das ausgewählte Spiel für die aktuelle
+Ansicht. Spielnotizen, Ergebnis, manueller Boxscore, Atlas-Übernahme, Vorbereitung
+und Live-Korrekturen sind bis dahin gesperrt. Beim Spielwechsel, Verlassen,
+Konto-/Teamwechsel oder Neuladen wird die Freigabe aufgehoben. Ein beendetes
+Live-Spiel startet durch die Freigabe nicht erneut. Änderungen des offiziellen
+Spielplanimports an geschlossenen Spielen benötigen ebenfalls eine Bestätigung.
+
 **Spiel abschließen** hält die Uhr an und öffnet den vorhandenen Bericht mit
 Punkten, Wurfversuchen, Rebounds, weiteren Aktionen, Einsatzzeit, DNP und Plus/Minus.
 „Gesamten Punkteverlauf beider Teams erfasst“ nur bei vollständiger Erfassung

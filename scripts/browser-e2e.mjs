@@ -1,5 +1,6 @@
 import { chromium, devices } from 'playwright';
 import { verifyMobileCoaching } from './mobile-coaching-browser.mjs';
+import { verifyGameArchive } from './game-archive-browser.mjs';
 
 const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
 
@@ -855,7 +856,7 @@ async function testMatchday(browser, name, options) {
     await page.locator('#app > *').first().waitFor();
     const gameId = await page.evaluate(() => {
       for (let i = 1; i <= 8; i++) window.BT.storage.upsertPlayer({ name: `E2E Spieler ${i}`, jerseyNumber: String(i) });
-      const game = window.BT.storage.upsertGame({ date: '2026-09-30', home: 'TSV Lindau', away: 'E2E Gast', source: 'manual' });
+      const game = window.BT.storage.upsertGame({ date: window.BT.util.todayISO(), home: 'TSV Lindau', away: 'E2E Gast', source: 'manual' });
       window.BT.storage.upsertOpponent({
         key: 'e2e-gast', name: 'E2E Gast', source: 'manual', games: [game],
         scouting: { insideThreat: 'high', perimeterThreat: 'medium', highPostPassing: 'low', offensiveRebounding: 'medium', primaryScorerArea: 'inside', notes: 'E2E: früher Ringdruck.' },
@@ -991,6 +992,9 @@ async function testMatchday(browser, name, options) {
     assert(await page.evaluate(()=>!document.body.classList.contains('live-game-active')),`${name}: Live-Modus bleibt nach Spielende aktiv`);
     await page.getByText('Gameplan & Abschluss', { exact: true }).tap();
     assert((await page.locator('.matchday-frozen-plan').innerText()).includes('Rebounds sichern'), `${name}: gespeicherte Ziele fehlen`);
+    assert(await page.locator('[data-field="closingNote"]').isDisabled(), `${name}: abgeschlossenes Spiel ist nicht gesperrt`);
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Bearbeitung freigeben', exact: true }).tap();
     await page.locator('[data-field="closingNote"]').fill('Ausboxen weiter trainieren');
     await page.getByRole('button', { name: 'Abschlussnotiz speichern', exact: true }).tap();
     await page.locator('.matchday details > [role="status"]').filter({ hasText: 'Lokal gesichert' }).waitFor();
@@ -999,6 +1003,7 @@ async function testMatchday(browser, name, options) {
     await report();
     await page.getByText('Gameplan & Abschluss', { exact: true }).tap();
     assert(await page.locator('[data-field="closingNote"]').inputValue() === 'Ausboxen weiter trainieren', `${name}: Abschlussnotiz fehlt nach Reload`);
+    assert(await page.locator('[data-field="closingNote"]').isDisabled(), `${name}: Reload hebt die Archivsperre auf`);
     assert(JSON.stringify(await page.evaluate(id => window.BT.storage.getGame(id), gameId)) === JSON.stringify(finished), `${name}: Abschluss/Entwurf nach Reload verändert`);
     await noOverflow('Abgeschlossener Spieltag nach Reload');
     console.log(`Matchday Browser-E2E erfolgreich: ${name}, Vorbereitung, Live, Abschluss, Auswertung und zwei Reloads.`);
@@ -1024,7 +1029,7 @@ async function testCoachingStaff(browser, name, options) {
     const data=await page.evaluate(()=>{
       const players=Array.from({length:6},(_,i)=>window.BT.storage.upsertPlayer({name:i===0?'Ernesto Testtrainer':`Staff-Test Spieler ${i}`,jerseyNumber:String(i)}));
       const training=window.BT.storage.upsertTraining({date:'2026-10-06',attendance:players.map(p=>({playerId:p.id,status:'present'})),plan:{drills:[]}});
-      const game=window.BT.storage.upsertGame({date:'2026-10-10',home:'TSV Lindau',away:'Staff-Test Gast',source:'manual'});
+      const game=window.BT.storage.upsertGame({date:window.BT.util.todayISO(),home:'TSV Lindau',away:'Staff-Test Gast',source:'manual'});
       return {players:players.map(p=>p.id),training:training.id,game:game.id};
     });
     await page.goto(baseUrl+'/#/training/'+data.training);
@@ -1071,6 +1076,8 @@ async function testCoachingStaff(browser, name, options) {
 const browser = await chromium.launch({ headless: true, ...(process.env.E2E_BROWSER_PATH ? { executablePath: process.env.E2E_BROWSER_PATH } : {}) });
 try {
   if (!process.env.E2E_SCREEN_ONLY && !process.env.E2E_STAFF_ONLY && !process.env.E2E_MATCHDAY_ONLY) {
+    await verifyGameArchive(browser, devices['iPhone 13'], 'iPhone', baseUrl);
+    await verifyGameArchive(browser, {...devices['iPhone SE'], viewport: {width: 320, height: 568}}, '320 px', baseUrl);
     await verifyMobileCoaching(browser, devices['iPhone 13'], 'iPhone', baseUrl);
     await verifyMobileCoaching(browser, {...devices['iPhone SE'], viewport: {width: 320, height: 568}}, '320 px', baseUrl);
   }

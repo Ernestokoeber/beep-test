@@ -9,6 +9,7 @@ function browserDependencies(gameId,scope){
   return {deviceId,uuid:()=>crypto.randomUUID(),now:()=>Date.now(),load:()=>BT.storage.load(),save:d=>BT.storage.save(d),
     getIdentity:()=>{const s=BT.sync.getState();return {...s,organizationId:s.user?.organization?.id,actorId:s.user?.id,role:s.user?.role};},
     subscribeIdentity:fn=>{window.addEventListener('bt-sync-change',fn);return()=>window.removeEventListener('bt-sync-change',fn);},
+    isReadOnly:liveStats=>{const game=BT.storage.getGame(gameId);return Boolean(BT.games && (!game||!BT.games.canEdit({...game,...(liveStats?{liveStats}:{})})));},
     openLive:()=>openLiveGame({gameId,scope})};
 }
 export async function openMatchday({gameId,scope,deps=browserDependencies(gameId,scope)}){
@@ -18,7 +19,8 @@ export async function openMatchday({gameId,scope,deps=browserDependencies(gameId
   const live=await deps.openLive();
   let closed=false,chain=Promise.resolve(),busy=false,error=null,localStatus='empty';const listeners=new Set();
   const identityOK=()=>{const i=deps.getIdentity();return !closed&&i.actorId===scope.actorId&&i.organizationId===scope.organizationId&&i.sessionEpoch===scope.sessionEpoch;};
-  const writable=()=>identityOK()&&['admin','coach','assistant'].includes(deps.getIdentity().role);
+  const archiveReadOnly=()=>Boolean(deps.isReadOnly?.(live.getState().live));
+  const writable=()=>identityOK()&&!archiveReadOnly()&&['admin','coach','assistant'].includes(deps.getIdentity().role);
   function draftFallback(legacyDraft=null,liveState=live.getState()){const s=liveState.session;if(!s)return emptyDraft();const startingFive=clone(liveState.lineups?.boundaries?.[0]?.onCourt||s.startingFive),starterIds=new Set(startingFive);const roster=clone(liveState.roster||s.roster).map(player=>({...player,gameStatus:player.gameStatus==='dnp'?'dnp':starterIds.has(player.id)?'starter':'bench'}));return {...emptyDraft(),...(!s.gameplan&&legacyDraft?clone(legacyDraft):{}),...(s.gameplan?clone(s.gameplan):{}),step:'review',roster,startingFive,config:clone(s.config)};}
   function displayedDraft(selection,liveState){
     if(!liveState.session)return selection.draft||emptyDraft();
@@ -35,7 +37,7 @@ export async function openMatchday({gameId,scope,deps=browserDependencies(gameId
     const pending=await journal.pending();if(!identityOK())return;
     localStatus=pending.some(r=>r.gameId===gameId)?'pending':envelope?'synced':'empty';notify();
   }
-  function guarded(){ensure(writable(),'permission','Kein Schreibrecht oder Konto/Team wurde gewechselt.');ensure(game(),'deletion','Spiel wurde entfernt. Lokale Vorbereitung bleibt gesichert.');}
+  function guarded(){ensure(!archiveReadOnly(),'archive','Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.');ensure(writable(),'permission','Kein Schreibrecht oder Konto/Team wurde gewechselt.');ensure(game(),'deletion','Spiel wurde entfernt. Lokale Vorbereitung bleibt gesichert.');}
   function enqueue(fn){chain=chain.then(async()=>{busy=true;error=null;notify();try{guarded();await fn();return {ok:true};}catch(e){error=e.message;return {ok:false,error};}finally{busy=false;notify();}});return chain;}
   async function write(next){guarded();const saved=await journal.append(gameId,next);ensure(identityOK(),'identity','Lokal gesichert. Konto gewechselt; Ansicht neu öffnen.');envelope=saved;localStatus='pending';
     const data=deps.load(),target=data.games?.find(g=>g.id===gameId);ensure(target,'deletion','Spiel entfernt; Vorbereitung bleibt im Journal.');

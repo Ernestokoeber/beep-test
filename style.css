@@ -8323,3 +8323,7 @@ body {
   .opponent-detail .section-head > div { display: block; width: 100%; }
   .opponent-detail .section-head h3 { overflow-wrap: anywhere; }
 }
+.game-archive-notice { margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
+.game-archive-notice p { margin: 8px 0 12px; }
+.game-archive-notice[hidden] { display: none; }
+.game-detail textarea[readonly], .game-detail input[readonly] { cursor: default; opacity: .8; }
