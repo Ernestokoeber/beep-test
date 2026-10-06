@@ -21,6 +21,12 @@ cloth and foot contact are simpler than a modern commercial basketball game.
 Further artwork and motion capture can improve that quality without replacing
 the native film player.
 
+Screen choreography is defined in basketball-choreography.js. During each
+screen, the screener's position, facing and planted stance stay fixed. The
+on-ball defender travels around the screener; the guard clears the screen
+before the screener pivots into the roll or pop. Reject uses two separate
+stationary screen windows with repositioning between them.
+
 Films are fetched only when selected and are not service-worker precached.
 Native media byte-range requests bypass the service worker, allowing CDN seeking
 and avoiding invalid caching of 206 responses. 2D remains available offline;
@@ -53,3 +59,5 @@ server running, node scripts/pnr-3d-browser.mjs checks desktop and mobile:
 14-second film loading, actual playback, seeking, pausing on view change,
 tactical playback and reset, 320px layout, unavailable WebGL and failed media
 download. CI uses the same static server and browser checks.
+node scripts/pnr-screen-motion.mjs checks fixed screen position and facing,
+torso clearance, release timing and continuous paths for all three variants.

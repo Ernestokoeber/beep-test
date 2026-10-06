@@ -58,4 +58,5 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
         run: |
           node scripts/browser-e2e.mjs
+          node scripts/pnr-screen-motion.mjs
           node scripts/pnr-3d-browser.mjs

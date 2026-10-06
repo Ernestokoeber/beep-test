@@ -1,16 +1,13 @@
 import * as THREE from '../../vendor/three/three.module.min.js';
 import { GLTFLoader } from '../../vendor/three/GLTFLoader.js';
 import { clone } from '../../vendor/three/SkeletonUtils.js';
+import { basketballState } from './basketball-choreography.js';
 
 // Authored basketball demonstration, independent of a coach's recorded board.
 // All poses are authored here; no third-party motion capture is distributed.
 const V = (x=0,y=0,z=0) => new THREE.Vector3(x,y,z);
 const clamp = x => Math.max(0,Math.min(1,x));
 const ease = x => { x=clamp(x);return x*x*(3-2*x); };
-function path(keys,t) {
-  let i=0;while(i<keys.length-2 && t>keys[i+1][0])i++;
-  const a=keys[i],b=keys[i+1];return V(a[1],0,a[2]).lerp(V(b[1],0,b[2]),ease((t-a[0])/(b[0]-a[0])));
-}
 
 export async function createBasketballFilm(host, { width=1280,height=720 } = {}) {
   const scene=new THREE.Scene();scene.background=new THREE.Color('#202d30');
@@ -159,38 +156,34 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
       bones[`lowerarm_${side}`].rotation.x=moving?-.8:-.25;
     }
     if(state==='screen'){
-      bones.upperarm_l.rotation.x=bones.upperarm_r.rotation.x=-.35;
-      bones.lowerarm_l.rotation.x=bones.lowerarm_r.rotation.x=-1.2;
-      bones.upperarm_l.rotation.z=.25;bones.upperarm_r.rotation.z=-.25;
+      bones.spine_01.rotation.x=.015;
+      for(const side of ['l','r']){
+        bones[`thigh_${side}`].rotation.x=-.22;
+        bones[`thigh_${side}`].rotation.z=side==='l'?.10:-.10;
+        bones[`calf_${side}`].rotation.x=.44;
+        bones[`foot_${side}`].rotation.x=-.22;
+      }
     }
     if(player.team==='defense')for(const side of ['l','r']){bones[`upperarm_${side}`].rotation.z=(side==='l'?1:-1)*.55;bones[`lowerarm_${side}`].rotation.x=-.35;}
     group.updateMatrixWorld(true);
     const lowest=Math.min(bones.foot_l.getWorldPosition(V()).y,bones.foot_r.getWorldPosition(V()).y)-.072*player.scale;
     group.position.y+=jump-lowest;
-  }
-  const spots=[[-5.7,1.8],[5.7,1.8],[-5.9,-4.8]];
-  function render(t=0,variant='pick-and-roll'){
-    t=Math.max(0,Math.min(14,t));const reject=variant==='pick-and-roll-reject',pop=variant==='pick-and-pop';
-    const guardKeys=reject?[[0,0,5],[2,0,5],[4,-1.5,2.6],[5.4,-1.5,2.6],[7.7,1.9,.2],[10,1.9,-.6],[14,1.9,-.6]]:[[0,0,5],[2,0,5],[4,1.7,1.7],[6.5,2.3,-.2],[14,2.3,-.2]];
-    const bigKeys=pop?[[0,2,2.6],[2,.9,1.8],[4.5,.9,1.8],[7.5,4.6,1],[14,4.6,1]]:reject?[[0,2,2.6],[2,-.3,2.5],[4,-.3,2.5],[5.4,-.6,2],[6.5,-.6,2],[9.2,0,-3.8],[14,0,-3.8]]:[[0,2,2.6],[2,.9,1.8],[4.5,.9,1.8],[8.1,0,-3.8],[14,0,-3.8]];
-    const positions=[path(guardKeys,t),...spots.map(([x,z])=>V(x,0,z)),path(bigKeys,t)];
-    const passStart=reject?9:7.6,passEnd=passStart+.65,shotStart=reject?10.6:9.2,shotEnd=shotStart+(pop?1.9:1.3);
-    const paths=[guardKeys,null,null,null,bigKeys];
-    for(let i=0;i<5;i++){
-      const p=positions[i],before=paths[i]?path(paths[i],t-.035):p,after=paths[i]?path(paths[i],t+.035):p;
-      const velocity=after.clone().sub(before),moving=velocity.length()>.005;
-      const angle=moving?Math.atan2(velocity.x,velocity.z):i===0?Math.PI:i===4?Math.atan2(-p.x,-5.4-p.z):Math.atan2(-p.x,-p.z);
-      const screening=i===4 && t>1.9 && t<(reject?6.5:4.5);
-      const jump=i===4 && t>shotStart-.4 && t<shotStart+.45?Math.sin(clamp((t-shotStart+.4)/.85)*Math.PI)*.3:0;
-      pose(players[i],t,p,screening?Math.PI/2:angle,moving,screening?'screen':'idle',jump);
+    if(state==='screen'){
+      group.updateMatrixWorld(true);
+      for(const side of ['l','r']){
+        const hand=group.localToWorld(V((side==='l'?.09:-.09)/player.scale,1.16/player.scale,.22/player.scale));
+        setArm(player,side,hand);
+      }
     }
-    const guard=positions[0],big=positions[4];
-    const d1=guard.clone().add(V(-.6,0,-.95));
-    if(t>3 && t<6.5 && !reject)d1.copy(path([[3,.7,2.8],[4.4,.35,1.8],[6.5,1.7,.7]],t));
-    const d5=path(pop?[[0,1,1],[4,1,1],[7,1.5,-1],[14,2.1,-.9]]:[[0,1,1],[4,1,1],[7,1.8,-2],[14,1.1,-4.5]],t);
-    const defense=[d1,V(-4.7,0,1),V(4.7,0,1),V(-4.8,0,-4),d5];
-    for(let i=0;i<5;i++){
-      const p=defense[i],target=i===4?big:positions[i];pose(players[i+5],t,p,Math.atan2(target.x-p.x,target.z-p.z),(i===0||i===4)&&t>2&&t<8);
+  }
+  function render(t=0,variant='pick-and-roll'){
+    t=Math.max(0,Math.min(14,t));const pop=variant==='pick-and-pop';
+    const state=basketballState(t,variant),{passStart,shotStart}=state;
+    const passEnd=passStart+.65,shotEnd=shotStart+(pop?1.9:1.3);
+    for(let i=0;i<10;i++){
+      const actor=state.actors[i];
+      const jump=i===4 && t>shotStart-.4 && t<shotStart+.45?Math.sin(clamp((t-shotStart+.4)/.85)*Math.PI)*.3:0;
+      pose(players[i],t,V(actor.x,0,actor.z),actor.yaw,!actor.screen&&actor.speed>.15,actor.screen?'screen':'idle',jump);
     }
     scene.updateMatrixWorld(true);
     const guardPlayer=players[0],bigPlayer=players[4];
