@@ -75,7 +75,7 @@ export function createCourtView(host, board, options = {}) {
     if (disposed) return;
     status.textContent = ''; show(view);
     if (view === 'film' && hasFilm) {
-      if (!video.getAttribute('src')) video.src = new URL(`../../assets/pnr/films/${board.id}.mp4`, import.meta.url).href;
+      if (!video.getAttribute('src')) video.src = new URL(`../../assets/pnr/films/${board.id}.mp4?v=blender-1`, import.meta.url).href;
       return;
     }
     if (view !== '3d' || scene) return;

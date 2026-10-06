@@ -18,3 +18,10 @@ Courthub. No real basketball player is depicted.
 Source models are modified: clothing-hidden body faces are replaced with the
 complete anatomical base, fitted to each skeleton, and custom skin weights.
 Character animations are generated entirely by `basketball-film.js`.
+
+The Blender film pipeline preserves these CC0 meshes and skin textures. Indoor
+lighting, parquet, cloth/skin shading, shoes, uniform geometry and camera motion
+are authored for Courthub. Procedural uniform geometry masks covered skin faces
+while retaining the arms and hands. No additional paid or third-party basketball
+animation assets are included. Blender 4.5 LTS is a build tool; only the resulting
+MP4 films are delivered to the application.

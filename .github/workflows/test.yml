@@ -59,4 +59,5 @@ jobs:
         run: |
           node scripts/browser-e2e.mjs
           node scripts/pnr-screen-motion.mjs
+          node scripts/pnr-film-motion-browser.mjs
           node scripts/pnr-3d-browser.mjs

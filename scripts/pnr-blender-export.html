@@ -1,0 +1,39 @@
+<!doctype html><html lang="de"><meta charset="utf-8"><title>Courthub Blender export</title><div id="stage"></div><script type="module">
+import * as THREE from '../vendor/three/three.module.min.js';
+import {GLTFExporter} from '../vendor/three/GLTFExporter.js';
+import {createBasketballFilm} from '../js/play-designer/basketball-film.js';
+const film=await createBasketballFilm(document.getElementById('stage'),{width:640,height:360});
+window.film=film;
+window.exportFilm=async variant=>{
+ const {scene,camera}=film;
+ camera.name='CourthubCamera';scene.add(camera);
+ const nodes=[];scene.traverse(o=>nodes.push(o));
+ for(const [i,p] of film.players.entries()){
+  p.group.name=`Player_${String(i+1).padStart(2,'0')}`;
+  p.group.userData={courthubPlayer:i,team:p.team};
+  p.model.traverse(o=>{if(o.isBone)o.name=`P${i}_${o.name.replace(/^P\d+_/, '')}`;});
+ }
+ for(let i=0;i<nodes.length;i++)if(!nodes[i].name)nodes[i].name=`Courthub_${i}`;
+ const time=[],values=new Map(nodes.map(o=>[o,{position:[],quaternion:[]} ]));
+ for(let f=0;f<=420;f++){
+  const t=f/30;film.render(t,variant);time.push(t);
+  for(const o of nodes){const v=values.get(o);v.position.push(...o.position);v.quaternion.push(...o.quaternion);}
+ }
+ const tracks=[];
+ for(const o of nodes)for(const [property,size] of [['position',3],['quaternion',4]]){
+  const v=values.get(o)[property];
+  if(v.some((x,i)=>Math.abs(x-v[i%size])>1e-6)){
+   const Track=property==='position'?THREE.VectorKeyframeTrack:THREE.QuaternionKeyframeTrack;
+   tracks.push(new Track(`${o.uuid}.${property}`,time,v));
+  }
+ }
+ film.render(0,variant);
+ const clip=new THREE.AnimationClip(variant,14,tracks);
+ const result=await new GLTFExporter().parseAsync(scene,{binary:true,animations:[clip],onlyVisible:true,maxTextureSize:2048});
+ const bytes=new Uint8Array(result);let raw='';
+ for(let i=0;i<bytes.length;i+=16384)raw+=String.fromCharCode(...bytes.subarray(i,i+16384));
+ await window.saveFilmGltf(variant,btoa(raw));
+ return {variant,bytes:bytes.length,tracks:tracks.length,frames:time.length};
+};
+window.ready=true;
+</script></html>
