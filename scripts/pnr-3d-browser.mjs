@@ -45,6 +45,9 @@ await page.goto(baseUrl);await page.waitForFunction(()=>window.BT?.tactics?.__co
 await page.evaluate(async()=>{await import('/js/play-designer/timing-fix.js');const {openAnimationPlayer}=await import('/js/play-designer/animation-player.js');openAnimationPlayer(window.BT.tactics.templates()[0].board);});
 await page.waitForFunction(()=>document.querySelector('.chcv-status').textContent.includes('nicht verfügbar'));
 assert.ok(await page.locator('.chcv-2d').isVisible());console.log('WebGL unavailable: working 2D fallback passed');
-assert.deepEqual(errors,[]);await browser.close();
+assert.deepEqual(errors,[]);
+await context.close();
+console.log('PnR 3D browser checks passed without page errors.');
+await browser.close();
 
 
