@@ -1,4 +1,5 @@
-import { createCourt, drawCourt, formatTime } from './rendering.js';
+import { formatTime } from './rendering.js';
+import { createCourtView } from './court-view.js';
 import { normalizeRecordedBoard } from './phase-recorder-core.js';
 import { visiblePhases } from './phase-rail.js';
 
@@ -20,18 +21,19 @@ function playableDuration(board) {
   return visiblePhases(board).reduce((sum, step) => sum + Math.max(.3, Number(step.duration) || .3), 0);
 }
 
-export function createAnimationPlayer(boardInput, suppliedCore) {
+export function createAnimationPlayer(boardInput, suppliedCore, options = {}) {
   injectStyles();
   const core = suppliedCore || window.BT.tactics.__core;
   const board = normalizeRecordedBoard(boardInput, core);
   const phases = visiblePhases(board);
   const total = playableDuration(board);
+  const readSnapshot = core.createSnapshotReader?.(board) || (time => window.BT.tactics.snapshotAt(board, time));
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
   const element = document.createElement('section');
   element.className = 'cha-player';
   element.dataset.reducedMotion = reducedMotion ? 'true' : 'false';
   element.innerHTML = `
-    <header class="cha-head"><div><span class="chq-kicker">2D-Animation</span><h2></h2></div><button class="chq-btn icon" type="button" data-action="animation-close" aria-label="Animationsplayer schließen">×</button></header>
+    <header class="cha-head"><div><span class="chq-kicker">Taktik-Animation</span><h2></h2></div><button class="chq-btn icon" type="button" data-action="animation-close" aria-label="Animationsplayer schließen">×</button></header>
     <div class="cha-court" data-role="animation-court"></div>
     <div class="cha-controls">
       <div class="cha-buttons"><button class="chq-btn icon primary" type="button" data-action="animation-toggle" aria-label="Animation abspielen">▶</button><button class="chq-btn icon" type="button" data-action="animation-reset" aria-label="Animation zurücksetzen">↺</button></div>
@@ -39,8 +41,10 @@ export function createAnimationPlayer(boardInput, suppliedCore) {
       <div class="cha-speeds" aria-label="Wiedergabegeschwindigkeit"><button class="chq-btn" type="button" data-speed="0.5">0,5x</button><button class="chq-btn active" type="button" data-speed="1">1x</button><button class="chq-btn" type="button" data-speed="1.5">1,5x</button></div>
     </div>`;
   element.querySelector('h2').textContent = board.title || 'CourtHub Play';
-  const svg = createCourt('chpd-court cha-animation-court');
-  element.querySelector('[data-role="animation-court"]').append(svg);
+  const courtView = createCourtView(element.querySelector('[data-role="animation-court"]'), board, { initialView: options.initialView, initialCamera: options.initialCamera, onModeChange(mode) {
+    element.querySelector('.cha-controls').hidden = mode === 'film';
+    if (mode === 'film') { stop(); render(); }
+  }});
   const markers = element.querySelector('[data-role="phase-markers"]');
   let elapsed = 0;
   phases.forEach((phase, index) => {
@@ -63,8 +67,8 @@ export function createAnimationPlayer(boardInput, suppliedCore) {
   const timeLabel = element.querySelector('[data-role="animation-time"]');
 
   const render = () => {
-    const snapshot = window.BT.tactics.snapshotAt(board, Math.min(time, total));
-    drawCourt(svg, snapshot, { sourceStep: snapshot._sourceStep, showGuides: false });
+    const snapshot = readSnapshot(Math.min(time, total));
+    courtView.draw(snapshot, time, { sourceStep: snapshot._sourceStep, showGuides: false });
     progress.value = String(Math.round(time * 1000));
     timeLabel.textContent = formatTime(time);
     toggle.textContent = playing ? 'Ⅱ' : '▶';
@@ -125,7 +129,7 @@ export function createAnimationPlayer(boardInput, suppliedCore) {
     };
   });
   render();
-  return { element, stop, destroy() { stop(); element.remove(); } };
+  return { element, stop, destroy() { stop(); courtView.destroy(); element.remove(); } };
 }
 
 export function openAnimationPlayer(board, options = {}) {
@@ -135,7 +139,7 @@ export function openAnimationPlayer(board, options = {}) {
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Play-Animation');
-  const player = createAnimationPlayer(board, options.core);
+  const player = createAnimationPlayer(board, options.core, options);
   overlay.append(player.element);
   const close = () => {
     player.destroy();

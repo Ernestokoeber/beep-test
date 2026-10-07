@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scripts = [
+  'scripts/export-pnr-blender.mjs', 'scripts/render-pnr-blender.mjs', 'scripts/pnr-athlete-asset.mjs',
   ...['bootstrap.js','core.mjs','clock.mjs','journal.mjs','merge.mjs','bridge.mjs','controller.mjs','view.mjs','report.mjs'].map(file=>'js/live-game/'+file),
   'js/coaching-staff.js', 'js/coaching-staff.mjs',
   'js/training-timer.js',
@@ -23,6 +24,7 @@ const scripts = [
   'js/play-designer/phase-rail.js', 'js/play-designer/court-stage.js',
   'js/play-designer/action-timeline.js', 'js/play-designer/phase-instructions.js',
   'js/play-designer/play-preview.js', 'js/play-designer/animation-player.js',
+  'js/play-designer/court-view.js', 'js/play-designer/court-3d.js', 'js/play-designer/athlete-rig.js', 'js/play-designer/board-athlete-motion.js', 'js/play-designer/basketball-film.js', 'js/play-designer/basketball-choreography.js', 'js/play-designer/basketball-footwork.js',
   'js/play-designer/export-dialog.js', 'js/play-designer/play-library.js',
   'js/play-designer/ai-explanation.js',
   'js/play-designer/quick-workflow.js',

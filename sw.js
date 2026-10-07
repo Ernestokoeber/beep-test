@@ -1,6 +1,6 @@
 // Bump this whenever the offline asset manifest changes so installed clients
 // cannot keep an older editor or planner bundle.
-const CACHE = 'courthub-v188';
+const CACHE = 'courthub-v194';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,9 @@ const ASSETS = [
   './live-game.css',
   './matchday.css',
   './vendor/jspdf.umd.min.js',
+  './vendor/three/three.module.min.js',
+  './vendor/three/three.core.min.js',
+  './vendor/three/OrbitControls.js',
   './js/basketball-positions.mjs',
   './js/matchday/model.mjs',
   './js/matchday/flow.mjs',
@@ -89,6 +92,13 @@ const ASSETS = [
   './js/play-designer/phase-instructions.js',
   './js/play-designer/play-preview.js',
   './js/play-designer/animation-player.js',
+  './js/play-designer/court-view.js',
+  './js/play-designer/court-3d.js',
+  './js/play-designer/athlete-rig.js',
+  './js/play-designer/board-athlete-motion.js',
+  './vendor/three/GLTFLoader.js',
+  './vendor/three/SkeletonUtils.js',
+  './vendor/three/BufferGeometryUtils.js',
   './js/play-designer/export-dialog.js',
   './js/play-designer/play-library.js',
   './js/play-designer/ai-explanation.js',
@@ -151,6 +161,9 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   if (new URL(req.url).pathname.startsWith('/api/')) return;
+  // Leave native video byte ranges to the browser/CDN. Cache API cannot store
+  // partial (206) responses or synthesize the ranges required for seeking.
+  if (req.headers.has('Range') || new URL(req.url).pathname.startsWith('/assets/pnr/films/')) return;
 
   event.respondWith(
     caches.match(req).then((cached) => {

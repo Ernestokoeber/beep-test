@@ -70,6 +70,14 @@ board = quick.addQuickPickAndRoll(board, {
   rollPath: [{ x: 286, y: 286 }, { x: 250, y: 108 }]
 }, core);
 const pickAndRollStep = board.steps[2];
+const plantedScreen = pickAndRollStep.transition.screens[0];
+for (const fraction of [.05, .5, .95]) {
+  const p = core.positionDuring(pickAndRollStep, board.steps[3], 'o5', plantedScreen.start + plantedScreen.duration * fraction);
+  assert(core.distance(p, plantedScreen) < .001, 'Blocksteller bewegt sich während der PnR-Kontaktphase');
+}
+const roller = pickAndRollStep.transition.motions.find(action => action.groupRole === 'roll');
+const rollEnd = core.positionDuring(pickAndRollStep, board.steps[3], 'o5', roller.start + roller.duration);
+assert(core.distance(rollEnd, roller.path.at(-1)) < .001, 'Abrollweg erreicht nach dem Screen sein Ziel nicht');
 const grouped = quick.stepActions(pickAndRollStep, core)
   .filter(action => action.groupType === 'pick-and-roll');
 assert(grouped.length === 3, 'Pick-and-Roll erzeugt nicht genau drei verbundene Aktionen');

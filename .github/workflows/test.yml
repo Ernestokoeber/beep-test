@@ -41,11 +41,10 @@ jobs:
         run: npm ci
       - name: Install Playwright Chromium
         run: |
-          npm install --no-save --package-lock=false playwright@1.54.2
           npx playwright install --with-deps chromium
       - name: Start static app
         run: |
-          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/courthub-e2e-server.log 2>&1 &
+          node scripts/static-server.mjs > /tmp/courthub-e2e-server.log 2>&1 &
           echo $! > /tmp/courthub-e2e-server.pid
           for attempt in {1..30}; do
             curl --fail --silent http://127.0.0.1:4173/ >/dev/null && exit 0
@@ -53,6 +52,16 @@ jobs:
           done
           cat /tmp/courthub-e2e-server.log
           exit 1
+      - name: Run 3D tactic and PnR checks
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+        run: |
+          node scripts/pnr-athlete-asset.mjs
+          node scripts/board-athlete-browser.mjs
+          node scripts/board-athlete-release-browser.mjs
+          node scripts/pnr-screen-motion.mjs
+          node scripts/pnr-film-motion-browser.mjs
+          node scripts/pnr-3d-browser.mjs
       - name: Run browser E2E
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
