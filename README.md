@@ -34,7 +34,7 @@ Project Atlas bleibt die führende Analyseplattform. CourtHub startet keine konk
 ## Lokale Entwicklung
 
 ```bash
-npm install
+npm ci
 cp .env.example .env.local
 npm run check
 npx vercel dev
@@ -43,3 +43,13 @@ npx vercel dev
 Vor dem ersten Start `schema.sql` in der PostgreSQL-Datenbank ausführen und die Werte in `.env.local` setzen. Die vollständige Produktionsanleitung steht in `DEPLOY.md`.
 
 Alle Trainingsdaten bleiben im Gastmodus lokal im Browser. Nach der Anmeldung wird der lokale Stand mit dem Team-Workspace abgeglichen.
+
+## Laufzeit und Verifikation
+
+Node.js **24.x** gemäß `package.json` verwenden. `npm run check` deckt Struktur und Kern-Smoke-Tests ab; `npm run test:ai` prüft die KI-API-Flows mit Testfällen. `npm test` führt die vollständige definierte Suite aus. `npm run dev` startet die Vercel-Entwicklungsumgebung; Datenbank und `.env.local` werden für echte Serverfunktionen weiterhin benötigt.
+
+Die nächste fachliche Abnahme und geplante Erweiterungen stehen in [COURTHUB_NEXT_STEPS.md](docs/COURTHUB_NEXT_STEPS.md). Erfolgreiche Smoke-Tests bestätigen keine Live-Analysequalität oder tatsächliche Providerverfügbarkeit.
+
+## Bestandsprüfung
+
+Code-/Dokumentationsabgleich, geprüfter Commit, CI-Zuordnung, Branch-Abweichungen und Dependency-Befunde vom **07.10.2026**: [REPOSITORY_STATUS.md](REPOSITORY_STATUS.md).
