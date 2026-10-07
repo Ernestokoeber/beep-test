@@ -82,102 +82,49 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
   }
   sign('COURTHUB  ·  PnR',7,1.5).position.set(0,5.4,-9.85);
   const loader=new GLTFLoader();
-  const sources=await Promise.all(['1037','1074','1185'].map(id=>loader.loadAsync(new URL(`../../assets/pnr/players/player-${id}.glb`,import.meta.url).href)));
+  const source=await loader.loadAsync(new URL('../../assets/pnr/players/athlete.glb',import.meta.url).href);
   const players=[];
-  function garment(body,skeleton,hip,color,shorts=false){
-    const positions=[],joints=[],weights=[],indices=[],colors=[],segments=48;
-    const main=new THREE.Color(color),trim=new THREE.Color(color==='#00683e'?'#d8bb79':'#00683e');
-    const bone=name=>skeleton.bones.findIndex(b=>b.name===name);
-    const pelvis=bone('pelvis'),spine=bone('spine_03');
-    const tube=(rings,leg=null)=>{
-      const first=positions.length/3;
-      for(let row=0;row<rings.length;row++)for(let column=0;column<segments;column++){
-        const [dy,rx,rz,cx=0]=rings[row],a=column*2*Math.PI/segments;
-        // The two leg openings share the upper hip rim. Their inner edges
-        // meet along a single crotch seam instead of overlapping loose tubes.
-        const fork=shorts&&leg&&row===0,outer=leg==='l'?Math.cos(a)>=0:Math.cos(a)<=0;
-        const x=fork?(outer?Math.cos(a)*rx:0):cx+Math.cos(a)*rx;
-        const seam=fork&&!outer?-.08*Math.abs(Math.cos(a)):0;
-        const fold=shorts?0:.0025*Math.sin(column*5+row*.8)*(row===rings.length-1?.3:1);
-        const neckline=!shorts&&row>=5?-.045*Math.max(0,Math.sin(a))*(1-Math.abs(Math.cos(a))):0;
-        positions.push(x,hip+dy+neckline+seam,Math.sin(a)*(rz+fold)-.012);
-        const band=Math.abs(Math.cos(a))>.965||(!shorts&&row===rings.length-1)||(shorts&&!leg&&row===0);
-        colors.push(...(band?trim:main));
-        if(shorts){
-          const side=leg||(x>0?'l':'r'),thigh=bone('thigh_'+side),bend=leg?clamp((-dy-.16)/.18):0;
-          joints.push(pelvis,thigh,0,0);weights.push(1-bend,bend,0,0);
-        }else{
-          const blend=clamp((dy-.08)/.42);joints.push(pelvis,spine,0,0);weights.push(1-blend,blend,0,0);
-        }
-      }
-      for(let row=0;row<rings.length-1;row++)for(let column=0;column<segments;column++){
-        // Both armholes are open; chest, back and shoulder straps stay intact.
-        if(!shorts&&row===3&&Math.abs(Math.cos((column+.5)*2*Math.PI/segments))>.72)continue;
-        const a=first+row*segments+column,b=first+row*segments+(column+1)%segments,c=a+segments,d=b+segments;
-        indices.push(a,c,b,b,c,d);
-      }
-    };
-    if(shorts){
-      tube([[.065,.185,.122],[0,.19,.125],[-.09,.195,.128]]);
-      for(const side of ['l','r']){
-        const cx=side==='l'?.105:-.105;
-        tube([[-.09,.195,.128,cx],[-.23,.115,.126,cx],[-.34,.111,.115,cx],[-.43,.11,.11,cx]],side);
-      }
-    }else tube([[-.11,.175,.115],[.1,.171,.117],[.30,.182,.12],[.43,.182,.11],[.57,.169,.105],[.62,.083,.080],[.635,.078,.077]]);
-    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(joints,4));geometry.setAttribute('skinWeight',new THREE.Float32BufferAttribute(weights,4));geometry.setIndex(indices);geometry.computeVertexNormals();
-    const outfit=new THREE.SkinnedMesh(geometry,mat('#ffffff',{vertexColors:true,roughness:.85,side:THREE.DoubleSide}));outfit.bind(skeleton,body.bindMatrix);outfit.castShadow=true;outfit.receiveShadow=true;body.parent.add(outfit);return outfit;
-  }
   for(let i=0;i<10;i++){
-    const team=i<5?'attack':'defense',model=clone(sources[i%3].scene),group=new THREE.Group();group.add(model);scene.add(group);
+    const team=i<5?'attack':'defense',model=clone(source.scene),group=new THREE.Group();
+    group.add(model);scene.add(group);
     const bones={};model.traverse(o=>{if(o.isBone)bones[o.name]=o;});
-    const box=new THREE.Box3().setFromObject(model),height=box.max.y-box.min.y;
-    const scale=(i===4?2.08:1.92+(i%3)*.035)/height;group.scale.setScalar(scale);
-    let body;
-    model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;if(o.material.name==='Human.body')body=o;}});
-    // The reconstructed body uses the same MakeHuman skin texture as its face.
-    let skin;model.traverse(o=>{if(o.isMesh&&o.material.name==='Human.body'&&o.material.map)skin=o.material;});
-    if(skin)body.material=skin.clone();
-    body.name=`Player_${i+1}_Body`;body.material.name=`Player_${i+1}_Skin`;
-    const hip=bones.pelvis.position.y;
-    // As in a clothed game character, covered body faces are excluded. The
-    // fabric and skin use different deformation weights; retaining the hidden
-    // torso and upper thighs would let skin break through the uniform.
-    body.geometry=body.geometry.clone();
-    const skinGeometry=body.geometry,skinPosition=skinGeometry.attributes.position,skinJoints=skinGeometry.attributes.skinIndex,skinWeights=skinGeometry.attributes.skinWeight,visible=[];
-    for(let face=0;face<skinGeometry.index.count;face+=3){
-      const vertices=[0,1,2].map(k=>skinGeometry.index.getX(face+k));
-      const covered=vertices.every(vertex=>{
-        const y=skinPosition.getY(vertex),x=Math.abs(skinPosition.getX(vertex));let arm=0;
-        for(let k=0;k<4;k++)if(/upperarm|lowerarm|hand/.test(body.skeleton.bones[skinJoints.array[vertex*4+k]]?.name||''))arm+=skinWeights.array[vertex*4+k];
-        const shorts=y>hip-.43&&y<hip+.07&&arm<.55;
-        const jersey=y>hip-.12&&y<hip+.43&&arm<.55;
-        const chest=y>=hip+.43&&y<hip+.58&&x<.115&&arm<.55;
-        return shorts||jersey||chest;
-      });
-      if(!covered)visible.push(...vertices);
+    const height=1.98,scale=(i===4?2.08:1.92+(i%3)*.035)/height;
+    group.scale.setScalar(scale);
+    const ankle=bones.foot_l.getWorldPosition(V()).y/scale;
+    const soleBox=new THREE.Box3();
+    model.traverse(o=>{
+      if(!o.isMesh)return;
+      o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
+      o.material=o.material.clone();
+      if(o.name.startsWith('Connected_anatomical_player')){
+        o.name=`Player_${i+1}_Body`;o.material.name=`Player_${i+1}_Skin`;
+        o.material.roughness=.52;
+        o.material.color.set(['#ffffff','#eee4d6','#f6eadc'][i%3]);
+      }
+      if(o.name.includes('athletic_tank')||o.name.includes('swim_shorts')){
+        const jersey=o.name.includes('athletic_tank');
+        o.name=`Player_${i+1}_${jersey?'Jersey':'Shorts'}`;
+        o.material.name=`Player_${i+1}_Fabric`;
+        o.material.color.set(team==='attack'?'#00683e':'#e9e5d7');
+        o.material.side=THREE.DoubleSide;o.material.roughness=.8;
+      }
+      if(o.name.startsWith('Sole_')){
+        const side=o.name.endsWith('_l')?'l':'r';
+        o.name=`Player_${i+1}_Sole_${side}`;
+        soleBox.expandByObject(o);
+      }
+      if(o.name.startsWith('Uniform'))o.material.color.set(team==='attack'?'#f5eee0':'#164732');
+    });
+    const floor=soleBox.min.y/scale;
+    const fingers=[];
+    for(const side of ['l','r'])for(let finger=1;finger<=5;finger++)for(let segment=1;segment<=3;segment++){
+      const bone=bones[`finger${finger}_${segment}_${side}`];
+      const next=bone.children.find(child=>child.isBone);
+      const direction=next?next.position.clone():bone.position.clone();
+      const axis=direction.normalize().cross(V(0,0,1)).normalize();
+      fingers.push({bone,axis,side,finger,segment});
     }
-    skinGeometry.setIndex(visible);
-    const color=team==='attack'?'#00683e':'#e9e5d7';
-    const jersey=garment(body,body.skeleton,hip,color);jersey.name=`Player_${i+1}_Jersey`;jersey.material.name=`Player_${i+1}_Fabric`;
-    const shorts=garment(body,body.skeleton,hip,color,true);shorts.name=`Player_${i+1}_Shorts`;shorts.material=jersey.material;
-    for(const side of ['l','r']){
-      const foot=bones[`foot_${side}`];
-      const shoe=mesh(new THREE.CapsuleGeometry(.065,.13,6,16),mat('#f8f8ef'),foot,V(0,-.018,.09));shoe.rotation.x=Math.PI/2;shoe.scale.z=.7;shoe.name=`Player_${i+1}_Shoe_${side}`;
-      const sole=mesh(new THREE.BoxGeometry(.135,.024,.285),mat('#182e2c'),foot,V(0,-.072,.09));sole.name=`Player_${i+1}_Sole_${side}`;
-      for(let lace=0;lace<4;lace++)mesh(new THREE.BoxGeometry(.085,.006,.006),mat('#bbbcb7'),foot,V(0,.026,.045+lace*.026));
-    }
-    // Jersey number is part of the player's uniform, rather than a marker.
-    const numberCanvas=document.createElement('canvas');numberCanvas.width=numberCanvas.height=256;
-    const nk=numberCanvas.getContext('2d');nk.fillStyle=team==='attack'?'#ffffff':'#143a2c';nk.font='bold 190px Arial';nk.textAlign='center';nk.textBaseline='middle';nk.fillText(String(i%5+1),128,139);
-    const numberMap=new THREE.CanvasTexture(numberCanvas);numberMap.colorSpace=THREE.SRGBColorSpace;
-    const number=new THREE.Mesh(new THREE.PlaneGeometry(.17,.22),new THREE.MeshBasicMaterial({map:numberMap,transparent:true,depthWrite:false}));
-    bones.spine_03.add(number);number.position.set(0,-.08,.145);
-    const back=number.clone();back.rotation.y=Math.PI;back.position.z=-.15;bones.spine_03.add(back);
-    const nameCanvas=document.createElement('canvas');nameCanvas.width=512;nameCanvas.height=128;
-    const nameContext=nameCanvas.getContext('2d');nameContext.fillStyle=team==='attack'?'#ffffff':'#143a2c';nameContext.font='bold 60px Arial';nameContext.textAlign='center';nameContext.fillText('COURTHUB',256,84);
-    const nameMap=new THREE.CanvasTexture(nameCanvas);nameMap.colorSpace=THREE.SRGBColorSpace;
-    const nameplate=new THREE.Mesh(new THREE.PlaneGeometry(.23,.055),new THREE.MeshBasicMaterial({map:nameMap,transparent:true,depthWrite:false}));nameplate.rotation.y=Math.PI;nameplate.position.set(0,.055,-.135);bones.spine_03.add(nameplate);
-    players.push({group,model,bones,scale,hip,index:i,team});
+    players.push({group,model,bones,scale,hip:bones.pelvis.position.y,footHeight:ankle-floor,fingers,index:i,team});
   }
   const ball=mesh(new THREE.SphereGeometry(.12,32,24),mat('#ca611b',{roughness:.8}));
   for(const rot of [[0,0,0],[Math.PI/2,0,0],[0,Math.PI/2,0]])mesh(new THREE.TorusGeometry(.121,.003,5,48),mat('#38271a'),ball).rotation.set(...rot);
@@ -187,7 +134,7 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
     const shoulder=upper.getWorldPosition(V()),length1=lower.position.length()*player.scale,length2=hand.position.length()*player.scale;
     const delta=target.clone().sub(shoulder),distance=Math.min(delta.length(),length1+length2-.001);delta.normalize();
     const along=(length1*length1-length2*length2+distance*distance)/(2*distance);
-    const bend=V(side==='r'?-.2:.2,-.1,-1);bend.addScaledVector(delta,-bend.dot(delta)).normalize();
+    const bend=V(side==='r'?-.2:.2,-.1,-1).applyQuaternion(player.group.getWorldQuaternion(new THREE.Quaternion()));bend.addScaledVector(delta,-bend.dot(delta)).normalize();
     const elbow=shoulder.clone().addScaledVector(delta,along).addScaledVector(bend,Math.sqrt(Math.max(0,length1*length1-along*along)));
     const aim=(bone,direction,axis)=>{
       const inverse=bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
@@ -198,7 +145,7 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
   function setLeg(player,side,footprint,jump){
     const upper=player.bones[`thigh_${side}`],lower=player.bones[`calf_${side}`],foot=player.bones[`foot_${side}`];
     player.group.updateMatrixWorld(true);
-    const hip=upper.getWorldPosition(V()),target=V(footprint.x,.084*player.scale+footprint.height+jump,footprint.z);
+    const hip=upper.getWorldPosition(V()),target=V(footprint.x,player.footHeight*player.scale+footprint.height+jump,footprint.z);
     const l1=lower.position.length()*player.scale,l2=foot.position.length()*player.scale;
     const delta=target.clone().sub(hip),distance=Math.min(delta.length(),l1+l2-.0001);delta.normalize();
     const along=(l1*l1-l2*l2+distance*distance)/(2*distance);
@@ -253,11 +200,15 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
       const joint=bones[`thigh_${side}`].getWorldPosition(V()),goal=feet[side];
       const reach=(bones[`calf_${side}`].position.length()+bones[`foot_${side}`].position.length())*player.scale-.002;
       const horizontal=Math.hypot(joint.x-goal.x,joint.z-goal.z),vertical=Math.sqrt(Math.max(.01,reach*reach-horizontal*horizontal));
-      lower=Math.max(lower,joint.y-(.084*player.scale+goal.height+jump)-vertical);
+      lower=Math.max(lower,joint.y-(player.footHeight*player.scale+goal.height+jump)-vertical);
     }
     bones.pelvis.position.y-=Math.min(.30,Math.max(0,lower))/player.scale;
     group.updateMatrixWorld(true);
     for(const side of ['l','r'])setLeg(player,side,feet[side],jump);
+    for(const finger of player.fingers){
+      const curl=finger.finger===1?.12:(finger.segment===1?.12:.32);
+      finger.bone.quaternion.setFromAxisAngle(finger.axis,curl);
+    }
     if(screenWeight>0){
       group.updateMatrixWorld(true);
       for(const side of ['l','r']){
@@ -266,6 +217,7 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
       }
     }
   }
+  const handOffset=(player,x,y=0,z=0)=>V(x,y,z).applyQuaternion(player.group.getWorldQuaternion(new THREE.Quaternion()));
   function render(t=0,variant='pick-and-roll'){
     t=Math.max(0,Math.min(14,t));const pop=variant==='pick-and-pop';
     const state=basketballState(t,variant),{passStart,shotStart}=state;
@@ -286,29 +238,29 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
     if(t<passStart){
       const gather=ease((t-(passStart-.55))/.55),held=guardPlayer.group.localToWorld(V(0,1.35/guardPlayer.scale,.42/guardPlayer.scale));
       ballPoint.lerp(held,gather);
-      const hand=ballPoint.clone();hand.y=Math.max(.68,ballPoint.y+.07);hand.lerp(held.clone().add(V(-.09,0,0)),gather);setArm(guardPlayer,'r',hand);
-      blendArm(guardPlayer,'l',held.clone().add(V(.09,0,0)),gather);
+      const hand=ballPoint.clone();hand.y=Math.max(.68,ballPoint.y+.07);hand.lerp(held.clone().add(handOffset(guardPlayer,-.09)),gather);setArm(guardPlayer,'r',hand);
+      blendArm(guardPlayer,'l',held.clone().add(handOffset(guardPlayer,.09)),gather);
       const receive=ease((t-passStart+.35)/.35);
-      for(const [side,x] of [['l',.1],['r',-.1]])blendArm(bigPlayer,side,receiverPoint.clone().add(V(x,0,0)),receive);
+      for(const [side,x] of [['l',.1],['r',-.1]])blendArm(bigPlayer,side,receiverPoint.clone().add(handOffset(bigPlayer,x)),receive);
     }
     else if(t<passEnd){
       const from=guardPlayer.group.localToWorld(V(0,1.35/guardPlayer.scale,.42/guardPlayer.scale));const u=clamp((t-passStart)/(passEnd-passStart));ballPoint=from.clone().lerp(receiverPoint,u);ballPoint.y+=Math.sin(u*Math.PI)*.18;
-      setArm(guardPlayer,'l',from.clone().add(V(.09,0,0)));setArm(guardPlayer,'r',from.clone().add(V(-.09,0,0)));
-      setArm(bigPlayer,'l',receiverPoint.clone().add(V(.1,0,0)));setArm(bigPlayer,'r',receiverPoint.clone().add(V(-.1,0,0)));
+      setArm(guardPlayer,'l',from.clone().add(handOffset(guardPlayer,.09)));setArm(guardPlayer,'r',from.clone().add(handOffset(guardPlayer,-.09)));
+      setArm(bigPlayer,'l',receiverPoint.clone().add(handOffset(bigPlayer,.1)));setArm(bigPlayer,'r',receiverPoint.clone().add(handOffset(bigPlayer,-.1)));
     }else if(t<shotStart){
       const lift=ease((t-(shotStart-.6))/.6);ballPoint=receiverPoint.clone();ballPoint.y+=lift*.7;
-      setArm(bigPlayer,'l',ballPoint.clone().add(V(.1,-.04,0)));setArm(bigPlayer,'r',ballPoint.clone().add(V(-.1,-.04,0)));
+      setArm(bigPlayer,'l',ballPoint.clone().add(handOffset(bigPlayer,.1,-.04)));setArm(bigPlayer,'r',ballPoint.clone().add(handOffset(bigPlayer,-.1,-.04)));
     }else if(t<shotEnd){
       const shotActor=basketballState(shotStart,variant).actors[4],jumpAtRelease=Math.sin(.4/.85*Math.PI)*.3;
       const from=V(shotActor.x+Math.sin(shotActor.yaw)*.37,2+jumpAtRelease,shotActor.z+Math.cos(shotActor.yaw)*.37);
       const u=clamp((t-shotStart)/(shotEnd-shotStart));ballPoint=from.clone().lerp(hoop,u);ballPoint.y+=Math.sin(u*Math.PI)*(pop?2.7:1.45);
       const weight=1-ease((t-shotStart-.65)/.45),extend=ease((t-shotStart)/.15);
       const right=V(-.1,-.04,0).lerp(V(0,.25,-.12),extend),left=V(.1,-.04,0).lerp(V(.15,.05,0),extend);
-      blendArm(bigPlayer,'r',from.clone().add(right),weight);blendArm(bigPlayer,'l',from.clone().add(left),weight);
+      blendArm(bigPlayer,'r',from.clone().add(right.applyQuaternion(bigPlayer.group.getWorldQuaternion(new THREE.Quaternion()))),weight);blendArm(bigPlayer,'l',from.clone().add(left.applyQuaternion(bigPlayer.group.getWorldQuaternion(new THREE.Quaternion()))),weight);
     }else{ballPoint=hoop.clone();ballPoint.y=Math.max(.13,3.05-(t-shotEnd)*5);if(ballPoint.y===.13)ballPoint.y+=Math.abs(Math.sin((t-shotEnd-.584)*5))*.24;}
     if(t>=passEnd&&t<passEnd+.35){
       const from=guardPlayer.group.localToWorld(V(0,1.35/guardPlayer.scale,.42/guardPlayer.scale)),weight=1-ease((t-passEnd)/.35);
-      blendArm(guardPlayer,'l',from.clone().add(V(.09,0,0)),weight);blendArm(guardPlayer,'r',from.clone().add(V(-.09,0,0)),weight);
+      blendArm(guardPlayer,'l',from.clone().add(handOffset(guardPlayer,.09)),weight);blendArm(guardPlayer,'r',from.clone().add(handOffset(guardPlayer,-.09)),weight);
     }
     ball.position.copy(ballPoint);ball.rotation.set(t*2,t*3,t);
     for(const player of players){

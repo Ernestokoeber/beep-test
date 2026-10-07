@@ -40,7 +40,14 @@ export function createCourtView(host, board, options = {}) {
       const speed = document.createElement('button'); speed.type = 'button'; speed.textContent = label; speed.dataset.filmSpeed = String(rate); speed.setAttribute('aria-pressed', String(rate === 1));
       speed.onclick = () => { video.playbackRate = rate; speeds.querySelectorAll('button').forEach(candidate => candidate.setAttribute('aria-pressed', String(candidate === speed))); }; speeds.append(speed);
     }
-    element.querySelector('.chcv-toolbar').prepend(button); filmHost.append(video, speeds, explanation); element.insertBefore(filmHost, status);
+    const credits = document.createElement('details');
+    const summary = document.createElement('summary'); summary.textContent = 'Modellquellen und Lizenzen';
+    const attribution = document.createElement('p');
+    attribution.append('Körper, Haut und Haare: MakeHuman (CC0). Sporttop und Shorts: Elvaerwyn (CC-BY). Sneaker: punkduck (CC BY 3.0). Modelle angepasst und animiert für Courthub. ');
+    const sources = document.createElement('a'); sources.textContent = 'Quellen, Änderungen und Lizenzangaben';
+    sources.href = new URL('../../assets/pnr/players/SOURCES.md', import.meta.url).href; sources.target = '_blank'; sources.rel = 'noopener';
+    attribution.append(sources); credits.append(summary, attribution);
+    element.querySelector('.chcv-toolbar').prepend(button); filmHost.append(video, speeds, explanation, credits); element.insertBefore(filmHost, status);
   }
   const svg = createCourt('chpd-court cha-animation-court'); flat.append(svg); host.append(element);
   let scene = null, pending = null, disposed = false, mode = '2d', snapshot = null, seconds = 0, drawOptions = {};
@@ -75,7 +82,7 @@ export function createCourtView(host, board, options = {}) {
     if (disposed) return;
     status.textContent = ''; show(view);
     if (view === 'film' && hasFilm) {
-      if (!video.getAttribute('src')) video.src = new URL(`../../assets/pnr/films/${board.id}.mp4?v=blender-1`, import.meta.url).href;
+      if (!video.getAttribute('src')) video.src = new URL(`../../assets/pnr/films/${board.id}.mp4?v=athlete-2`, import.meta.url).href;
       return;
     }
     if (view !== '3d' || scene) return;

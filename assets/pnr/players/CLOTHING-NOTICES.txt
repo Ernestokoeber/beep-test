@@ -1,0 +1,26 @@
+elvs_male_athletic_tank1
+# Exported from MakeClothes (TM)
+# author Elvaerwyn
+# license CC-by
+# homepage http://www.makehuman.org/
+uuid 3077e09d-1175-4b99-a97a-4436d6f9c54d
+basemesh hm08
+
+
+elvs_male_swim_shorts1
+# Exported from MakeClothes (TM)
+# author Elvaerwyn
+# license CC-by
+# homepage http://www.makehuman.org/
+uuid 9f77bb95-bcb6-42e8-8472-8ba4ceffca88
+basemesh hm08
+
+
+punkduck_running_shoes_01
+# Exported from MakeClothes (TM)
+# author punkduck
+# license CC  BY 3.0
+# homepage http://www.makehuman.org/
+uuid e57655db-9408-43ed-a795-971c115219fe
+basemesh hm08
+tag Shoes

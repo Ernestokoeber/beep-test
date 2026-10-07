@@ -11,6 +11,14 @@ variant=pathlib.Path(bpy.data.filepath).stem
 assert variant in ['pick-and-roll','pick-and-pop','pick-and-roll-reject']
 assert scene.render.fps==30 and scene.frame_start==1 and scene.frame_end==420
 assert (scene.render.resolution_x,scene.render.resolution_y)==(1920,1080)
+scene.frame_set(1)
+balls=[o for o in bpy.data.objects if o.type=='MESH' and all(abs(d-.24)<.005 for d in o.dimensions)]
+assert len(balls)==1,'exactly one regulation-size basketball is expected'
+# These checks observe animated ankle-attached shoes, roots and the ball.
+# Avoid evaluating unrelated cloth/skin modifiers at every frame; all rig
+# actions and the checked objects remain enabled and unchanged.
+for obj in bpy.data.objects:
+ if obj.type=='MESH' and '_Sole_' not in obj.name and obj not in balls:obj.hide_viewport=True
 windows=[(2.25,3.95),(5.2,6.75)] if variant=='pick-and-roll-reject' else [(2.25,4.8)]
 root=bpy.data.objects['Player_05']
 soles=[bpy.data.objects['Player_5_Sole_'+side] for side in ['l','r']]
@@ -27,9 +35,6 @@ for start,end in windows:
  assert floor_error<.008,('sole-floor gap',start,end,floor_error)
  print('NATIVE_SCREEN_CONTACT_PASS',variant,start,end,round(drift,6),round(floor_error,6),flush=True)
 
-scene.frame_set(1)
-balls=[o for o in bpy.data.objects if o.type=='MESH' and all(abs(d-.24)<.005 for d in o.dimensions)]
-assert len(balls)==1,'exactly one regulation-size basketball is expected'
 scene.frame_set(327 if variant=='pick-and-roll-reject' else 285)
 assert balls[0].matrix_world.translation.z>3,'shot timing must match the imported 30 fps action'
 print('NATIVE_SHOT_TIMING_PASS',variant,flush=True)
