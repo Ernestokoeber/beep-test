@@ -52,7 +52,7 @@ export function createCourtView(host, board, options = {}) {
     element.append(credits);
   const svg = createCourt('chpd-court cha-animation-court'); flat.append(svg); host.append(element);
   let scene = null, pending = null, loadingScene = null, disposed = false, mode = '2d', snapshot = null, seconds = 0, drawOptions = {};
-  let wasConnected = element.isConnected, cameraInitialized = false;
+  let wasConnected = element.isConnected, cameraInitialized = false, sceneGeneration = 0, loadController = null;
   const lifecycle = new window.MutationObserver(() => {
     if (element.isConnected) wasConnected = true;
     else if (wasConnected) destroy();
@@ -60,6 +60,7 @@ export function createCourtView(host, board, options = {}) {
   lifecycle.observe(document.body, { childList: true, subtree: true });
   function destroy() {
     if (disposed) return; disposed = true; lifecycle.disconnect();
+    sceneGeneration++; loadController?.abort();
     scene?.destroy(); scene = null; element.remove();
     if (video.getAttribute('src')) { video.pause(); video.removeAttribute('src'); video.load(); }
   }
@@ -76,6 +77,7 @@ export function createCourtView(host, board, options = {}) {
   }
   function fallback() {
     if (disposed) return;
+    sceneGeneration++; loadController?.abort(); loadingScene = null; cameraInitialized = false;
     scene?.destroy(); scene = null; show('2d');
     status.textContent = '3D ist auf diesem Gerät nicht verfügbar. Die Animation läuft in 2D weiter.';
   }
@@ -89,20 +91,25 @@ export function createCourtView(host, board, options = {}) {
     if (view !== '3d' || scene) return;
     status.textContent = '3D wird geladen …';
     if (!pending) pending = import('./court-3d.js');
+    let requestGeneration = sceneGeneration;
     try {
       const module = await pending;
       if (disposed || mode !== '3d') return;
       // A second click during import must not allocate another WebGL context.
-      if (!loadingScene) loadingScene = module.createCourt3D(sceneHost, fallback, { board });
+      if (!loadingScene) {
+        loadController = new AbortController(); sceneGeneration++;
+        loadingScene = module.createCourt3D(sceneHost, fallback, { board, signal: loadController.signal });
+      }
+      requestGeneration = sceneGeneration;
       const candidate = await loadingScene;
-      if (disposed) { candidate.destroy(); return; }
+      if (disposed || requestGeneration !== sceneGeneration) { candidate.destroy(); return; }
       scene = candidate;
       if (mode === '3d') {
         status.textContent = ''; scene.resize(); if (snapshot) scene.draw(snapshot, seconds);
         if (!cameraInitialized && options.initialCamera === 'close') scene.setCamera('close');
         cameraInitialized = true;
       }
-    } catch { pending = null; loadingScene = null; if (!disposed && mode === '3d') fallback(); }
+    } catch { if (requestGeneration === sceneGeneration && !disposed) { pending = null; loadingScene = null; if (mode === '3d') fallback(); } }
   }
   element.querySelectorAll('[data-view]').forEach(button => button.onclick = () => select(button.dataset.view));
   const closeCamera = document.createElement('button'); closeCamera.type = 'button'; closeCamera.dataset.camera = 'close'; closeCamera.textContent = 'Nahansicht'; closeCamera.hidden = true;

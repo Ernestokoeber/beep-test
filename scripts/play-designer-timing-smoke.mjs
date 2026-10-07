@@ -110,4 +110,10 @@ assert(fittedScreen.start + fittedScreen.duration <= normalized.steps[0].duratio
 const boundary = core.locateTime(normalized, normalized.steps[0].duration);
 assert(boundary.index === 1 && near(boundary.elapsed, 0), 'Exakte Schrittgrenze öffnet nicht den nächsten Schritt');
 
-console.log('CourtHub Play Designer: Timing-, Startzeit-, Dribbling- und Ballprüfungen erfolgreich.');
+const readSnapshot = core.createSnapshotReader(normalized);
+for (const time of [0, .7, 1.2, 1.6, normalized.steps[0].duration, core.boardDuration(normalized)]) {
+  const prepared = readSnapshot(time), original = globalThis.BT.tactics.snapshotAt(normalized, time);
+  assert(JSON.stringify(prepared.elements) === JSON.stringify(original.elements), 'Vorbereitete Wiedergabe verändert Spieler- oder Ballpositionen');
+  assert(JSON.stringify(prepared._timeline) === JSON.stringify(original._timeline), 'Vorbereitete Wiedergabe verändert die Zeitachse');
+}
+console.log('CourtHub Play Designer: Timing-, Startzeit-, Dribbling-, Ball- und vorbereitete Wiedergabeprüfungen erfolgreich.');

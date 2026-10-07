@@ -15,7 +15,7 @@ try {
    for(const [start,end] of windows){
     let previous=null;
     for(let t=start;t<=end;t+=1/120){
-     film.render(t,variant);
+     film.render(t,variant,{draw:false});
      const points=[0,4].flatMap(i=>['l','r'].map(side=>film.players[i].bones['hand_'+side].getWorldPosition(film.players[i].group.position.clone()).toArray()));
      if(previous)for(let i=0;i<points.length;i++){
       const distance=Math.hypot(...points[i].map((x,k)=>x-previous[i][k]));

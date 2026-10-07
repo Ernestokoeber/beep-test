@@ -8,10 +8,18 @@ export function worldPoint(point, height = 0) {
   return new THREE.Vector3((point.x - 250) * .03, height, (point.y - 235) * .03);
 }
 
-export async function createCourt3D(host, onUnavailable, { board } = {}) {
-  const rig = await createAthleteRig();
+export async function createCourt3D(host, onUnavailable, { board, signal } = {}) {
+  signal?.throwIfAborted();
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const core = window.BT.tactics.__core;
+  let rig, motion;
+  try {
+    rig = await createAthleteRig({ signal }); signal?.throwIfAborted();
+    const readSnapshot = board && (core.createSnapshotReader?.(board) || (time => window.BT.tactics.snapshotAt(board, time)));
+    motion = board ? createBoardAthleteMotion(board, (_, time) => readSnapshot(time), window.BT.tactics.boardDuration(board)) : null;
+  } catch (error) { rig?.dispose(); renderer.dispose(); renderer.forceContextLoss(); throw error; }
+  const mobile = window.matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.5));
   renderer.setClearColor('#e9efed');
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -32,7 +40,7 @@ export async function createCourt3D(host, onUnavailable, { board } = {}) {
   scene.add(new THREE.HemisphereLight('#ffffff', '#6d6254', 2.2));
   const light = new THREE.DirectionalLight('#ffffff', 2.5);
   light.position.set(-7, 14, 8);
-  light.castShadow = true; light.shadow.mapSize.set(2048, 2048);
+  light.castShadow = true; light.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
   Object.assign(light.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10 });
   light.shadow.bias = -.0004;
   scene.add(light);
@@ -101,8 +109,6 @@ export async function createCourt3D(host, onUnavailable, { board } = {}) {
     const sprite = new THREE.Sprite(surface); sprite.position.y = 2.45; sprite.scale.set(.65, .41, 1); return sprite;
   }
   const actors = new Map();
-  const core = window.BT.tactics.__core;
-  const motion = board ? createBoardAthleteMotion(board, window.BT.tactics.snapshotAt, window.BT.tactics.boardDuration(board)) : null;
   function actor(element) {
     const value = rig.createPlayer(scene, { index: actors.size, team: element.type === 'offense' ? 'attack' : 'defense', height: String(element.role) === '5' ? 2.08 : undefined });
     const { group } = value;
@@ -232,6 +238,7 @@ export async function createCourt3D(host, onUnavailable, { board } = {}) {
       renderer.domElement.removeEventListener('keydown', keydown);
       scene.traverse(o => { if (o.geometry) geometries.add(o.geometry); for (const m of o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []) { materials.add(m); for (const v of Object.values(m)) if (v?.isTexture) textures.add(v); } });
       geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
+      rig.dispose();
       renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     }
   };

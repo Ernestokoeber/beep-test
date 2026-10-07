@@ -39,7 +39,8 @@ try {
    poseAt(total * .4); const before = [...view.actors.values()].flatMap(p => Object.values(p.bones).flatMap(b => b.matrixWorld.elements));
    poseAt(total); poseAt(total * .4); const after = [...view.actors.values()].flatMap(p => Object.values(p.bones).flatMap(b => b.matrixWorld.elements));
    const seekDifference = Math.max(...after.map((x, i) => Math.abs(x - before[i])));
-   view.destroy(); host.remove();
+   const bitmaps = new Set(); view.scene.traverse(o => { for (const m of o.material ? [o.material].flat() : []) for (const t of Object.values(m)) if (t?.isTexture && typeof t.image?.close === 'function') bitmaps.add(t.image); });
+   view.destroy(); const remainingGraphics = { contextLost: view.renderer.getContext().isContextLost(), bitmapsClosed: [...bitmaps].every(image => image.width === 0) }; host.remove();
    const { createBoardAthleteMotion } = await import('/js/play-designer/board-athlete-motion.js');
    let pick = core.defaultBoard();
    pick = quick.addQuickPickAndRoll(pick, { stepIndex: 0, relation: 'after', handlerId: 'o1', screenerId: 'o5', screenPoint: { x: 286, y: 286 }, handlerPath: [{ x: 286, y: 330 }, { x: 330, y: 205 }], rollPath: [{ x: 286, y: 286 }, { x: 250, y: 108 }] }, core);
@@ -52,12 +53,13 @@ try {
    const { mountQuickEditor } = await import('/js/play-designer/quick-editor.js');
    const stage = document.createElement('div'); stage.style.cssText = 'position:fixed;inset:0;overflow:auto;background:white;z-index:1000'; document.body.append(stage);
    window.editorStage = stage; mountQuickEditor(stage); core.canEdit = previousCanEdit;
-   return { maximumRootError, bones, screenDrift, groupedScreenDrift, groupedStanding, seekDifference, total };
+   return { maximumRootError, bones, screenDrift, groupedScreenDrift, groupedStanding, remainingGraphics, seekDifference, total };
   });
   assert.ok(result.maximumRootError < 1e-8, JSON.stringify(result));
   assert.equal(result.bones, 52); assert.ok(result.screenDrift < .002, JSON.stringify(result));
   assert.ok(result.seekDifference < 1e-8, JSON.stringify(result));
   assert.ok(result.groupedStanding && result.groupedScreenDrift < .002, JSON.stringify(result));
+  assert.ok(result.remainingGraphics.contextLost && result.remainingGraphics.bitmapsClosed, JSON.stringify(result));
   await page.locator('[data-action="open-3d"]').click();
   await page.waitForSelector('.chcv[data-view="3d"] canvas');
   await page.waitForFunction(() => document.querySelector('.chcv-status').textContent === '');
@@ -73,6 +75,13 @@ try {
   await page.locator('[data-view="3d"]').click();
   await page.locator('[data-camera="top"]').click(); await page.locator('[data-camera="reset"]').click();
   await page.locator('[data-camera="close"]').click();
+  await page.locator('.chcv-scene canvas').evaluate(canvas => canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+  await page.waitForFunction(() => document.querySelector('.chcv-status').textContent.includes('nicht verfügbar'));
+  assert.ok(await page.locator('.chcv-2d').isVisible());
+  await page.locator('[data-view="3d"]').click();
+  await page.waitForSelector('.chcv[data-view="3d"] canvas');
+  await page.waitForFunction(() => document.querySelector('.chcv-status').textContent === '');
+  assert.equal(await page.locator('.chcv-scene canvas').count(), 1);
   if (mobile) await page.setViewportSize({ width: 320, height: 720 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   if (process.env.E2E_SCREENSHOTS) { mkdirSync(process.env.E2E_SCREENSHOTS, { recursive: true }); await page.screenshot({ path: `${process.env.E2E_SCREENSHOTS}/${mobile ? 'mobile' : 'desktop'}-custom-3d.png` }); }

@@ -80,11 +80,11 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
     const texture=new THREE.CanvasTexture(c);texture.colorSpace=THREE.SRGBColorSpace;return mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:texture}));
   }
   sign('COURTHUB  ·  PnR',7,1.5).position.set(0,5.4,-9.85);
-  const {createPlayer,pose,setArm,blendArm,handOffset}=await createAthleteRig();
+  const {createPlayer,pose,setArm,blendArm,handOffset,dispose:disposeRig}=await createAthleteRig();
   const players=Array.from({length:10},(_,index)=>createPlayer(scene,{index,team:index<5?'attack':'defense',height:index===4?2.08:undefined}));
   const ball=mesh(new THREE.SphereGeometry(.12,32,24),mat('#ca611b',{roughness:.8}));
   for(const rot of [[0,0,0],[Math.PI/2,0,0],[0,Math.PI/2,0]])mesh(new THREE.TorusGeometry(.121,.003,5,48),mat('#38271a'),ball).rotation.set(...rot);
-  function render(t=0,variant='pick-and-roll'){
+  function render(t=0,variant='pick-and-roll',{draw=true}={}){
     t=Math.max(0,Math.min(14,t));const pop=variant==='pick-and-pop';
     const state=basketballState(t,variant),{passStart,shotStart}=state;
     const passEnd=passStart+.65,shotEnd=shotStart+(pop?1.9:1.3);
@@ -136,11 +136,11 @@ export async function createBasketballFilm(host, { width=1280,height=720 } = {})
     }
     // A continuous sideline camera keeps all reads visible without jump cuts.
     camera.position.set(9.1-.9*ease(t/14),5.5-.5*ease(t/14),10.2-1.3*ease(t/14));camera.lookAt(.2,1.1,-.3-1.3*ease(t/14));
-    scene.updateMatrixWorld(true);renderer.render(scene,camera);
+    scene.updateMatrixWorld(true);if(draw)renderer.render(scene,camera);
   }
   render();
   return {render,canvas:renderer.domElement,players,scene,camera,renderer,destroy(){
     const geometries=new Set(),materials=new Set(),textures=new Set();scene.traverse(o=>{if(o.geometry)geometries.add(o.geometry);for(const m of o.material?(Array.isArray(o.material)?o.material:[o.material]):[]){materials.add(m);for(const v of Object.values(m))if(v?.isTexture)textures.add(v);}});
-    geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());renderer.dispose();renderer.domElement.remove();
+    geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());disposeRig();renderer.dispose();renderer.domElement.remove();
   }};
 }

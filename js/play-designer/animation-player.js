@@ -27,6 +27,7 @@ export function createAnimationPlayer(boardInput, suppliedCore, options = {}) {
   const board = normalizeRecordedBoard(boardInput, core);
   const phases = visiblePhases(board);
   const total = playableDuration(board);
+  const readSnapshot = core.createSnapshotReader?.(board) || (time => window.BT.tactics.snapshotAt(board, time));
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
   const element = document.createElement('section');
   element.className = 'cha-player';
@@ -66,7 +67,7 @@ export function createAnimationPlayer(boardInput, suppliedCore, options = {}) {
   const timeLabel = element.querySelector('[data-role="animation-time"]');
 
   const render = () => {
-    const snapshot = window.BT.tactics.snapshotAt(board, Math.min(time, total));
+    const snapshot = readSnapshot(Math.min(time, total));
     courtView.draw(snapshot, time, { sourceStep: snapshot._sourceStep, showGuides: false });
     progress.value = String(Math.round(time * 1000));
     timeLabel.textContent = formatTime(time);

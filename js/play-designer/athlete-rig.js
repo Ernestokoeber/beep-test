@@ -4,9 +4,13 @@ import { clone } from '../../vendor/three/SkeletonUtils.js';
 const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 
 // Shared anatomical model and pose solver for authored films and editable boards.
-export async function createAthleteRig() {
+export async function createAthleteRig({signal} = {}) {
   const loader=new GLTFLoader();
-  const source=await loader.loadAsync(new URL('../../assets/pnr/players/athlete.glb',import.meta.url).href);
+  const url=new URL('../../assets/pnr/players/athlete.glb',import.meta.url);
+  const response=await fetch(url,{signal});
+  if(!response.ok)throw new Error('Spielermodell konnte nicht geladen werden.');
+  const data=await response.arrayBuffer(); signal?.throwIfAborted();
+  const source=await loader.parseAsync(data,new URL('.',url).href);
   function createPlayer(scene,{index:i=0,team='attack',height:playerHeight}={}) {
     const model=clone(source.scene),group=new THREE.Group();
     group.add(model);scene.add(group);
@@ -139,5 +143,10 @@ export async function createAthleteRig() {
     }
   }
   const handOffset=(player,x,y=0,z=0)=>V(x,y,z).applyQuaternion(player.group.getWorldQuaternion(new THREE.Quaternion()));
-  return {createPlayer,pose,setArm,blendArm,handOffset};
+  function dispose() {
+    const geometries=new Set(),materials=new Set(),textures=new Set(),images=new Set();
+    source.scene.traverse(o=>{if(o.geometry)geometries.add(o.geometry);for(const m of o.material?(Array.isArray(o.material)?o.material:[o.material]):[]){materials.add(m);for(const v of Object.values(m))if(v?.isTexture){textures.add(v);if(v.image)images.add(v.image);}}});
+    geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());images.forEach(i=>i.close?.());
+  }
+  return {createPlayer,pose,setArm,blendArm,handOffset,dispose};
 }

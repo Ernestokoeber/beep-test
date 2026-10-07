@@ -4,7 +4,7 @@ import {createReadStream} from 'node:fs';
 import {stat} from 'node:fs/promises';
 import {resolve,sep,extname} from 'node:path';
 const root=resolve('.'),port=Number(process.env.PORT||4173);
-const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.mp4':'video/mp4','.glb':'model/gltf-binary','.woff2':'font/woff2','.webmanifest':'application/manifest+json'};
+const types={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.mp4':'video/mp4','.glb':'model/gltf-binary','.woff2':'font/woff2','.webmanifest':'application/manifest+json'};
 createServer(async(req,res)=>{
  try{
   let path=resolve(root,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
