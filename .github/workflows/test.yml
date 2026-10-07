@@ -53,11 +53,16 @@ jobs:
           done
           cat /tmp/courthub-e2e-server.log
           exit 1
-      - name: Run browser E2E
+      - name: Run 3D tactic and PnR checks
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
         run: |
-          node scripts/browser-e2e.mjs
+          node scripts/pnr-athlete-asset.mjs
+          node scripts/board-athlete-browser.mjs
           node scripts/pnr-screen-motion.mjs
           node scripts/pnr-film-motion-browser.mjs
           node scripts/pnr-3d-browser.mjs
+      - name: Run browser E2E
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+        run: node scripts/browser-e2e.mjs

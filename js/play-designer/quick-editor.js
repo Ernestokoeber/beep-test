@@ -686,6 +686,7 @@ export function mountQuickEditor(target, options = {}) {
   };
 
   q('[data-action="open-animation"]').onclick = togglePlayback;
+  q('[data-action="open-3d"]').onclick = () => { stop(); openAnimationPlayer(board, { core, initialView: '3d', initialCamera: 'close' }); };
   q('[data-action="export"]').onclick = () => openExportDialog(board);
   root.addEventListener('courthub:open-export', () => openExportDialog(board));
   q('[data-action="preview"]').onclick = () => openPlayPreview(board, {

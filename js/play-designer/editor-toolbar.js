@@ -47,6 +47,7 @@ export function editorToolbarMarkup() {
 
       <div class="chq-actions">
         <button class="chq-top-action" type="button" data-action="open-animation" title="Play auf dem Spielfeld abspielen">${ICONS.play}<span>Play</span></button>
+        <button class="chq-top-action" type="button" data-action="open-3d" title="Eigene Taktik mit 3D-Spielern abspielen">${ICONS.preview}<span>3D</span></button>
         <button class="chq-top-action" type="button" data-action="export" title="Play exportieren">${ICONS.export}<span>Export</span></button>
         <button class="chq-top-action" type="button" data-action="preview" title="Playbook-Vorschau öffnen">${ICONS.preview}<span>Vorschau</span></button>
         <details class="chq-header-more">

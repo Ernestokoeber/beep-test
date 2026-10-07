@@ -66,3 +66,8 @@ CC0 MakeHuman/MPFB2 meshes sourced from
 [MMWilliams/char-kit](https://github.com/MMWilliams/char-kit). Their source
 motion capture and third-party accessories were removed. The production films
 use `athlete.glb` instead.
+
+The editable tactic board also uses `athlete.glb` through the shared
+`js/play-designer/athlete-rig.js` pose solver. Its 3D view follows the saved board
+timeline, including dribbles, passes and planted screens; it does not substitute
+one of the fixed PnR movies. Board playback uses real-time browser lighting.

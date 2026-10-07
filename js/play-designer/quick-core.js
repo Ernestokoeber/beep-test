@@ -206,7 +206,7 @@ export function addQuickScreen(boardInput, options, core) {
       duration: moveDuration,
       path
     });
-    screenStart = Math.max(0, moveDuration - 0.18);
+    screenStart = moveDuration;
   }
 
   const duration = 0.9;
@@ -255,9 +255,9 @@ export function addQuickPickAndRoll(boardInput, options, core) {
   const relation = options?.relation === 'same' ? 'simultaneous' : 'after';
   const handlerDuration = autoMoveDuration(handlerPath);
   const screenerPath = cleanPath(screener, [screenPoint, ...rollPath.slice(1)], core);
-  const rollDuration = autoMoveDuration(screenerPath);
-  const screenStart = Math.min(0.65, Math.max(0.18, rollDuration * 0.28));
-  const screenDuration = Math.min(0.8, Math.max(0.45, rollDuration * 0.38));
+  const screenStart = core.distance(screener, screenPoint) < 1 ? 0 : autoMoveDuration([core.point(screener), screenPoint]);
+  const screenDuration = Math.max(.8, handlerDuration * .75);
+  const rollDuration = screenStart + screenDuration + autoMoveDuration(rollPath);
   const targetDefenderId = options?.targetDefenderId
     ? String(options.targetDefenderId)
     : undefined;
@@ -269,7 +269,7 @@ export function addQuickPickAndRoll(boardInput, options, core) {
   step.transition.motions.push({
     id: core.uid('motion_'), type: 'move', elementId: handler.id,
     relation, kind: 'dribble', groupId, groupType: 'pick-and-roll', groupRole: 'handler',
-    start: 0, duration: handlerDuration, path: handlerPath
+    start: screenStart, duration: handlerDuration, path: handlerPath
   });
   step.transition.motions.push({
     id: core.uid('motion_'), type: 'move', elementId: screener.id,

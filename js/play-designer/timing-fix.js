@@ -175,6 +175,20 @@ if (tactics && core && !tactics.__timingFixApplied) {
 
     const elapsed = Math.max(0, core.number(elapsedInput, 0));
     if (elapsed < motion.start) return sourcePoint || path[0];
+    // A grouped PnR route contains approach + roll in one editable action.
+    // The screen interval is a real hold, shared by 2D, 3D and the defender.
+    const screen = motion.groupType === 'pick-and-roll' && motion.groupRole === 'roll'
+      ? transition.screens.find(s => s.groupId === motion.groupId && s.elementId === elementId)
+      : null;
+    if (screen) {
+      const split = path.findIndex(p => core.distance(p, screen) < 1);
+      if (split >= 0) {
+        if (elapsed < screen.start) return core.pointOnPath(path.slice(0, split + 1), core.clamp((elapsed - motion.start) / Math.max(.001, screen.start - motion.start), 0, 1));
+        const release = actionEnd(screen);
+        if (elapsed <= release) return core.point(screen);
+        return core.pointOnPath(path.slice(split), core.clamp((elapsed - release) / Math.max(.001, actionEnd(motion) - release), 0, 1));
+      }
+    }
     const ratio = isAutomaticDefenseMotion(motion)
       ? motionProgress(motion, elapsed)
       : core.clamp((elapsed - motion.start) / motion.duration, 0, 1);

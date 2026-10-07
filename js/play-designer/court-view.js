@@ -24,7 +24,7 @@ function styles() {
 export function createCourtView(host, board, options = {}) {
   styles();
   const element = document.createElement('div'); element.className = 'chcv';
-  element.innerHTML = `<div class="chcv-toolbar" role="group" aria-label="Feldansicht"><button type="button" data-view="2d" aria-pressed="true">2D</button><button type="button" data-view="3d" aria-pressed="false">3D</button><button type="button" data-camera="reset" hidden>Kamera zurücksetzen</button><button type="button" data-camera="top" hidden>Von oben</button></div><div class="chcv-2d"></div><div class="chcv-scene" hidden></div><p class="chcv-hint" hidden>Ziehen: drehen · Zwei Finger: zoomen · Grün: Angriff · Rot: Defense · Gelb: Screen</p><p class="chcv-status" role="status"></p>`;
+  element.innerHTML = `<div class="chcv-toolbar" role="group" aria-label="Feldansicht"><button type="button" data-view="2d" aria-pressed="true">2D</button><button type="button" data-view="3d" aria-pressed="false">3D-Taktik</button><button type="button" data-camera="reset" hidden>Kamera zurücksetzen</button><button type="button" data-camera="top" hidden>Von oben</button></div><div class="chcv-2d"></div><div class="chcv-scene" hidden></div><p class="chcv-hint" hidden>Deine aufgezeichnete Taktik mit 3D-Spielern. Ziehen: drehen · Zwei Finger: zoomen · Grün: Angriff · Hell: Defense · Gelb: Screen</p><p class="chcv-status" role="status"></p>`;
   const flat = element.querySelector('.chcv-2d'), sceneHost = element.querySelector('.chcv-scene');
   const status = element.querySelector('.chcv-status');
   const filmIds = ['pick-and-roll', 'pick-and-pop', 'pick-and-roll-reject'];
@@ -34,12 +34,14 @@ export function createCourtView(host, board, options = {}) {
   video.setAttribute('aria-label', '3D-Spielszene mit fiktiven Basketballspielern');
   const explanation = document.createElement('p'); explanation.textContent = '3D-Beispiel zur PnR-Variante mit fiktiven Spielern. Die 2D-Taktik zeigt die aufgezeichneten Phasen.';
   if (hasFilm) {
-    const button = document.createElement('button'); button.type = 'button'; button.dataset.view = 'film'; button.textContent = '3D-Spielszene'; button.setAttribute('aria-pressed', 'false');
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.view = 'film'; button.textContent = '3D-Beispielfilm'; button.setAttribute('aria-pressed', 'false');
     const speeds = document.createElement('div'); speeds.className = 'chcv-film-speed'; speeds.setAttribute('role', 'group'); speeds.setAttribute('aria-label', 'Filmgeschwindigkeit');
     for (const [rate, label] of [[.5, 'Zeitlupe · 0,5×'], [1, '1×'], [1.5, '1,5×']]) {
       const speed = document.createElement('button'); speed.type = 'button'; speed.textContent = label; speed.dataset.filmSpeed = String(rate); speed.setAttribute('aria-pressed', String(rate === 1));
       speed.onclick = () => { video.playbackRate = rate; speeds.querySelectorAll('button').forEach(candidate => candidate.setAttribute('aria-pressed', String(candidate === speed))); }; speeds.append(speed);
     }
+    element.querySelector('.chcv-toolbar').prepend(button); filmHost.append(video, speeds, explanation); element.insertBefore(filmHost, status);
+  }
     const credits = document.createElement('details');
     const summary = document.createElement('summary'); summary.textContent = 'Modellquellen und Lizenzen';
     const attribution = document.createElement('p');
@@ -47,11 +49,10 @@ export function createCourtView(host, board, options = {}) {
     const sources = document.createElement('a'); sources.textContent = 'Quellen, Änderungen und Lizenzangaben';
     sources.href = new URL('../../assets/pnr/players/SOURCES.md', import.meta.url).href; sources.target = '_blank'; sources.rel = 'noopener';
     attribution.append(sources); credits.append(summary, attribution);
-    element.querySelector('.chcv-toolbar').prepend(button); filmHost.append(video, speeds, explanation, credits); element.insertBefore(filmHost, status);
-  }
+    element.append(credits);
   const svg = createCourt('chpd-court cha-animation-court'); flat.append(svg); host.append(element);
-  let scene = null, pending = null, disposed = false, mode = '2d', snapshot = null, seconds = 0, drawOptions = {};
-  let wasConnected = element.isConnected;
+  let scene = null, pending = null, loadingScene = null, disposed = false, mode = '2d', snapshot = null, seconds = 0, drawOptions = {};
+  let wasConnected = element.isConnected, cameraInitialized = false;
   const lifecycle = new window.MutationObserver(() => {
     if (element.isConnected) wasConnected = true;
     else if (wasConnected) destroy();
@@ -92,15 +93,25 @@ export function createCourtView(host, board, options = {}) {
       const module = await pending;
       if (disposed || mode !== '3d') return;
       // A second click during import must not allocate another WebGL context.
-      if (!scene) scene = module.createCourt3D(sceneHost, fallback);
-      status.textContent = ''; if (snapshot) scene.draw(snapshot, seconds);
-    } catch { pending = null; fallback(); }
+      if (!loadingScene) loadingScene = module.createCourt3D(sceneHost, fallback, { board });
+      const candidate = await loadingScene;
+      if (disposed) { candidate.destroy(); return; }
+      scene = candidate;
+      if (mode === '3d') {
+        status.textContent = ''; scene.resize(); if (snapshot) scene.draw(snapshot, seconds);
+        if (!cameraInitialized && options.initialCamera === 'close') scene.setCamera('close');
+        cameraInitialized = true;
+      }
+    } catch { pending = null; loadingScene = null; if (!disposed && mode === '3d') fallback(); }
   }
   element.querySelectorAll('[data-view]').forEach(button => button.onclick = () => select(button.dataset.view));
-  element.querySelectorAll('[data-camera]').forEach(button => button.onclick = () => scene?.setCamera(button.dataset.camera === 'top'));
+  const closeCamera = document.createElement('button'); closeCamera.type = 'button'; closeCamera.dataset.camera = 'close'; closeCamera.textContent = 'Nahansicht'; closeCamera.hidden = true;
+  element.querySelector('.chcv-toolbar').append(closeCamera);
+  element.querySelectorAll('[data-camera]').forEach(button => button.onclick = () => scene?.setCamera(button.dataset.camera === 'close' ? 'close' : button.dataset.camera === 'top'));
   video.addEventListener('error', () => { if (disposed) return; show('2d'); status.textContent = 'Die 3D-Spielszene konnte nicht geladen werden. Die 2D-Taktik bleibt verfügbar.'; });
   const isPnR = /pick.?\s*(?:&|and)?\s*(?:roll|pop)|pnr/i.test(`${board.id || ''} ${board.title || ''} ${board.category || ''}`);
-  if (hasFilm && options.auto3D !== false) { show('2d'); queueMicrotask(() => select('film')); }
+  if (options.initialView === '3d') { show('2d'); queueMicrotask(() => select('3d')); }
+  else if (hasFilm && options.auto3D !== false) { show('2d'); queueMicrotask(() => select('film')); }
   else if (isPnR && options.auto3D !== false) select('3d'); else show('2d');
   return {
     element,
