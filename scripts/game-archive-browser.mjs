@@ -86,14 +86,21 @@ export async function verifyGameArchive(browser, options, name, baseUrl) {
     await page.locator('[data-field="ownSide"]').selectOption('home');
     await page.locator('[data-action="next"]').tap();
     await page.locator('[data-player-roster]').first().waitFor();
-    for(const id of data.players)await page.locator(`[data-player-roster="${id}"][data-status="bench"]`).tap();
+    for(const id of data.players){await page.locator(`[data-player-roster="${id}"][data-status="bench"]`).tap();await page.locator(`[data-player-roster="${id}"][aria-pressed="true"]`).waitFor();}
     await page.getByRole('button',{name:'Starting Five',exact:true}).tap();
-    for(const id of data.players)await page.locator(`[data-player-lineup="${id}"][data-status="starter"]`).tap();
+    for(const id of data.players){await page.locator(`[data-player-lineup="${id}"][data-status="starter"]`).tap();await page.locator(`[data-player-lineup="${id}"][data-status="starter"][aria-pressed="true"]`).waitFor();}
     await page.getByRole('button',{name:'Vorbereitung speichern',exact:true}).tap();
+    // Revisions are sorted by UUID, not creation time. Check the selected head
+    // and this roster write before testing reload persistence.
+    await page.waitForFunction(async({past,players})=>{
+      const {selectDraft}=await import('/js/matchday/model.mjs');
+      const value=selectDraft(window.BT.storage.getGame(past)?.matchday).draft;
+      return value?.roster?.length===players.length&&value?.startingFive?.length===players.length&&players.every(id=>value.startingFive.includes(id));
+    },data);
     await page.locator('.matchday > [role="status"]').filter({hasText:'Lokal gesichert'}).waitFor();
     await page.reload();await page.locator('.matchday').waitFor();
     assert(await page.locator('.matchday form > fieldset').evaluate(node=>node.disabled));
-    assert.equal(await page.evaluate(id=>window.BT.storage.getGame(id).matchday.revisions.at(-1).value.roster.length,data.past),5);
+    assert.equal(await page.evaluate(async id=>{const {selectDraft}=await import('/js/matchday/model.mjs');return selectDraft(window.BT.storage.getGame(id).matchday).draft.roster.length;},data.past),5);
     await check('gespeicherter archivierter Kader nach Reload');
     console.log(`CourtHub Spielarchiv Browser: ${name} · Status, Ablehnen, Freigabe, Ergebnis, Spieltag und erneute Sperre erfolgreich.`);
   } finally {await context.close();}
