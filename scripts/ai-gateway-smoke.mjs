@@ -62,7 +62,7 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 10, 'KI-Vertrag für automatische Wurfvorgaben fehlt');
+assert(AI_CONTRACT_VERSION === 11, 'KI-Vertrag für automatische Wurfvorgaben fehlt');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.2', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -71,7 +71,7 @@ assert(season.generationConfig.responseMimeType === 'application/json', 'JSON-MI
 assert(season.generationConfig.thinkingConfig.thinkingLevel === 'low', 'Saisonplanung nutzt nicht den latenzarmen Thinking-Level');
 assert(season.generationConfig.responseSchema.type === 'object', 'Saison-Schema fehlt');
 assert(season.generationConfig.responseSchema.properties.trainings.items.properties.drills.items.required.includes('intensity'), 'Saison-Schema verlangt die validierte Drillintensität nicht');
-assert(season.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining.properties.stations.minItems === 5, 'Saison-Schema verlangt nicht genau fünf KI-Stationen');
+assert(!season.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining, 'Ein normales Training darf kein unbenötigtes Stationsschema erhalten');
 assert(season.parts[0].text.includes('höchstens 25 Prozent') && season.parts[0].text.includes('Höchstens eine der fünf Stationen'), 'KI-Prompt begrenzt die Problemgewichtung nicht');
 assert(season.parts[0].text.includes('teamStrategy ist die verbindliche aktuelle Wahrheit') && season.parts[0].text.includes('excludedConcepts'), 'Der aktuelle Strategiewechsel hat im KI-Prompt keinen Vorrang');
 assert(season.parts[0].text.includes('"allowedDefenseIds":["man"]'), 'Die KI erhält nicht die aktuell freigegebene Verteidigung');

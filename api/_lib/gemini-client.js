@@ -50,6 +50,8 @@ export async function generateWithGemini({
   const controller = new AbortController();
   const timer = setTimer(() => controller.abort(), request.timeoutMs);
   let attempt = 0;
+  let parts = request.parts;
+  let generationConfig = request.generationConfig;
 
   try {
     while (attempt < 2) {
@@ -60,8 +62,8 @@ export async function generateWithGemini({
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body: JSON.stringify({
-            contents: [{ parts: request.parts }],
-            generationConfig: request.generationConfig
+            contents: [{ parts }],
+            generationConfig
           }),
           signal: controller.signal
         });
@@ -73,6 +75,16 @@ export async function generateWithGemini({
       }
 
       if (!response.ok) {
+        // Some Gemini serving versions reject a valid structured schema. Retry
+        // this planning request once in JSON mode with the exact same contract
+        // in the prompt; request.parse still validates every station and target.
+        if (response.status === 400 && action === 'planSeason' && attempt === 1 &&
+            generationConfig.responseSchema && deadline - now() >= 5_000) {
+          const { responseSchema, ...jsonConfig } = generationConfig;
+          generationConfig = jsonConfig;
+          parts = [...request.parts, { text: `Antworte ausschließlich mit einem vollständigen JSON-Objekt nach diesem Antwortformat. Alle Pflichtfelder und Wurfvorgaben müssen erhalten bleiben; kein Markdown:\n${JSON.stringify(responseSchema)}` }];
+          continue;
+        }
         const canRetry = attempt === 1 && RETRYABLE_STATUS.has(response.status) && deadline - now() >= 20_000;
         if (canRetry) continue;
         throw providerError(response.status);
@@ -101,3 +113,4 @@ export async function generateWithGemini({
     clearTimer(timer);
   }
 }
+

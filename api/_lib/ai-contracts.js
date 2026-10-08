@@ -1,7 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 10;
+export const AI_CONTRACT_VERSION = 11;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
@@ -20,7 +20,7 @@ const NUMBER = { type: 'number' };
 const INTEGER = { type: 'integer' };
 const INTENSITY = { type: 'string', enum: ['low', 'medium', 'high'] };
 const SHOT_TARGETS_SCHEMA = {
-  type: 'array', maxItems: 10,
+  type: 'array',
   items: {
     type: 'object', required: ['kind', 'category', 'attempted'],
     properties: {
@@ -95,36 +95,58 @@ const EVIDENCE_BASIS_SCHEMA = {
     planningDecision: STRING
   }
 };
-const SEASON_TRAINING_SCHEMA = {
-  ...TRAINING_SCHEMA,
-  required: [...TRAINING_SCHEMA.required, 'evidenceBasis'],
+// Send only the fields needed for this slot. Derived totals and the fixed
+// Friday timetable are built locally, not repeated throughout Gemini's schema.
+const SEASON_EVIDENCE_SCHEMA = {
+  ...EVIDENCE_BASIS_SCHEMA,
   properties: {
-    ...TRAINING_SCHEMA.properties,
-    drills: { type: 'array', items: SEASON_DRILL_SCHEMA },
-    evidenceBasis: EVIDENCE_BASIS_SCHEMA,
-    fridayVariants: {
-      type: 'object',
-      required: ['over8', 'eightOrLess'],
+    observedTrends: { type: 'array', items: STRING },
+    loadConsiderations: { type: 'array', items: STRING },
+    planningDecision: STRING
+  }
+};
+const SEASON_TRAINING_SCHEMA = {
+  type: 'object',
+  required: ['date', 'summary', 'evidenceBasis', 'drills'],
+  properties: {
+    date: STRING,
+    summary: STRING,
+    evidenceBasis: SEASON_EVIDENCE_SCHEMA,
+    drills: { type: 'array', items: SEASON_DRILL_SCHEMA }
+  }
+};
+
+function seasonSchemaForSlot(slot) {
+  const training = {
+    ...SEASON_TRAINING_SCHEMA,
+    required: [...SEASON_TRAINING_SCHEMA.required],
+    properties: { ...SEASON_TRAINING_SCHEMA.properties }
+  };
+  if (slot.fridayStationMode === true) {
+    delete training.properties.drills;
+    training.required = ['date', 'summary', 'evidenceBasis', 'stationTraining'];
+    training.properties.stationTraining = {
+      type: 'object', required: ['rationale', 'stations'],
+      properties: {
+        rationale: STRING,
+        stations: { type: 'array', items: FRIDAY_STATION_SCHEMA }
+      }
+    };
+  } else if (isFriday(slot)) {
+    training.required.push('fridayVariants');
+    training.properties.fridayVariants = {
+      type: 'object', required: ['over8', 'eightOrLess'],
       properties: {
         over8: { type: 'array', items: SEASON_DRILL_SCHEMA },
         eightOrLess: { type: 'array', items: SEASON_DRILL_SCHEMA }
       }
-    },
-    stationTraining: {
-      type: 'object',
-      required: ['rationale', 'stations'],
-      properties: {
-        rationale: STRING,
-        stations: {
-          type: 'array',
-          minItems: 5,
-          maxItems: 5,
-          items: FRIDAY_STATION_SCHEMA
-        }
-      }
-    }
+    };
   }
-};
+  return {
+    type: 'object', required: ['trainings'],
+    properties: { trainings: { type: 'array', items: training } }
+  };
+}
 
 export const PARSE_PLAN_SCHEMA = {
   type: 'object',
@@ -256,11 +278,11 @@ const PROMPTS = {
   planGame: basketballExpertPrompt(`Du erstellst einen kompakten, direkt nutzbaren Basketball-Gameplan für TSV Lindau. teamStrategy ist die verbindliche aktuelle Wahrheit. Bei replacesPrevious=true ersetzt es alle früheren Mannschaftsprinzipien vollständig; excludedConcepts dürfen auch dann nicht reaktiviert werden, wenn sie in historischen Daten oder opponentPlan vorkommen. Nutze ausschließlich Fakten aus dem bestätigten opponentPlan und die dort angegebene Datenqualität. Erfinde keine Quoten, Systeme, Spielertypen oder Matchups. Fehlende Werte bleiben unbekannt und dürfen nicht als gegnerische Schwäche interpretiert werden. Verwende nur Verteidigungen aus teamStrategy.allowedDefenseIds. selectedTactics enthält ausschließlich die vom Trainer aktuell freigegebenen Inhalte. Beziehe diese konkret ein und erfinde keine nicht ausgewählte Teamtaktik. Formuliere jeweils genau drei kurze, konkrete Punkte für Kabine, Spielziele, Offense, Defense, Aufwärmen und Halbzeitkontrolle. Unterscheide belegte Fakten klar von Beobachtungsaufträgen für die ersten Angriffe. Gib nur das angeforderte JSON aus.`),
   planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor performanceContext, coachInput und historischen Trainingsnamen. Bei replacesPrevious=true ersetzt es alle früheren Systeme vollständig; excludedConcepts dürfen weder empfohlen noch als Übung, Variante oder Anschlussaktion eingebaut werden. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Historische Taktiknamen sind ausschließlich Vergangenheitsdaten und keine aktiven Vorgaben. Wiederkehrende Leistungsmuster wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Analysiere zusätzlich den opponentContext des Slots, sofern vorhanden. Verwende ausschließlich dort belegte Gegnerwerte und beachte Datenqualität, Stichprobengröße und Warnungen. Empfehle nur Verteidigungen aus teamStrategy.allowedDefenseIds. tacticalPlaybook enthält ausschließlich die aktuell freigegebenen Teamtaktiken; nutze nur daraus passende Teamtaktik. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Formuliere summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
 
-Wurferfassung ist verpflichtender Bestandteil jedes neuen Trainings: Jeder Drill und jede Einzelstation erhält shotTargets. Für jede tatsächlich vorgesehene Wurfaufgabe (auch Korbleger, Roll-/Pop-Abschlüsse, Pull-ups und Würfe in Entscheidungsübungen) liefere kind=field oder freethrow, eine eindeutige Wurfkategorie und attempted als positive Anzahl geplanter Versuche PRO SPIELER. Die Beschreibung erklärt dazu Position/Distanz, Ablauf, Umfang und Coaching-Punkte. Bei reinen Lauf-, Pass-, Defense-, Mobilitäts- oder Ballhandling-Aufgaben ohne Abschluss ist shotTargets ein leeres Array; erfinde dort keine Würfe. Nutze dieselben Kategorien in drills, stationTraining und shots. Summiere Wiederholungen derselben Kategorie und alle Freiwurfvorgaben. CourtHub berechnet shots und freethrows verbindlich aus den shotTargets der aktiven Übungen; Treffer, tatsächliche Versuche und Quoten werden erst im Training erfasst. Für fridayStationMode sind die shotTargets der fünf Stationen maßgeblich, nicht doppelt die entsprechenden drills. Freitagsvarianten erhalten eigene, vollständige shotTargets. Neue Trainings dürfen keine alten Wurfkategorien ungeprüft übernehmen.
+Wurferfassung ist verpflichtender Bestandteil jedes neuen Trainings: Jeder Drill und jede Einzelstation erhält shotTargets. Für jede tatsächlich vorgesehene Wurfaufgabe (auch Korbleger, Roll-/Pop-Abschlüsse, Pull-ups und Würfe in Entscheidungsübungen) liefere kind=field oder freethrow, eine eindeutige Wurfkategorie und attempted als positive Anzahl geplanter Versuche PRO SPIELER. Die Beschreibung erklärt dazu Position/Distanz, Ablauf, Umfang und Coaching-Punkte. Bei reinen Lauf-, Pass-, Defense-, Mobilitäts- oder Ballhandling-Aufgaben ohne Abschluss ist shotTargets ein leeres Array; erfinde dort keine Würfe. Verwende eindeutige, konsistente Kategorien in den shotTargets. Liefere keine separaten shots- oder freethrows-Gesamtsummen; CourtHub summiert Wiederholungen derselben Kategorie und alle Freiwurfvorgaben selbst. CourtHub berechnet shots und freethrows verbindlich aus den shotTargets der aktiven Übungen; Treffer, tatsächliche Versuche und Quoten werden erst im Training erfasst. Für fridayStationMode sind die shotTargets der fünf Stationen maßgeblich, nicht doppelt die entsprechenden drills. Freitagsvarianten erhalten eigene, vollständige shotTargets. Neue Trainings dürfen keine alten Wurfkategorien ungeprüft übernehmen.
 
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die aktiven Mannschaftsprinzipien aus teamStrategy, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster sowie Verletztenstatus aus performanceContext bleiben davon unberührt und haben Vorrang. Verletzte Spieler erhalten keine normale Trainings- oder Stationsbelastung, sondern nur ausdrücklich medizinisch freigegebene, schmerzfreie Reha/Prehab oder Pause.
 
-Für einen Slot mit fridayStationMode=true erstellst du jedes Mal ein neues individuelles Stationstraining passend zur aktuellen Spielwoche und zum folgenden Wochenendspiel. Nutze die Historie, um Schwerpunkte und Stationskombinationen nicht einfach zu wiederholen. Das Training dauert genau 105 Minuten und besteht in dieser Reihenfolge aus: 10 Minuten Readiness-Check, 10 Minuten individuelle Aktivierung, fünf unterschiedliche Einzelstationen zu je 15 Minuten und 10 Minuten Cooldown mit Session-RPE. Liefere dazu stationTraining mit genau fünf Stationen. drills soll ebenfalls genau diese acht Blöcke enthalten; CourtHub erzeugt die verbindliche Zeitstruktur zusätzlich selbst aus stationTraining. Höchstens eine der fünf Stationen darf unmittelbar aus coachInput.problems abgeleitet sein; die vier übrigen Stationen müssen andere Entwicklungsbereiche abdecken. Keine Teamtaktik, keine Spielformen und kein 1-gegen-1 bis 5-gegen-5. Alle Inhalte müssen allein oder mit einfachen Zuspielern ausführbar sein. Plane niedrige Vor-Spiel-Belastung; die individuelle Ampel für Tagesform, Schmerzen, Spielminuten und Wochenbelastung skaliert das Volumen später pro Spieler. fridayVariants wird für diesen Modus nicht benötigt.
+Für einen Slot mit fridayStationMode=true erstellst du jedes Mal ein neues individuelles Stationstraining passend zur aktuellen Spielwoche und zum folgenden Wochenendspiel. Nutze die Historie, um Schwerpunkte und Stationskombinationen nicht einfach zu wiederholen. Das Training dauert genau 105 Minuten und besteht in dieser Reihenfolge aus: 10 Minuten Readiness-Check, 10 Minuten individuelle Aktivierung, fünf unterschiedliche Einzelstationen zu je 15 Minuten und 10 Minuten Cooldown mit Session-RPE. Liefere dazu stationTraining mit genau fünf Stationen. Liefere für diesen Modus ausschließlich date, summary, evidenceBasis und stationTraining. Keine zusätzlichen drills, shots, freethrows oder fridayVariants: CourtHub erzeugt die acht Blöcke, deren Wurfvorgaben und die verbindliche Zeitstruktur selbst aus den fünf Stationen. Höchstens eine der fünf Stationen darf unmittelbar aus coachInput.problems abgeleitet sein; die vier übrigen Stationen müssen andere Entwicklungsbereiche abdecken. Keine Teamtaktik, keine Spielformen und kein 1-gegen-1 bis 5-gegen-5. Alle Inhalte müssen allein oder mit einfachen Zuspielern ausführbar sein. Plane niedrige Vor-Spiel-Belastung; die individuelle Ampel für Tagesform, Schmerzen, Spielminuten und Wochenbelastung skaliert das Volumen später pro Spieler. fridayVariants wird für diesen Modus nicht benötigt.
 
 Für sonstige Freitage werden weiterhin vollständige fridayVariants für mehr als acht sowie höchstens acht Spieler benötigt. Gib nur das angeforderte JSON aus.`)
 };
@@ -459,13 +481,15 @@ function normalizeTraining(input, { durationMinutes = null, requireIntensity = f
   const training = {
     date: date(input.date, 'Trainingsdatum'),
     summary: generatedString(input.summary, 240, 'Trainingsschwerpunkt'),
-    freethrows: { attempted: integer(input.freethrows?.attempted, 0, 1000, 'Freiwurfversuche') },
-    shots: validateShots(input.shots),
     drills: fridayStationMode
       ? buildFridayStationDrills(stationTraining)
       : validateDrills(input.drills, { requireIntensity, durationMinutes })
   };
   if (requireIntensity) Object.assign(training, shootingPlanFromDrills(training.drills));
+  else {
+    training.freethrows = { attempted: integer(input.freethrows?.attempted, 0, 1000, 'Freiwurfversuche') };
+    training.shots = validateShots(input.shots);
+  }
   if (input.evidenceBasis) training.evidenceBasis = validateEvidenceBasis(input.evidenceBasis);
   if (input.weekday) training.weekday = generatedString(input.weekday, 20, 'Wochentag');
   if (fridayStationMode) {
@@ -754,7 +778,7 @@ function buildSeason(payload) {
   if (serialized.length > 150_000) throw new AIError('AI_INPUT_INVALID', 'Die Saisonplanungsdaten sind zu umfangreich.', { status: 413 });
   return structured([
     { text: `${PROMPTS.planSeason}\n\nPlanungsdaten:\n${serialized}` }
-  ], SEASON_SCHEMA, 'low', 48_000, (text) => {
+  ], seasonSchemaForSlot(slots[0]), 'low', 48_000, (text) => {
     const value = parseJson(text);
     if (!Array.isArray(value?.trainings) || value.trainings.length !== slots.length) fail('Die KI-Antwort enthält nicht alle Trainingstermine.');
     const trainings = value.trainings.map((training) => {
