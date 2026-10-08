@@ -57,12 +57,12 @@ const validSeasonResult = JSON.stringify({
     },
     freethrows: { attempted: 20 },
     shots: [{ category: 'Abschluss am Ring', attempted: 20 }],
-    drills: [{ name: 'Shell Drill', minutes: 90, intensity: 'high', description: 'Kommunikation und Rotation' }]
+    drills: [{ name: 'Shell Drill', minutes: 90, intensity: 'high', description: 'Kommunikation, Rotation und Abschlüsse', shotTargets: [{ kind: 'field', category: 'Abschluss am Ring', attempted: 20 }, { kind: 'freethrow', category: 'Freiwürfe', attempted: 20 }] }]
   }]
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 9, 'KI-Vertrag wurde für den verbindlichen Strategiewechsel nicht angehoben');
+assert(AI_CONTRACT_VERSION === 10, 'KI-Vertrag für automatische Wurfvorgaben fehlt');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.2', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -108,7 +108,7 @@ const fridayResult = {
     stationTraining: {
       rationale: 'Neue Schwerpunkte passend zur Spielnähe und zur bisherigen Trainingshistorie.',
       stations: Array.from({ length: 5 }, (_, index) => ({
-        title: `KI Station ${index + 1}`, category: `Kategorie ${index + 1}`, description: `Neue Einzelaufgabe ${index + 1}`
+        title: `KI Station ${index + 1}`, category: `Kategorie ${index + 1}`, description: `Neue Einzelaufgabe ${index + 1}`, shotTargets: index === 0 ? [{ kind: 'freethrow', category: 'Freiwürfe', attempted: 20 }] : []
       }))
     }
   }]
@@ -447,3 +447,4 @@ await expectAIError(
 );
 
 console.log('CourtHub KI-Gateway: Modell, Schema, Timeout und Fehlerverträge erfolgreich.');
+

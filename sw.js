@@ -1,7 +1,8 @@
 // Bump this whenever the offline asset manifest changes so installed clients
 // cannot keep an older editor or planner bundle.
-const CACHE = 'courthub-v194';
+const CACHE = 'courthub-v195';
 const ASSETS = [
+  './js/training-shots.js',
   './',
   './index.html',
   './style.css',
@@ -185,3 +186,4 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+

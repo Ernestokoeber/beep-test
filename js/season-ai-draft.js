@@ -2,7 +2,7 @@ window.BT = window.BT || {};
 
 BT.seasonDraft = (function() {
   const PREFIX = 'courthub_ai_season_draft_v1:';
-  const VERSION = 3;
+  const VERSION = 4;
   const MODEL = 'gemini-3.8-flash';
 
   function stableValue(value) {
@@ -80,3 +80,4 @@ BT.seasonDraft = (function() {
 
   return { VERSION, MODEL, fingerprint, load, save, clear };
 })();
+

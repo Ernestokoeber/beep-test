@@ -233,6 +233,7 @@ BT.training = (function() {
     currentTraining = training;
     currentTraining.freethrows = currentTraining.freethrows || [];
     currentTraining.shots = currentTraining.shots || [];
+    BT.trainingShots?.sync(currentTraining);
 
     const cats = BT.storage.getShotCategories();
     currentShotCategory = cats[0] || null;
@@ -625,8 +626,7 @@ BT.training = (function() {
   function getOrCreateFT(playerId) {
     let e = currentTraining.freethrows.find(x => x.playerId === playerId);
     if (!e) {
-      const planAtt = (currentTraining.plan && currentTraining.plan.freethrows && currentTraining.plan.freethrows.attempted) || 0;
-      e = { playerId, made: 0, attempted: planAtt };
+      e = { playerId, made: 0, attempted: 0 };
       currentTraining.freethrows.push(e);
     }
     return e;
@@ -683,10 +683,7 @@ BT.training = (function() {
     const cat = getOrCreateShotCategory(catName);
     let e = cat.entries.find(x => x.playerId === playerId);
     if (!e) {
-      const planCat = currentTraining.plan && Array.isArray(currentTraining.plan.shots)
-        ? currentTraining.plan.shots.find(s => s.category === catName) : null;
-      const planAtt = planCat && planCat.attempted ? planCat.attempted : 0;
-      e = { playerId, made: 0, attempted: planAtt };
+      e = { playerId, made: 0, attempted: 0 };
       cat.entries.push(e);
     }
     return e;
@@ -826,6 +823,13 @@ BT.training = (function() {
       : 'Kategorie „' + name + '" aus diesem Training entfernen?';
     if (!confirm(msg)) return;
     currentTraining.shots = (currentTraining.shots || []).filter(s => s.category !== name);
+    if (currentTraining.plan) {
+      const matches = category => String(category || '').trim().toLocaleLowerCase('de-DE') === name.trim().toLocaleLowerCase('de-DE');
+      currentTraining.plan.shots = (currentTraining.plan.shots || []).filter(target => !matches(target.category));
+      for (const drill of currentTraining.plan.drills || []) {
+        if (Array.isArray(drill.shotTargets)) drill.shotTargets = drill.shotTargets.filter(target => target.kind !== 'field' || !matches(target.category));
+      }
+    }
     save();
     if (currentShotCategory === name) {
       currentShotCategory = ((currentTraining.shots[0] || {}).category) || null;
@@ -893,12 +897,14 @@ BT.training = (function() {
 
   function buildShotCard(player, entry, kind) {
     const card = document.createElement('li');
+    const target = BT.trainingShots?.targetFor(currentTraining, kind, currentShotCategory) || 0;
     card.className = 'ft-card';
     card.innerHTML = `
       <div class="ft-head">
         <span class="name">${escapeHTML(player.name)}</span>
         <span class="ft-pct" data-role="pct">${pct(entry.made, entry.attempted)}% (${entry.made}/${entry.attempted})</span>
       </div>
+      ${target > 0 ? `<p class="muted" data-role="shot-target">Trainingsziel: ${target} Versuche pro Spieler · erfasst: ${entry.attempted}</p>` : ''}
       <div class="ft-row">
         <span class="ft-label">Treffer</span>
         <button type="button" class="ft-btn" data-act="m-">−</button>
@@ -937,6 +943,8 @@ BT.training = (function() {
     }
     function refreshPct() {
       pctLabel.textContent = pct(entry.made, entry.attempted) + '% (' + entry.made + '/' + entry.attempted + ')';
+      const targetLabel = card.querySelector('[data-role="shot-target"]');
+      if (targetLabel) targetLabel.textContent = `Trainingsziel: ${target} Versuche pro Spieler · erfasst: ${entry.attempted}`;
     }
     function commit() {
       entry.made = Math.max(0, Math.floor(entry.made || 0));
@@ -1764,6 +1772,9 @@ BT.training = (function() {
         plan.drills = selected.map(drill => Object.assign({}, drill));
         markPlanEdited();
         save();
+        renderFreethrows();
+        renderShotTabs();
+        renderShots();
         renderPlanBox();
         BT.util.toast('Freitagsvariante wurde übernommen und bleibt manuell geschützt.');
       });
@@ -3334,11 +3345,13 @@ BT.training = (function() {
     // Plan-Drills uebernehmen
     currentTraining.plan = currentTraining.plan || {};
     currentTraining.plan.drills = ((tpl.plan && tpl.plan.drills) || [])
-      .map(d => ({ name: d.name, minutes: d.minutes || 0, description: d.description || '', intensity: d.intensity || 'medium' }));
+      .map(d => ({ ...d, name: d.name, minutes: d.minutes || 0, description: d.description || '', intensity: d.intensity || 'medium' }));
     currentTraining.plan.durationMinutes = tpl.plan && tpl.plan.durationMinutes || currentTraining.plan.durationMinutes || 105;
     if (tpl.plan && tpl.plan.summary) currentTraining.plan.summary = tpl.plan.summary;
 
-    // Freiwurf-Zielzahl in plan.freethrows.attempted (wird bei neuen Entries als Default genutzt)
+    // Zielzahlen werden separat von tatsächlich erfassten Versuchen gespeichert.
+    if (Array.isArray(tpl.plan?.shots)) currentTraining.plan.shots = tpl.plan.shots.map(target => ({ ...target }));
+    if (tpl.plan && 'freethrows' in tpl.plan) currentTraining.plan.freethrows = tpl.plan.freethrows ? { ...tpl.plan.freethrows } : null;
     if (tpl.freethrowsAttempted) {
       currentTraining.plan.freethrows = currentTraining.plan.freethrows || {};
       currentTraining.plan.freethrows.attempted = tpl.freethrowsAttempted;
@@ -3376,5 +3389,19 @@ BT.training = (function() {
     BT.wake.release('training-sprint');
   }
 
-  return { renderList, renderDetail, openPlayerStatsModal, cleanup };
+  function openShotCapture(pane, category) {
+    if (!currentTraining || !detailRoot) return;
+    // Live mode saves its own copy. Read it before editing shot results.
+    currentTraining = BT.storage.getTraining(currentTraining.id) || currentTraining;
+    if (category) currentShotCategory = currentTraining.shots?.find(item =>
+      item.category.trim().toLocaleLowerCase('de-DE') === category.trim().toLocaleLowerCase('de-DE'))?.category || category;
+    renderFreethrows();
+    renderShotTabs();
+    renderShots();
+    detailRoot.querySelector(`.subnav-btn[data-pane="${pane}"]`)?.click();
+    detailRoot.querySelector(`.pane[data-pane="${pane}"]`)?.scrollIntoView({ block: 'start' });
+  }
+
+  return { renderList, renderDetail, openPlayerStatsModal, openShotCapture, cleanup };
 })();
+

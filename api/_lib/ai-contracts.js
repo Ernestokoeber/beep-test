@@ -1,7 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 9;
+export const AI_CONTRACT_VERSION = 10;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
@@ -19,6 +19,17 @@ const STRING = { type: 'string' };
 const NUMBER = { type: 'number' };
 const INTEGER = { type: 'integer' };
 const INTENSITY = { type: 'string', enum: ['low', 'medium', 'high'] };
+const SHOT_TARGETS_SCHEMA = {
+  type: 'array', maxItems: 10,
+  items: {
+    type: 'object', required: ['kind', 'category', 'attempted'],
+    properties: {
+      kind: { type: 'string', enum: ['field', 'freethrow'] },
+      category: STRING,
+      attempted: INTEGER
+    }
+  }
+};
 const DRILL_SCHEMA = {
   type: 'object',
   required: ['name', 'minutes', 'description'],
@@ -62,14 +73,16 @@ const TRAINING_SCHEMA = {
 };
 const SEASON_DRILL_SCHEMA = {
   ...DRILL_SCHEMA,
-  required: ['name', 'minutes', 'intensity', 'description']
+  required: ['name', 'minutes', 'intensity', 'description', 'shotTargets'],
+  properties: { ...DRILL_SCHEMA.properties, shotTargets: SHOT_TARGETS_SCHEMA }
 };
 const FRIDAY_STATION_SCHEMA = {
   type: 'object',
-  required: ['title', 'category', 'description'],
+  required: ['title', 'category', 'description', 'shotTargets'],
   properties: {
     title: STRING,
     category: STRING,
+    shotTargets: SHOT_TARGETS_SCHEMA,
     description: STRING
   }
 };
@@ -243,6 +256,8 @@ const PROMPTS = {
   planGame: basketballExpertPrompt(`Du erstellst einen kompakten, direkt nutzbaren Basketball-Gameplan für TSV Lindau. teamStrategy ist die verbindliche aktuelle Wahrheit. Bei replacesPrevious=true ersetzt es alle früheren Mannschaftsprinzipien vollständig; excludedConcepts dürfen auch dann nicht reaktiviert werden, wenn sie in historischen Daten oder opponentPlan vorkommen. Nutze ausschließlich Fakten aus dem bestätigten opponentPlan und die dort angegebene Datenqualität. Erfinde keine Quoten, Systeme, Spielertypen oder Matchups. Fehlende Werte bleiben unbekannt und dürfen nicht als gegnerische Schwäche interpretiert werden. Verwende nur Verteidigungen aus teamStrategy.allowedDefenseIds. selectedTactics enthält ausschließlich die vom Trainer aktuell freigegebenen Inhalte. Beziehe diese konkret ein und erfinde keine nicht ausgewählte Teamtaktik. Formuliere jeweils genau drei kurze, konkrete Punkte für Kabine, Spielziele, Offense, Defense, Aufwärmen und Halbzeitkontrolle. Unterscheide belegte Fakten klar von Beobachtungsaufträgen für die ersten Angriffe. Gib nur das angeforderte JSON aus.`),
   planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor performanceContext, coachInput und historischen Trainingsnamen. Bei replacesPrevious=true ersetzt es alle früheren Systeme vollständig; excludedConcepts dürfen weder empfohlen noch als Übung, Variante oder Anschlussaktion eingebaut werden. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Historische Taktiknamen sind ausschließlich Vergangenheitsdaten und keine aktiven Vorgaben. Wiederkehrende Leistungsmuster wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Analysiere zusätzlich den opponentContext des Slots, sofern vorhanden. Verwende ausschließlich dort belegte Gegnerwerte und beachte Datenqualität, Stichprobengröße und Warnungen. Empfehle nur Verteidigungen aus teamStrategy.allowedDefenseIds. tacticalPlaybook enthält ausschließlich die aktuell freigegebenen Teamtaktiken; nutze nur daraus passende Teamtaktik. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Formuliere summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
 
+Wurferfassung ist verpflichtender Bestandteil jedes neuen Trainings: Jeder Drill und jede Einzelstation erhält shotTargets. Für jede tatsächlich vorgesehene Wurfaufgabe (auch Korbleger, Roll-/Pop-Abschlüsse, Pull-ups und Würfe in Entscheidungsübungen) liefere kind=field oder freethrow, eine eindeutige Wurfkategorie und attempted als positive Anzahl geplanter Versuche PRO SPIELER. Die Beschreibung erklärt dazu Position/Distanz, Ablauf, Umfang und Coaching-Punkte. Bei reinen Lauf-, Pass-, Defense-, Mobilitäts- oder Ballhandling-Aufgaben ohne Abschluss ist shotTargets ein leeres Array; erfinde dort keine Würfe. Nutze dieselben Kategorien in drills, stationTraining und shots. Summiere Wiederholungen derselben Kategorie und alle Freiwurfvorgaben. CourtHub berechnet shots und freethrows verbindlich aus den shotTargets der aktiven Übungen; Treffer, tatsächliche Versuche und Quoten werden erst im Training erfasst. Für fridayStationMode sind die shotTargets der fünf Stationen maßgeblich, nicht doppelt die entsprechenden drills. Freitagsvarianten erhalten eigene, vollständige shotTargets. Neue Trainings dürfen keine alten Wurfkategorien ungeprüft übernehmen.
+
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die aktiven Mannschaftsprinzipien aus teamStrategy, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster sowie Verletztenstatus aus performanceContext bleiben davon unberührt und haben Vorrang. Verletzte Spieler erhalten keine normale Trainings- oder Stationsbelastung, sondern nur ausdrücklich medizinisch freigegebene, schmerzfreie Reha/Prehab oder Pause.
 
 Für einen Slot mit fridayStationMode=true erstellst du jedes Mal ein neues individuelles Stationstraining passend zur aktuellen Spielwoche und zum folgenden Wochenendspiel. Nutze die Historie, um Schwerpunkte und Stationskombinationen nicht einfach zu wiederholen. Das Training dauert genau 105 Minuten und besteht in dieser Reihenfolge aus: 10 Minuten Readiness-Check, 10 Minuten individuelle Aktivierung, fünf unterschiedliche Einzelstationen zu je 15 Minuten und 10 Minuten Cooldown mit Session-RPE. Liefere dazu stationTraining mit genau fünf Stationen. drills soll ebenfalls genau diese acht Blöcke enthalten; CourtHub erzeugt die verbindliche Zeitstruktur zusätzlich selbst aus stationTraining. Höchstens eine der fünf Stationen darf unmittelbar aus coachInput.problems abgeleitet sein; die vier übrigen Stationen müssen andere Entwicklungsbereiche abdecken. Keine Teamtaktik, keine Spielformen und kein 1-gegen-1 bis 5-gegen-5. Alle Inhalte müssen allein oder mit einfachen Zuspielern ausführbar sein. Plane niedrige Vor-Spiel-Belastung; die individuelle Ampel für Tagesform, Schmerzen, Spielminuten und Wochenbelastung skaliert das Volumen später pro Spieler. fridayVariants wird für diesen Modus nicht benötigt.
@@ -331,6 +346,7 @@ function validateDrills(input, { requireIntensity = false, durationMinutes = nul
       description: generatedString(drill.description, 800, 'Drillbeschreibung')
     };
     if (requireIntensity) {
+      normalized.shotTargets = validateShotTargets(drill.shotTargets);
       if (!['low', 'medium', 'high'].includes(drill.intensity)) fail('Drillintensität ist ungültig.');
       normalized.intensity = drill.intensity;
     } else if (['low', 'medium', 'high'].includes(drill.intensity)) {
@@ -350,6 +366,33 @@ function validateShots(input) {
   }));
 }
 
+function validateShotTargets(input) {
+  if (!Array.isArray(input) || input.length > 10) fail('Die Wurfvorgaben einer Übung fehlen oder sind ungültig.');
+  return input.map(target => {
+    if (!['field', 'freethrow'].includes(target?.kind)) fail('Die Wurfart ist ungültig.');
+    return {
+      kind: target.kind,
+      category: target.kind === 'freethrow' ? 'Freiwürfe' : generatedString(target.category, 100, 'Wurfkategorie'),
+      attempted: integer(target.attempted, 1, 1000, 'Geplante Wurfversuche pro Spieler')
+    };
+  });
+}
+
+function shootingPlanFromDrills(drills) {
+  const categories = new Map();
+  let freethrows = 0;
+  for (const drill of drills) for (const target of drill.shotTargets || []) {
+    if (target.kind === 'freethrow') freethrows += target.attempted;
+    else {
+      const key = target.category.trim().toLocaleLowerCase('de-DE');
+      const previous = categories.get(key);
+      categories.set(key, { category: previous?.category || target.category, attempted: (previous?.attempted || 0) + target.attempted });
+    }
+  }
+  if (freethrows > 1000 || [...categories.values()].some(target => target.attempted > 1000)) fail('Das geplante Wurfvolumen ist zu hoch.');
+  return { freethrows: { attempted: freethrows }, shots: [...categories.values()] };
+}
+
 function validateFridayStations(input) {
   if (!input || typeof input !== 'object') fail('KI-Stationstraining fehlt.');
   if (!Array.isArray(input.stations) || input.stations.length !== 5) fail('Das KI-Stationstraining benötigt genau fünf Stationen.');
@@ -358,6 +401,7 @@ function validateFridayStations(input) {
     stations: input.stations.map((station) => ({
       title: generatedString(station?.title, 120, 'Stationstitel'),
       category: generatedString(station?.category, 80, 'Stationskategorie'),
+      shotTargets: validateShotTargets(station?.shotTargets),
       description: generatedString(station?.description, 800, 'Stationsbeschreibung')
     }))
   };
@@ -369,25 +413,29 @@ function buildFridayStationDrills(stationTraining) {
       name: 'Readiness-Check & Belastungsampel',
       minutes: 10,
       intensity: 'low',
-      description: 'Tagesform (1–5), Schmerzen (0–10), Spielminuten und aktuelle Wochenbelastung erfassen; Ampel Grün, Gelb oder Rot festlegen.'
+      description: 'Tagesform (1–5), Schmerzen (0–10), Spielminuten und aktuelle Wochenbelastung erfassen; Ampel Grün, Gelb oder Rot festlegen.',
+      shotTargets: []
     },
     {
       name: 'Individuelle Aktivierung',
       minutes: 10,
       intensity: 'low',
-      description: 'Mobilität, Ballgefühl und kontrollierte basketballspezifische Bewegungen passend zur persönlichen Belastungsampel.'
+      description: 'Mobilität, Ballgefühl und kontrollierte basketballspezifische Bewegungen passend zur persönlichen Belastungsampel.',
+      shotTargets: []
     },
     ...stationTraining.stations.map((station) => ({
       name: station.title,
       minutes: 15,
       intensity: 'low',
-      description: generatedString(`${station.category}: ${station.description}`, 800, 'Stationsbeschreibung')
+      description: generatedString(`${station.category}: ${station.description}`, 800, 'Stationsbeschreibung'),
+      shotTargets: station.shotTargets
     })),
     {
       name: 'Cooldown & Session-RPE',
       minutes: 10,
       intensity: 'low',
-      description: 'Belastung kontrolliert senken, Beschwerden erneut prüfen und die wahrgenommene Trainingsbelastung als Session-RPE dokumentieren.'
+      description: 'Belastung kontrolliert senken, Beschwerden erneut prüfen und die wahrgenommene Trainingsbelastung als Session-RPE dokumentieren.',
+      shotTargets: []
     }
   ];
 }
@@ -417,6 +465,7 @@ function normalizeTraining(input, { durationMinutes = null, requireIntensity = f
       ? buildFridayStationDrills(stationTraining)
       : validateDrills(input.drills, { requireIntensity, durationMinutes })
   };
+  if (requireIntensity) Object.assign(training, shootingPlanFromDrills(training.drills));
   if (input.evidenceBasis) training.evidenceBasis = validateEvidenceBasis(input.evidenceBasis);
   if (input.weekday) training.weekday = generatedString(input.weekday, 20, 'Wochentag');
   if (fridayStationMode) {
@@ -740,3 +789,4 @@ export function buildAIRequest(action, payload = {}) {
   if (!build) throw new AIError('AI_INPUT_INVALID', 'Unbekannte KI-Aktion.', { status: 400 });
   return build(payload);
 }
+

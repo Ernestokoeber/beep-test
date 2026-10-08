@@ -179,6 +179,7 @@ BT.storage = (function() {
   function getTraining(id) { return load().trainings.find(t => t.id === id); }
 
   function upsertTraining(training) {
+    BT.trainingShots?.sync(training);
     const data = load();
     if (training.date) training.seasonId = BT.util.seasonForDate(training.date);
     if (training.id) {
@@ -558,3 +559,4 @@ BT.storage = (function() {
     getSeasons, getActiveSeason, setActiveSeason, inActiveSeason
   };
 })();
+

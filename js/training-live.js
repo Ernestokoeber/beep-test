@@ -29,6 +29,7 @@ BT.trainingLive = (() => {
       sourceIndex: Number.isInteger(source.sourceIndex) ? source.sourceIndex : index,
       name: clean(source.name) || `Block ${index + 1}`,
       description: text(source.description).slice(0, 2000),
+      shotTargets: (source.shotTargets || []).map(target => ({ ...target })),
       intensity: ['low', 'medium', 'high'].includes(source.intensity) ? source.intensity : 'medium',
       plannedSeconds,
       durationSeconds: clamp(Math.round(Number(source.durationSeconds || plannedSeconds)), 30, 4 * 60 * 60),
@@ -49,6 +50,7 @@ BT.trainingLive = (() => {
       sourceIndex: index,
       name: drill.name,
       description: drill.description,
+      shotTargets: drill.shotTargets,
       intensity: drill.intensity,
       plannedSeconds: durationSeconds(drill),
       durationSeconds: durationSeconds(drill),
@@ -322,6 +324,8 @@ BT.trainingLive = (() => {
             <section class="training-live-card">
               <div class="training-live-card-head"><h3>Coaching-Points</h3><button type="button" class="training-live-tactic" data-live-action="tactic" hidden>Taktik anzeigen</button></div>
               <ul data-live="coaching"></ul>
+              <p class="muted" data-live="shot-targets" hidden></p>
+              <button type="button" data-live-action="shots" hidden>Würfe erfassen</button>
             </section>
             <section class="training-live-card">
               <h3>Schnellbewertung</h3>
@@ -422,6 +426,13 @@ BT.trainingLive = (() => {
     const session = active.session;
     const current = activeBlock(session);
     if (action === 'close') { close(); return; }
+    if (action === 'shots') {
+      const targets = current?.shotTargets || [];
+      const field = targets.find(target => target.kind === 'field');
+      close();
+      BT.training?.openShotCapture(field ? 'shots' : 'ft', field?.category);
+      return;
+    }
     if (action === 'toggle') {
       toggle(session);
       save(); renderStatic(); return;
@@ -586,6 +597,11 @@ BT.trainingLive = (() => {
     coachingPoints(block, training).forEach(point => {
       const item = document.createElement('li'); item.textContent = point; coaching.appendChild(item);
     });
+    const shotTargets = block.shotTargets || [];
+    const targetLabel = root.querySelector('[data-live="shot-targets"]');
+    targetLabel.hidden = !shotTargets.length;
+    targetLabel.textContent = shotTargets.map(target => `${target.category}: ${target.attempted} Versuche pro Spieler`).join(' · ');
+    root.querySelector('[data-live-action="shots"]').hidden = !shotTargets.length;
     active.tactic = tacticFor(block);
     const tactic = root.querySelector('[data-live-action="tactic"]');
     tactic.hidden = !active.tactic;
@@ -719,4 +735,5 @@ BT.trainingLive = (() => {
     }
   };
 })();
+
 

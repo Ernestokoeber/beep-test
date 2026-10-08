@@ -10,6 +10,7 @@ const scripts = [
   'js/coaching-staff.js', 'js/coaching-staff.mjs',
   'js/training-timer.js',
   'js/training-live.js',
+  'js/training-shots.js',
   'js/station-training.js',
   'js/util.js', 'js/storage.js', 'js/api.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',
   'js/schedule.js', 'js/season-ai-draft.js', 'js/seasonplanner.js', 'js/training.js', 'js/tactics.js', 'js/screen-academy.js',
@@ -71,4 +72,5 @@ if (exportsSource.includes('jspdf@') || exportsSource.includes('cdn.jsdelivr.net
 }
 
 console.log('CourtHub: statische Prüfungen erfolgreich.');
+
 

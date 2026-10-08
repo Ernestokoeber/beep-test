@@ -442,7 +442,8 @@ BT.seasonplanner = (function() {
     const drills = Array.isArray(input) ? input.filter(drill => drill && drill.name).map(drill => ({
       name: String(drill.name).slice(0, 100),
       minutes: Math.max(1, Math.min(60, Number(drill.minutes) || 10)),
-      description: String(drill.description || '').slice(0, 500),
+      description: String(drill.description || '').slice(0, 800),
+      ...(Array.isArray(drill.shotTargets) ? { shotTargets: drill.shotTargets.map(target => ({ ...target })) } : {}),
       intensity: allowed.has(drill.intensity) ? drill.intensity : fallbackIntensity
     })) : [];
     if (!drills.length) return drills;
@@ -485,7 +486,7 @@ BT.seasonplanner = (function() {
         dataQuality: slot.opponentContext.dataQuality
       } : null,
       freethrows: entry.freethrows?.attempted ? { attempted: Math.max(1, Number(entry.freethrows.attempted)) } : null,
-      shots: Array.isArray(entry.shots) ? entry.shots.filter(item => item?.category).map(item => ({ category: String(item.category).slice(0, 80), attempted: Math.max(1, Number(item.attempted) || 10) })) : [],
+      shots: Array.isArray(entry.shots) ? entry.shots.filter(item => item?.category && Number(item.attempted) > 0).map(item => ({ category: String(item.category).slice(0, 100), attempted: Number(item.attempted) })) : [],
       drills,
       variants
     };
@@ -507,6 +508,7 @@ BT.seasonplanner = (function() {
           minutes: drill.minutes,
           intensity: drill.intensity,
           description: drill.description,
+          shotTargets: drill.shotTargets,
           source: 'ai-season'
         });
         existingDrills.push(created);
@@ -522,6 +524,8 @@ BT.seasonplanner = (function() {
       plan: {
         durationMinutes: plan.durationMinutes,
         summary: plan.summary,
+        freethrows: plan.freethrows ? { ...plan.freethrows } : null,
+        shots: plan.shots.map(target => ({ ...target })),
         drills: plan.drills.map(drill => Object.assign({}, drill))
       },
       freethrowsAttempted: plan.freethrows?.attempted || 0,
@@ -569,10 +573,7 @@ BT.seasonplanner = (function() {
       base.startTime = slot.time;
       base.note = plan.summary;
       base.plan = plan;
-      base.shots = base.shots || [];
-      plan.shots.forEach(target => {
-        if (!base.shots.some(category => category.category === target.category)) base.shots.push({ category: target.category, entries: [] });
-      });
+      BT.trainingShots?.sync(base);
       base.planning = {
         source: 'ai-season', status: 'draft', coachEdited: false,
         generatedAt: new Date().toISOString(), loadTarget: slot.load,
@@ -630,3 +631,4 @@ BT.seasonplanner = (function() {
     generateFridayTraining
   };
 })();
+

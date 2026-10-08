@@ -250,6 +250,7 @@ BT.stationTraining = (() => {
       title: clean(station?.title).slice(0, 120),
       category: clean(station?.category).slice(0, 80),
       description: clean(station?.description).slice(0, 800),
+      ...(Array.isArray(station.shotTargets) ? { shotTargets: station.shotTargets.map(target => ({ ...target })) } : {}),
       minutes: 15
     }));
     return stations.every(station => station.title && station.category && station.description) ? stations : null;
@@ -261,7 +262,8 @@ BT.stationTraining = (() => {
       name: clean(drill?.name).slice(0, 120),
       minutes: Number(drill?.minutes) || 0,
       intensity: ['low', 'medium', 'high'].includes(drill?.intensity) ? drill.intensity : 'low',
-      description: clean(drill?.description).slice(0, 800)
+      description: clean(drill?.description).slice(0, 800),
+      ...(Array.isArray(drill.shotTargets) ? { shotTargets: drill.shotTargets.map(target => ({ ...target })) } : {})
     })) : [];
     const expectedMinutes = [10, 10, 15, 15, 15, 15, 15, 10];
     if (drills.length !== expectedMinutes.length || drills.some((drill, index) => !drill.name || !drill.description || drill.minutes !== expectedMinutes[index])) return null;
@@ -294,6 +296,7 @@ BT.stationTraining = (() => {
     state.rationale = plan.aiRationale;
     restorePlayerInputs(state, previousPlayers, game, training);
     training.plan = plan;
+    BT.trainingShots?.sync(training);
     training.stationTraining = state;
     training.note = plan.summary;
     training.planning = {
@@ -402,4 +405,5 @@ BT.stationTraining = (() => {
     __test: { mondayFor, addDays, planFor, planFromAI, createState, normalizeAIStations }
   };
 })();
+
 
