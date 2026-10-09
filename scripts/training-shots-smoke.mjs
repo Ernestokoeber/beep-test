@@ -1,3 +1,4 @@
+import { detailedDescription } from './fixtures/training-description.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
@@ -5,7 +6,7 @@ import { buildAIRequest, AIError } from '../api/_lib/ai-contracts.js';
 
 const field = (category, attempted) => ({ kind: 'field', category, attempted });
 const ft = attempted => ({ kind: 'freethrow', category: 'Freiwürfe', attempted });
-const drill = (name, shotTargets = []) => ({ name, minutes: 15, intensity: 'low', description: 'Aufbau, Ablauf und Coaching-Punkte.', shotTargets });
+const drill = (name, shotTargets = []) => ({ name, minutes: 15, intensity: 'low', description: detailedDescription(), shotTargets });
 const entry = {
   date: '2026-10-06', summary: 'Wurfentscheidungen und Ballkontrolle',
   evidenceBasis: { observedTrends: ['Wurfqualität verbessern'], loadConsiderations: ['Mittlere Wochenlast'], planningDecision: 'Technik mit Entscheidungen verbinden.' },
@@ -27,9 +28,9 @@ assert.throws(() => request.parse(JSON.stringify({ trainings: [invalid] })), AIE
 
 const friday = { ...structuredClone(entry), date: '2026-10-09', stationTraining: {
   rationale: 'Neue Spielwoche', stations: [
-    { title: 'Form Shooting', category: 'Wurf', description: '25 saubere Versuche', shotTargets: [field('Form Shooting', 25)] },
-    { title: 'Freiwürfe', category: 'Wurf', description: '12 Versuche', shotTargets: [ft(12)] },
-    ...Array.from({ length: 3 }, (_, index) => ({ title: `Ballhandling ${index}`, category: 'Technik', description: 'Ohne Abschluss', shotTargets: [] }))
+    { title: 'Form Shooting', category: 'Wurf', description: detailedDescription(), shotTargets: [field('Form Shooting', 25)] },
+    { title: 'Freiwürfe', category: 'Wurf', description: detailedDescription(), shotTargets: [ft(12)] },
+    ...Array.from({ length: 3 }, (_, index) => ({ title: `Ballhandling ${index}`, category: 'Technik', description: detailedDescription(), shotTargets: [] }))
   ]
 } };
 const fridayRequest = buildAIRequest('planSeason', { data: { durationMinutes: 105, slots: [{ date: friday.date, weekday: 'fri', durationMinutes: 105, fridayStationMode: true }] } });

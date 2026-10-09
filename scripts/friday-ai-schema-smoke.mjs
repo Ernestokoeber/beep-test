@@ -1,3 +1,4 @@
+import { detailedDescription } from './fixtures/training-description.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
@@ -14,7 +15,7 @@ const compact = { trainings: [{
   stationTraining: {
     rationale: 'Fünf individuelle Stationen vor dem Spiel.',
     stations: Array.from({ length: 5 }, (_, index) => ({
-      title: `Station ${index + 1}`, category: index === 0 ? 'Wurf' : 'Technik', description: 'Aufbau und Ablauf, Technik kontrollieren.',
+      title: `Station ${index + 1}`, category: index === 0 ? 'Wurf' : 'Technik', description: detailedDescription('Qualität vor Tempo. '.repeat(40)),
       shotTargets: index === 0 ? [
         { kind: 'field', category: 'Pop-Wurf', attempted: 20 },
         { kind: 'freethrow', category: 'Freiwürfe', attempted: 12 }
@@ -34,6 +35,8 @@ assert.equal(value.drills.length, 8);
 assert.deepEqual(value.shots, [{ category: 'Pop-Wurf', attempted: 20 }]);
 assert.equal(value.freethrows.attempted, 12);
 assert.equal(value.drills[2].shotTargets.length, 2);
+assert.equal(value.drills[2].description, compact.trainings[0].stationTraining.stations[0].description);
+assert(value.drills[2].description.length > 800);
 const normal = buildAIRequest('planSeason', { data: { slots: [{ date: '2026-10-13', weekday: 'tue' }] } });
 assert(!normal.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining);
 assert(!normal.generationConfig.responseSchema.properties.trainings.items.properties.fridayVariants);
@@ -88,6 +91,9 @@ await context.BT.seasonplanner.generateFridayTraining('2026-10-09', game, existi
 const saved = context.BT.storage.getTraining(existing.id);
 assert.equal(context.BT.storage.getTrainings().length, 1, 'Replanning must update the existing training');
 assert.equal(saved.stationTraining.stations.length, 5);
+assert.equal(saved.stationTraining.stations[0].description, value.stationTraining.stations[0].description);
+assert.equal(saved.plan.drills[2].description, value.drills[2].description);
+assert(saved.plan.drills[2].description.endsWith('ENDE DER ANLEITUNG'));
 assert(saved.stationTraining.players[player.id], 'Readiness and load inputs must be prepared for the player');
 assert.equal(saved.plan.drills.reduce((sum, drill) => sum + drill.minutes, 0), 105);
 assert.equal(saved.freethrows[0].made, 2, 'Replanning must preserve recorded free throws');

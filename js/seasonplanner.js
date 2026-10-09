@@ -300,6 +300,7 @@ BT.seasonplanner = (function() {
     });
     return {
       team: scheduleConfig().teamName,
+      trainingResources: { availableBaskets: Math.max(1, Math.min(8, Number(BT.storage.getSetting('availableTrainingBaskets', 2)) || 2)) },
       durationMinutes: Math.max(60, Number(BT.storage.getSetting('trainingDurationMinutes', 105)) || 105),
       principles: {
         offense: strategyForAI.offensePrinciples,
@@ -442,7 +443,7 @@ BT.seasonplanner = (function() {
     const drills = Array.isArray(input) ? input.filter(drill => drill && drill.name).map(drill => ({
       name: String(drill.name).slice(0, 100),
       minutes: Math.max(1, Math.min(60, Number(drill.minutes) || 10)),
-      description: String(drill.description || '').slice(0, 800),
+      description: String(drill.description || '').slice(0, 6000),
       ...(Array.isArray(drill.shotTargets) ? { shotTargets: drill.shotTargets.map(target => ({ ...target })) } : {}),
       intensity: allowed.has(drill.intensity) ? drill.intensity : fallbackIntensity
     })) : [];

@@ -249,7 +249,7 @@ BT.stationTraining = (() => {
       label: `Station ${index + 1}`,
       title: clean(station?.title).slice(0, 120),
       category: clean(station?.category).slice(0, 80),
-      description: clean(station?.description).slice(0, 800),
+      description: clean(station?.description).slice(0, 6000),
       ...(Array.isArray(station.shotTargets) ? { shotTargets: station.shotTargets.map(target => ({ ...target })) } : {}),
       minutes: 15
     }));
@@ -262,7 +262,7 @@ BT.stationTraining = (() => {
       name: clean(drill?.name).slice(0, 120),
       minutes: Number(drill?.minutes) || 0,
       intensity: ['low', 'medium', 'high'].includes(drill?.intensity) ? drill.intensity : 'low',
-      description: clean(drill?.description).slice(0, 800),
+      description: clean(drill?.description).slice(0, 6000),
       ...(Array.isArray(drill.shotTargets) ? { shotTargets: drill.shotTargets.map(target => ({ ...target })) } : {})
     })) : [];
     const expectedMinutes = [10, 10, 15, 15, 15, 15, 15, 10];
@@ -360,7 +360,7 @@ BT.stationTraining = (() => {
         <div><span class="section-kicker">Freitag · 105 Minuten</span><h3>Individuelle Stationen & Belastungssteuerung</h3><p>Die Ampel wird aus Tagesform, Schmerzen, Spielminuten und der Belastung der letzten sieben Tage berechnet.</p></div>
         <div class="station-traffic-summary"><span class="traffic-green">${counts.green} Grün</span><span class="traffic-yellow">${counts.yellow} Gelb</span><span class="traffic-red">${counts.red} Rot</span></div>
       </section>
-      <div class="station-grid">${state.stations.map((station, index) => `<article class="station-card"><span>${escapeHTML(station.label)} · ${station.minutes} min</span><h4>${escapeHTML(station.title)}</h4><p>${escapeHTML(station.description)}</p><small>Startgruppe: ${escapeHTML(groups[index]?.join(' / ') || 'offen')}</small></article>`).join('')}</div>
+      <div class="station-grid">${state.stations.map((station, index) => `<article class="station-card"><span>${escapeHTML(station.label)} · ${station.minutes} min</span><h4>${escapeHTML(station.title)}</h4><details class="training-guide"><summary>Aufbau &amp; Ablauf</summary>${BT.trainingInstructions ? BT.trainingInstructions.markup(BT.trainingInstructions.descriptionFor(training, station)) : `<p>${escapeHTML(station.description)}</p>`}</details><small>Startgruppe: ${escapeHTML(groups[index]?.join(' / ') || 'offen')}</small></article>`).join('')}</div>
       <section class="station-load-section"><div class="section-head compact"><div><span class="section-kicker">Session-RPE</span><h3>Belastung pro Spieler</h3></div></div><div class="station-player-list">${players.map(player => {
         const entry = state.players[player.id];
         return `<article class="station-player-card" data-station-player="${escapeHTML(player.id)}">
