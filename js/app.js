@@ -343,14 +343,18 @@
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     let reloadingForUpdate = false;
+    let hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloadingForUpdate) return;
+      const isUpdate = hadController;
+      hadController = !!navigator.serviceWorker.controller;
+      // First installation can claim this page without downloading it again.
+      // Existing clients reload once to pick up the newly installed release.
+      if (!isUpdate || !hadController || reloadingForUpdate) return;
       reloadingForUpdate = true;
       location.reload();
     });
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
-        .then((registration) => registration.update())
         .catch((err) => {
           console.warn('Service Worker Registrierung fehlgeschlagen:', err.message);
         });

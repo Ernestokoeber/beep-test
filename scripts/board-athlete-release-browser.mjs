@@ -7,12 +7,21 @@ try {
  const page = await context.newPage(), errors = [];
  page.on('pageerror', error => errors.push(error.message));
  let navigations = 0;
- const installed = new Promise(resolve => page.on('framenavigated', frame => { if (frame === page.mainFrame() && ++navigations === 2) resolve(); }));
+ page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations++; });
  await page.goto(base);
- // The app reloads controlled clients once when its first SW activates.
- await Promise.race([installed, page.waitForTimeout(15000).then(() => { throw new Error('PWA installation did not complete'); })]);
- await page.waitForLoadState('load');
  await page.waitForFunction(() => navigator.serviceWorker.controller && window.BT?.tactics?.__core);
+ assert.equal(navigations, 1, 'First PWA installation must not reload the page');
+ // A warm visit uses cached app files without downloading them in the worker.
+ const workerAssetRequests = [];
+ const trackWorkerRequest = request => {
+  if (request.serviceWorker() && new URL(request.url()).pathname !== '/sw.js') workerAssetRequests.push(request.url());
+ };
+ context.on('request', trackWorkerRequest);
+ await page.reload();
+ await page.waitForFunction(() => window.BT?.tactics?.__core);
+ await page.waitForLoadState('networkidle');
+ context.off('request', trackWorkerRequest);
+ assert.deepEqual(workerAssetRequests, [], 'Cached app files must not be downloaded again on reload');
  const large = await page.evaluate(async () => {
   await import('/js/play-designer/timing-fix.js');
   const core = window.BT.tactics.__core, board = core.defaultBoard();

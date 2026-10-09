@@ -1,6 +1,6 @@
-// Bump this whenever the offline asset manifest changes so installed clients
-// cannot keep an older editor or planner bundle.
-const CACHE = 'courthub-v197';
+// Bump this whenever any app file or the offline asset manifest changes.
+// Cached files stay fixed for a release; the new worker installs the next release.
+const CACHE = 'courthub-v198';
 const ASSETS = [
   './js/training-shots.js',
   './',
@@ -150,41 +150,39 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith('courthub-') && k !== CACHE).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: 'window' }))
-      .then((clients) => Promise.all(clients.map((client) => {
-        if (typeof client.navigate !== 'function') return null;
-        return client.navigate(client.url).catch(() => null);
-      })))
   );
 });
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-  if (new URL(req.url).pathname.startsWith('/api/')) return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
   // Leave native video byte ranges to the browser/CDN. Cache API cannot store
   // partial (206) responses or synthesize the ranges required for seeking.
-  if (req.headers.has('Range') || new URL(req.url).pathname.startsWith('/assets/pnr/films/')) return;
+  if (req.headers.has('Range') || url.pathname.startsWith('/assets/pnr/films/')) return;
 
+  // App files belong to this release. Download them once; a new worker/cache
+  // supplies updates atomically instead of refreshing every file on every visit.
   event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) {
-        fetch(req).then((fresh) => {
-          if (fresh && fresh.ok) {
-            caches.open(CACHE).then((cache) => cache.put(req, fresh.clone()));
-          }
-        }).catch(() => {});
-        return cached;
-      }
-      return fetch(req).then((fresh) => {
-        if (fresh && fresh.ok && new URL(req.url).origin === location.origin) {
-          const copy = fresh.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy));
+    caches.open(CACHE).then(async (cache) => {
+      const cached = await cache.match(req);
+      if (cached) return cached;
+      try {
+        const fresh = await fetch(req);
+        if (fresh && fresh.ok) {
+          await cache.put(req, fresh.clone()).catch(() => {});
         }
         return fresh;
-      }).catch(() => caches.match('./index.html'));
+      } catch (err) {
+        if (req.mode === 'navigate') {
+          const shell = await cache.match('./index.html');
+          if (shell) return shell;
+        }
+        throw err;
+      }
     })
   );
 });
