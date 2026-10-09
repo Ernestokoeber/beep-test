@@ -90,13 +90,13 @@ BT.jerseys = (function() {
       form.hidden = false;
       form.innerHTML = `<h3>${duty ? 'Waschdienst bearbeiten' : past ? 'Früheren Waschdienst nachtragen' : 'Mitnahme eintragen'}</h3>
         <input type="hidden" name="id" value="${esc(editId || '')}">
-        <div class="jersey-form-grid"><label>Trikotsatz<select name="kit"><option value="home">Heimtrikots</option><option value="away">Auswärtstrikots</option></select></label>
-        <label>Spieler<select name="playerId" required><option value="">Spieler auswählen</option>${candidates.map(row => `<option value="${esc(row.player.id)}">${esc(row.player.name)} · ${row.total} Dienst(e)${row.player.archived ? ' · archiviert' : ''}</option>`).join('')}</select></label>
+        <div class="jersey-form-grid"><label>Trikotsatz<select name="kit" aria-label="Trikotsatz"><option value="home">Heimtrikots</option><option value="away">Auswärtstrikots</option></select></label>
+        <label>Spieler<select name="playerId" aria-label="Spieler" required><option value="">Spieler auswählen</option>${candidates.map(row => `<option value="${esc(row.player.id)}">${esc(row.player.name)} · ${row.total} Dienst(e)${row.player.archived ? ' · archiviert' : ''}</option>`).join('')}</select></label>
         <label>Mitgenommen am<input name="takenOn" type="date" max="${todayISO()}" required></label>
         <label>Rückgabe bis (optional)<input name="dueOn" type="date"></label>
-        <label>Status<select name="status"><option value="pending">Mitgenommen · Rückgabe offen</option><option value="returned">Gewaschen und zurückgegeben</option></select></label>
+        <label>Status<select name="status" aria-label="Status"><option value="pending">Mitgenommen · Rückgabe offen</option><option value="returned">Gewaschen und zurückgegeben</option></select></label>
         <label data-role="returned-field">Sauber zurück am<input name="returnedOn" type="date" max="${todayISO()}"></label>
-        <label>Spiel (optional)<select name="gameId"><option value="">Ohne Spielzuordnung</option>${games.map(game => `<option value="${esc(game.id)}">${esc(formatDate(game.date))} · ${esc(game.home || '')} – ${esc(game.away || '')}</option>`).join('')}</select></label>
+        <label>Spiel (optional)<select name="gameId" aria-label="Spiel (optional)"><option value="">Ohne Spielzuordnung</option>${games.map(game => `<option value="${esc(game.id)}">${esc(formatDate(game.date))} · ${esc(game.home || '')} – ${esc(game.away || '')}</option>`).join('')}</select></label>
         <label>Notiz (optional)<input name="note" maxlength="300" placeholder="z. B. Rückgabe beim nächsten Training"></label></div>
         <div class="form-actions"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-action="cancel">Abbrechen</button></div>
         <p class="auth-status" data-role="form-error" role="alert"></p>`;
