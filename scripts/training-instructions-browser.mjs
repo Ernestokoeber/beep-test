@@ -34,7 +34,7 @@ try {
     assert.match(await stations.nth(2).innerText(), /Minute 8–15/);
     const noOverflow = async () => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll('.training-live-main')].every(node => node.scrollWidth <= node.clientWidth + 1)), name + ': instructions overflow horizontally');
     await noOverflow();
-    await page.locator('[data-live-action="close"]').click();
+    await page.getByRole('button', { name: 'Training Live schließen', exact: true }).click();
     await page.evaluate(id => { location.hash = '#/training/' + id; }, ids.future);
     await page.waitForFunction(() => document.querySelector('[data-role="training-plan-preview"]')?.textContent.includes('Ausführliche Übung'));
     await page.locator('[data-role="training-plan-preview"] details summary').click();
