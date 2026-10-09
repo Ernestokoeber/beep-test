@@ -42,6 +42,9 @@ export function protectWorkspace(incoming,current,confirmedGameDeletions=[]) {
   const result=clone(incoming);
   ensure(result.games===undefined || Array.isArray(result.games),'schema','Ungültige Spiele.');
   ensure(Array.isArray(confirmedGameDeletions)&&confirmedGameDeletions.every(id=>typeof id==='string'),'schema','Ungültiger Löschauftrag.');
+  // Older clients do not know this collection and must not erase its history.
+  if (result.jerseyDuties === undefined && current?.jerseyDuties !== undefined) result.jerseyDuties = clone(current.jerseyDuties);
+  ensure(result.jerseyDuties === undefined || Array.isArray(result.jerseyDuties), 'schema', 'Ungültige Waschdienste.');
   result.games=result.games||[];
   for(const old of current?.games||[]){
     if(!old.liveStats&&!old.matchday)continue;
