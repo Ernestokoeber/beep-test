@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
+import { detailedDescription } from './fixtures/training-description.mjs';
+const html = readFileSync('index.html', 'utf8');
+const dom = new JSDOM(html, { url: 'https://coach.tsv-lindau.de/#/dashboard', runScripts: 'outside-only', pretendToBeVisual: true });
+const { window } = dom;
+window.matchMedia = () => ({ matches: false, addEventListener() {} });
+window.confirm = () => true;
+window.alert = () => {};
+for (const [, path] of html.matchAll(/<script defer src="(js\/[^"?]+)"/g)) window.eval(readFileSync(path, 'utf8'));
+window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+const BT = window.BT, helper = BT.trainingInstructions;
+const names = ['PnR Ballhandling & Reject-Fußarbeit', 'Closeout-Balance & Defensiv-Slides', 'Paint-Finishing & Floater-Touch', 'Spacing Catch-and-Shoot', 'Freiwurf-Präzision & Fokusroutine'];
+const drills = [
+  { name: 'Readiness-Check & Belastungsampel', minutes: 10 }, { name: 'Individuelle Aktivierung', minutes: 10 },
+  ...names.map((name, index) => ({ name: `Station ${index + 1}: ${name}`, minutes: 15, description: 'Bestehende Trainerhinweise', shotTargets: index === 2 ? [{ kind: 'field', category: 'Floater', attempted: 18 }] : index === 4 ? [{ kind: 'freethrow', category: 'Freiwürfe', attempted: 12 }] : [] })),
+  { name: 'Cooldown & Session-RPE', minutes: 10 }
+];
+const training = BT.storage.upsertTraining({ date: '2026-10-09', attendance: [], shots: [], freethrows: [], plan: { drills }, stationTraining: { stations: names.map((title, index) => ({ title, label: `Station ${index + 1}`, minutes: 15, description: drills[index + 2].description, shotTargets: drills[index + 2].shotTargets })), players: {} } });
+const before = JSON.stringify(training);
+for (const drill of training.plan.drills) assert.match(helper.descriptionFor(training, drill), /Anpassung:/);
+assert.equal(JSON.stringify(training), before, 'Today’s displayed supplement must preserve all existing training data');
+const finishing = helper.descriptionFor(training, training.plan.drills[4]);
+assert.match(finishing, /Floater: 18 Versuche/);
+assert.match(finishing, /Minute 1–8/);
+assert.match(finishing, /Minute 8–15/);
+assert.match(finishing, /Bestehende Trainerhinweise/);
+assert.match(helper.descriptionFor(training, training.plan.drills[6]), /Freiwürfe: 12 Versuche/);
+assert.equal(helper.descriptionFor({ ...training, date: '2026-10-16' }, drills[2]), 'Bestehende Trainerhinweise', 'A date-specific supplement must not be applied to another training');
+assert.equal(helper.descriptionFor(training, { name: 'Neue Trainerübung', description: 'Eigene Anleitung' }), 'Eigene Anleitung');
+const long = detailedDescription('Technik prüfen. '.repeat(120));
+const container = window.document.getElementById('app');
+BT.training.renderDetail(container, training.id);
+const preview = container.querySelector('[data-role="training-plan-preview"]');
+assert.equal(preview.querySelectorAll('.training-guide').length, 8);
+assert.match(preview.textContent, /Korb A/);
+assert.match(preview.textContent, /Korb B/);
+BT.trainingLive.open(training.id);
+assert.match(window.document.querySelector('[data-live="instructions"]').textContent, /fünf Startgruppen/);
+window.document.querySelectorAll('.training-live-progress-step')[2].click();
+assert.match(window.document.querySelector('[data-live="block-name"]').textContent, /Stationsrunde 1/);
+assert.match(window.document.querySelector('[data-live="next-name"]').textContent, /Stationsrunde 2/);
+assert.match(window.document.querySelectorAll('.training-live-progress-step')[3].getAttribute('aria-label'), /Stationsrunde 2/);
+assert.equal(window.document.querySelector('[data-live="station-instructions"]').querySelectorAll('details').length, 5);
+window.document.querySelector('[data-live-action="finish"]').click();
+assert.match(window.document.querySelector('[data-live="report"]').textContent, /Stationsrunde 1/);
+BT.trainingLive.close();
+const future = BT.storage.upsertTraining({ date: '2026-10-13', attendance: [], plan: { drills: [{ name: 'Ausführliche Übung', minutes: 15, description: long }] } });
+container.replaceChildren(); BT.training.cleanup(); BT.training.renderDetail(container, future.id);
+assert.match(container.querySelector('[data-role="training-plan-preview"]').textContent, /ENDE DER ANLEITUNG/);
+BT.trainingLive.open(future.id);
+assert.match(window.document.querySelector('[data-live="instructions"]').textContent, /ENDE DER ANLEITUNG/);
+assert.equal(BT.trainingLive.__test.createSession(future).blocks[0].description, long);
+assert.match(BT.trainingLive.__test.coachingPoints({ description: long, name: 'Skills' }, future).join(' '), /Stabil stoppen/);
+assert.doesNotMatch(helper.markup('Aufbau: <img src=x onerror=alert(1)>'), /<img/);
+BT.trainingLive.close(); BT.training.cleanup(); dom.window.close();
+console.log('Trainingsanleitungen: heute/zukünftig, zwei Körbe, fünf parallele Gruppen, Wurfvorgaben, vollständiger Live-Text, Datenbestand und XSS geprüft');

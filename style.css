@@ -8327,3 +8327,12 @@ body {
 .game-archive-notice p { margin: 8px 0 12px; }
 .game-archive-notice[hidden] { display: none; }
 .game-detail textarea[readonly], .game-detail input[readonly] { cursor: default; opacity: .8; }
+
+/* Full exercise instructions are available on demand in every training view. */
+.training-guide { margin: 10px 0; min-width: 0; overflow-wrap: anywhere; }
+.training-guide > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.training-guide-section { margin: 12px 0; min-width: 0; }
+.training-guide-section h4 { margin: 0 0 5px; font-size: .95rem; }
+.training-guide-section p, .training-guide-text, [data-live="instructions"] { white-space: pre-wrap; overflow-wrap: anywhere; }
+.training-guide-section p { margin: 0; line-height: 1.6; }
+.training-preview-blocks .training-guide { clear: both; font-size: .95rem; }

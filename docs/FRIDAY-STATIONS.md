@@ -11,7 +11,7 @@ CourtHub bietet vor einem Herrenspiel am folgenden Samstag oder Sonntag automati
 
 Die KI wählt fünf unterschiedliche Einzelstationen passend zum folgenden Spiel, zu den Trainer-Vorgaben und zur bisherigen Trainingshistorie. Sie erhält ausdrücklich die bereits absolvierten sowie die im aktuellen Planungslauf zuvor erzeugten Inhalte, damit Schwerpunkte und Kombinationen von Woche zu Woche wechseln. Eine unter „Beobachtung aus Spiel oder Training“ eingetragene Schwäche darf höchstens eine der fünf Stationen bestimmen; die übrigen vier Stationen decken andere Entwicklungsbereiche ab. Teamtaktik, Spielformen und 1-gegen-1 bis 5-gegen-5 sind für diesen Freitag ausgeschlossen.
 
-Der KI-Entwurf wird nur übernommen, wenn er genau fünf beschriebene Stationen und den vollständigen 105-Minuten-Aufbau liefert. Die erzeugten Blöcke werden direkt im Live-Training verwendet.
+Der KI-Entwurf wird nur übernommen, wenn er genau fünf beschriebene Stationen und den vollständigen 105-Minuten-Aufbau liefert. Die erzeugten Blöcke werden direkt im Live-Training verwendet. Aufbau, nummerierter Ablauf, Umfang/Pausen, Coaching und Anpassung sind über aufklappbare Anleitungen in Übersicht, Plan und Live-Modus vollständig zugänglich. Die fünf Stationsblöcke sind fünf parallele Rotationsrunden; der Live-Modus zeigt deshalb alle Stationen je Runde. Details: [Trainingsanleitungen](TRAINING-INSTRUCTIONS.md).
 
 ## Belastungssteuerung
 

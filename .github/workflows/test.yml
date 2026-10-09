@@ -52,6 +52,10 @@ jobs:
           done
           cat /tmp/courthub-e2e-server.log
           exit 1
+      - name: Run training instructions browser E2E
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+        run: node scripts/training-instructions-browser.mjs
       - name: Run jersey duty browser E2E
         env:
           E2E_BASE_URL: http://127.0.0.1:4173

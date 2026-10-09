@@ -1694,7 +1694,7 @@ BT.training = (function() {
     const plan = currentTraining.plan || {};
     const drills = plan.drills || [];
     preview.innerHTML = '<h3>Heute im Training</h3><p>' + escapeHTML(plan.summary || 'Schwerpunkt noch offen') + '</p>' +
-      (drills.length ? '<ol class="training-preview-blocks">' + drills.map(drill => '<li><span>' + escapeHTML(drill.name || 'Trainingsblock') + '</span><strong>' + (Number(drill.minutes) || 0) + ' min</strong></li>').join('') + '</ol>' : '<p class="muted">Noch kein Trainingsablauf hinterlegt.</p>') +
+      (drills.length ? '<ol class="training-preview-blocks">' + drills.map(drill => '<li><span>' + escapeHTML(drill.name || 'Trainingsblock') + '</span><strong>' + (Number(drill.minutes) || 0) + ' min</strong>' + (BT.trainingInstructions ? '<details class="training-guide"><summary>Aufbau &amp; Ablauf</summary>' + BT.trainingInstructions.markup(BT.trainingInstructions.descriptionFor(currentTraining, drill)) + '</details>' : '') + '</li>').join('') + '</ol>' : '<p class="muted">Noch kein Trainingsablauf hinterlegt.</p>') +
       '<button class="btn small" type="button" data-action="open-plan">Plan bearbeiten</button>';
     $('[data-action="open-plan"]', preview).addEventListener('click', () => $('.subnav-btn[data-pane="plan"]', detailRoot)?.click());
   }
@@ -1820,12 +1820,12 @@ BT.training = (function() {
             <button class="btn small" data-action="remove" aria-label="Entfernen">✕</button>
           </div>
         </div>
-        ${d.description ? '<div class="muted plan-drill-desc">' + escapeHTML(d.description) + '</div>' : ''}
+        ${BT.trainingInstructions ? '<details class="training-guide plan-drill-desc"><summary>Übungsanleitung</summary>' + BT.trainingInstructions.markup(BT.trainingInstructions.descriptionFor(currentTraining, d)) + '</details>' : d.description ? '<div class="muted plan-drill-desc">' + escapeHTML(d.description) + '</div>' : ''}
         <div class="plan-drill-edit hidden" data-role="edit-form">
           <label>Name<input type="text" data-field="name" value="${escapeHTML(d.name || '')}"></label>
           <label>Minuten<input type="number" min="0" step="1" data-field="minutes" value="${d.minutes || ''}"></label>
           <label>Intensität<select data-field="intensity"><option value="low" ${d.intensity === 'low' ? 'selected' : ''}>Locker</option><option value="medium" ${!d.intensity || d.intensity === 'medium' ? 'selected' : ''}>Mittel</option><option value="high" ${d.intensity === 'high' ? 'selected' : ''}>Intensiv</option></select></label>
-          <label>Beschreibung<textarea data-field="description" rows="2">${escapeHTML(d.description || '')}</textarea></label>
+          <label>Beschreibung<textarea data-field="description" rows="8" maxlength="6000" placeholder="Ziel:&#10;Aufbau:&#10;Ablauf: 1. … 2. …&#10;Umfang &amp; Pausen:&#10;Coaching:&#10;Anpassung:">${escapeHTML(d.description || '')}</textarea></label>
           <button type="button" class="btn small primary" data-action="edit-close">Fertig</button>
         </div>
       `;

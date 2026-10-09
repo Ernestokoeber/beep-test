@@ -1,7 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 11;
+export const AI_CONTRACT_VERSION = 12;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
 export class AIError extends Error {
@@ -278,6 +278,8 @@ const PROMPTS = {
   planGame: basketballExpertPrompt(`Du erstellst einen kompakten, direkt nutzbaren Basketball-Gameplan für TSV Lindau. teamStrategy ist die verbindliche aktuelle Wahrheit. Bei replacesPrevious=true ersetzt es alle früheren Mannschaftsprinzipien vollständig; excludedConcepts dürfen auch dann nicht reaktiviert werden, wenn sie in historischen Daten oder opponentPlan vorkommen. Nutze ausschließlich Fakten aus dem bestätigten opponentPlan und die dort angegebene Datenqualität. Erfinde keine Quoten, Systeme, Spielertypen oder Matchups. Fehlende Werte bleiben unbekannt und dürfen nicht als gegnerische Schwäche interpretiert werden. Verwende nur Verteidigungen aus teamStrategy.allowedDefenseIds. selectedTactics enthält ausschließlich die vom Trainer aktuell freigegebenen Inhalte. Beziehe diese konkret ein und erfinde keine nicht ausgewählte Teamtaktik. Formuliere jeweils genau drei kurze, konkrete Punkte für Kabine, Spielziele, Offense, Defense, Aufwärmen und Halbzeitkontrolle. Unterscheide belegte Fakten klar von Beobachtungsaufträgen für die ersten Angriffe. Gib nur das angeforderte JSON aus.`),
   planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor performanceContext, coachInput und historischen Trainingsnamen. Bei replacesPrevious=true ersetzt es alle früheren Systeme vollständig; excludedConcepts dürfen weder empfohlen noch als Übung, Variante oder Anschlussaktion eingebaut werden. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Historische Taktiknamen sind ausschließlich Vergangenheitsdaten und keine aktiven Vorgaben. Wiederkehrende Leistungsmuster wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Analysiere zusätzlich den opponentContext des Slots, sofern vorhanden. Verwende ausschließlich dort belegte Gegnerwerte und beachte Datenqualität, Stichprobengröße und Warnungen. Empfehle nur Verteidigungen aus teamStrategy.allowedDefenseIds. tacticalPlaybook enthält ausschließlich die aktuell freigegebenen Teamtaktiken; nutze nur daraus passende Teamtaktik. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Formuliere summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
 
+Jede description ist eine unmittelbar ausführbare Anleitung auf Deutsch mit diesen sechs Überschriften in genau dieser Reihenfolge, jeweils auf einer neuen Zeile: Ziel:, Aufbau:, Ablauf:, Umfang & Pausen:, Coaching:, Anpassung:. Beschreibe konkret Material, Korbbelegung, Gruppengröße und Startpositionen; nummeriere die einzelnen Handlungsschritte im Ablauf. Gib Wiederholungen/Serien, Partnerwechsel, Arbeits- und Pausenzeiten innerhalb der Blockdauer an. Erkläre zwei bis drei beobachtbare Coaching-Punkte und typische Fehler sowie eine einfachere Variante und individuelle Belastungsanpassung. Reine Schlagworte oder Übungsnamen genügen nicht. Plane etwa 700–1800 Zeichen pro Anleitung und maximal 6000. Die Wurfzahlen in der Beschreibung müssen mit shotTargets übereinstimmen; Vorgaben sind Versuche pro Spieler, niemals bereits erzielte Treffer. trainingResources.availableBaskets ist die verfügbare Korbzahl, standardmäßig zwei. Plane niemals mehr gleichzeitige Wurfstationen als Körbe; bei geteiltem Korb benenne getrennte Zeitfenster und die korbfreie Aufgabe der wartenden Gruppe. Beim Stationstraining rotieren fünf Gruppen in fünf 15-Minuten-Runden, jede Station wird einmal besucht. Jede Stationsbeschreibung erklärt ihre gleichzeitige Belegung und den Wechsel; keine fünf nacheinander absolvierten Aufgaben für die gesamte Mannschaft.
+
 Wurferfassung ist verpflichtender Bestandteil jedes neuen Trainings: Jeder Drill und jede Einzelstation erhält shotTargets. Für jede tatsächlich vorgesehene Wurfaufgabe (auch Korbleger, Roll-/Pop-Abschlüsse, Pull-ups und Würfe in Entscheidungsübungen) liefere kind=field oder freethrow, eine eindeutige Wurfkategorie und attempted als positive Anzahl geplanter Versuche PRO SPIELER. Die Beschreibung erklärt dazu Position/Distanz, Ablauf, Umfang und Coaching-Punkte. Bei reinen Lauf-, Pass-, Defense-, Mobilitäts- oder Ballhandling-Aufgaben ohne Abschluss ist shotTargets ein leeres Array; erfinde dort keine Würfe. Verwende eindeutige, konsistente Kategorien in den shotTargets. Liefere keine separaten shots- oder freethrows-Gesamtsummen; CourtHub summiert Wiederholungen derselben Kategorie und alle Freiwurfvorgaben selbst. CourtHub berechnet shots und freethrows verbindlich aus den shotTargets der aktiven Übungen; Treffer, tatsächliche Versuche und Quoten werden erst im Training erfasst. Für fridayStationMode sind die shotTargets der fünf Stationen maßgeblich, nicht doppelt die entsprechenden drills. Freitagsvarianten erhalten eigene, vollständige shotTargets. Neue Trainings dürfen keine alten Wurfkategorien ungeprüft übernehmen.
 
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die aktiven Mannschaftsprinzipien aus teamStrategy, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster sowie Verletztenstatus aus performanceContext bleiben davon unberührt und haben Vorrang. Verletzte Spieler erhalten keine normale Trainings- oder Stationsbelastung, sondern nur ausdrücklich medizinisch freigegebene, schmerzfreie Reha/Prehab oder Pause.
@@ -358,6 +360,18 @@ function fitDrillMinutes(drills, durationMinutes) {
   return drills;
 }
 
+function trainingDescription(value, label) {
+  const text = string(value, 6000, label);
+  const headings = ['Ziel', 'Aufbau', 'Ablauf', 'Umfang & Pausen', 'Coaching', 'Anpassung'];
+  const matches = [...text.matchAll(/^(Ziel|Aufbau|Ablauf|Umfang & Pausen|Coaching|Anpassung):[ \t]*/gm)];
+  if (matches.length !== headings.length || matches.some((match, index) => match[1] !== headings[index] || !text.slice(match.index + match[0].length, matches[index + 1]?.index ?? text.length).trim())) {
+    fail(`${label} benötigt Ziel, Aufbau, Ablauf, Umfang & Pausen, Coaching und Anpassung.`);
+  }
+  const steps = text.slice(matches[2].index + matches[2][0].length, matches[3].index);
+  if (!/(?:^|\s)1[.)]\s/.test(steps) || !/(?:^|\s)2[.)]\s/.test(steps)) fail(`${label} benötigt einen nummerierten Ablauf.`);
+  return text;
+}
+
 function validateDrills(input, { requireIntensity = false, durationMinutes = null } = {}) {
   if (!Array.isArray(input) || input.length < 1 || input.length > 30) fail('Die Drillliste ist ungültig.');
   const drills = input.map((drill) => {
@@ -365,7 +379,7 @@ function validateDrills(input, { requireIntensity = false, durationMinutes = nul
     const normalized = {
       name: generatedString(drill.name, 120, 'Drillname'),
       minutes: integer(drill.minutes, 1, 240, 'Drilldauer'),
-      description: generatedString(drill.description, 800, 'Drillbeschreibung')
+      description: requireIntensity ? trainingDescription(drill.description, 'Drillbeschreibung') : generatedString(drill.description, 6000, 'Drillbeschreibung')
     };
     if (requireIntensity) {
       normalized.shotTargets = validateShotTargets(drill.shotTargets);
@@ -424,7 +438,7 @@ function validateFridayStations(input) {
       title: generatedString(station?.title, 120, 'Stationstitel'),
       category: generatedString(station?.category, 80, 'Stationskategorie'),
       shotTargets: validateShotTargets(station?.shotTargets),
-      description: generatedString(station?.description, 800, 'Stationsbeschreibung')
+      description: trainingDescription(station?.description, 'Stationsbeschreibung')
     }))
   };
 }
@@ -435,28 +449,28 @@ function buildFridayStationDrills(stationTraining) {
       name: 'Readiness-Check & Belastungsampel',
       minutes: 10,
       intensity: 'low',
-      description: 'Tagesform (1–5), Schmerzen (0–10), Spielminuten und aktuelle Wochenbelastung erfassen; Ampel Grün, Gelb oder Rot festlegen.',
+      description: 'Ziel: Belastung und Tagesziel pro Spieler festlegen.\nAufbau: Gemeinsam am Seitenrand, CourtHub-Reiter Belastung öffnen; fünf Startgruppen bilden.\nAblauf: 1. In 3 min Tagesform, Schmerzen und Wochenbelastung erfassen. 2. In 3 min Ampel und Ziel-RPE besprechen. 3. In 4 min Startstationen, Korbbelegung und Wechselrichtung erklären.\nUmfang & Pausen: 10 min; fünf Stationsrunden à 15 min. Alle Gruppen arbeiten parallel und wechseln 1 → 2 → 3 → 4 → 5 → 1.\nCoaching: Jede Gruppe kennt Startposition und Signal; Beschwerden vor dem Start melden lassen.\nAnpassung: Gelb mit etwa 70 % Volumen; Rot nur freigegebene schmerzfreie Aufgaben oder Pause.',
       shotTargets: []
     },
     {
       name: 'Individuelle Aktivierung',
       minutes: 10,
       intensity: 'low',
-      description: 'Mobilität, Ballgefühl und kontrollierte basketballspezifische Bewegungen passend zur persönlichen Belastungsampel.',
+      description: 'Ziel: Kontrollierte Aktivierung ohne Vor-Spiel-Ermüdung.\nAufbau: Freie Außenflächen, ein Ball je Spieler oder Partnerpaar; Laufwege trennen.\nAblauf: 1. 2 min locker gehen/traben. 2. 3 min schmerzfreie Mobilität. 3. 3 min Ballhandling rechts/links im Stand und Gehen. 4. 2 min ruhige Start-Stopp-Schritte.\nUmfang & Pausen: 10 min; kurze Partnerwechsel, keine Sprint- oder Sprungserien.\nCoaching: Blick oben, stabil stoppen, Technik vor Tempo.\nAnpassung: Gelb mit zusätzlichen Pausen; Rot nur freigegebene schmerzfreie Aufgaben oder Pause.',
       shotTargets: []
     },
     ...stationTraining.stations.map((station) => ({
       name: station.title,
       minutes: 15,
       intensity: 'low',
-      description: generatedString(`${station.category}: ${station.description}`, 800, 'Stationsbeschreibung'),
+      description: station.description,
       shotTargets: station.shotTargets
     })),
     {
       name: 'Cooldown & Session-RPE',
       minutes: 10,
       intensity: 'low',
-      description: 'Belastung kontrolliert senken, Beschwerden erneut prüfen und die wahrgenommene Trainingsbelastung als Session-RPE dokumentieren.',
+      description: 'Ziel: Belastung senken und die gesamte Einheit bewerten.\nAufbau: Bälle ablegen, am Seitenrand sammeln; CourtHub zur Nachbereitung bereithalten.\nAblauf: 1. 3 min ruhig gehen. 2. 3 min lockere schmerzfreie Mobilität. 3. 2 min Beschwerden und Übungsqualität besprechen. 4. 2 min Session-RPE erklären und die Eintragung nach kurzer Erholung vorbereiten.\nUmfang & Pausen: 10 min; kein Abschlusswettkampf und keine zusätzlichen Würfe.\nCoaching: Gesamte Belastung bewerten, Beschwerden und ausgelassene Aufgaben dokumentieren.\nAnpassung: Alle schließen ruhig ab; bei Beschwerden keine Zusatzbelastung.',
       shotTargets: []
     }
   ];

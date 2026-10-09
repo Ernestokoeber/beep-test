@@ -1,3 +1,4 @@
+import { detailedDescription } from './fixtures/training-description.mjs';
 import { AI_CONTRACT_VERSION, AI_MODEL_ID, AIError, BASKETBALL_KNOWLEDGE_VERSION, buildAIRequest } from '../api/_lib/ai-contracts.js';
 import { generateWithGemini } from '../api/_lib/gemini-client.js';
 
@@ -57,12 +58,12 @@ const validSeasonResult = JSON.stringify({
     },
     freethrows: { attempted: 20 },
     shots: [{ category: 'Abschluss am Ring', attempted: 20 }],
-    drills: [{ name: 'Shell Drill', minutes: 90, intensity: 'high', description: 'Kommunikation, Rotation und Abschlüsse', shotTargets: [{ kind: 'field', category: 'Abschluss am Ring', attempted: 20 }, { kind: 'freethrow', category: 'Freiwürfe', attempted: 20 }] }]
+    drills: [{ name: 'Shell Drill', minutes: 90, intensity: 'high', description: detailedDescription(), shotTargets: [{ kind: 'field', category: 'Abschluss am Ring', attempted: 20 }, { kind: 'freethrow', category: 'Freiwürfe', attempted: 20 }] }]
   }]
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 11, 'KI-Vertrag für automatische Wurfvorgaben fehlt');
+assert(AI_CONTRACT_VERSION === 12, 'KI-Vertrag für automatische Wurfvorgaben fehlt');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.2', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
@@ -81,10 +82,13 @@ assert(season.timeoutMs === 48_000, 'Saison-Timeout ist nicht begrenzt');
 
 const verboseSeasonResult = JSON.parse(validSeasonResult);
 verboseSeasonResult.trainings[0].summary = 'Ausführlicher Trainingsschwerpunkt '.repeat(12);
-verboseSeasonResult.trainings[0].drills[0].description = 'Ausführliche Drillbeschreibung '.repeat(40);
+verboseSeasonResult.trainings[0].drills[0].description = detailedDescription('Ausführliche Drillbeschreibung '.repeat(40));
 const boundedSeasonResult = season.parse(JSON.stringify(verboseSeasonResult));
 assert(boundedSeasonResult.trainings[0].summary.length === 240, 'Zu langer KI-Trainingsschwerpunkt wird nicht sicher gekürzt');
-assert(boundedSeasonResult.trainings[0].drills[0].description.length === 800, 'Zu lange KI-Drillbeschreibung wird nicht sicher gekürzt');
+assert(boundedSeasonResult.trainings[0].drills[0].description === verboseSeasonResult.trainings[0].drills[0].description, 'Ausführliche KI-Anleitungen dürfen nicht auf 800 Zeichen gekürzt werden');
+for (const description of ['Nur ein Übungsname', detailedDescription().replace('Anpassung:', 'Variante:'), detailedDescription().replace('1. Am', 'Am'), detailedDescription('X'.repeat(6000))]) {
+  await expectAIError(() => { const value = JSON.parse(validSeasonResult); value.trainings[0].drills[0].description = description; return Promise.resolve(season.parse(JSON.stringify(value))); }, 'AI_INVALID_RESPONSE', 'Unvollständige oder überlange Anleitung wird abgefangen');
+}
 
 const fridayRequest = buildAIRequest('planSeason', { data: {
   durationMinutes: 90,
@@ -108,7 +112,7 @@ const fridayResult = {
     stationTraining: {
       rationale: 'Neue Schwerpunkte passend zur Spielnähe und zur bisherigen Trainingshistorie.',
       stations: Array.from({ length: 5 }, (_, index) => ({
-        title: `KI Station ${index + 1}`, category: `Kategorie ${index + 1}`, description: `Neue Einzelaufgabe ${index + 1}`, shotTargets: index === 0 ? [{ kind: 'freethrow', category: 'Freiwürfe', attempted: 20 }] : []
+        title: `KI Station ${index + 1}`, category: `Kategorie ${index + 1}`, description: detailedDescription(), shotTargets: index === 0 ? [{ kind: 'freethrow', category: 'Freiwürfe', attempted: 20 }] : []
       }))
     }
   }]

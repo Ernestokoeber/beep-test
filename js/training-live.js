@@ -28,7 +28,7 @@ BT.trainingLive = (() => {
       id: clean(source.id) || `live_block_${index + 1}`,
       sourceIndex: Number.isInteger(source.sourceIndex) ? source.sourceIndex : index,
       name: clean(source.name) || `Block ${index + 1}`,
-      description: text(source.description).slice(0, 2000),
+      description: text(source.description).slice(0, 6000),
       shotTargets: (source.shotTargets || []).map(target => ({ ...target })),
       intensity: ['low', 'medium', 'high'].includes(source.intensity) ? source.intensity : 'medium',
       plannedSeconds,
@@ -238,7 +238,8 @@ BT.trainingLive = (() => {
   }
 
   function coachingPoints(block, training) {
-    const source = clean(block?.description);
+    const full = BT.trainingInstructions?.descriptionFor(training, block) || clean(block?.description);
+    const source = /(?:^|\n)Coaching:/.test(full) ? full.split(/(?:^|\n)Coaching:/)[1].split(/\nAnpassung:/)[0].trim() : full;
     const points = source
       ? source.split(/\n|[•;]+|\.(?:\s+|$)/).map(clean).filter(item => item.length > 2).slice(0, 6)
       : [];
@@ -324,6 +325,8 @@ BT.trainingLive = (() => {
             <section class="training-live-card">
               <div class="training-live-card-head"><h3>Coaching-Points</h3><button type="button" class="training-live-tactic" data-live-action="tactic" hidden>Taktik anzeigen</button></div>
               <ul data-live="coaching"></ul>
+              <details class="training-guide" data-live="instructions-card"><summary>Vollständige Übungsanleitung</summary><div data-live="instructions"></div></details>
+              <div data-live="station-instructions"></div>
               <p class="muted" data-live="shot-targets" hidden></p>
               <button type="button" data-live-action="shots" hidden>Würfe erfassen</button>
             </section>
@@ -427,7 +430,8 @@ BT.trainingLive = (() => {
     const current = activeBlock(session);
     if (action === 'close') { close(); return; }
     if (action === 'shots') {
-      const targets = current?.shotTargets || [];
+      const stationRound = active.training.stationTraining?.stations?.length === 5 && session.blocks.length === 8 && session.activeIndex >= 2 && session.activeIndex <= 6;
+      const targets = stationRound ? active.training.stationTraining.stations.flatMap(station => station.shotTargets || []) : current?.shotTargets || [];
       const field = targets.find(target => target.kind === 'field');
       close();
       BT.training?.openShotCapture(field ? 'shots' : 'ft', field?.category);
@@ -505,6 +509,12 @@ BT.trainingLive = (() => {
     renderStatic();
   }
 
+  function blockLabel(block, index) {
+    const training = active.training, session = active.session;
+    return training.stationTraining?.stations?.length === 5 && session.blocks.length === 8 && index >= 2 && index <= 6
+      ? `Stationsrunde ${index - 1} von 5` : block.name;
+  }
+
   function renderProgress() {
     const target = active.root.querySelector('[data-live="progress"]');
     target.replaceChildren();
@@ -512,8 +522,8 @@ BT.trainingLive = (() => {
       const marker = document.createElement('button');
       marker.type = 'button';
       marker.className = `training-live-progress-step ${block.status}${index === active.session.activeIndex ? ' current' : ''}`;
-      marker.title = block.name;
-      marker.setAttribute('aria-label', `${index + 1}. ${block.name}: ${block.status}`);
+      marker.title = blockLabel(block, index);
+      marker.setAttribute('aria-label', `${index + 1}. ${blockLabel(block, index)}: ${block.status}`);
       marker.addEventListener('click', () => selectBlock(index));
       target.appendChild(marker);
     });
@@ -528,7 +538,7 @@ BT.trainingLive = (() => {
       choose.removeAttribute('data-live-action');
       choose.dataset.liveBlock = String(index);
       const name = document.createElement('strong');
-      name.textContent = block.name;
+      name.textContent = blockLabel(block, index);
       const meta = document.createElement('span');
       const elapsed = Math.round(blockElapsed(block) / 1000);
       meta.textContent = `${formatClock(block.plannedSeconds * 1000)} geplant · ${formatClock(elapsed * 1000)} tatsächlich · ${block.status}`;
@@ -555,11 +565,11 @@ BT.trainingLive = (() => {
     });
     const list = active.root.querySelector('[data-live="report"]');
     list.replaceChildren();
-    report.blocks.forEach(block => {
+    report.blocks.forEach((block, index) => {
       const item = document.createElement('li');
       item.className = `training-live-report-item ${block.status}`;
       const head = document.createElement('div');
-      const name = document.createElement('strong'); name.textContent = block.name;
+      const name = document.createElement('strong'); name.textContent = blockLabel(block, index);
       const times = document.createElement('span'); times.textContent = `${formatClock(block.actualSeconds * 1000)} / ${formatClock(block.plannedSeconds * 1000)}`;
       head.append(name, times); item.appendChild(head);
       const labels = { worked: '✓ Funktioniert', repeat: '↻ Wiederholen', problem: '⚠ Problem' };
@@ -588,7 +598,7 @@ BT.trainingLive = (() => {
     const block = activeBlock(session);
     const next = session.blocks[session.activeIndex + 1] || null;
     root.querySelector('[data-live="position"]').textContent = `Block ${session.activeIndex + 1} von ${session.blocks.length}`;
-    root.querySelector('[data-live="block-name"]').textContent = block.name;
+    root.querySelector('[data-live="block-name"]').textContent = blockLabel(block, session.activeIndex);
     const intensity = root.querySelector('[data-live="intensity"]');
     intensity.textContent = block.intensity === 'high' ? 'Intensiv' : block.intensity === 'low' ? 'Locker' : 'Mittel';
     intensity.dataset.level = block.intensity;
@@ -597,10 +607,19 @@ BT.trainingLive = (() => {
     coachingPoints(block, training).forEach(point => {
       const item = document.createElement('li'); item.textContent = point; coaching.appendChild(item);
     });
-    const shotTargets = block.shotTargets || [];
+    const guide = BT.trainingInstructions;
+    const description = guide?.descriptionFor(training, block) || block.description;
+    const instructions = root.querySelector('[data-live="instructions"]');
+    if (guide) instructions.innerHTML = guide.markup(description);
+    else instructions.textContent = description || 'Noch keine Übungsbeschreibung hinterlegt.';
+    const stationRound = training.stationTraining?.stations?.length === 5 && session.blocks.length === 8 && session.activeIndex >= 2 && session.activeIndex <= 6;
+    root.querySelector('[data-live="station-instructions"]').innerHTML = stationRound && guide ? `<p>Stationsrunde ${session.activeIndex - 1}/5: Alle Gruppen arbeiten parallel und wechseln nach dem Signal zur nächsten Station.</p>${guide.stationMarkup(training)}` : '';
+    root.querySelector('[data-live="instructions-card"]').hidden = stationRound;
+    coaching.hidden = stationRound;
+    const shotTargets = stationRound ? training.stationTraining.stations.flatMap(station => station.shotTargets || []) : block.shotTargets || [];
     const targetLabel = root.querySelector('[data-live="shot-targets"]');
     targetLabel.hidden = !shotTargets.length;
-    targetLabel.textContent = shotTargets.map(target => `${target.category}: ${target.attempted} Versuche pro Spieler`).join(' · ');
+    targetLabel.textContent = stationRound ? 'Die Wurfvorgaben je Station stehen in den Anleitungen.' : shotTargets.map(target => `${target.category}: ${target.attempted} Versuche pro Spieler`).join(' · ');
     root.querySelector('[data-live-action="shots"]').hidden = !shotTargets.length;
     active.tactic = tacticFor(block);
     const tactic = root.querySelector('[data-live-action="tactic"]');
@@ -615,7 +634,7 @@ BT.trainingLive = (() => {
     const nextCard = root.querySelector('[data-live="next-card"]');
     nextCard.hidden = !next;
     if (next) {
-      root.querySelector('[data-live="next-name"]').textContent = next.name;
+      root.querySelector('[data-live="next-name"]').textContent = blockLabel(next, session.activeIndex + 1);
       root.querySelector('[data-live="next-meta"]').textContent = `${formatClock(next.durationSeconds * 1000)} · ${next.intensity === 'high' ? 'intensiv' : next.intensity === 'low' ? 'locker' : 'mittel'}`;
     }
     root.querySelector('[data-live-action="previous"]').disabled = session.activeIndex === 0;
