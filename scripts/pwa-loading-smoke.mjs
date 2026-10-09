@@ -50,6 +50,7 @@ async function request(path, options = {}) {
 await lifecycle('install');
 const installedCache = currentCache;
 const assets = [...buckets.get(installedCache).keys()];
+assert.ok(assets.includes(absolute('/assets/TSVLogotransparent.png')), 'The visible app logo must be available in the installed offline cache');
 for (const asset of assets) assert.ok(await request(asset));
 assert.equal(networkRequests, 0, 'Opening a cached app must not download its assets again');
 await lifecycle('activate');
