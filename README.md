@@ -8,6 +8,7 @@ Installierbare Basketball-Plattform für das Trainerteam des TSV Lindau. CourtHu
 - installierbare PWA mit Offline-Modus
 - Trainerkonten mit den Rollen Administrator, Trainer, Assistenz und Lesender Zugriff
 - gemeinsamer PostgreSQL-Workspace mit automatischer Synchronisierung
+- Trikotverwaltung mit getrenntem Heim-/Auswärtssatz, Waschdienst, Rückgabefrist und saisonaler Dienstverteilung
 - serverseitige Gemini-Anbindung ohne API-Key im Browser
 - Vercel-Konfiguration und abgesicherte API-Endpunkte
 - Spielplan-Synchronisierung mit der bestehenden TSV-Website-API

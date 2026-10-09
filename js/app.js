@@ -220,6 +220,8 @@
       BT.games.render(app, hash === '#/games' ? undefined : decodeURIComponent(hash.split('/')[2]));
     } else if (hash === '#/opponents') {
       BT.opponents.render(app);
+    } else if (hash === '#/jerseys') {
+      BT.jerseys.render(app);
     } else if (hash === '#/tablecrew') {
       BT.tablecrew.render(app);
     } else if (hash === '#/reports') {
@@ -281,6 +283,8 @@
       active = 'games';
     } else if (hash.startsWith('#/opponents')) {
       active = 'opponents';
+    } else if (hash.startsWith('#/jerseys')) {
+      active = 'jerseys';
     } else if (hash.startsWith('#/tablecrew')) {
       active = 'tablecrew';
     } else if (hash.startsWith('#/reports')) {

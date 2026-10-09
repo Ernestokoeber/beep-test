@@ -77,7 +77,7 @@ BT.sync = (function() {
 
   function hasTeamData(data) {
     if (!data || typeof data !== 'object') return false;
-    return ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics']
+    return ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'jerseyDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics']
       .some((key) => Array.isArray(data[key]) && data[key].length > 0);
   }
 

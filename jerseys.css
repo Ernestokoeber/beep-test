@@ -1,0 +1,29 @@
+.jerseys-view { max-width: 1100px; margin: 0 auto; }
+.jerseys-view p { color: var(--muted); line-height: 1.5; }
+.jerseys-view h3 { margin: .35rem 0 .7rem; }
+.jersey-kits, .jersey-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.jersey-kit, .jersey-panel { min-width: 0; padding: 1.1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface); margin-bottom: 1rem; }
+.jersey-kit { border-top: 4px solid #00633e; }
+.jersey-kit[data-kit="away"] { border-top-color: #f58220; }
+.jersey-kit.is-overdue { border-color: #b45309; }
+.jersey-kit strong { font-size: 1.1rem; overflow-wrap: anywhere; }
+.jersey-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .7rem; }
+.jersey-form[hidden], .jerseys-view [hidden] { display: none !important; }
+.jersey-form-grid label, .jersey-panel-head label { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.jersey-form-grid input, .jersey-form-grid select, .jersey-panel-head select { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; padding: .7rem; border-radius: .5rem; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.jersey-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.jersey-filter { display: flex; align-items: center; gap: .6rem; margin: 1rem 0; }
+.jersey-filter input { flex-shrink: 0; width: 1.2rem; height: 1.2rem; }
+.jersey-player-row, .jersey-history-row { display: flex; justify-content: space-between; align-items: center; gap: .8rem; padding: .9rem 0; border-top: 1px solid var(--border); }
+.jersey-player-row > div, .jersey-history-row > div { min-width: 0; overflow-wrap: anywhere; }
+.jersey-player-row p, .jersey-history-row p { margin: .25rem 0; }
+.jersey-player-row .att-chip { display: inline-block; margin: .15rem; }
+.jerseys-view details summary { cursor: pointer; font-weight: 600; padding: .3rem 0; }
+.jerseys-view .btn { min-height: 44px; white-space: normal; }
+.jerseys-view [role="alert"] { color: #b45309; }
+@media (max-width: 600px) {
+  .jersey-kits, .jersey-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .jersey-player-row, .jersey-history-row { flex-direction: column; align-items: stretch; }
+  .jersey-kit, .jersey-panel { padding: .9rem; }
+  .jersey-actions .btn { flex: 1 1 auto; }
+}

@@ -36,7 +36,7 @@ const scripts = [
   'js/video-import/core.js', 'js/video-import/styles.js', 'js/video-import/alignment.js',
   'js/video-import/compatibility.js', 'js/video-import/tracker-v2.js',
   'js/video-import/tracker-install.js', 'js/video-import/screen-recognition.js',
-  'js/video-import/main.js', 'js/tablecrew.js', 'js/history.js', 'js/account.js', 'js/app.js',
+  'js/video-import/main.js', 'js/tablecrew.js', 'js/jerseys.js', 'js/history.js', 'js/account.js', 'js/app.js',
   'js/checkin.js', 'js/games.js', 'js/opponents.js',
   'api/_lib/db.js', 'api/_lib/http.js', 'api/_lib/auth.js', 'api/_lib/workspace-data.js',
   'api/_lib/ai-contracts.js', 'api/_lib/gemini-client.js', 'api/_lib/ai-handler.js',

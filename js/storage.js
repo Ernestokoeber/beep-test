@@ -21,6 +21,7 @@ BT.storage = (function() {
       data.games = data.games || [];
       data.opponents = data.opponents || [];
       data.tableDuties = data.tableDuties || [];
+      data.jerseyDuties = data.jerseyDuties || [];
       data.tactics = data.tactics || [];
       if (data.schemaVersion < CURRENT_SCHEMA) {
         migrate(data);
@@ -82,7 +83,7 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], opponents: [], tableDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], tactics: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], opponents: [], tableDuties: [], jerseyDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], tactics: [], settings: {} };
   }
 
   function getSetting(key, fallback) {
@@ -500,6 +501,47 @@ BT.storage = (function() {
     save(data);
   }
 
+  function getJerseyDuties() {
+    return (load().jerseyDuties || []).slice().sort((a, b) =>
+      (b.takenOn || '').localeCompare(a.takenOn || '') || (b.createdAt || '').localeCompare(a.createdAt || '')
+    );
+  }
+
+  function upsertJerseyDuty(item) {
+    const data = load();
+    const duties = data.jerseyDuties || [];
+    const existing = item.id ? duties.find(entry => entry.id === item.id) : null;
+    if (item.id && !existing) throw new Error('Der Waschdienst existiert nicht mehr.');
+    const next = Object.assign({}, existing || {}, item);
+    const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') &&
+      !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+    if (!['home', 'away'].includes(next.kit)) throw new Error('Wähle den Heim- oder Auswärtssatz.');
+    if (typeof next.playerId !== 'string' || !next.playerId) throw new Error('Wähle einen aktiven Spieler.');
+    const player = data.players.find(entry => entry.id === next.playerId);
+    if ((!player && existing?.playerId !== next.playerId) || (player?.archived && existing?.playerId !== player.id)) throw new Error('Wähle einen aktiven Spieler.');
+    if (!validDate(next.takenOn) || next.takenOn > BT.util.todayISO()) throw new Error('Die Mitnahme muss heute oder in der Vergangenheit liegen.');
+    if (next.dueOn && (!validDate(next.dueOn) || next.dueOn < next.takenOn)) throw new Error('Die Rückgabe darf nicht vor der Mitnahme liegen.');
+    if (!['pending', 'returned'].includes(next.status)) throw new Error('Ungültiger Waschstatus.');
+    if (next.status === 'returned' && (!validDate(next.returnedOn) || next.returnedOn < next.takenOn || next.returnedOn > BT.util.todayISO())) throw new Error('Prüfe das Datum der sauberen Rückgabe.');
+    if (next.status === 'pending' && duties.some(entry => entry.id !== next.id && entry.kit === next.kit && entry.status === 'pending')) throw new Error('Dieser Trikotsatz ist bereits bei einem Spieler. Bestätige zuerst die Rückgabe.');
+    const now = new Date().toISOString();
+    next.id = next.id || BT.util.uuid('jersey_');
+    next.playerName = player?.name || existing?.playerName || 'Ehemaliger Spieler';
+    next.seasonId = BT.util.seasonForDate(next.takenOn);
+    next.createdAt = existing?.createdAt || now;
+    next.updatedAt = now;
+    if (next.status === 'pending') next.returnedOn = '';
+    data.jerseyDuties = duties.filter(entry => entry.id !== next.id).concat(next);
+    save(data);
+    return next;
+  }
+
+  function deleteJerseyDuty(id) {
+    const data = load();
+    data.jerseyDuties = (data.jerseyDuties || []).filter(item => item.id !== id);
+    save(data);
+  }
+
   function getTableDuties() {
     return (load().tableDuties || []).slice().sort((a, b) =>
       ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || ''))
@@ -552,6 +594,7 @@ BT.storage = (function() {
     getFreethrows, getFreethrow, upsertFreethrow, deleteFreethrow,
     getGames, getGame, upsertGame, deleteGame,
     getOpponents, getOpponent, upsertOpponent, deleteOpponent,
+    getJerseyDuties, upsertJerseyDuty, deleteJerseyDuty,
     getTableDuties, getTableDuty, upsertTableDuty, deleteTableDuty,
     getShotCategories, setShotCategories,
     getSetting, setSetting,

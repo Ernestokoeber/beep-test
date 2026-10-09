@@ -2,7 +2,7 @@ window.BT = window.BT || {};
 
 BT.history = (function() {
   const { $, renderTemplate, formatDate, escapeHTML, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, todayISO } = BT.util;
-  const IMPORT_LISTS = ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics'];
+  const IMPORT_LISTS = ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'jerseyDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics'];
 
   function renderList(target) {
     const root = renderTemplate('tpl-history');

@@ -62,6 +62,10 @@ jobs:
           node scripts/pnr-screen-motion.mjs
           node scripts/pnr-film-motion-browser.mjs
           node scripts/pnr-3d-browser.mjs
+      - name: Run jersey duty browser E2E
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+        run: node scripts/jersey-duty-browser.mjs
       - name: Run browser E2E
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
