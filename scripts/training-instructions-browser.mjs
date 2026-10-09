@@ -26,6 +26,7 @@ try {
     await page.locator('[data-action="training-live"]').click();
     await page.locator('.training-live-progress-step').nth(2).click();
     assert.equal(await page.locator('[data-live="block-name"]').innerText(), 'Stationsrunde 1 von 5');
+    assert.equal(await page.locator('[data-live="next-name"]').innerText(), 'Stationsrunde 2 von 5');
     const stations = page.locator('[data-live="station-instructions"] details');
     assert.equal(await stations.count(), 5);
     await stations.nth(2).locator('summary').click();
