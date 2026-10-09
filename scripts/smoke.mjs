@@ -76,7 +76,7 @@ let activateWork;
 serviceWorkerEvents.get('activate')({ waitUntil(work) { activateWork = work; } });
 await activateWork;
 assert(claimedByServiceWorker, 'Neuer Service Worker übernimmt offene CourtHub-Fenster nicht');
-assert(navigatedClients.length === 1, 'Offene CourtHub-PWA wird nach einem Update nicht neu geladen');
+assert(navigatedClients.length === 0, 'Service Worker darf zusätzlich zur App keine Seitenneuladung auslösen');
 
 const viewportMeta = window.document.querySelector('meta[name="viewport"]')?.content || '';
 assert(viewportMeta.includes('viewport-fit=cover'), 'Safe-Area-Unterstützung im Viewport fehlt');
