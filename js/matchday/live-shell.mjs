@@ -1,6 +1,7 @@
 import {renderStaffSummary,isCoachOnly} from '../coaching-staff.mjs';
 import {canonical,clone,effectiveEvents} from '../live-game/core.mjs';
 import {mountLiveView} from '../live-game/view.mjs';
+import {renderGameStatsExport} from '../live-game/export.mjs';
 import {renderLiveReport} from '../live-game/report.mjs';
 import {renderPublishedReport} from '../published-game-report.mjs';
 import {GAME_POSITIONS,gamePositionLabel,normalizeGamePosition} from '../basketball-positions.mjs';
@@ -145,7 +146,7 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
       }
     }
     const finished=s.stage==='finished';liveTools.querySelector(':scope > summary').hidden=!finished;if(!finished)liveTools.open=true;
-    if(finished){const next=canonical([s.liveState.boxscore,opponentLive,published]);if(reportKey!==next){reportKey=next;liveTools.open=false;report.replaceChildren(reported?renderPublishedReport(published,s.liveState.boxscore):renderLiveReport(s.liveState.boxscore));if(opponentLive&&!reported)report.append(renderOpponentAnalysis(opponentLive,'Gegner & Defense'));}
+    if(finished){const next=canonical([s.liveState.boxscore,opponentLive,published]);if(reportKey!==next){reportKey=next;liveTools.open=false;report.replaceChildren(reported?renderPublishedReport(published,s.liveState.boxscore):renderLiveReport(s.liveState.boxscore));if(game&&s.liveState.boxscore.complete)report.append(renderGameStatsExport({game,session:s.liveState.session}));if(opponentLive&&!reported)report.append(renderOpponentAnalysis(opponentLive,'Gegner & Defense'));}
       const feedback=buildOpponentFeedback({game,plan:s.draft.opponentPlan,session:s.liveState.session});const nextFeedback=feedback?canonical(feedback):'';
       if(feedback&&!reported&&feedbackKey!==nextFeedback){feedbackKey=nextFeedback;try{onOpponentFeedback(feedback);}catch(error){status.textContent='Spiel gespeichert; Gegnerbeobachtungen konnten nicht übernommen werden: '+error.message;}}
     }else{reportKey='';feedbackKey='';report.replaceChildren();}

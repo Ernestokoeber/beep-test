@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import {JSDOM} from 'jsdom';
+import {createSession,appendEvent} from '../js/live-game/core.mjs';
+import {buildGameStatsExport,renderGameStatsExport,calculateGameMetrics,renderGameMetrics} from '../js/live-game/export.mjs';
+let session=createSession({schemaVersion:3,id:'export-test',deviceId:'d',actorId:'u',roster:Array.from({length:6},(_,i)=>({id:'p'+i,name:'Spieler '+i,jerseyNumber:i===5?'00':String(i)})),startingFive:['p0','p1','p2','p3','p4'],config:{periods:4,periodMs:600000,overtimeMs:300000}});
+const game={id:'g1',date:'2026-10-11',home:'Gast',away:'TSV Lindau',score:'99:88',playerStats:[{playerId:'p0',points:999,minutes:40,rebounds:4,offensiveRebounds:1,defensiveRebounds:3,blocks:1,twoAttempted:8,threeAttempted:5,assists:2,steals:0,turnovers:null}],atlas:{points:999}};
+const args=()=>({game,session,players:session.roster,teamId:'herren1',sourceId:'team-source',ownSide:'away',now:new Date('2026-10-11T18:00:00Z')});
+assert.throws(()=>buildGameStatsExport({...args(),statsSource:'live'}),/abschließen/);
+function add(kind,payload={},remainingMs=600000){session=appendEvent(session,{id:'e'+(session.events.length+1),sessionId:session.id,seq:session.events.length+1,period:1,remainingMs,recordedAt:'2026-10-11T17:00:00Z',kind,payload});}
+add('clock-start',{startedAtMs:1000});add('clock-pause',{},540000);
+add('stat',{playerId:'p0',action:'three-made'},540000);add('opponent-score',{points:2},540000);add('finish',{},540000);
+const snapshot=JSON.stringify({session,game});let packet=buildGameStatsExport(args());
+assert.equal(packet.format,'courthub.game-stats');assert.equal(packet.game.season,'2026/2027');assert.equal(packet.game.isHome,false);assert.equal(packet.game.opponentName,'Gast');
+assert.equal(packet.game.ourScore,null);assert.equal(packet.game.opponentScore,null);
+assert.equal(packet.players[0].reboundsTotal,4);assert.equal(packet.players[0].offensiveRebounds,1);assert.equal(packet.players[0].defensiveRebounds,3);assert.equal(packet.players[0].blocks,1);assert.equal(packet.players[0].twoPointsAttempted,8);assert.equal(packet.players[0].threePointsAttempted,5);assert.equal(packet.players[0].assists,2);assert.equal(packet.players[0].steals,0);assert.equal(packet.players[0].turnovers,null);
+assert.equal(packet.players.length,1);assert.equal(packet.game.statsStatus,'partial');
+for(const key of ['points','minutesSeconds','twoPointsMade','threePointsMade','freeThrowsMade','fouls','plusMinus'])assert.equal(packet.players[0][key],null,'Official DBB field must not be exported: '+key);
+assert.equal(JSON.stringify({session,game}),snapshot,'Export must not change game, live events or other sources.');
+add('score-coverage',{complete:true},540000);packet=buildGameStatsExport({...args(),statsSource:'live'});
+assert.equal(packet.game.opponentScore,null);assert.equal(packet.players[0].plusMinus,null);assert.equal(packet.players[5].participation,'dnp');assert.equal(packet.players[5].number,'00');
+assert.throws(()=>buildGameStatsExport({...args(),teamId:'herren'}),/Mannschaft/);assert.throws(()=>buildGameStatsExport({...args(),ownSide:''}),/Heim/);
+assert.equal(buildGameStatsExport({...args(),game:{...game,date:'2026-06-30'}}).game.season,'2025/2026');
+assert.throws(()=>buildGameStatsExport({...args(),game:{...game,playerStats:[]}}),/keine Video/);
+assert.throws(()=>buildGameStatsExport({...args(),game:{...game,playerStats:[{playerId:'p0',rebounds:-1}]}}),/ganze Zahl/);
+assert.equal(buildGameStatsExport({...args(),session:null,game:{...game,status:'played'}}).players[0].reboundsTotal,4,'Video export must work without any live capture');
+assert.equal(buildGameStatsExport({...args(),session:null}).players[0].reboundsTotal,4,'An official same-day result permits video export without live capture');
+const dom=new JSDOM('<main></main>');globalThis.window=dom.window;globalThis.document=dom.window.document;
+const settings={};let downloaded;window.BT={storage:{getPlayers:()=>session.roster,getSetting:(k,f)=>settings[k]??f,setSetting:(k,v)=>settings[k]=v},sync:{getState:()=>({user:{organization:{id:'org-test'}}})},util:{downloadBlob:(filename,blob)=>downloaded={filename,blob}}};
+const view=renderGameStatsExport({game,session});document.body.append(view);assert.equal(view.querySelector('[data-field="export-side"]').value,'away');
+view.querySelector('button').click();await new Promise(r=>setTimeout(r,0));const file=JSON.parse(await downloaded.blob.text());assert.equal(file.sourceId,'org-test');assert.equal(file.game.teamId,'herren1');assert.match(downloaded.filename,/^courthub-spielstatistik-2026-10-11-g1.json$/);assert.match(view.textContent,/exportiert/);
+window.BT.sync.getState=()=>({user:{organization:{id:'different-org'}}});view.querySelector('button').click();await new Promise(r=>setTimeout(r,0));assert.equal(JSON.parse(await downloaded.blob.text()).sourceId,'org-test','Existing export identity remains stable');
+if(process.env.EXPORT_FIXTURE_PATH){const {writeFileSync}=await import('node:fs');writeFileSync(process.env.EXPORT_FIXTURE_PATH,JSON.stringify(file));}
+dom.window.close();const metrics=calculateGameMetrics({points:18,minutes:20,twoMade:3,twoAttempted:6,threeMade:3,threeAttempted:5,freeThrowsMade:3,freeThrowsAttempted:4,offensiveRebounds:2,defensiveRebounds:4,assists:5,steals:2,blocks:1,turnovers:3});
+assert.equal(metrics.twoFG,50);assert.equal(metrics.threeFG,60);assert.equal(metrics.FT,75);assert.equal(metrics.efficiency,23);assert.equal(metrics.efficiencyPerMinute,1.15);
+assert.equal(calculateGameMetrics({points:18}).efficiency,null);assert.equal(calculateGameMetrics({twoMade:0,twoAttempted:0}).twoFG,null);
+const metricsView=renderGameMetrics({game:{playerStats:[{playerId:'p0',points:18,minutes:20,twoMade:3,twoAttempted:6,threeMade:3,threeAttempted:5,freeThrowsMade:3,freeThrowsAttempted:4,rebounds:6,assists:5,steals:2,blocks:1,turnovers:3}]},players:session.roster});assert.match(metricsView.textContent,/50/);assert.match(metricsView.textContent,/Team/);assert.match(metricsView.textContent,/23/);assert.doesNotMatch(metricsView.textContent,/NaN|Infinity/);
+console.log('Game stats export: video values, DBB scoring/time exclusion, empty versus zero, finished guard, live fallback, stable identity and JSON download passed.');

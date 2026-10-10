@@ -64,6 +64,11 @@ assert.equal(field().readOnly,false);
 const form=host.querySelector('[data-role="game-form"]');
 form.elements.score.value='65:72';form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
 assert.equal(BT.storage.getGame(past.id).score,'65:72');
+const editStat=(key,value)=>{const input=host.querySelector(`[data-player-id="${player.id}"] [data-stat="${key}"]`);assert.ok(input,'Video field missing: '+key);input.value=value;input.dispatchEvent(new w.Event('change',{bubbles:true}));};
+editStat('offensiveRebounds','2');editStat('defensiveRebounds','4');editStat('twoAttempted','6');editStat('threeAttempted','5');editStat('blocks','1');
+let video=BT.storage.getGame(past.id).playerStats.find(s=>s.playerId===player.id);assert.equal(video.rebounds,6);assert.equal(video.fieldGoalsAttempted,11);assert.equal(video.blocks,1);
+editStat('twoAttempted','');editStat('offensiveRebounds','');video=BT.storage.getGame(past.id).playerStats.find(s=>s.playerId===player.id);assert.equal(video.fieldGoalsAttempted,null);assert.equal(video.rebounds,null,'Cleared split input must invalidate its derived total');
+
 field().value='Nachtrag';field().dispatchEvent(new w.Event('input',{bubbles:true}));
 host.querySelector('[data-action="lock-game"]').click();
 await new Promise(resolve=>setTimeout(resolve,0));

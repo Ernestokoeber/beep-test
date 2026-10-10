@@ -849,6 +849,27 @@ async function testMatchday(browser, name, options) {
     const dnp=page.locator('.live-report-dnp');
     if(await dnp.count())await dnp.locator('> summary').tap();
     assert((await page.locator('[data-role="report"]').innerText()).includes('E2E Spieler 8') === false, `${name}: verletzter Spieler erscheint in der Auswertung`);
+    const exportPanel=page.locator('[data-role="game-stats-export"]');
+    await exportPanel.waitFor();
+    await exportPanel.locator('[data-field="export-source"]').selectOption('live');
+    const downloadPromise=page.waitForEvent('download');
+    await exportPanel.getByRole('button',{name:'Statistik exportieren',exact:true}).tap();
+    const download=await downloadPromise;
+    const {readFile}=await import('node:fs/promises');
+    const packet=JSON.parse(await readFile(await download.path(),'utf8'));
+    assert(packet.format==='courthub.game-stats'&&packet.game.ourScore===null&&packet.game.opponentScore===null,`${name}: Export-Ergebnis falsch`);
+    assert(packet.game.teamId==='herren1'&&packet.game.isHome===true&&packet.sourceId==='matchday-e2e',`${name}: Export-Zuordnung falsch`);
+    assert(packet.players.find(p=>p.name==='E2E Spieler 1').points===null&&packet.players.find(p=>p.name==='E2E Spieler 1').minutesSeconds===null,`${name}: Export-Spielerwerte fehlen`);
+    assert(!packet.players.some(p=>p.name==='E2E Spieler 8'),`${name}: nicht nominierter Spieler exportiert`);
+    await page.evaluate(({gameId,playerId})=>{const game=window.BT.storage.getGame(gameId),values=[{playerId,points:999,minutes:999,rebounds:5,assists:3,steals:0,turnovers:2}];if(JSON.stringify(game.playerStats)!==JSON.stringify(values)){game.playerStats=values;window.BT.storage.upsertGame(game);}},{gameId:packet.game.id,playerId:packet.players.find(p=>p.name==='E2E Spieler 1').id});
+    await exportPanel.locator('[data-field="export-source"]').selectOption('video');
+    const videoDownloadPromise=page.waitForEvent('download');
+    await exportPanel.getByRole('button',{name:'Statistik exportieren',exact:true}).tap();
+    const videoDownload=await videoDownloadPromise;
+    const videoPacket=JSON.parse(await readFile(await videoDownload.path(),'utf8'));
+    assert(videoPacket.players[0].reboundsTotal===5&&videoPacket.players[0].assists===3&&videoPacket.players[0].steals===0&&videoPacket.players[0].turnovers===2,`${name}: Video-Werte fehlen`);
+    assert(videoPacket.players[0].points===null&&videoPacket.players[0].minutesSeconds===null,`${name}: DBB-Werte im Video-Export`);
+
     await noOverflow('Auswertung mit aufgeklappten Details');
   }
   try {

@@ -31,7 +31,7 @@ Project Atlas ─────── freigegebenes Analysepaket ─► CourtHub
 CourtHub ──────────── Trainingsfokus & Entwicklung ► Trainerteam
 ```
 
-Project Atlas bleibt die führende Analyseplattform. CourtHub startet keine konkurrierende Video-KI, sondern liest den bestehenden Vertrag `game-analysis-overview.v1`, übernimmt ausschließlich verifizierte Boxscores und Events und überführt die Ergebnisse in Trainingspläne. Spieler werden über Atlas-ID oder Trikotnummer zugeordnet. Öffentliche Spielberichte bleiben im Adminbereich der TSV-Webseite.
+Project Atlas bleibt die führende Analyseplattform. CourtHub startet keine konkurrierende Video-KI, sondern liest den bestehenden Vertrag `game-analysis-overview.v1`, übernimmt ausschließlich verifizierte Boxscores und Events und überführt die Ergebnisse in Trainingspläne. Spieler werden über Atlas-ID oder Trikotnummer zugeordnet. Öffentliche Spielberichte bleiben im Adminbereich der TSV-Webseite. Die abgeschlossene Live-Auswertung bietet dafür einen [Statistikexport im Admin-Importformat](docs/GAME-STATS-EXPORT.md).
 
 ## Lokale Entwicklung
 
