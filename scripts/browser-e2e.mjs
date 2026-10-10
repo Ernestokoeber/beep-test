@@ -861,7 +861,7 @@ async function testMatchday(browser, name, options) {
     assert(packet.game.teamId==='herren1'&&packet.game.isHome===true&&packet.sourceId==='matchday-e2e',`${name}: Export-Zuordnung falsch`);
     assert(packet.players.find(p=>p.name==='E2E Spieler 1').points===null&&packet.players.find(p=>p.name==='E2E Spieler 1').minutesSeconds===null,`${name}: Export-Spielerwerte fehlen`);
     assert(!packet.players.some(p=>p.name==='E2E Spieler 8'),`${name}: nicht nominierter Spieler exportiert`);
-    await page.evaluate(({gameId,playerId})=>{const game=window.BT.storage.getGame(gameId);game.playerStats=[{playerId,points:999,minutes:999,rebounds:5,assists:3,steals:0,turnovers:2}];window.BT.storage.upsertGame(game);},{gameId:packet.game.id,playerId:packet.players.find(p=>p.name==='E2E Spieler 1').id});
+    await page.evaluate(({gameId,playerId})=>{const game=window.BT.storage.getGame(gameId),values=[{playerId,points:999,minutes:999,rebounds:5,assists:3,steals:0,turnovers:2}];if(JSON.stringify(game.playerStats)!==JSON.stringify(values)){game.playerStats=values;window.BT.storage.upsertGame(game);}},{gameId:packet.game.id,playerId:packet.players.find(p=>p.name==='E2E Spieler 1').id});
     await exportPanel.locator('[data-field="export-source"]').selectOption('video');
     const videoDownloadPromise=page.waitForEvent('download');
     await exportPanel.getByRole('button',{name:'Statistik exportieren',exact:true}).tap();
