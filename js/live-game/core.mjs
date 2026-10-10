@@ -37,6 +37,7 @@ function validateRosterFields(roster) {
   ensure(roster.every(p=>(p.gameStatus===undefined||['starter','bench','dnp'].includes(p.gameStatus))&&
     (p.gamePosition===undefined||p.gamePosition===null||gamePositions.has(p.gamePosition))&&
     (p.role===undefined||typeof p.role==='string'&&p.role.length<=120)),'roster','Ungültiger Spielerstatus, ungültige Spielposition oder ungültige Spielerrolle.');
+  ensure(roster.every(p=>p.tnaNumber===undefined||p.tnaNumber===null||typeof p.tnaNumber==='string'&&/^\d{9}$/.test(p.tnaNumber)),'roster','TNA-Nummer: genau neun Ziffern eingeben.');
 }
 function validateGameplan(gameplan) {
   if(gameplan===undefined)return;

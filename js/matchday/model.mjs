@@ -29,6 +29,7 @@ function validateDraft(v){
   ensure(v&&[null,'home','away'].includes(v.ownSide)&&['match','training'].includes(v.kind)&&['game','roster','preparation','review'].includes(v.step),'schema','Ungültige Spieltagsvorbereitung.');
   ensure(['goals','warmup','coachingNote','closingNote'].every(k=>text(v[k],4000)),'schema','Notizen dürfen höchstens 4000 Zeichen enthalten.');
   ensure(Array.isArray(v.roster)&&v.roster.length<=40&&v.roster.every(p=>p&&idOK(p.id)&&text(p.name,100)&&(p.jerseyNumber===null||text(p.jerseyNumber,100))&&
+    (p.tnaNumber===undefined||p.tnaNumber===null||typeof p.tnaNumber==='string'&&/^\d{9}$/.test(p.tnaNumber))&&
     (p.gameStatus===undefined||playerStatuses.has(p.gameStatus))&&(p.absenceReason===undefined||p.gameStatus==='dnp'&&absenceReasons.has(p.absenceReason))&&
     (p.gamePosition===undefined||p.gamePosition===null||gamePositions.has(p.gamePosition))&&(p.role===undefined||text(p.role,120))),'schema','Ungültiger Kaderentwurf.');
   ensure(new Set(v.roster.map(p=>p.id)).size===v.roster.length,'schema','Spieler doppelt im Entwurf.');

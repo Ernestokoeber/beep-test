@@ -68,7 +68,7 @@ export function mountLiveView(container,controller){
     const periods=field(f,'Reguläre Abschnitte','number',4);periods.min='1';periods.max='12';
     const minutes=field(f,'Minuten je Abschnitt','number',10);minutes.min='1';minutes.max='60';
     const overtime=field(f,'Minuten je Verlängerung','number',5);overtime.min='1';overtime.max='60';
-    submit(f,'Erfassung starten',()=>send({kind:'setup',payload:{roster:rows.filter(r=>r.active.checked).map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null,gamePosition:r.p.gamePosition})),startingFive:rows.filter(r=>r.starter.checked).map(r=>r.p.id),config:{periods:+periods.value,periodMs:+minutes.value*60000,overtimeMs:+overtime.value*60000}}}));
+    submit(f,'Erfassung starten',()=>send({kind:'setup',payload:{roster:rows.filter(r=>r.active.checked).map(r=>({id:r.p.id,name:r.p.name,jerseyNumber:r.jersey.value.trim()||null,tnaNumber:r.p.tnaNumber||null,gamePosition:r.p.gamePosition})),startingFive:rows.filter(r=>r.starter.checked).map(r=>r.p.id),config:{periods:+periods.value,periodMs:+minutes.value*60000,overtimeMs:+overtime.value*60000}}}));
   }
   async function substitutions(){
     if(current.clock.running){const r=await send({kind:'clock-pause'});if(!r.ok)return;}

@@ -8,7 +8,7 @@ const dom=new JSDOM('<main></main>',{url:'https://ui.test'});globalThis.document
 const f=await fixture();f.roster[0].position='Center';f.roster[1].position='Shooting Guard';
 const c=await f.open(),root=document.querySelector('main');
 const opponentPlan=createOpponentPlan({game:{id:'g',home:'Lindau',away:'Gast'},context:{opponentId:'guest',opponent:'Gast',results:{games:3},teamStatistics:{gamesWithMadeProfile:3,twoMadeShare:80},topScorers:[{id:'s',name:'Topscorer',games:3,pointsPerGame:16}],bestShooters:[],scouting:{},defenseRecommendation:{start:'man',alternative:'zone212',reasons:['Paint schützen'],triggers:['Zwei Paint-Touches: 2-1-2 prüfen.'],risk:'Drives',confidence:'medium'},dataQuality:{confidence:'medium',sources:['DBB.Scores-Screenshot']}}});
-await c.saveDraft({...c.getState().draft,opponentPlan});
+await c.saveDraft({...c.getState().draft,roster:[{...f.roster[0],tnaNumber:null,gameStatus:'dnp',absenceReason:'not-selected'}],opponentPlan});
 let aiCalls=0;
 const aiPlan={lockerRoom:['Kabine 1','Kabine 2','Kabine 3'],gameGoals:['Ziel 1','Ziel 2','Ziel 3'],offenseKeys:['Offense 1','Offense 2','Offense 3'],defenseKeys:['Defense 1','Defense 2','Defense 3'],warmupFocus:['Warmup 1','Warmup 2','Warmup 3'],halftimeChecks:['Check 1','Check 2','Check 3']};
 let rosterPdfPayload=null;
@@ -33,6 +33,8 @@ assert.equal(pdfButton.disabled,false,'Der PDF-Button muss nach dem Vorladen ver
 assert.match(root.querySelector('[data-role="selection-summary"]')?.textContent||'',/Kader\s+0.*Starting Five\s+0\/5/,'Kader und Starting Five müssen sofort sichtbar zusammengefasst werden.');
 assert.ok(root.querySelector('[data-action="show-roster"]'),'Der Kader braucht einen direkt sichtbaren Reiter.');
 assert.ok(root.querySelector('[data-action="show-lineup"]'),'Die Starting Five braucht einen direkt sichtbaren Reiter.');
+assert.match(root.querySelector('[data-player-roster="p0"]')?.closest('.matchday-player')?.textContent||'',/TNA 100000001/,'Im Spieltagskader muss die TNA-Nummer direkt beim Spieler sichtbar sein.');
+assert.match(root.querySelector('[data-player-roster="p5"]')?.closest('.matchday-player')?.textContent||'',/TNA fehlt/,'Eine fehlende TNA-Nummer muss direkt beim Spieler auffallen.');
 await click('next');
 let feedback=root.querySelector('[data-role="preparation-error"]');
 assert.equal(c.getState().stage,'roster');assert.equal(feedback.hidden,false);
@@ -62,6 +64,7 @@ await click('export-roster-pdf');
 assert.equal(rosterPdfPayload?.game?.away,'Gast','Der Kader-PDF-Export braucht die Spieldaten.');
 assert.equal(rosterPdfPayload?.draft?.roster?.find(player=>player.id==='p0')?.gameStatus,'bench','Der Export muss die aktuelle, noch nicht gespeicherte Kaderauswahl verwenden.');
 assert.equal(rosterPdfPayload?.draft?.roster?.find(player=>player.id==='p0')?.gamePosition,'pg','Der Export muss die korrigierte Spieltagsposition verwenden.');
+assert.equal(rosterPdfPayload?.draft?.roster?.find(player=>player.id==='p0')?.tnaNumber,'100000001','Der Export muss die TNA-Nummer aus dem Spielerprofil übernehmen.');
 assert.match(root.querySelector('[role="status"]').textContent,/abgebrochen/i,'Ein abgebrochenes Teilen darf nicht als erfolgreicher Export gemeldet werden.');
 for(const id of ['p1','p2','p3','p4'])root.querySelector(`[data-player-roster="${id}"][data-status="bench"]`).click();
 assert.equal(feedback.hidden,true,'Nach einer Korrektur darf kein veralteter Fehler stehen bleiben.');

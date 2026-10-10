@@ -10,7 +10,7 @@ globalThis.document=dom.window.document;
 const scope={organizationId:'ui-org',actorId:'u',sessionEpoch:1};
 let workspace={games:[{id:'g'}]},now=100000, fail=false;
 const journal=await openJournal(scope,indexedDB);
-const roster=Array.from({length:7},(_,i)=>({id:'p'+(i+1),name:i===0?'<img src=x onerror=alert(1)>':'Spieler '+(i+1)}));
+const roster=Array.from({length:7},(_,i)=>({id:'p'+(i+1),name:i===0?'<img src=x onerror=alert(1)>':'Spieler '+(i+1),tnaNumber:i===0?'012345678':null}));
 for(const [index,position] of ['Center','Power Forward','Small Forward','Shooting Guard','Point Guard','Center',null].entries())roster[index].position=position;
 const deps={journal:{...journal,append:async(...a)=>{if(fail)throw Error('Speicher voll');return journal.append(...a);}},deviceId:'d',now:()=>now,
   getIdentity:()=>({...scope,role:'coach'}),load:()=>structuredClone(workspace),save:data=>{workspace=structuredClone(data);},players:()=>roster,subscribeIdentity:()=>()=>{},wake:{}};
@@ -30,6 +30,7 @@ assert.equal(c.getState().session.schemaVersion,3);
 assert.equal(c.getState().roster.find(p=>p.id==='p1').jerseyNumber,'00');
 assert.equal(c.getState().roster.find(p=>p.id==='p2').jerseyNumber,'0');
 assert.equal(c.getState().roster.find(p=>p.id==='p1').gamePosition,'c','Die direkte Live-Vorbereitung übernimmt die Profilposition ins Spiel.');
+assert.equal(c.getState().roster.find(p=>p.id==='p1').tnaNumber,'012345678','Die direkte Live-Vorbereitung muss die TNA-Nummer übernehmen.');
 click('Starting Five ändern');
 document.querySelector('[data-starting-five-player="p5"]').checked=false;
 document.querySelector('[data-starting-five-player="p6"]').checked=true;

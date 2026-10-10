@@ -86,11 +86,12 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
   if(roster.length<=12){
     const columnGap=10,columnWidth=(width-margin*2-columnGap)/2,textWidth=columnWidth-34;
     const groups=[];for(const player of roster){const position=player.gamePosition??null,last=groups.at(-1);if(!last||last.position!==position)groups.push({position,players:[]});groups.at(-1).players.push(player);}
-    const presets=Array.from({length:14},(_,index)=>{const scale=1-index*.05;return{nameSize:10*scale,nameLine:11.5*scale,roleSize:8*scale,roleLine:9*scale,headerSize:10*scale,headerHeight:Math.max(10,21*scale),rowGap:Math.max(1.5,4*scale),paddingY:Math.max(3,6*scale)};});
+    const presets=Array.from({length:16},(_,index)=>{const scale=1-index*.045;return{nameSize:10*scale,nameLine:11.5*scale,passSize:7.5*scale,passLine:8.5*scale,roleSize:8*scale,roleLine:9*scale,headerSize:10*scale,headerHeight:Math.max(10,21*scale),rowGap:Math.max(1.5,4*scale),paddingY:Math.max(2.5,6*scale)};});
     const measure=(player,style)=>{
       doc.setFont('helvetica','bold').setFontSize(style.nameSize);const nameLines=doc.splitTextToSize(String(player.name||'Spieler').slice(0,100),textWidth);
+      const passLines=[player.tnaNumber?`TNA ${player.tnaNumber}`:'TNA fehlt'];
       doc.setFont('helvetica','normal').setFontSize(style.roleSize);const roleLines=player.role?doc.splitTextToSize(String(player.role).slice(0,120),textWidth):[];
-      return {nameLines,roleLines,height:Math.max(16,style.paddingY*2+nameLines.length*style.nameLine+(roleLines.length?1+roleLines.length*style.roleLine:0))};
+      return {nameLines,passLines,roleLines,height:Math.max(16,style.paddingY*2+nameLines.length*style.nameLine+passLines.length*style.passLine+(roleLines.length?1+roleLines.length*style.roleLine:0))};
     };
     const layout=style=>{const measured=groups.map(group=>({...group,players:group.players.map(player=>({...player,...measure(player,style)}))}));const total=measured.reduce((sum,group)=>sum+style.headerHeight+Array.from({length:Math.ceil(group.players.length/2)},(_,row)=>Math.max(...group.players.slice(row*2,row*2+2).map(player=>player.height))+style.rowGap).reduce((a,b)=>a+b,0),0);return {style,groups:measured,total};};
     const available=height-66-y,candidates=presets.map(layout),chosen=candidates.find(candidate=>candidate.total<=available);
@@ -106,7 +107,9 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
           doc.setFillColor((index/2+column)%2?255:247,(index/2+column)%2?255:249,(index/2+column)%2?255:247).roundedRect(x,y,columnWidth,rowHeight,5,5,'F');
           doc.setFillColor(...ORANGE).roundedRect(x+8,y+style.paddingY,3,Math.max(8,rowHeight-style.paddingY*2),1.5,1.5,'F');
           doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(style.nameSize).text(player.nameLines,x+18,y+style.paddingY+style.nameLine,{lineHeightFactor:style.nameLine/style.nameSize});
-          if(player.roleLines.length)doc.setTextColor(...MUTED).setFont('helvetica','normal').setFontSize(style.roleSize).text(player.roleLines,x+18,y+style.paddingY+player.nameLines.length*style.nameLine+1+style.roleLine,{lineHeightFactor:style.roleLine/style.roleSize});
+          const passY=y+style.paddingY+player.nameLines.length*style.nameLine+style.passLine;
+          doc.setTextColor(...(player.tnaNumber?MUTED:ORANGE)).setFont('helvetica',player.tnaNumber?'normal':'bold').setFontSize(style.passSize).text(player.passLines,x+18,passY,{lineHeightFactor:style.passLine/style.passSize});
+          if(player.roleLines.length)doc.setTextColor(...MUTED).setFont('helvetica','normal').setFontSize(style.roleSize).text(player.roleLines,x+18,passY+1+style.roleLine,{lineHeightFactor:style.roleLine/style.roleSize});
         });
         y+=rowHeight+style.rowGap;
       }
@@ -123,14 +126,17 @@ export function buildRosterPdf(doc,{game={},draft={}}={}){
     const nameLines=doc.splitTextToSize(String(player.name||'Spieler'),contentWidth);
     doc.setFont('helvetica','normal').setFontSize(9);
     const roleLines=player.role?doc.splitTextToSize(String(player.role),contentWidth):[];
-    const itemHeight=14+nameLines.length*13+(roleLines.length?3+roleLines.length*10.5:0);
+    const passLine=player.tnaNumber?`TNA ${player.tnaNumber}`:'TNA fehlt';
+    const itemHeight=23+nameLines.length*13+(roleLines.length?3+roleLines.length*10.5:0);
     const position=player.gamePosition??null,needsHeader=renderedPosition!==position;
     if(y+itemHeight+(needsHeader?27:0)>height-66){drawFooter();doc.addPage();page++;drawHeader(true);renderedPosition=undefined;}
     if(renderedPosition!==(position??null))drawPositionHeader(position);
     doc.setFillColor(index%2?255:247,index%2?255:249,index%2?255:247).roundedRect(margin,y,width-margin*2,itemHeight,6,6,'F');
     doc.setFillColor(...ORANGE).roundedRect(margin+11,y+8,4,Math.max(14,itemHeight-16),2,2,'F');
     doc.setTextColor(...INK).setFont('helvetica','bold').setFontSize(11).text(nameLines,margin+27,y+18,{lineHeightFactor:1.18});
-    if(roleLines.length)doc.setTextColor(...MUTED).setFont('helvetica','normal').setFontSize(9).text(roleLines,margin+27,y+21+nameLines.length*13,{lineHeightFactor:1.15});
+    const passY=y+19+nameLines.length*13;
+    doc.setTextColor(...(player.tnaNumber?MUTED:ORANGE)).setFont('helvetica',player.tnaNumber?'normal':'bold').setFontSize(8).text(passLine,margin+27,passY);
+    if(roleLines.length)doc.setTextColor(...MUTED).setFont('helvetica','normal').setFontSize(9).text(roleLines,margin+27,passY+12,{lineHeightFactor:1.15});
     y+=itemHeight+4;
   });
   drawFooter();

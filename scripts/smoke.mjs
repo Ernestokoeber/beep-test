@@ -106,7 +106,12 @@ storagePrototype.getItem = originalStorageGetItem;
 assert(dashboardDataReads === 1, 'Dashboard lädt den vollständigen Datenbestand mehrfach: ' + dashboardDataReads);
 assert(dashboardProbe.querySelector('.home-briefing-link'), 'Optimiertes Dashboard wurde nicht vollständig gerendert');
 
-const player = window.BT.storage.upsertPlayer({ name: 'Test Spieler', position: 'Guard', jerseyNumber: '11', availability: 'limited', goals: [] });
+const player = window.BT.storage.upsertPlayer({ name: 'Test Spieler', position: 'Guard', jerseyNumber: '11', tnaNumber: '012345678', availability: 'limited', goals: [] });
+let invalidTnaRejected=false;try{window.BT.storage.upsertPlayer({name:'Ungültige TNA',tnaNumber:12345678});}catch(error){invalidTnaRejected=/TNA/.test(error.message);}assert(invalidTnaRejected,'Programmatische Spielerupdates müssen ungültige TNA-Werte abweisen');
+route('#/players');
+assert(window.document.querySelector('.player-list')?.textContent.includes('TNA 012345678'), 'Die Spielerliste zeigt die TNA-Nummer nicht an');
+window.document.querySelector('[data-edit]')?.click();
+assert(window.document.querySelector('[name="tnaNumber"]')?.value === '012345678', 'Das Spielerformular übernimmt die TNA-Nummer nicht');
 route('#/player/' + player.id);
 assert(window.document.querySelector('[data-role="development-panel"]'), 'Spielerziele fehlen');
 
@@ -545,6 +550,7 @@ const importBackup = {
   phases: [{ id: 'import-phase', name: 'Importphase', start: '2026-10-01', end: '2026-10-31' }],
   settings: { importMarker: 'replace' }
 };
+let invalidTnaImportRejected=false;try{window.BT.history.applyBackup({...importBackup,players:[{id:'invalid-tna',name:'Ungültiger Import',tnaNumber:'12345678X'}]},'r');}catch(error){invalidTnaImportRejected=/TNA/.test(error.message);}assert(invalidTnaImportRejected,'Ein Backup mit ungültiger TNA darf nicht importiert werden');
 window.BT.storage.save({ schemaVersion: 2, players: [], sessions: [], trainings: [], games: [{ id: 'old-game' }], tactics: [{ id: 'old-tactic' }], tableDuties: [{ id: 'old-duty' }], notes: [], freethrows: [], drills: [], templates: [], phases: [{ id: 'old-phase' }], settings: {} }, { fromSync: true });
 assert(window.BT.history.hasImportableData(window.BT.storage.load()), 'Spiel-, Kampfgerichts- oder Phasendaten werden nicht als vorhandene Importdaten erkannt');
 window.BT.history.applyBackup(importBackup, 'r');

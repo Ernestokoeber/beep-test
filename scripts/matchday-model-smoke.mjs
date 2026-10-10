@@ -23,12 +23,13 @@ for(const invalid of [
  {schemaVersion:1,revisions:[{...make('a',[]),value:{...emptyDraft(),roster:'bad'}}]}
 ])assert.throws(()=>validateMatchday(invalid));
 const roster=Array.from({length:6},(_,i)=>({id:'p'+i,name:'Player '+i,jerseyNumber:['0','00','2','3','4',null][i]}));
-const plannedRoster=roster.map((player,index)=>({...player,gameStatus:index<5?'starter':'dnp',gamePosition:['pg','sg','sf','pf','c',null][index],role:index===0?'Ballhandler':''}));
+const plannedRoster=roster.map((player,index)=>({...player,tnaNumber:index<5?String(100000001+index):null,gameStatus:index<5?'starter':'dnp',gamePosition:['pg','sg','sf','pf','c',null][index],role:index===0?'Ballhandler':''}));
 const good={...emptyDraft(),ownSide:'home',roster:plannedRoster,startingFive:plannedRoster.slice(0,5).map(p=>p.id),tactics:[{id:'horns',title:'Horns',usage:'offense'}]};
 assert.equal(buildSetup(good).roster[1].jerseyNumber,'00');
 assert.equal(buildSetup(good).roster.length,5,'Nicht nominierte oder verletzte Spieler dürfen nicht in die Live-Statistik gelangen.');
 assert.equal(buildSetup(good).roster.some(player=>player.id==='p5'),false);
 assert.equal(buildSetup(good).roster[0].gamePosition,'pg');
+assert.equal(buildSetup(good).roster[0].tnaNumber,'100000001','Die TNA-Nummer muss als Teil des freigegebenen Spieltagskaders erhalten bleiben.');
 assert.equal(buildSetup(good).gameplan.ownSide,'home');
 assert.deepEqual(buildSetup(good).gameplan.tactics,good.tactics);
 assert.equal(Object.hasOwn(buildSetup(good).gameplan,'closingNote'),false,'Die veränderliche Abschlussnotiz darf nicht Teil des eingefrorenen Gameplans sein.');
@@ -36,6 +37,8 @@ for(const value of [
   {...good,roster:plannedRoster.map((p,index)=>index? p:{...p,gameStatus:'reserve'})},
   {...good,roster:plannedRoster.map((p,index)=>index? p:{...p,role:'x'.repeat(121)})},
   {...good,roster:plannedRoster.map((p,index)=>index? p:{...p,gamePosition:'coach'})},
+  {...good,roster:plannedRoster.map((p,index)=>index? p:{...p,tnaNumber:'12345678'})},
+  {...good,roster:plannedRoster.map((p,index)=>index? p:{...p,tnaNumber:'12345678X'})},
   {...good,tactics:[{id:'horns',title:'Horns',usage:'special'}]}
 ])assert.throws(()=>reviseMatchday(undefined,{...make(crypto.randomUUID(),[]),value}));
 assert.throws(()=>buildSetup(emptyDraft()));

@@ -10,6 +10,7 @@ const plannedRoster=[...f.roster.map((player,index)=>({...player,gameStatus:inde
 const game={id:'g',date:'2026-10-04',home:'Lindau',away:'Gast'};
 const opponentPlan=createOpponentPlan({game,context:{opponentId:'guest',opponent:'Gast',results:{games:3},teamStatistics:{gamesWithMadeProfile:3,twoMadeShare:80},topScorers:[{id:'guard',name:'Guard Gast',games:3,pointsPerGame:15}],bestShooters:[],scouting:{},defenseRecommendation:{start:'man',alternative:'zone212',reasons:['Paint schützen'],triggers:['Zwei Paint-Touches: 2-1-2 prüfen.'],risk:'Drives',confidence:'medium'},dataQuality:{confidence:'medium',sources:['DBB.Scores-Screenshot']}}});
 await c.saveDraft({...emptyDraft(),ownSide:'home',step:'review',roster:plannedRoster,startingFive:plannedRoster.slice(0,5).map(p=>p.id),goals:'Rebounds sichern',tactics:[{id:'deleted',title:'Alte Taktik',usage:'offense'}],opponentPlan});await c.start();
+f.roster[0].tnaNumber='999999999';
 assert.equal((await c.live.dispatch({kind:'substitution',payload:{out:['p4'],in:['p5']}})).ok,false,'DNP darf auch über den Controller nicht eingewechselt werden.');
 const host=document.querySelector('main'),before=c.live.getState().session.events.length;
 let feedback=null,injuredPlayer=null;const cleanup=mountMatchdayLive(host,c,{tactics:()=>[],players:()=>f.roster,game,onPlayerInjury:player=>{injuredPlayer=player;},onOpponentFeedback:value=>{feedback=value;}});assert.equal(c.live.getState().session.events.length,before);
@@ -23,6 +24,8 @@ host.querySelector('[data-live-roster-jersey="p5"]').value='55';host.querySelect
 [...host.querySelectorAll('button')].find(button=>button.textContent==='Kader übernehmen').click();await c.idle();
 assert.equal(injuredPlayer?.id,'p4');assert.equal(c.live.getState().roster.find(player=>player.id==='p4').absenceReason,'injured');
 assert.equal(c.live.getState().roster.find(player=>player.id==='p5').jerseyNumber,'55');assert.equal(c.live.getState().roster.find(player=>player.id==='p5').gameStatus,'starter');
+assert.equal(c.live.getState().roster.find(player=>player.id==='p5').tnaNumber,null,'Eine fehlende TNA-Nummer muss beim Live-Kaderwechsel erhalten bleiben.');
+assert.equal(c.live.getState().roster.find(player=>player.id==='p0').tnaNumber,'999999999','Eine im Spielerprofil aktualisierte TNA-Nummer muss vor dem Uhrstart den alten Kader-Snapshot ersetzen.');
 assert.equal(c.live.getState().boxscore.players.some(player=>player.id==='p4'),false,'Verletzte Spieler dürfen nicht in der Statistik erscheinen.');
 const startingFive=[...host.querySelectorAll('button')].find(button=>button.textContent==='Starting Five ändern');assert.ok(startingFive,'Starting Five kann vor Uhrstart nicht geändert werden.');startingFive.click();
 host.querySelector('[data-starting-five-player="p3"]').checked=false;host.querySelector('[data-starting-five-player="bench"]').checked=true;

@@ -31,6 +31,7 @@ BT.players = (function() {
     form.elements.birthDate.value = player ? (player.birthDate || '') : '';
     form.elements.position.value = player ? (player.position || '') : '';
     form.elements.jerseyNumber.value = player ? (player.jerseyNumber || '') : '';
+    form.elements.tnaNumber.value = player ? (player.tnaNumber || '') : '';
     form.elements.atlasPlayerId.value = player ? (player.atlasPlayerId || '') : '';
     form.elements.availability.value = player ? (player.availability || 'ready') : 'ready';
     form.elements.availabilityUntil.value = player ? (player.availabilityUntil || '') : '';
@@ -53,6 +54,7 @@ BT.players = (function() {
       birthDate: f.elements.birthDate.value || null,
       position: f.elements.position.value.trim() || null,
       jerseyNumber: f.elements.jerseyNumber.value.trim() || null,
+      tnaNumber: f.elements.tnaNumber.value.trim() || null,
       atlasPlayerId: f.elements.atlasPlayerId.value.trim() || null,
       availability: f.elements.availability.value || 'ready',
       availabilityUntil: f.elements.availabilityUntil.value || null,
@@ -89,6 +91,7 @@ BT.players = (function() {
       const metaParts = [];
       if (p.position) metaParts.push(escapeHTML(p.position));
       if (p.jerseyNumber) metaParts.push('#' + escapeHTML(p.jerseyNumber));
+      if (p.tnaNumber) metaParts.push('TNA ' + escapeHTML(p.tnaNumber));
       if (age !== null) metaParts.push(age + ' Jahre');
       const flame = currentTab === 'active' ? renderStreakFlame(p.id) : '';
       const sparkline = currentTab === 'active' ? renderFTSparkline(p.id) : '';
@@ -147,6 +150,7 @@ BT.players = (function() {
     const metaParts = [];
     if (player.position) metaParts.push(escapeHTML(player.position));
     if (player.jerseyNumber) metaParts.push('#' + escapeHTML(player.jerseyNumber));
+    if (player.tnaNumber) metaParts.push('TNA ' + escapeHTML(player.tnaNumber));
     if (player.atlasPlayerId) metaParts.push('Atlas verbunden');
     if (age !== null) metaParts.push(age + ' Jahre');
     if (player.archived) metaParts.push('archiviert');

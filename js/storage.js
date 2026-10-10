@@ -74,8 +74,25 @@ BT.storage = (function() {
     }
   }
 
+  function normalizedTnaNumber(value) {
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value !== 'string' || !/^\d{9}$/.test(value)) {
+      throw new TypeError('TNA-Nummer: genau neun Ziffern als Text eingeben.');
+    }
+    return value;
+  }
+
+  function validatePlayerTnaNumbers(players) {
+    for (const player of players || []) {
+      if (player && Object.prototype.hasOwnProperty.call(player, 'tnaNumber')) {
+        player.tnaNumber = normalizedTnaNumber(player.tnaNumber);
+      }
+    }
+  }
+
   function save(data, options) {
     const config = options || {};
+    validatePlayerTnaNumbers(data.players);
     data.meta = data.meta || {};
     if (!config.preserveTimestamp) data.meta.updatedAt = new Date().toISOString();
     localStorage.setItem(KEY, JSON.stringify(data));
@@ -116,6 +133,9 @@ BT.storage = (function() {
   function getPlayer(id) { return load().players.find(p => p.id === id); }
 
   function upsertPlayer(player) {
+    if (Object.prototype.hasOwnProperty.call(player, 'tnaNumber')) {
+      player.tnaNumber = normalizedTnaNumber(player.tnaNumber);
+    }
     const data = load();
     if (player.id) {
       const i = data.players.findIndex(p => p.id === player.id);

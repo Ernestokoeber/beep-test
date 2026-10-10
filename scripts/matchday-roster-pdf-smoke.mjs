@@ -43,8 +43,8 @@ const doc=new PdfStub();
 pdfModule.buildRosterPdf(doc,{
   game:{home:'TSV Lindau',away:'TSV Ottobeuren',date:'2026-10-04',time:'17:00'},
   draft:{ownSide:'home',roster:[
-    {id:'p1',name:'Anna Beispiel',jerseyNumber:'77',gameStatus:'starter',gamePosition:'c',role:'Ballhandling'},
-    {id:'p2',name:'Berta Muster',jerseyNumber:'88',gameStatus:'bench',gamePosition:'pg',role:''},
+    {id:'p1',name:'Anna Beispiel',jerseyNumber:'77',tnaNumber:'012345678',gameStatus:'starter',gamePosition:'c',role:'Ballhandling'},
+    {id:'p2',name:'Berta Muster',jerseyNumber:'88',tnaNumber:null,gameStatus:'bench',gamePosition:'pg',role:''},
     {id:'p3',name:'Carla Nichtdabei',jerseyNumber:'99',gameStatus:'dnp',gamePosition:'sg',role:'Center'}
   ]}
 });
@@ -56,7 +56,9 @@ assert.match(text,/Berta Muster/);
 assert.doesNotMatch(text,/Carla Nichtdabei/,'Nicht nominierte Spieler dürfen nicht exportiert werden.');
 assert.doesNotMatch(text,/Starting Five|Bank/,'Die PDF darf keine Starting-Five- oder Bankaufteilung enthalten.');
 assert.doesNotMatch(text,/77|88|99/,'Trikotnummern dürfen nicht in der PDF erscheinen.');
-assert.equal(textValues.filter(value=>/^\d+$/.test(value)).length,0,'Auch laufende Nummern würden wie Trikotnummern wirken und müssen entfallen.');
+assert.match(text,/TNA 012345678/,'Die Passnummer muss einschließlich führender Null im Kader-PDF stehen.');
+assert.match(text,/TNA fehlt/,'Fehlende Passnummern müssen im Kader-PDF klar auffallen.');
+assert.equal(textValues.filter(value=>/^\d{1,2}$/.test(value)).length,0,'Auch laufende Nummern würden wie Trikotnummern wirken und müssen entfallen.');
 assert.match(text,/2 Spieler/,'Die PDF muss die Größe des nominierten Kaders nennen.');
 assert.match(text,/Point Guard/,'Die PDF muss die spielbezogene Position sichtbar gruppieren.');
 assert.match(text,/Center/,'Die PDF muss alle belegten Positionsgruppen anzeigen.');
@@ -80,7 +82,7 @@ const pageBreaks=pagedDoc.events.filter(event=>event[0]==='addPage').length,poin
 assert.ok(pageBreaks>0,'Der Mehrseiten-Test muss tatsächlich einen Seitenwechsel erzeugen.');
 assert.equal(pointGuardHeaders,pageBreaks+1,'Eine Positionsgruppe muss auf jeder Folgeseite erneut beschriftet werden.');
 
-const twelvePlayers=['pg','pg','sg','sg','sf','sf','pf','pf','c','c',null,null].map((gamePosition,index)=>({id:'twelve-'+index,name:`Spieler ${String(index+1).padStart(2,'0')}`,gameStatus:'bench',gamePosition,role:index%2?'Shooter und Verteidiger':''}));
+const twelvePlayers=['pg','pg','sg','sg','sf','sf','pf','pf','c','c',null,null].map((gamePosition,index)=>({id:'twelve-'+index,name:`Spieler ${String(index+1).padStart(2,'0')}`,tnaNumber:String(100000001+index),gameStatus:'bench',gamePosition,role:index%2?'Shooter und Verteidiger':''}));
 const twelveDoc=new PdfStub();
 pdfModule.buildRosterPdf(twelveDoc,{game:{home:'TSV Lindau',away:'Gast'},draft:{roster:twelvePlayers}});
 assert.equal(twelveDoc.internal.getNumberOfPages(),1,'Ein Kader mit zwölf Spielern muss auf genau eine A4-Seite passen.');
@@ -145,4 +147,4 @@ const thirteenDoc=new RealJsPdf({unit:'pt',format:'a4',orientation:'portrait'}),
 thirteenDoc.roundedRect=(x,y,w,h,...args)=>{if(w>400&&h<100&&y>240)thirteenCards.push({x,y,w,h});return thirteenRoundedRect(x,y,w,h,...args);};
 pdfModule.buildRosterPdf(thirteenDoc,{game:{home:'Lindau',away:'Gast'},draft:{roster:Array.from({length:13},(_,index)=>({id:'thirteen-'+index,name:`Spieler ${index+1}`,gameStatus:'bench',gamePosition:'pg',role:''}))}});
 assert.equal(thirteenCards.length,13,'Ab 13 Spielern muss weiterhin der vollbreite, mehrseitenfähige Exportpfad verwendet werden.');
-console.log('Matchday Kader-PDF: nur nominierte Namen ohne Starting Five, Bank und Trikotnummern.');
+console.log('Matchday Kader-PDF: nominierte Namen mit TNA-Status, ohne Starting Five, Bank und Trikotnummern.');
