@@ -302,18 +302,27 @@ BT.games = (function() {
       ${analysis ? renderAtlas(analysis) : '<p class="muted">Lade eine geprüfte Videoanalyse, um Spielbeobachtungen und Trainingsaufgaben zu übernehmen.</p>'}
     </section>
 
-    <section class="boxscore-panel mobile-extra-section" data-menu-label="Boxscore und Spielnotizen"><div class="section-head"><div><span class="section-kicker">Spieldaten</span><h3>Spieler-Boxscore &amp; Coaching-Notizen</h3></div></div>
-      <div class="table-scroll"><table class="results game-boxscore"><thead><tr><th>Spieler</th><th>Min</th><th>PTS</th><th>FG</th><th>FT</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>+/−</th><th>Notiz</th></tr></thead><tbody>
+    <section class="boxscore-panel mobile-extra-section" data-menu-label="Boxscore und Spielnotizen"><div class="section-head"><div><span class="section-kicker">Spieldaten</span><h3>Spieler-Boxscore &amp; Coaching-Notizen</h3><p>Punkte, Minuten, Treffer und Fouls aus DBB.Scores. Im Video OREB/DREB, AST, STL, BLK, TO sowie alle Zweier-/Dreierversuche zählen. Leere Felder bedeuten unbekannt, 0 bedeutet tatsächlich keine Aktion.</p></div></div>
+      <div class="table-scroll"><table class="results game-boxscore"><thead><tr><th>Spieler</th><th>Min</th><th>PTS</th><th>FG</th><th>FT</th><th>REB</th><th>OREB</th><th>DREB</th><th>2PA</th><th>3PA</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>+/−</th><th>Notiz</th></tr></thead><tbody>
       ${players.map(player => {
         const stat = game.playerStats.find(item => item.playerId === player.id) || {};
         const numberInput = key => '<input type="number" inputmode="numeric" data-stat="' + key + '" value="' + (stat[key] == null ? '' : Number(stat[key])) + '">';
         const pairInput = (madeKey, attemptKey) => '<span class="stat-pair">' + numberInput(madeKey) + '<i>/</i>' + numberInput(attemptKey) + '</span>';
-        return `<tr data-player-id="${player.id}"><td><a href="#/player/${player.id}">${escapeHTML(player.name)}</a>${stat.atlasEntityId ? '<span class="atlas-linked" title="Atlas-ID: ' + escapeHTML(stat.atlasEntityId) + '">Atlas</span>' : ''}</td><td>${numberInput('minutes')}</td><td>${numberInput('points')}</td><td>${pairInput('fieldGoalsMade','fieldGoalsAttempted')}</td><td>${pairInput('freeThrowsMade','freeThrowsAttempted')}</td><td>${numberInput('rebounds')}</td><td>${numberInput('assists')}</td><td>${numberInput('steals')}</td><td>${numberInput('blocks')}</td><td>${numberInput('turnovers')}</td><td>${numberInput('fouls')}</td><td>${numberInput('plusMinus')}</td><td><input type="text" maxlength="160" data-stat="note" value="${escapeHTML(stat.note || '')}" placeholder="Beobachtung"></td></tr>`;
+        return `<tr data-player-id="${player.id}"><td><a href="#/player/${player.id}">${escapeHTML(player.name)}</a>${stat.atlasEntityId ? '<span class="atlas-linked" title="Atlas-ID: ' + escapeHTML(stat.atlasEntityId) + '">Atlas</span>' : ''}</td><td>${numberInput('minutes')}</td><td>${numberInput('points')}</td><td>${pairInput('fieldGoalsMade','fieldGoalsAttempted')}</td><td>${pairInput('freeThrowsMade','freeThrowsAttempted')}</td><td>${numberInput('rebounds')}</td><td>${numberInput('offensiveRebounds')}</td><td>${numberInput('defensiveRebounds')}</td><td>${numberInput('twoAttempted')}</td><td>${numberInput('threeAttempted')}</td><td>${numberInput('assists')}</td><td>${numberInput('steals')}</td><td>${numberInput('blocks')}</td><td>${numberInput('turnovers')}</td><td>${numberInput('fouls')}</td><td>${numberInput('plusMinus')}</td><td><input type="text" maxlength="160" data-stat="note" value="${escapeHTML(stat.note || '')}" placeholder="Beobachtung"></td></tr>`;
       }).join('')}</tbody></table></div>
     </section>
 
-    <div class="game-next-actions"><button class="btn primary" type="button" data-action="create-training">Aus Spielanalyse Training erstellen</button><button class="btn danger" type="button" data-action="delete-game">Spiel löschen</button></div>`;
+    <div data-role="video-stats-export-host"></div><div class="game-next-actions"><button class="btn primary" type="button" data-action="create-training">Aus Spielanalyse Training erstellen</button><button class="btn danger" type="button" data-action="delete-game">Spiel löschen</button></div>`;
 
+    let refreshMetrics=()=>{};
+    if(lifecycle.completed){
+      const generation=liveGeneration;
+      import('./live-game/export.mjs').then(({renderGameStatsExport,renderGameMetrics})=>{
+        if(generation!==liveGeneration||!wrap.isConnected)return;
+        const host=$('[data-role="video-stats-export-host"]',wrap),metricsHost=document.createElement('div');host.append(renderGameStatsExport({game,session:selectedSession}),metricsHost);
+        refreshMetrics=()=>metricsHost.replaceChildren(renderGameMetrics({game,players:BT.storage.getPlayers()}));refreshMetrics();
+      }).catch(error=>{if(generation===liveGeneration)$('[data-role="video-stats-export-host"]',wrap).textContent='Export konnte nicht geladen werden: '+error.message;});
+    }
     const notice = archiveNotice(game, () => { closeForm(); drawDetail(); });
     wrap.querySelector('.game-detail-head').after(notice.section);
     wrap.querySelectorAll('[data-game-field], [data-stat]').forEach(input => { input.readOnly = !editable; });
@@ -337,7 +346,9 @@ BT.games = (function() {
       let stat = game.playerStats.find(item => item.playerId === row.dataset.playerId);
       if (!stat) { stat = { playerId: row.dataset.playerId }; game.playerStats.push(stat); }
       stat[input.dataset.stat] = input.dataset.stat === 'note' ? input.value : (input.value === '' ? null : Number(input.value));
-      saveGame(game);
+      if(stat.offensiveRebounds!=null&&stat.defensiveRebounds!=null){stat.rebounds=stat.offensiveRebounds+stat.defensiveRebounds;row.querySelector('[data-stat="rebounds"]').value=stat.rebounds;}
+      if(stat.twoAttempted!=null&&stat.threeAttempted!=null){stat.fieldGoalsAttempted=stat.twoAttempted+stat.threeAttempted;row.querySelector('[data-stat="fieldGoalsAttempted"]').value=stat.fieldGoalsAttempted;}
+      saveGame(game);refreshMetrics();
     })));
     $('[data-action="edit-selected"]', wrap).addEventListener('click', () => openForm(game));
     $('[data-action="import-published-report"]',wrap).addEventListener('click',()=>openPublishedReportImport(game,wrap));

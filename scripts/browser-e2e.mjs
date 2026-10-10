@@ -851,15 +851,25 @@ async function testMatchday(browser, name, options) {
     assert((await page.locator('[data-role="report"]').innerText()).includes('E2E Spieler 8') === false, `${name}: verletzter Spieler erscheint in der Auswertung`);
     const exportPanel=page.locator('[data-role="game-stats-export"]');
     await exportPanel.waitFor();
+    await exportPanel.locator('[data-field="export-source"]').selectOption('live');
     const downloadPromise=page.waitForEvent('download');
     await exportPanel.getByRole('button',{name:'Statistik exportieren',exact:true}).tap();
     const download=await downloadPromise;
     const {readFile}=await import('node:fs/promises');
     const packet=JSON.parse(await readFile(await download.path(),'utf8'));
-    assert(packet.format==='courthub.game-stats'&&packet.game.ourScore===2&&packet.game.opponentScore===3,`${name}: Export-Ergebnis falsch`);
+    assert(packet.format==='courthub.game-stats'&&packet.game.ourScore===null&&packet.game.opponentScore===null,`${name}: Export-Ergebnis falsch`);
     assert(packet.game.teamId==='herren1'&&packet.game.isHome===true&&packet.sourceId==='matchday-e2e',`${name}: Export-Zuordnung falsch`);
-    assert(packet.players.find(p=>p.name==='E2E Spieler 1').points===2,`${name}: Export-Spielerwerte fehlen`);
+    assert(packet.players.find(p=>p.name==='E2E Spieler 1').points===null&&packet.players.find(p=>p.name==='E2E Spieler 1').minutesSeconds===null,`${name}: Export-Spielerwerte fehlen`);
     assert(!packet.players.some(p=>p.name==='E2E Spieler 8'),`${name}: nicht nominierter Spieler exportiert`);
+    await page.evaluate(({gameId,playerId})=>{const game=window.BT.storage.getGame(gameId);game.playerStats=[{playerId,points:999,minutes:999,rebounds:5,assists:3,steals:0,turnovers:2}];window.BT.storage.upsertGame(game);},{gameId:packet.game.id,playerId:packet.players.find(p=>p.name==='E2E Spieler 1').id});
+    await exportPanel.locator('[data-field="export-source"]').selectOption('video');
+    const videoDownloadPromise=page.waitForEvent('download');
+    await exportPanel.getByRole('button',{name:'Statistik exportieren',exact:true}).tap();
+    const videoDownload=await videoDownloadPromise;
+    const videoPacket=JSON.parse(await readFile(await videoDownload.path(),'utf8'));
+    assert(videoPacket.players[0].reboundsTotal===5&&videoPacket.players[0].assists===3&&videoPacket.players[0].steals===0&&videoPacket.players[0].turnovers===2,`${name}: Video-Werte fehlen`);
+    assert(videoPacket.players[0].points===null&&videoPacket.players[0].minutesSeconds===null,`${name}: DBB-Werte im Video-Export`);
+
     await noOverflow('Auswertung mit aufgeklappten Details');
   }
   try {
