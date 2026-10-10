@@ -346,6 +346,8 @@ BT.games = (function() {
       let stat = game.playerStats.find(item => item.playerId === row.dataset.playerId);
       if (!stat) { stat = { playerId: row.dataset.playerId }; game.playerStats.push(stat); }
       stat[input.dataset.stat] = input.dataset.stat === 'note' ? input.value : (input.value === '' ? null : Number(input.value));
+      if(['offensiveRebounds','defensiveRebounds'].includes(input.dataset.stat)&&stat[input.dataset.stat]===null){stat.rebounds=null;row.querySelector('[data-stat="rebounds"]').value='';}
+      if(['twoAttempted','threeAttempted'].includes(input.dataset.stat)&&stat[input.dataset.stat]===null){stat.fieldGoalsAttempted=null;row.querySelector('[data-stat="fieldGoalsAttempted"]').value='';}
       if(stat.offensiveRebounds!=null&&stat.defensiveRebounds!=null){stat.rebounds=stat.offensiveRebounds+stat.defensiveRebounds;row.querySelector('[data-stat="rebounds"]').value=stat.rebounds;}
       if(stat.twoAttempted!=null&&stat.threeAttempted!=null){stat.fieldGoalsAttempted=stat.twoAttempted+stat.threeAttempted;row.querySelector('[data-stat="fieldGoalsAttempted"]').value=stat.fieldGoalsAttempted;}
       saveGame(game);refreshMetrics();
