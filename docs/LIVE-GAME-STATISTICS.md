@@ -79,8 +79,23 @@ zusätzlicher Bestätigung löschen. Vorher auch andere Geräte synchronisieren.
 ## Abschluss und Auswertung
 
 **Spiel abschließen** stoppt die Uhr. Weitere Änderungen erfolgen ausdrücklich
-im Korrekturmodus. **Live-Auswertung** zeigt Punkte, FT/2P/3P, FG, Quoten,
-OREB/DREB/REB, AST/STL/BLK/TO/PF, Einsatzminuten und Aufstellungsverlauf.
+im Korrekturmodus. **Live-Auswertung** zeigt für Mannschaft und Spieler Punkte,
+FGM/FGA, FG%, 2PM/2PA, 2P%, 3PM/3PA, 3P%, FTM/FTA, FT%, OREB/DREB/REB,
+AST/TOV/STL/BLK/PF sowie Einsatzminuten und Aufstellungsverlauf. Der kompakte
+Handyüberblick bleibt auf PTS, REB, AST, Plus/Minus, TOV und EFF begrenzt; der
+vollständige Boxscore ist je Spieler aufklappbar.
+
+CourtHub berechnet zusätzlich automatisch:
+
+- `eFG% = (FGM + 0,5 × 3PM) ÷ FGA`
+- `TS% = PTS ÷ (2 × (FGA + 0,44 × FTA))`
+- `AST/TO = AST ÷ TOV`
+- `EFF = PTS + REB + AST + STL + BLK − (FGA − FGM) − (FTA − FTM) − TOV`
+
+Bei null Versuchen beziehungsweise null Turnovers zeigt die Auswertung einen
+Strich statt einer irreführenden Quote. PIE, Rebound-Prozentwerte sowie
+Offensiv- und Defensivrating werden bewusst nicht berechnet: Dafür fehlen die
+vollständigen Gegnerstatistiken beziehungsweise verlässlich erfasste Possessions.
 
 Zusätzlich zeigt der Bericht Spieltagsnummer, **Gespielt** bzw. **DNP – nicht
 eingesetzt** und Plus/Minus. Während des Spiels heißt DNP noch „Noch nicht

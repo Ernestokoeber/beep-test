@@ -596,7 +596,7 @@ async function testMatchday(browser, name, options) {
     const metrics = await player.locator('.live-report-player-quick dt').evaluateAll(labels =>
       Object.fromEntries(labels.map(label => [label.textContent, label.nextElementSibling.textContent])));
     assert(metrics.PTS === '2' && metrics['+/−'] === '-1', `${name}: Spielerwerte falsch ${JSON.stringify(metrics)}`);
-    await player.getByText('Würfe und weitere Werte', { exact: true }).tap();
+    await player.getByText('Vollständiger Boxscore', { exact: true }).tap();
     assert((await player.innerText()).includes('1/1'), `${name}: Wurfstatistik fehlt`);
     await page.locator('.live-report-dnp > summary').tap();
     assert((await page.locator('.live-report-dnp').innerText()).includes('E2E Spieler 6 · DNP'), `${name}: Bankspieler fehlt`);

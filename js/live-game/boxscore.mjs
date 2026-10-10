@@ -1,4 +1,4 @@
-import {effectiveEvents,projectStats,validateSession} from './core.mjs';
+import {deriveBoxscoreMetrics,effectiveEvents,projectStats,validateSession} from './core.mjs';
 import {clockAt,projectLineups,lineupAtEvent} from './clock.mjs';
 
 const madePoints=Object.freeze({'ft-made':1,'two-made':2,'three-made':3});
@@ -32,6 +32,9 @@ export function projectBoxscore(s,nowMs) {
     else if(e.kind==='stat')delta=madePoints[e.payload.action]||0;
     if(delta)for(const id of lineupAtEvent(lineups.boundaries,s,e))byId.get(id).plusMinus+=delta;
   }
-  return {players,teamPoints:stats.points,opponentPoints,stints:lineups.stints,complete,
+  const totals=players.reduce((sum,p)=>{for(const key of ['points','ftMade','ftAttempted','twoMade','twoAttempted','threeMade','threeAttempted','oreb','dreb','assists','steals','blocks','turnovers','fouls'])sum[key]+=p[key];return sum;},
+    {points:0,ftMade:0,ftAttempted:0,twoMade:0,twoAttempted:0,threeMade:0,threeAttempted:0,oreb:0,dreb:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0});
+  const team=deriveBoxscoreMetrics(totals);
+  return {players,team,teamPoints:stats.points,opponentPoints,stints:lineups.stints,complete,
     plusMinusComplete:supportsScoring&&complete&&coverageCurrent(s,events),issues:[]};
 }

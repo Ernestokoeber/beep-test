@@ -117,6 +117,20 @@ export function appendEvent(s,e) {
   if (existing) { ensure(canonical(existing)===canonical(e),'collision','Konflikt: Aktions-ID hat anderen Inhalt.',[e.id]); return clone(s); }
   const next=clone(s);next.events.push(clone(e));validateSession(next);return next;
 }
+export function deriveBoxscoreMetrics(line) {
+  const p={...line};
+  p.fieldGoalsMade=p.twoMade+p.threeMade;p.fieldGoalsAttempted=p.twoAttempted+p.threeAttempted;p.rebounds=p.oreb+p.dreb;
+  p.twoPointPct=p.twoAttempted ? 100*p.twoMade/p.twoAttempted : null;
+  p.threePointPct=p.threeAttempted ? 100*p.threeMade/p.threeAttempted : null;
+  p.fieldGoalPct=p.fieldGoalsAttempted ? 100*p.fieldGoalsMade/p.fieldGoalsAttempted : null;
+  p.freeThrowPct=p.ftAttempted ? 100*p.ftMade/p.ftAttempted : null;
+  p.effectiveFieldGoalPct=p.fieldGoalsAttempted ? 100*(p.fieldGoalsMade+.5*p.threeMade)/p.fieldGoalsAttempted : null;
+  const trueShootingAttempts=p.fieldGoalsAttempted+.44*p.ftAttempted;
+  p.trueShootingPct=trueShootingAttempts ? 100*p.points/(2*trueShootingAttempts) : null;
+  p.assistTurnoverRatio=p.turnovers ? p.assists/p.turnovers : null;
+  p.efficiency=p.points+p.rebounds+p.assists+p.steals+p.blocks-(p.fieldGoalsAttempted-p.fieldGoalsMade)-(p.ftAttempted-p.ftMade)-p.turnovers;
+  return p;
+}
 export function projectStats(s) {
   const players=Object.fromEntries(sessionRoster(s).map(p=>[p.id,{...p,points:0,ftMade:0,ftAttempted:0,twoMade:0,twoAttempted:0,threeMade:0,threeAttempted:0,oreb:0,dreb:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0}]));
   const counters={oreb:'oreb',dreb:'dreb',assist:'assists',steal:'steals',block:'blocks',turnover:'turnovers',foul:'fouls'};
@@ -128,9 +142,7 @@ export function projectStats(s) {
     else p[counters[action]]++;
   }
   for(const p of Object.values(players)) {
-    p.fieldGoalsMade=p.twoMade+p.threeMade;p.fieldGoalsAttempted=p.twoAttempted+p.threeAttempted;p.rebounds=p.oreb+p.dreb;
-    p.fieldGoalPct=p.fieldGoalsAttempted ? 100*p.fieldGoalsMade/p.fieldGoalsAttempted : null;
-    p.freeThrowPct=p.ftAttempted ? 100*p.ftMade/p.ftAttempted : null;
+    Object.assign(p,deriveBoxscoreMetrics(p));
   }
   return {players,points:Object.values(players).reduce((n,p)=>n+p.points,0),issues:[]};
 }

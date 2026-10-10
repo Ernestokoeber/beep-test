@@ -61,6 +61,14 @@ for(const action of ['ft-made','ft-missed','two-made','two-missed','three-made',
 assert.equal(p('p1').points,6);assert.equal(p('p1').plusMinus,6);
 for(const k of ['ftMade','twoMade','threeMade','oreb','dreb','assists','steals','blocks','turnovers','fouls'])assert.equal(p('p1')[k],1,k);
 for(const k of ['ftAttempted','twoAttempted','threeAttempted'])assert.equal(p('p1')[k],2,k);
+assert.equal(p('p1').fieldGoalsMade,2);assert.equal(p('p1').fieldGoalsAttempted,4);assert.equal(p('p1').rebounds,2);
+assert.equal(p('p1').twoPointPct,50);assert.equal(p('p1').threePointPct,50);assert.equal(p('p1').fieldGoalPct,50);assert.equal(p('p1').freeThrowPct,50);
+assert.equal(p('p1').effectiveFieldGoalPct,62.5);assert.ok(Math.abs(p('p1').trueShootingPct-61.47540983606557)<1e-10);
+assert.equal(p('p1').assistTurnoverRatio,1);assert.equal(p('p1').efficiency,7);
+assert.equal(p('p2').twoPointPct,null);assert.equal(p('p2').threePointPct,null);assert.equal(p('p2').effectiveFieldGoalPct,null);assert.equal(p('p2').trueShootingPct,null);assert.equal(p('p2').assistTurnoverRatio,null);
+assert.ok(report().team,'Der projizierte Team-Boxscore fehlt.');
+assert.equal(report().team.points,6);assert.equal(report().team.fieldGoalsMade,2);assert.equal(report().team.fieldGoalsAttempted,4);assert.equal(report().team.fieldGoalPct,50);
+assert.equal(report().team.rebounds,2);assert.equal(report().team.turnovers,1);assert.equal(report().team.efficiency,7);assert.equal(report().team.effectiveFieldGoalPct,62.5);
 add('clock-start',{startedAtMs:0});add('clock-pause',{},598499);
 assert.equal(p('p1').minutesSeconds,1);assert.equal(p('p1').minutesMs,1501);
 assert.throws(()=>add('opponent-score',{points:1},598000));
@@ -80,6 +88,10 @@ for(let period=1;period<=6;period++){
   add('opponent-score',{points:1},0,period);add('clock-pause',{},0,period);
 }
 assert.equal(p('p1').plusMinus,-6);assert.equal(p('p1').minutesSeconds,3000);
+sample=fresh();add('stat',{playerId:'p1',action:'two-made'});
+for(let i=0;i<9;i++)add('stat',{playerId:'p2',action:'two-missed'});
+assert.equal(p('p1').fieldGoalPct,100);assert.equal(p('p2').fieldGoalPct,0);
+assert.equal(report().team.fieldGoalPct,10,'Teamquoten müssen aus allen Treffern und Versuchen entstehen, nicht aus dem Mittelwert der Spielerquoten.');
 console.log('Live boxscore: lineup scoring, participation, time, corrections and coverage passed.');
 // Execute the service worker install handler: the projection must be cached offline.
 const {readFileSync}=await import('node:fs');
