@@ -5,7 +5,7 @@ import {buildGameStatsExport,renderGameStatsExport,calculateGameMetrics,renderGa
 let session=createSession({schemaVersion:3,id:'export-test',deviceId:'d',actorId:'u',roster:Array.from({length:6},(_,i)=>({id:'p'+i,name:'Spieler '+i,jerseyNumber:i===5?'00':String(i)})),startingFive:['p0','p1','p2','p3','p4'],config:{periods:4,periodMs:600000,overtimeMs:300000}});
 const game={id:'g1',date:'2026-10-11',home:'Gast',away:'TSV Lindau',score:'99:88',playerStats:[{playerId:'p0',points:999,minutes:40,rebounds:4,offensiveRebounds:1,defensiveRebounds:3,blocks:1,twoAttempted:8,threeAttempted:5,assists:2,steals:0,turnovers:null}],atlas:{points:999}};
 const args=()=>({game,session,players:session.roster,teamId:'herren1',sourceId:'team-source',ownSide:'away',now:new Date('2026-10-11T18:00:00Z')});
-assert.throws(()=>buildGameStatsExport(args()),/abschließen/);
+assert.throws(()=>buildGameStatsExport({...args(),statsSource:'live'}),/abschließen/);
 function add(kind,payload={},remainingMs=600000){session=appendEvent(session,{id:'e'+(session.events.length+1),sessionId:session.id,seq:session.events.length+1,period:1,remainingMs,recordedAt:'2026-10-11T17:00:00Z',kind,payload});}
 add('clock-start',{startedAtMs:1000});add('clock-pause',{},540000);
 add('stat',{playerId:'p0',action:'three-made'},540000);add('opponent-score',{points:2},540000);add('finish',{},540000);
@@ -23,6 +23,7 @@ assert.equal(buildGameStatsExport({...args(),game:{...game,date:'2026-06-30'}}).
 assert.throws(()=>buildGameStatsExport({...args(),game:{...game,playerStats:[]}}),/keine Video/);
 assert.throws(()=>buildGameStatsExport({...args(),game:{...game,playerStats:[{playerId:'p0',rebounds:-1}]}}),/ganze Zahl/);
 assert.equal(buildGameStatsExport({...args(),session:null,game:{...game,status:'played'}}).players[0].reboundsTotal,4,'Video export must work without any live capture');
+assert.equal(buildGameStatsExport({...args(),session:null}).players[0].reboundsTotal,4,'An official same-day result permits video export without live capture');
 const dom=new JSDOM('<main></main>');globalThis.window=dom.window;globalThis.document=dom.window.document;
 const settings={};let downloaded;window.BT={storage:{getPlayers:()=>session.roster,getSetting:(k,f)=>settings[k]??f,setSetting:(k,v)=>settings[k]=v},sync:{getState:()=>({user:{organization:{id:'org-test'}}})},util:{downloadBlob:(filename,blob)=>downloaded={filename,blob}}};
 const view=renderGameStatsExport({game,session});document.body.append(view);assert.equal(view.querySelector('[data-field="export-side"]').value,'away');

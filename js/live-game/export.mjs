@@ -9,7 +9,7 @@ export function buildGameStatsExport({game,session,players=[],statsSource='video
   if(!['home','away'].includes(ownSide))fail('Heim- oder Auswärtsrolle auswählen.');
   const report=session?buildLiveReport(session,now.getTime()):null;
   const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(now);
-  if(!report?.complete&&!game.publishedReport&&!(game.date<=today&&(['played','completed','finished'].includes(game.status)||game.date<today)))fail('Zuerst das Spiel abschließen.');
+  if(!report?.complete&&!game.publishedReport&&!(game.date<=today&&(['played','completed','finished'].includes(game.status)||/^\d+\s*:\s*\d+$/.test(game.score||'')||game.date<today)))fail('Zuerst das Spiel abschließen.');
   if(!['video','live'].includes(statsSource))fail('Statistikquelle auswählen.');
   if(statsSource==='live'&&(!report?.complete||report.teamPoints===null||report.issues.length))fail('Zuerst die Live-Erfassung abschließen und mögliche Konflikte lösen.');
   const opponentName=String(ownSide==='home'?game.away:game.home).trim();
