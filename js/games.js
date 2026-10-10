@@ -365,12 +365,14 @@ BT.games = (function() {
     try{
       const {buildLiveReport,renderLiveReport}=await import('./live-game/report.mjs');
       if(generation!==liveGeneration)return;
+      const {renderGameStatsExport}=await import('./live-game/export.mjs');
+      if(generation!==liveGeneration)return;
       const game=BT.storage.getGame(gameId),live=game?.liveStats;
       const session=live?.sessions.find(s=>s.id===live.selectedSessionId);
       host.replaceChildren();
-      if(game.publishedReport){const {renderPublishedReport}=await import('./published-game-report.mjs');if(generation!==liveGeneration)return;host.append(renderPublishedReport(game.publishedReport,session?buildLiveReport(session,Date.now()):null));return;}
+      if(game.publishedReport){const {renderPublishedReport}=await import('./published-game-report.mjs');if(generation!==liveGeneration)return;host.append(renderPublishedReport(game.publishedReport,session?buildLiveReport(session,Date.now()):null));if(session&&buildLiveReport(session,Date.now()).complete)host.append(renderGameStatsExport({game,session}));return;}
       if(!session){host.textContent=live?'Mehrere Erfassungen: In „Live erfassen“ zuerst eine Sitzung auswählen.':'Noch keine Live-Erfassung vorhanden.';return;}
-      const report=buildLiveReport(session,Date.now());host.append(renderLiveReport(report));
+      const report=buildLiveReport(session,Date.now());host.append(renderLiveReport(report));if(report.complete)host.append(renderGameStatsExport({game,session}));
       const score=String(game.score||'').match(/^(\d+)\s*:\s*(\d+)$/);
       const home=/\blindau\b/i.test(game.home||''),away=/\blindau\b/i.test(game.away||'');
       if(score&&home!==away&&report.teamPoints!==null){const official=Number(score[home?1:2]);const p=document.createElement('p');p.textContent='Gepflegtes Ergebnis: '+official+' eigene Punkte · Differenz zur Live-Erfassung: '+(report.teamPoints-official)+'.';host.append(p);}

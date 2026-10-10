@@ -5,9 +5,10 @@ import { protectWorkspace } from '../js/live-game/merge.mjs';
 
 const dom = new JSDOM('<main></main>', { url: 'https://coach.test', runScripts: 'outside-only' });
 const w = dom.window;
-for (const file of ['util', 'storage', 'jerseys']) w.eval(readFileSync(new URL(`../js/${file}.js`, import.meta.url), 'utf8'));
+w.eval(readFileSync(new URL('../js/util.js', import.meta.url), 'utf8'));
 const BT = w.BT;
 BT.util.todayISO = () => '2026-10-09';
+for (const file of ['storage', 'jerseys']) w.eval(readFileSync(new URL(`../js/${file}.js`, import.meta.url), 'utf8'));
 w.confirm = () => true;
 let saves = 0;
 BT.sync = { queueSave() { saves++; }, getState() { return { user: { role: 'coach' } }; } };

@@ -849,6 +849,17 @@ async function testMatchday(browser, name, options) {
     const dnp=page.locator('.live-report-dnp');
     if(await dnp.count())await dnp.locator('> summary').tap();
     assert((await page.locator('[data-role="report"]').innerText()).includes('E2E Spieler 8') === false, `${name}: verletzter Spieler erscheint in der Auswertung`);
+    const exportPanel=page.locator('[data-role="game-stats-export"]');
+    await exportPanel.waitFor();
+    const downloadPromise=page.waitForEvent('download');
+    await exportPanel.getByRole('button',{name:'Statistik exportieren',exact:true}).tap();
+    const download=await downloadPromise;
+    const {readFile}=await import('node:fs/promises');
+    const packet=JSON.parse(await readFile(await download.path(),'utf8'));
+    assert(packet.format==='courthub.game-stats'&&packet.game.ourScore===2&&packet.game.opponentScore===3,`${name}: Export-Ergebnis falsch`);
+    assert(packet.game.teamId==='herren1'&&packet.game.isHome===true&&packet.sourceId==='matchday-e2e',`${name}: Export-Zuordnung falsch`);
+    assert(packet.players.find(p=>p.name==='E2E Spieler 1').points===2,`${name}: Export-Spielerwerte fehlen`);
+    assert(!packet.players.some(p=>p.name==='E2E Spieler 8'),`${name}: nicht nominierter Spieler exportiert`);
     await noOverflow('Auswertung mit aufgeklappten Details');
   }
   try {
