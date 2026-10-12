@@ -33,6 +33,12 @@ const compact = { trainings: [{
 }] };
 const request = buildAIRequest('planSeason', payload);
 const schema = request.generationConfig.responseSchema;
+const replanPayload = structuredClone(payload);
+replanPayload.data.slots[0].previousStationPlan = { stations: structuredClone(compact.trainings[0].stationTraining.stations) };
+replanPayload.data.slots[0].replanAttempt = 2;
+const replanRequest = buildAIRequest('planSeason', replanPayload);
+assert.match(replanRequest.parts[0].text, /verbindliche Ausschlussreferenz/i, 'Der KI-Auftrag erklärt den bisherigen Freitag nicht als Ausschlussreferenz');
+assert.match(replanRequest.parts[0].text, /mindestens drei der fünf primären focusAreas/i, 'Der KI-Auftrag verlangt keine fachlich neue Stationskombination');
 const properties = schema.properties.trainings.items.properties;
 assert.deepEqual(Object.keys(properties).sort(), ['date', 'summary', 'evidenceBasis', 'stationTraining'].sort(), 'Friday must not send duplicate drills, totals or alternative modes');
 assert(properties.stationTraining.properties.stations.items.required.includes('shotTargets'));
@@ -111,26 +117,49 @@ context.BT.storage.getDevelopmentFindings = () => [{
 const existing = context.BT.storage.upsertTraining({
   date: '2026-10-09', attendance: [{ playerId: player.id, status: 'yes' }],
   freethrows: [{ playerId: player.id, made: 2, attempted: 3 }],
-  shots: [{ category: 'Alter Wurf', planned: true, entries: [{ playerId: player.id, made: 4, attempted: 7 }] }]
+  shots: [{ category: 'Alter Wurf', planned: true, entries: [{ playerId: player.id, made: 4, attempted: 7 }] }],
+  stationTraining: { stations: structuredClone(value.stationTraining.stations) }
 });
+const changedFriday = structuredClone(recovered.value);
+changedFriday.trainings[0].stationTraining.stations.forEach((station, index) => {
+  station.title = `Neue Alternative ${index + 1}`;
+});
+changedFriday.trainings[0].stationTraining.stations.slice(1, 4).forEach((station, index) => {
+  station.focusAreas = [[
+    { category: 'technique', skillKey: 'finishing' }
+  ], [
+    { category: 'defense', skillKey: 'closeout' }
+  ], [
+    { category: 'rebounding', skillKey: 'box-out' }
+  ]][index];
+});
+let fridayPlanningCalls = 0;
 context.BT.api = { ai: async (action, body) => {
+  fridayPlanningCalls += 1;
   assert.equal(action, 'planSeason');
   assert.equal(body.data.slots[0].fridayStationMode, true);
   assert.equal(body.data.slots[0].date, '2026-10-09');
+  assert(body.data.slots[0].previousStationPlan, 'Die Neuplanung erhält den bisherigen Freitagsplan nicht als Ausschlussreferenz');
+  assert.equal(body.data.slots[0].previousStationPlan.stations.length, 5, 'Die Neuplanung erhält den bisherigen Freitagsplan nicht als Ausschlussreferenz');
+  assert.match(body.data.slots[0].replanRequirement, /mindestens drei/i, 'Die Neuplanung fordert keine fachlich erkennbare Änderung');
+  assert.equal(body.data.slots[0].replanAttempt, fridayPlanningCalls, 'Der Wiederholungsversuch ist für die KI nicht erkennbar');
   assert.equal(body.data.playerDevelopment.length, 1, 'Nur aktive Spieler mit bestätigten Entwicklungsfeldern gehören in den Freitagspayload');
   assert.equal(body.data.playerDevelopment[0].playerId, player.id);
   assert.equal(body.data.playerDevelopment[0].priorities.length, 1, 'Stärken dürfen nicht als Entwicklungsfelder übertragen werden');
   assert.equal(body.data.playerDevelopment[0].priorities[0].observation, 'Ballverluste unter Druck reduzieren.');
   assert(body.data.developmentTaxonomy.decision.includes('turnover-control'), 'Der Freitagspayload benötigt die erlaubte Entwicklungstaxonomie');
   assert.match(body.data.instructions, /ohne Pflichtrotation/i, 'Der Freitagspayload muss die offene Stationswahl anordnen');
+  assert.match(body.data.instructions, /Ausschlussreferenz/i, 'Der Freitagspayload erklärt den Umgang mit dem bisherigen Plan nicht');
   assert.doesNotMatch(body.data.instructions, /Gruppenrotation innerhalb jeder Einheit ist notwendig/i, 'Der Freitagspayload darf keine widersprüchliche Pflichtrotation enthalten');
   assert.equal(JSON.stringify(body.data.playerDevelopment).includes('PDF-Beleg'), false, 'PDF-Auszüge dürfen nicht an den Trainingsgenerator gehen');
-  return { data: recovered.value };
+  return { data: fridayPlanningCalls === 1 ? recovered.value : changedFriday };
 } };
 await context.BT.seasonplanner.generateFridayTraining('2026-10-09', game, existing);
 const saved = context.BT.storage.getTraining(existing.id);
+assert.equal(fridayPlanningCalls, 2, 'Ein unveränderter KI-Entwurf muss genau einen neuen Versuch auslösen');
 assert.equal(context.BT.storage.getTrainings().length, 1, 'Replanning must update the existing training');
 assert.equal(saved.stationTraining.stations.length, 5);
+assert.equal(saved.stationTraining.stations[1].title, 'Neue Alternative 2', 'Nach dem identischen Erstentwurf wurde nicht die fachlich neue Stationskombination gespeichert');
 assert.equal(saved.stationTraining.stations[0].description, value.stationTraining.stations[0].description);
 assert.equal(saved.plan.drills[2].description, value.drills[2].description);
 assert(saved.plan.drills[2].description.endsWith('ENDE DER ANLEITUNG'));
@@ -143,6 +172,21 @@ assert.equal(saved.shots.find(item => item.category === 'Alter Wurf').entries[0]
 assert.equal(saved.shots.find(item => item.category === 'Pop-Wurf').entries.length, 0, 'New goals must not be recorded as actual attempts');
 assert.equal(context.BT.trainingShots.targetFor(saved, 'shot', 'Pop-Wurf'), 20);
 assert.equal(context.BT.trainingShots.targetFor(saved, 'ft'), 12);
+const titlesBeforeDuplicate = saved.stationTraining.stations.map(station => station.title);
+let duplicateFridayCalls = 0;
+context.BT.api = { ai: async (action, body) => {
+  duplicateFridayCalls += 1;
+  assert.equal(action, 'planSeason');
+  assert.equal(body.data.slots[0].previousStationPlan.stations[1].title, 'Neue Alternative 2');
+  return { data: changedFriday };
+} };
+await assert.rejects(
+  () => context.BT.seasonplanner.generateFridayTraining('2026-10-09', game, saved),
+  /zweimal denselben oder einen zu ähnlichen Stationsplan/i,
+  'Nach zwei zu ähnlichen Entwürfen muss CourtHub abbrechen'
+);
+assert.equal(duplicateFridayCalls, 2, 'CourtHub darf höchstens einen Wiederholungsversuch senden');
+assert.deepEqual(saved.stationTraining.stations.map(station => station.title), titlesBeforeDuplicate, 'Ein abgelehnter KI-Entwurf darf den bestehenden Freitag nicht überschreiben');
 const incomplete = structuredClone(compact);
 incomplete.trainings[0].stationTraining.stations.pop();
 await assert.rejects(() => withSchemaRejection(incomplete), error => error instanceof AIError && error.code === 'AI_INVALID_RESPONSE');
