@@ -156,6 +156,20 @@
   font-size: .78rem;
 }
 
+.station-development {
+  margin: .7rem 0;
+  padding: .7rem .8rem;
+  border: 1px solid #b8dcc9;
+  border-radius: .65rem;
+  background: #eff9f3;
+  color: #174b34;
+  font-size: .78rem;
+}
+
+.station-development strong { display: block; margin-bottom: .3rem; }
+.station-development ul { margin: 0; padding-left: 1.15rem; }
+.station-development p { margin: .4rem 0 0; color: #35684f; }
+
 @media (max-width: 900px) {
   .station-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .station-player-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -173,3 +187,11 @@
   border-color: #8c5528;
   background: linear-gradient(135deg, #2a1d12, var(--surface));
 }
+
+[data-theme="dark"] .station-development {
+  border-color: #315e49;
+  background: #142d22;
+  color: #d9f1e4;
+}
+
+[data-theme="dark"] .station-development p { color: #add4bd; }

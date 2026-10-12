@@ -18,6 +18,8 @@ function workspace(x, updatedAt) {
     players: [{ id: 'p1', name: 'Spieler 1' }],
     sessions: [], trainings: [], games: [], tableDuties: [], notes: [],
     freethrows: [], drills: [], templates: [], phases: [], tactics: [],
+    developmentFindings: [{ id: `df_${x}`, observation: `Stand ${x}`, updatedAt }],
+    developmentImportReceipts: [],
     settings: { tacticsBoardDraft: { steps: [{ offense: [{ id: 'o1', x, y: 100 }] }] } }
   };
 }
@@ -71,6 +73,7 @@ window.BT = {
     toast(message) { toasts.push(message); }
   }
 };
+window.eval(readFileSync(resolve(root, 'js/development-core.js'), 'utf8'));
 window.eval(readFileSync(resolve(root, 'js/sync.js'), 'utf8'));
 
 await window.BT.sync.login('coach@example.test', 'secret');
@@ -101,13 +104,14 @@ await new Promise(resolveWait => window.setTimeout(resolveWait, 0));
 assert(requests.length === 2, 'Der neuere lokale Board-Stand wurde nach dem Konflikt nicht übertragen');
 assert(requests[1].expectedVersion === 2, 'Die Konfliktversion wurde nicht übernommen');
 assert(requests[1].data.settings.tacticsBoardDraft.steps[0].offense[0].x === 30, 'Ein veralteter Board-Snapshot wurde erneut übertragen');
+assert(requests[1].data.developmentFindings.map(item => item.id).sort().join(',') === 'df_25,df_30', 'Unabhängige Entwicklungsbefunde gehen beim Konflikt verloren');
 assert(maximumActiveRequests === 1, 'Konfliktbehandlung startet eine parallele Workspace-Anfrage');
 
 controls[1].resolve({ version: 3, updatedAt: '2026-08-08T10:00:03.000Z' });
 await Promise.all([firstSync, secondSync]);
 
 assert(local.settings.tacticsBoardDraft.steps[0].offense[0].x === 30, 'Der Spieler wurde auf eine ältere Position zurückgesetzt');
-assert(remoteApplications === 0, 'Ein älterer Serverstand hat lokale Board-Daten überschrieben');
+assert(remoteApplications === 1, 'Der gezielte Entwicklungsmerge wurde nicht lokal übernommen');
 assert(toasts.length === 0, 'Ein interner Sync-Konflikt wird fälschlich als fremde Änderung gemeldet');
 
 console.log('Sync-Smoke-Test erfolgreich.');

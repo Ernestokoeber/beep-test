@@ -35,6 +35,21 @@ Im Spieltag erstellt die Aktion `planGame` aus dem eingefrorenen Gegner-Snapshot
 
 Die vollständige Bedien- und Datenbeschreibung steht in `docs/OPPONENT-SCOUTING.md`.
 
+## Spielerbewertungs-PDF
+
+Im Spieldetail startet „Spielerbewertungen importieren“ einen bewusst bestätigungspflichtigen Ablauf:
+
+1. CourtHub liest die ausgewählte PDF nur für den aktuellen Vorgang und bildet lokal einen SHA-256-Hash.
+2. Ein bereits bekannter Hash beendet den Vorgang vor einem weiteren KI-Aufruf.
+3. Die temporäre KI-Analyse liefert ausschließlich Kandidaten aus der kontrollierten Entwicklungs-Taxonomie.
+4. CourtHub ordnet einen Spielernamen nur dann automatisch zu, wenn genau ein aktiver Spieler passt. Unklare Zuordnungen bleiben offen.
+5. Der Coach prüft jeden Kandidaten, korrigiert bei Bedarf Spieler, Art, Kategorie, Beobachtung, Priorität und Rollenrelevanz und nimmt ihn einzeln an oder verwirft ihn.
+6. Erst „Bestätigte Beobachtungen speichern“ schreibt alle angenommenen Befunde und den Importbeleg gemeinsam in das synchronisierte Entwicklungsjournal.
+
+Unmittelbar vor diesem atomaren Speichern prüft CourtHub Ursprungsspiel und Spieler erneut. Wurde ein Spieler zwischen Analyse und Bestätigung gelöscht oder archiviert, bleibt der Workspace unverändert. Gespeichert werden nur der bereinigte Quellenname, Datei-Hash, Spiel- und Spielerzuordnung, strukturierte Beobachtung, kurzer Belegausschnitt, Seite und Coach-Entscheidung. PDF-Bytes, Base64-Daten, vollständige PDF-Texte und verworfene Kandidaten werden nicht gespeichert.
+
+Die Aktion `parsePlayerDevelopmentPdf` verwendet den Vertrag `player-development-import.v1`, ausschließlich `application/pdf`, ein Serverzeitbudget von 48 Sekunden und ein niedriges Thinking-Level. Unbekannte Kategorien oder Fähigkeiten, überlange Belege, erfundene IDs und medizinische Diagnosen werden verworfen. Viewer erhalten weder Entwicklungsbefunde noch Importbelege.
+
 ## Verbindliche Grenzen
 
 Die Basketball-KI erfindet keine Spieler-, Spiel-, Leistungs-, Verletzungs- oder Ergebnisdaten. PDF-Importe werden nur strukturiert und nicht fachlich ergänzt. Trainingszusammenfassungen bleiben wortgetreu an verifizierte Fakten gebunden. Bei Schmerzen oder Verletzungsverdacht gibt die KI keine Diagnose, sondern reduziert die Belastung und empfiehlt bei anhaltenden Beschwerden eine medizinische Abklärung.

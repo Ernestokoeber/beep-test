@@ -1488,8 +1488,26 @@
     </section>
   </template>
 
+  <dialog id="development-import-dialog" aria-labelledby="development-import-title" style="width:min(960px,calc(100vw - 2rem));max-height:calc(100vh - 2rem);overflow:auto">
+    <div class="card">
+      <div class="section-head">
+        <div><span class="section-kicker">Vertrauliche Coach-Ansicht</span><h2 id="development-import-title">Spielerbewertungen importieren</h2></div>
+        <button class="btn small" type="button" data-action="close-development-import" aria-label="Importdialog schließen">Schließen</button>
+      </div>
+      <p>Die PDF wird nur für diese Analyse verarbeitet. Gespeichert werden erst nach Ihrer Bestätigung strukturierte Beobachtungen, niemals die Datei selbst.</p>
+      <label>Spielerbewertung als PDF
+        <input type="file" accept="application/pdf,.pdf" data-role="development-pdf">
+      </label>
+      <div class="form-actions"><button class="btn primary" type="button" data-action="analyze-development-pdf" disabled>PDF analysieren</button></div>
+      <p class="auth-status" data-role="development-import-dialog-status" aria-live="polite"></p>
+      <div data-role="development-import-preview"></div>
+      <div class="form-actions"><button class="btn primary" type="button" data-action="confirm-development-import" disabled>Bestätigte Beobachtungen speichern</button></div>
+    </div>
+  </dialog>
+
   <script defer src="js/util.js"></script>
   <script defer src="js/training-shots.js"></script>
+  <script defer src="js/development-core.js"></script>
   <script defer src="js/storage.js"></script>
   <script defer src="js/coaching-staff.js"></script>
   <script defer src="js/api.js"></script>
@@ -1509,6 +1527,7 @@
   <script defer src="js/training-live.js"></script>
   <script defer src="js/station-training.js"></script>
   <script defer src="js/training.js"></script>
+  <script defer src="js/development-import.js"></script>
   <script defer src="js/games.js"></script>
   <script defer src="js/opponents.js"></script>
   <script defer src="js/tablecrew.js"></script>

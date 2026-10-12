@@ -28,9 +28,9 @@ assert.throws(() => request.parse(JSON.stringify({ trainings: [invalid] })), AIE
 
 const friday = { ...structuredClone(entry), date: '2026-10-09', stationTraining: {
   rationale: 'Neue Spielwoche', stations: [
-    { title: 'Form Shooting', category: 'Wurf', description: detailedDescription(), shotTargets: [field('Form Shooting', 25)] },
-    { title: 'Freiwürfe', category: 'Wurf', description: detailedDescription(), shotTargets: [ft(12)] },
-    ...Array.from({ length: 3 }, (_, index) => ({ title: `Ballhandling ${index}`, category: 'Technik', description: detailedDescription(), shotTargets: [] }))
+    { title: 'Form Shooting', category: 'Wurf', description: detailedDescription(), focusAreas: [{ category: 'technique', skillKey: 'shooting' }], shotTargets: [field('Form Shooting', 25)] },
+    { title: 'Freiwürfe', category: 'Wurf', description: detailedDescription(), focusAreas: [{ category: 'technique', skillKey: 'shooting' }], shotTargets: [ft(12)] },
+    ...Array.from({ length: 3 }, (_, index) => ({ title: `Ballhandling ${index}`, category: 'Technik', description: detailedDescription(), focusAreas: [{ category: 'technique', skillKey: 'ball-control' }], shotTargets: [] }))
   ]
 } };
 const fridayRequest = buildAIRequest('planSeason', { data: { durationMinutes: 105, slots: [{ date: friday.date, weekday: 'fri', durationMinutes: 105, fridayStationMode: true }] } });

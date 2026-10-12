@@ -8,7 +8,12 @@ import { generateWithGemini } from '../api/_lib/gemini-client.js';
 const payload = { data: { durationMinutes: 105, slots: [{
   date: '2026-10-09', weekday: 'fri', durationMinutes: 105, fridayStationMode: true,
   weekendGame: { date: '2026-10-10', home: 'TSV Lindau', away: 'BG Illertal 3' }
-}] } };
+}], playerDevelopment: [{
+  playerId: 'p-contract', playerName: 'Vertragsspieler', priorities: [{
+    category: 'decision', skillKey: 'turnover-control', observation: 'Ballverluste unter Druck reduzieren.',
+    drillTags: ['Passwinkel'], roleRelevant: true, priority: 5
+  }]
+}], developmentTaxonomy: { decision: ['turnover-control'], technique: ['ball-control', 'shooting'] } } };
 const compact = { trainings: [{
   date: '2026-10-09', summary: 'Individuelle Qualität vor Illertal',
   evidenceBasis: { observedTrends: ['Abschlüsse stabilisieren'], loadConsiderations: ['Spiel am Wochenende'], planningDecision: 'Kontrollierte Wurfqualität und Ballkontrolle.' },
@@ -16,6 +21,9 @@ const compact = { trainings: [{
     rationale: 'Fünf individuelle Stationen vor dem Spiel.',
     stations: Array.from({ length: 5 }, (_, index) => ({
       title: `Station ${index + 1}`, category: index === 0 ? 'Wurf' : 'Technik', description: detailedDescription('Qualität vor Tempo. '.repeat(40)),
+      focusAreas: index === 0
+        ? [{ category: 'decision', skillKey: 'turnover-control' }]
+        : [{ category: 'technique', skillKey: index === 1 ? 'ball-control' : 'shooting' }],
       shotTargets: index === 0 ? [
         { kind: 'field', category: 'Pop-Wurf', attempted: 20 },
         { kind: 'freethrow', category: 'Freiwürfe', attempted: 12 }
@@ -28,14 +36,18 @@ const schema = request.generationConfig.responseSchema;
 const properties = schema.properties.trainings.items.properties;
 assert.deepEqual(Object.keys(properties).sort(), ['date', 'summary', 'evidenceBasis', 'stationTraining'].sort(), 'Friday must not send duplicate drills, totals or alternative modes');
 assert(properties.stationTraining.properties.stations.items.required.includes('shotTargets'));
+assert(properties.stationTraining.properties.stations.items.required.includes('focusAreas'));
 assert(!JSON.stringify(schema).includes('maxItems'), 'Array constraints should be enforced in the application, not multiply Gemini decoding states');
 const value = request.parse(JSON.stringify(compact)).trainings[0];
 assert.equal(value.drills.reduce((sum, drill) => sum + drill.minutes, 0), 105);
 assert.equal(value.drills.length, 8);
+assert.match(value.drills[0].description, /offener Stationswahl/i, 'Der Readiness-Block muss die offene Freitagsorganisation erklären');
+assert.doesNotMatch(value.drills[0].description, /wechseln 1 → 2/, 'Der Freitag darf keine Pflichtrotation anordnen');
 assert.deepEqual(value.shots, [{ category: 'Pop-Wurf', attempted: 20 }]);
 assert.equal(value.freethrows.attempted, 12);
 assert.equal(value.drills[2].shotTargets.length, 2);
 assert.equal(value.drills[2].description, compact.trainings[0].stationTraining.stations[0].description);
+assert.deepEqual(value.stationTraining.stations[0].focusAreas, [{ category: 'decision', skillKey: 'turnover-control' }]);
 assert(value.drills[2].description.length > 800);
 const normal = buildAIRequest('planSeason', { data: { slots: [{ date: '2026-10-13', weekday: 'tue' }] } });
 assert(!normal.generationConfig.responseSchema.properties.trainings.items.properties.stationTraining);
@@ -71,11 +83,31 @@ assert.equal(recovered.value.trainings[0].shots[0].attempted, 20);
 const values = new Map();
 const context = { console, Date, localStorage: { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) } };
 context.window = context;
-for (const name of ['util', 'training-shots', 'storage', 'station-training', 'seasonplanner']) {
+for (const name of ['util', 'development-core', 'training-shots', 'storage', 'station-training', 'seasonplanner']) {
   runInNewContext(readFileSync(new URL(`../js/${name}.js`, import.meta.url), 'utf8'), context);
 }
 const player = context.BT.storage.upsertPlayer({ name: 'Spieler 1' });
+const archivedPlayer = context.BT.storage.upsertPlayer({ name: 'Archivierter Spieler' });
+context.BT.storage.setArchived(archivedPlayer.id, true);
 const game = context.BT.storage.upsertGame({ id: 'g1', date: '2026-10-10', home: 'TSV Lindau', away: 'BG Illertal 3' });
+context.BT.storage.getDevelopmentFindings = () => [{
+  id: 'finding-development', scope: 'player', playerId: player.id, sourceGameId: game.id,
+  category: 'decision', skillKey: 'turnover-control', kind: 'development', status: 'new',
+  observation: 'Ballverluste unter Druck reduzieren.', evidenceExcerpt: 'Dieser PDF-Beleg darf nicht in den KI-Auftrag.',
+  suggestedPriority: 5, coachPriority: 5, pinned: true, roleRelevant: true,
+  drillTags: ['Passwinkel', 'Ball sichern'], linkedDrillIds: [], evidenceRefs: [],
+  confirmedAt: '2026-10-05T18:00:00.000Z', updatedAt: '2026-10-05T18:00:00.000Z'
+}, {
+  id: 'finding-strength', scope: 'player', playerId: player.id, sourceGameId: game.id,
+  category: 'decision', skillKey: 'turnover-control', kind: 'strength', status: 'stable',
+  observation: 'Gute Ruhe im Aufbau.', suggestedPriority: 4, coachPriority: null, pinned: false, roleRelevant: true,
+  drillTags: [], linkedDrillIds: [], evidenceRefs: [], confirmedAt: '2026-10-05T18:00:00.000Z', updatedAt: '2026-10-05T18:00:00.000Z'
+}, {
+  id: 'finding-archived', scope: 'player', playerId: archivedPlayer.id, sourceGameId: game.id,
+  category: 'technique', skillKey: 'shooting', kind: 'development', status: 'new',
+  observation: 'Nicht mehr im aktiven Kader.', suggestedPriority: 5, coachPriority: null, pinned: false, roleRelevant: false,
+  drillTags: [], linkedDrillIds: [], evidenceRefs: [], confirmedAt: '2026-10-05T18:00:00.000Z', updatedAt: '2026-10-05T18:00:00.000Z'
+}];
 const existing = context.BT.storage.upsertTraining({
   date: '2026-10-09', attendance: [{ playerId: player.id, status: 'yes' }],
   freethrows: [{ playerId: player.id, made: 2, attempted: 3 }],
@@ -85,6 +117,14 @@ context.BT.api = { ai: async (action, body) => {
   assert.equal(action, 'planSeason');
   assert.equal(body.data.slots[0].fridayStationMode, true);
   assert.equal(body.data.slots[0].date, '2026-10-09');
+  assert.equal(body.data.playerDevelopment.length, 1, 'Nur aktive Spieler mit bestätigten Entwicklungsfeldern gehören in den Freitagspayload');
+  assert.equal(body.data.playerDevelopment[0].playerId, player.id);
+  assert.equal(body.data.playerDevelopment[0].priorities.length, 1, 'Stärken dürfen nicht als Entwicklungsfelder übertragen werden');
+  assert.equal(body.data.playerDevelopment[0].priorities[0].observation, 'Ballverluste unter Druck reduzieren.');
+  assert(body.data.developmentTaxonomy.decision.includes('turnover-control'), 'Der Freitagspayload benötigt die erlaubte Entwicklungstaxonomie');
+  assert.match(body.data.instructions, /ohne Pflichtrotation/i, 'Der Freitagspayload muss die offene Stationswahl anordnen');
+  assert.doesNotMatch(body.data.instructions, /Gruppenrotation innerhalb jeder Einheit ist notwendig/i, 'Der Freitagspayload darf keine widersprüchliche Pflichtrotation enthalten');
+  assert.equal(JSON.stringify(body.data.playerDevelopment).includes('PDF-Beleg'), false, 'PDF-Auszüge dürfen nicht an den Trainingsgenerator gehen');
   return { data: recovered.value };
 } };
 await context.BT.seasonplanner.generateFridayTraining('2026-10-09', game, existing);
@@ -95,6 +135,8 @@ assert.equal(saved.stationTraining.stations[0].description, value.stationTrainin
 assert.equal(saved.plan.drills[2].description, value.drills[2].description);
 assert(saved.plan.drills[2].description.endsWith('ENDE DER ANLEITUNG'));
 assert(saved.stationTraining.players[player.id], 'Readiness and load inputs must be prepared for the player');
+assert.equal(saved.stationTraining.players[player.id].developmentFocuses[0].observation, 'Ballverluste unter Druck reduzieren.');
+assert.deepEqual(Array.from(saved.stationTraining.players[player.id].recommendedStationIds), ['station_1']);
 assert.equal(saved.plan.drills.reduce((sum, drill) => sum + drill.minutes, 0), 105);
 assert.equal(saved.freethrows[0].made, 2, 'Replanning must preserve recorded free throws');
 assert.equal(saved.shots.find(item => item.category === 'Alter Wurf').entries[0].made, 4);
@@ -107,6 +149,14 @@ await assert.rejects(() => withSchemaRejection(incomplete), error => error insta
 const noTargets = structuredClone(compact);
 delete noTargets.trainings[0].stationTraining.stations[0].shotTargets;
 await assert.rejects(() => withSchemaRejection(noTargets), error => error instanceof AIError && error.code === 'AI_INVALID_RESPONSE');
+const invalidFocus = structuredClone(compact);
+invalidFocus.trainings[0].stationTraining.stations[0].focusAreas = [{ category: 'decision', skillKey: 'erfunden' }];
+await assert.rejects(() => withSchemaRejection(invalidFocus), error => error instanceof AIError && error.code === 'AI_INVALID_RESPONSE');
+const uncoveredPriority = structuredClone(compact);
+uncoveredPriority.trainings[0].stationTraining.stations.forEach(station => {
+  station.focusAreas = [{ category: 'technique', skillKey: 'shooting' }];
+});
+await assert.rejects(() => withSchemaRejection(uncoveredPriority), error => error instanceof AIError && error.code === 'AI_INVALID_RESPONSE');
 let failedAttempts = 0;
 await assert.rejects(() => generateWithGemini({
   action: 'planSeason', payload, apiKey: 'test-key', now: () => 0,

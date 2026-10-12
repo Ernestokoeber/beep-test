@@ -77,7 +77,7 @@ BT.sync = (function() {
 
   function hasTeamData(data) {
     if (!data || typeof data !== 'object') return false;
-    return ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'jerseyDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics']
+    return ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'jerseyDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics', 'developmentFindings', 'developmentImportReceipts']
       .some((key) => Array.isArray(data[key]) && data[key].length > 0);
   }
 
@@ -149,6 +149,18 @@ BT.sync = (function() {
           if (++conflicts >= 3) { setStatus('error', 'Wiederholter Datenkonflikt. Live-Aktionen bleiben lokal gesichert.'); return; }
           const remote = error.data.conflict;
           const latestLocal = cleanForSync(BT.storage.load());
+          const mergedDevelopment = BT.developmentCore?.mergeDevelopmentWorkspace
+            ? BT.developmentCore.mergeDevelopmentWorkspace(latestLocal, remote.data)
+            : {
+                developmentFindings: latestLocal.developmentFindings || remote.data?.developmentFindings || [],
+                developmentImportReceipts: latestLocal.developmentImportReceipts || remote.data?.developmentImportReceipts || []
+              };
+          latestLocal.developmentFindings = mergedDevelopment.developmentFindings;
+          latestLocal.developmentImportReceipts = mergedDevelopment.developmentImportReceipts;
+          remote.data = Object.assign({}, remote.data, {
+            developmentFindings: mergedDevelopment.developmentFindings,
+            developmentImportReceipts: mergedDevelopment.developmentImportReceipts
+          });
           storeVersion(remote.version);
           const bridge = await liveBridge();
           if (!current(epoch)) return;
@@ -165,6 +177,7 @@ BT.sync = (function() {
             clearTimeout(timer);
             timer = null;
             pushRequested = false;
+            BT.storage.save(latestLocal, { fromSync: true, preserveTimestamp: true });
             continue;
           }
 

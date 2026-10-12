@@ -1,7 +1,7 @@
 import { query } from './_lib/db.js';
 import { canWrite, requireMembership } from './_lib/auth.js';
 import { method, noStore, safeError } from './_lib/http.js';
-import { filterWorkspaceForRole, hasValidTacticsShape } from './_lib/workspace-data.js';
+import { filterWorkspaceForRole, hasValidDevelopmentShape, hasValidTacticsShape } from './_lib/workspace-data.js';
 import { protectWorkspace } from '../js/live-game/merge.mjs';
 
 const MAX_WORKSPACE_BYTES = 4 * 1024 * 1024;
@@ -41,6 +41,9 @@ export default async function handler(req, res) {
     }
     if (!hasValidTacticsShape(data)) {
       return res.status(400).json({ error: 'Ungültige Taktikdaten.' });
+    }
+    if (!hasValidDevelopmentShape(data)) {
+      return res.status(400).json({ error: 'Ungültige Entwicklungsdaten.' });
     }
     const latest = await query('SELECT data, version, updated_at FROM workspaces WHERE organization_id = $1', [auth.organization_id]);
     const current = latest.rows[0] || { data: {}, version: 0, updated_at: null };

@@ -181,7 +181,24 @@ BT.stationTraining = (() => {
     return { light, targetRpe, weeklyLoad: load, message };
   }
 
-  function createState(training, game, stations = stationsForDate(training.date)) {
+  function developmentForPlayer(playerId, profiles, stations) {
+    const profile = (Array.isArray(profiles) ? profiles : []).find(item => item?.playerId === playerId);
+    const developmentFocuses = (Array.isArray(profile?.priorities) ? profile.priorities : []).slice(0, 3).map(priority => ({
+      category: clean(priority?.category).slice(0, 40),
+      skillKey: clean(priority?.skillKey).slice(0, 80),
+      observation: clean(priority?.observation).slice(0, 500),
+      drillTags: (Array.isArray(priority?.drillTags) ? priority.drillTags : []).map(tag => clean(tag).slice(0, 80)).filter(Boolean).slice(0, 10),
+      roleRelevant: Boolean(priority?.roleRelevant),
+      priority: Math.max(1, Math.min(5, Number(priority?.priority) || 1))
+    })).filter(priority => priority.category && priority.skillKey && priority.observation);
+    const focusKeys = new Set(developmentFocuses.map(priority => `${priority.category}:${priority.skillKey}`));
+    const recommendedStationIds = stations
+      .filter(station => (station.focusAreas || []).some(area => focusKeys.has(`${area.category}:${area.skillKey}`)))
+      .map(station => station.id);
+    return { developmentFocuses, recommendedStationIds };
+  }
+
+  function createState(training, game, stations = stationsForDate(training.date), playerDevelopment = []) {
     const players = {};
     BT.storage.getPlayers().filter(player => !player.archived && !BT.staff?.isCoachOnly(training, player.id)).forEach(player => {
       const minutes = gameMinutes(player.id, training.date);
@@ -197,6 +214,7 @@ BT.stationTraining = (() => {
         actualRpe: null,
         note: ''
       };
+      Object.assign(entry, developmentForPlayer(player.id, playerDevelopment, stations));
       Object.assign(entry, recommendation(entry, game?.date, training.date));
       players[player.id] = entry;
     });
@@ -250,6 +268,10 @@ BT.stationTraining = (() => {
       title: clean(station?.title).slice(0, 120),
       category: clean(station?.category).slice(0, 80),
       description: clean(station?.description).slice(0, 6000),
+      focusAreas: (Array.isArray(station?.focusAreas) ? station.focusAreas : []).map(area => ({
+        category: clean(area?.category).slice(0, 40),
+        skillKey: clean(area?.skillKey).slice(0, 80)
+      })).filter(area => area.category && area.skillKey).slice(0, 4),
       ...(Array.isArray(station.shotTargets) ? { shotTargets: station.shotTargets.map(target => ({ ...target })) } : {}),
       minutes: 15
     }));
@@ -284,14 +306,14 @@ BT.stationTraining = (() => {
     });
   }
 
-  function applyAI(training, game, entry) {
+  function applyAI(training, game, entry, playerDevelopment = []) {
     if (!training || !game) return false;
     const stations = normalizeAIStations(entry);
     if (!stations) return false;
     const plan = planFromAI(entry, training.date, game, stations);
     if (!plan) return false;
     const previousPlayers = training.stationTraining?.players || {};
-    const state = createState(training, game, stations);
+    const state = createState(training, game, stations, playerDevelopment);
     state.source = 'gemini';
     state.rationale = plan.aiRationale;
     restorePlayerInputs(state, previousPlayers, game, training);
@@ -353,16 +375,16 @@ BT.stationTraining = (() => {
     const counts = players.reduce((result, player) => {
       result[state.players[player.id]?.light || 'green'] += 1; return result;
     }, { green: 0, yellow: 0, red: 0 });
-    const groups = Array.from({ length: Math.min(5, Math.max(1, players.length)) }, () => []);
-    players.filter(player=>!state.players[player.id]?.injured).forEach((player, index) => groups[index % groups.length].push(player.name));
     target.innerHTML = `
       <section class="station-overview">
         <div><span class="section-kicker">Freitag · 105 Minuten</span><h3>Individuelle Stationen & Belastungssteuerung</h3><p>Die Ampel wird aus Tagesform, Schmerzen, Spielminuten und der Belastung der letzten sieben Tage berechnet.</p></div>
         <div class="station-traffic-summary"><span class="traffic-green">${counts.green} Grün</span><span class="traffic-yellow">${counts.yellow} Gelb</span><span class="traffic-red">${counts.red} Rot</span></div>
       </section>
-      <div class="station-grid">${state.stations.map((station, index) => `<article class="station-card"><span>${escapeHTML(station.label)} · ${station.minutes} min</span><h4>${escapeHTML(station.title)}</h4><details class="training-guide"><summary>Aufbau &amp; Ablauf</summary>${BT.trainingInstructions ? BT.trainingInstructions.markup(BT.trainingInstructions.descriptionFor(training, station)) : `<p>${escapeHTML(station.description)}</p>`}</details><small>Startgruppe: ${escapeHTML(groups[index]?.join(' / ') || 'offen')}</small></article>`).join('')}</div>
+      <div class="station-grid">${state.stations.map((station) => `<article class="station-card"><span>${escapeHTML(station.label)} · ${station.minutes} min</span><h4>${escapeHTML(station.title)}</h4><details class="training-guide"><summary>Aufbau &amp; Ablauf</summary>${BT.trainingInstructions ? BT.trainingInstructions.markup(BT.trainingInstructions.descriptionFor(training, station)) : `<p>${escapeHTML(station.description)}</p>`}</details><small>Offene Wahl · Coach steuert nur die Belegung</small></article>`).join('')}</div>
       <section class="station-load-section"><div class="section-head compact"><div><span class="section-kicker">Session-RPE</span><h3>Belastung pro Spieler</h3></div></div><div class="station-player-list">${players.map(player => {
         const entry = state.players[player.id];
+        const stationNames = (entry.recommendedStationIds || []).map(id => state.stations.find(station => station.id === id)?.title).filter(Boolean);
+        const developmentMarkup = entry.developmentFocuses?.length ? `<div class="station-development"><strong>Entwicklungsfokus</strong><ul>${entry.developmentFocuses.map(focus => `<li>${escapeHTML(focus.observation)}</li>`).join('')}</ul><p>${stationNames.length ? `Passende Stationen: ${stationNames.map(escapeHTML).join(', ')}` : 'Freie Auswahl mit dem Coach abstimmen.'}</p></div>` : '';
         return `<article class="station-player-card" data-station-player="${escapeHTML(player.id)}">
           <header><strong>${escapeHTML(player.name)}</strong>${entry.injured?'<span class="att-chip bad">Verletzt · Schonung</span>':''}<span class="station-light station-light-${entry.light}">${entry.light === 'green' ? 'Grün' : entry.light === 'yellow' ? 'Gelb' : 'Rot'}</span><span>Ziel-RPE <b data-station-output="target">${entry.targetRpe}</b></span></header>
           <div class="station-player-fields">
@@ -373,6 +395,7 @@ BT.stationTraining = (() => {
             <label>RPE nach Training <input type="number" min="1" max="10" inputmode="numeric" data-station-field="actualRpe" value="${entry.actualRpe || ''}" placeholder="1–10"></label>
           </div>
           <p class="station-recommendation" data-station-output="message">${escapeHTML(entry.message)}</p>
+          ${developmentMarkup}
           <label class="station-player-note">Notiz<input type="text" maxlength="300" data-station-field="note" value="${escapeHTML(entry.note || '')}" placeholder="z. B. Knie heute empfindlich"></label>
         </article>`;
       }).join('')}</div></section>`;

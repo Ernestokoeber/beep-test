@@ -297,8 +297,9 @@ BT.games = (function() {
 
     <section data-menu-label="Geprüfte Videoanalyse" class="mobile-extra-section atlas-panel ${analysis ? 'has-analysis' : ''}">
       <div class="atlas-head"><div><span class="section-kicker">Project Atlas</span><h3>Geprüfte Spielanalyse</h3></div>${analysis ? '<span class="att-chip ok">Analyse verbunden</span>' : '<span class="att-chip muted-chip">Noch nicht verbunden</span>'}</div>
-      <div class="atlas-connect"><label class="grow">Atlas-Spiel-ID<input data-role="atlas-game-id" value="${escapeHTML(game.atlasGameId || '')}" placeholder="Game-ID aus Project Atlas"></label><button class="btn small primary" type="button" data-action="load-atlas">Analyse laden</button></div>
+      <div class="atlas-connect"><label class="grow">Atlas-Spiel-ID<input data-role="atlas-game-id" value="${escapeHTML(game.atlasGameId || '')}" placeholder="Game-ID aus Project Atlas"></label><button class="btn small primary" type="button" data-action="load-atlas">Analyse laden</button><button class="btn small" type="button" data-action="import-player-evaluations">Spielerbewertungen importieren</button></div>
       <p class="auth-status" data-role="atlas-status"></p>
+      <p class="auth-status" data-role="development-import-status" aria-live="polite"></p>
       ${analysis ? renderAtlas(analysis) : '<p class="muted">Lade eine geprüfte Videoanalyse, um Spielbeobachtungen und Trainingsaufgaben zu übernehmen.</p>'}
     </section>
 
@@ -355,6 +356,11 @@ BT.games = (function() {
     $('[data-action="edit-selected"]', wrap).addEventListener('click', () => openForm(game));
     $('[data-action="import-published-report"]',wrap).addEventListener('click',()=>openPublishedReportImport(game,wrap));
     $('[data-action="load-atlas"]', wrap).addEventListener('click', () => loadAtlas(game));
+    $('[data-action="import-player-evaluations"]', wrap).addEventListener('click', async () => {
+      const status = $('[data-role="development-import-status"]', wrap);
+      try { await BT.developmentImport.open(game); status.textContent = ''; }
+      catch (error) { status.textContent = error.message; }
+    });
     $('[data-action="create-training"]', wrap).addEventListener('click', () => createTrainingFromGame(game, analysis));
     $('[data-action="share-game"]', wrap).addEventListener('click', () => shareGame(game, analysis));
     $('[data-action="open-live"]', wrap).addEventListener('click', () => { location.hash='#/games/'+encodeURIComponent(game.id)+'/matchday'; });
