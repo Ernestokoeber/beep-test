@@ -63,7 +63,11 @@ const aiEntry = {
     rationale: 'Spielnah frisch geplant, ohne die Kombination der Vorwoche zu wiederholen.',
     stations: Array.from({ length: 5 }, (_, index) => ({
       title: `Neue KI-Station ${index + 1}`, category: `KI-Kategorie ${index + 1}`, description: `Individuelle KI-Aufgabe ${index + 1}`,
-      focusAreas: index === 0 ? [{ category: 'decision', skillKey: 'turnover-control' }] : [{ category: 'technique', skillKey: 'shooting' }]
+      focusAreas: index === 0
+        ? [{ category: 'decision', skillKey: 'turnover-control' }]
+        : index === 1
+          ? [{ category: 'defense', skillKey: 'closeout' }]
+          : [{ category: 'technique', skillKey: 'shooting' }]
     }))
   }
 };
@@ -72,6 +76,12 @@ const playerDevelopment = [{
   priorities: [{
     category: 'decision', skillKey: 'turnover-control', observation: '<b>Ball sichern</b>',
     drillTags: ['Passwinkel'], roleRelevant: true, priority: 5
+  }]
+}, {
+  playerId: 'p2', playerName: 'Spieler 2',
+  priorities: [{
+    category: 'defense', skillKey: 'help-position', observation: 'Früh in der Helpside stehen.',
+    drillTags: ['Help', 'Closeout'], roleRelevant: true, priority: 4
   }]
 }];
 assert(stations.applyAI(friday, suggestion.game, aiEntry, playerDevelopment), 'Gültiger KI-Freitagsplan wird abgelehnt');
@@ -82,15 +92,33 @@ assert.equal(friday.plan.drills.reduce((sum, drill) => sum + drill.minutes, 0), 
 assert.equal(friday.stationTraining.players.p1.light, 'red', 'Belastungsampel geht beim KI-Plan verloren');
 assert.equal(friday.stationTraining.players.p1.developmentFocuses[0].observation, '<b>Ball sichern</b>');
 assert.deepEqual(friday.stationTraining.players.p1.recommendedStationIds, ['station_1']);
+assert.deepEqual(friday.stationTraining.players.p2.recommendedStationIds, ['station_2'], 'Wenn kein exakter Skill passt, muss die thematisch passende Station derselben Kategorie empfohlen werden');
+
+window.BT.storage.getDevelopmentFindings = () => [{ confirmedAt: '2026-10-08T18:00:00.000Z' }];
+window.BT.developmentCore = {
+  profileForPlayer: (_findings, playerId) => ({
+    priorities: playerId === 'p1'
+      ? [{ category: 'decision', skillKey: 'turnover-control', latestObservation: '<b>Ball sichern</b>', drillTags: ['Passwinkel'], roleRelevant: true, effectivePriority: 5 }]
+      : playerId === 'p2'
+        ? [{ category: 'defense', skillKey: 'help-position', latestObservation: 'Früh in der Helpside stehen.', drillTags: ['Help', 'Closeout'], roleRelevant: true, effectivePriority: 4 }]
+        : playerId === 'p4'
+          ? [{ category: 'technique', skillKey: 'shooting', latestObservation: 'Wurfvorbereitung stabilisieren.', drillTags: ['Catch-and-Shoot'], roleRelevant: true, effectivePriority: 4 }]
+          : []
+  })
+};
 
 let saves = 0;
 const host = window.document.querySelector('#host');
 stations.render(host, friday, () => { saves += 1; });
 assert.equal(host.querySelectorAll('.station-card').length, 5);
 assert.equal(host.querySelectorAll('.station-player-card').length, 9);
-assert.equal(host.querySelectorAll('.station-development').length, 1);
+assert.equal(host.querySelectorAll('.station-card details[open]').length, 5, 'Ziel, Aufbau und Ablauf müssen ohne zusätzlichen Klick sichtbar sein');
+assert.equal(host.querySelectorAll('.station-development').length, 9, 'Jede Spielerkarte muss einen sichtbaren Entwicklungs- oder Datenhinweis enthalten');
 assert.match(host.querySelector('[data-station-player="p1"] .station-development').textContent, /Ball sichern/);
 assert.match(host.querySelector('[data-station-player="p1"] .station-development').textContent, /Neue KI-Station 1/);
+assert.match(host.querySelector('[data-station-player="p2"] .station-development').textContent, /Neue KI-Station 2/);
+assert.match(host.querySelector('[data-station-player="p4"] .station-development').textContent, /Neue KI-Station 3/, 'Nachträglich synchronisierte Spieleranalysen werden im bestehenden Training nicht neu eingelesen');
+assert.match(host.querySelector('[data-station-player="p3"] .station-development').textContent, /keine bestätigte Spieleranalyse/i);
 assert.doesNotMatch(host.querySelector('.station-grid').textContent, /Startgruppe/);
 assert.match(host.querySelector('[data-station-player="p3"]').textContent,/Verletzt · Schonung/);
 assert.equal(host.querySelector('img'), null, 'Spielername wird in der Belastungsansicht als HTML ausgeführt');
