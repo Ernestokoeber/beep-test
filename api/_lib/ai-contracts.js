@@ -78,10 +78,18 @@ const SEASON_DRILL_SCHEMA = {
 };
 const FRIDAY_STATION_SCHEMA = {
   type: 'object',
-  required: ['title', 'category', 'description', 'shotTargets'],
+  required: ['title', 'category', 'description', 'focusAreas', 'shotTargets'],
   properties: {
     title: STRING,
     category: STRING,
+    focusAreas: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['category', 'skillKey'],
+        properties: { category: STRING, skillKey: STRING }
+      }
+    },
     shotTargets: SHOT_TARGETS_SCHEMA,
     description: STRING
   }
@@ -309,6 +317,8 @@ export const GAME_PLAN_SCHEMA = {
   }]))
 };
 
+const FRIDAY_DEVELOPMENT_PROMPT = `Bei fridayStationMode enthält playerDevelopment ausschließlich bestätigte Entwicklungsfelder aktiver Spieler und ist die verbindliche Grundlage für die individuellen Inhalte. Stärken, fehlende Daten und nicht genannte Fähigkeiten sind keine Schwächen. Decke die vorhandenen Prioritäten mit den fünf Stationen möglichst vollständig ab; mindestens die erste und damit höchste Priorität jedes Spielers muss abgedeckt sein. Gib jeder Station ein bis vier passende focusAreas aus developmentTaxonomy. Das Training bleibt offen: Spieler wählen je Runde eine passende Station; es gibt keine Pflichtrotation und keine feste Spielerzuweisung durch die KI. Der Coach gleicht nur die Belegung aus. Diese offene Wahl ersetzt für fridayStationMode jede zuvor allgemein beschriebene Gruppenrotation.`;
+
 const PROMPTS = {
   parsePlan: basketballExpertPrompt(`Du überträgst einen Basketball-Trainingsplan aus einem PDF in strukturierte CourtHub-Daten. Nutze ausschließlich Inhalte des Dokuments und die mitgesendeten tatsächlichen Trainingstage, Uhrzeit und Dauer. Fachwissen darf nur Begriffe korrekt zuordnen, aber keine fehlenden Inhalte ergänzen. Erfinde keine Termine. Gib nur das angeforderte JSON aus.`),
   summarizeTraining: basketballExpertPrompt(`Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze trotz deines Fachwissens keine Namen, Zahlen, Ursachen oder Bewertungen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`),
@@ -325,6 +335,8 @@ Wurferfassung ist verpflichtender Bestandteil jedes neuen Trainings: Jeder Drill
 Behandle coachInput.problems nur als diagnostischen Hinweis, nicht als Hauptauftrag. Inhalte zur Behebung dieser Beobachtung dürfen höchstens 25 Prozent einer Einheit ausmachen. Erhalte immer die aktiven Mannschaftsprinzipien aus teamStrategy, den aktuellen Schwerpunkt, technische Grundlagen und eine ausgewogene Belastung. Verteile ein genanntes Problem nicht künstlich auf Warm-up, Hauptteil und Abschluss. Sicherheits-, Schmerz- und Belastungshinweise aus coachInput.roster sowie Verletztenstatus aus performanceContext bleiben davon unberührt und haben Vorrang. Verletzte Spieler erhalten keine normale Trainings- oder Stationsbelastung, sondern nur ausdrücklich medizinisch freigegebene, schmerzfreie Reha/Prehab oder Pause.
 
 Für einen Slot mit fridayStationMode=true erstellst du jedes Mal ein neues individuelles Stationstraining passend zur aktuellen Spielwoche und zum folgenden Wochenendspiel. Nutze die Historie, um Schwerpunkte und Stationskombinationen nicht einfach zu wiederholen. Das Training dauert genau 105 Minuten und besteht in dieser Reihenfolge aus: 10 Minuten Readiness-Check, 10 Minuten individuelle Aktivierung, fünf unterschiedliche Einzelstationen zu je 15 Minuten und 10 Minuten Cooldown mit Session-RPE. Liefere dazu stationTraining mit genau fünf Stationen. Liefere für diesen Modus ausschließlich date, summary, evidenceBasis und stationTraining. Keine zusätzlichen drills, shots, freethrows oder fridayVariants: CourtHub erzeugt die acht Blöcke, deren Wurfvorgaben und die verbindliche Zeitstruktur selbst aus den fünf Stationen. Höchstens eine der fünf Stationen darf unmittelbar aus coachInput.problems abgeleitet sein; die vier übrigen Stationen müssen andere Entwicklungsbereiche abdecken. Keine Teamtaktik, keine Spielformen und kein 1-gegen-1 bis 5-gegen-5. Alle Inhalte müssen allein oder mit einfachen Zuspielern ausführbar sein. Plane niedrige Vor-Spiel-Belastung; die individuelle Ampel für Tagesform, Schmerzen, Spielminuten und Wochenbelastung skaliert das Volumen später pro Spieler. fridayVariants wird für diesen Modus nicht benötigt.
+
+${FRIDAY_DEVELOPMENT_PROMPT}
 
 Für sonstige Freitage werden weiterhin vollständige fridayVariants für mehr als acht sowie höchstens acht Spieler benötigt. Gib nur das angeforderte JSON aus.`)
 };
@@ -477,10 +489,37 @@ function validateFridayStations(input) {
     stations: input.stations.map((station) => ({
       title: generatedString(station?.title, 120, 'Stationstitel'),
       category: generatedString(station?.category, 80, 'Stationskategorie'),
+      focusAreas: validateFridayFocusAreas(station?.focusAreas),
       shotTargets: validateShotTargets(station?.shotTargets),
       description: trainingDescription(station?.description, 'Stationsbeschreibung')
     }))
   };
+}
+
+function validateFridayFocusAreas(input) {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 4) fail('Die Entwicklungsbereiche einer Station fehlen oder sind ungültig.');
+  const unique = new Set();
+  return input.map((area) => {
+    const category = generatedString(area?.category, 40, 'Entwicklungskategorie');
+    const skillKey = generatedString(area?.skillKey, 80, 'Entwicklungsfähigkeit');
+    if (!PLAYER_DEVELOPMENT_TAXONOMY[category]?.includes(skillKey)) fail('Eine Station enthält einen unbekannten Entwicklungsbereich.');
+    const key = `${category}:${skillKey}`;
+    if (unique.has(key)) fail('Eine Station enthält einen Entwicklungsbereich doppelt.');
+    unique.add(key);
+    return { category, skillKey };
+  });
+}
+
+function validateFridayDevelopmentCoverage(stationTraining, playerDevelopment) {
+  const covered = new Set(stationTraining.stations.flatMap(station => station.focusAreas.map(area => `${area.category}:${area.skillKey}`)));
+  for (const player of Array.isArray(playerDevelopment) ? playerDevelopment : []) {
+    const highestPriority = Array.isArray(player?.priorities) ? player.priorities[0] : null;
+    if (!highestPriority) continue;
+    const category = String(highestPriority.category || '');
+    const skillKey = String(highestPriority.skillKey || '');
+    if (!PLAYER_DEVELOPMENT_TAXONOMY[category]?.includes(skillKey)) fail('Der Freitagspayload enthält einen unbekannten Entwicklungsbereich.');
+    if (!covered.has(`${category}:${skillKey}`)) fail('Das Stationstraining deckt nicht alle höchsten Spielerprioritäten ab.');
+  }
 }
 
 function buildFridayStationDrills(stationTraining) {
@@ -489,7 +528,7 @@ function buildFridayStationDrills(stationTraining) {
       name: 'Readiness-Check & Belastungsampel',
       minutes: 10,
       intensity: 'low',
-      description: 'Ziel: Belastung und Tagesziel pro Spieler festlegen.\nAufbau: Gemeinsam am Seitenrand, CourtHub-Reiter Belastung öffnen; fünf Startgruppen bilden.\nAblauf: 1. In 3 min Tagesform, Schmerzen und Wochenbelastung erfassen. 2. In 3 min Ampel und Ziel-RPE besprechen. 3. In 4 min Startstationen, Korbbelegung und Wechselrichtung erklären.\nUmfang & Pausen: 10 min; fünf Stationsrunden à 15 min. Alle Gruppen arbeiten parallel und wechseln 1 → 2 → 3 → 4 → 5 → 1.\nCoaching: Jede Gruppe kennt Startposition und Signal; Beschwerden vor dem Start melden lassen.\nAnpassung: Gelb mit etwa 70 % Volumen; Rot nur freigegebene schmerzfreie Aufgaben oder Pause.',
+      description: 'Ziel: Belastung und Tagesziel pro Spieler festlegen.\nAufbau: Gemeinsam am Seitenrand, CourtHub-Reiter Belastung öffnen; die fünf Stationen und ihre Schwerpunkte sichtbar machen.\nAblauf: 1. In 3 min Tagesform, Schmerzen und Wochenbelastung erfassen. 2. In 3 min Ampel und Ziel-RPE besprechen. 3. In 4 min wählt jeder Spieler mit dem Coach passende Stationen; der Coach gleicht nur die Belegung aus.\nUmfang & Pausen: 10 min; danach fünf Stationsrunden à 15 min mit offener Stationswahl. Spieler dürfen passende Stationen wiederholen und müssen nicht alle Stationen absolvieren.\nCoaching: Jeder Spieler kennt seinen Entwicklungsfokus und eine passende Startoption; Beschwerden vor dem Start melden lassen.\nAnpassung: Gelb mit etwa 70 % Volumen; Rot nur freigegebene schmerzfreie Aufgaben oder Pause.',
       shotTargets: []
     },
     {
@@ -913,12 +952,14 @@ function buildSeason(payload) {
       const slotDuration = Number(slot.durationMinutes);
       const trainingDuration = Number.isInteger(slotDuration) && slotDuration >= 30 && slotDuration <= 240 ? slotDuration : expectedDuration;
       if (!training?.evidenceBasis) fail('Die KI hat die vorherigen Leistungs- und Belastungswerte nicht ausgewertet.');
-      return normalizeTraining(training, {
+      const normalized = normalizeTraining(training, {
         durationMinutes: trainingDuration,
         requireIntensity: true,
         friday: isFriday(slot),
         fridayStationMode: slot.fridayStationMode === true
       });
+      if (slot.fridayStationMode === true) validateFridayDevelopmentCoverage(normalized.stationTraining, data.playerDevelopment);
+      return normalized;
     });
     if (new Set(trainings.map((training) => training.date)).size !== dates.length) fail('Die KI-Antwort enthält doppelte Trainingstermine.');
     return { trainings };

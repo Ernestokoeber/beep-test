@@ -112,7 +112,9 @@ const fridayResult = {
     stationTraining: {
       rationale: 'Neue Schwerpunkte passend zur Spielnähe und zur bisherigen Trainingshistorie.',
       stations: Array.from({ length: 5 }, (_, index) => ({
-        title: `KI Station ${index + 1}`, category: `Kategorie ${index + 1}`, description: detailedDescription(), shotTargets: index === 0 ? [{ kind: 'freethrow', category: 'Freiwürfe', attempted: 20 }] : []
+        title: `KI Station ${index + 1}`, category: `Kategorie ${index + 1}`, description: detailedDescription(),
+        focusAreas: [{ category: index === 0 ? 'decision' : 'technique', skillKey: index === 0 ? 'turnover-control' : 'ball-control' }],
+        shotTargets: index === 0 ? [{ kind: 'freethrow', category: 'Freiwürfe', attempted: 20 }] : []
       }))
     }
   }]

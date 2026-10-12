@@ -289,6 +289,33 @@ BT.seasonplanner = (function() {
     };
   }
 
+  function playerDevelopmentContext(cutoffDate) {
+    if (!BT.developmentCore?.profileForPlayer || !BT.storage.getDevelopmentFindings) return [];
+    const cutoffTime = Date.parse(`${cutoffDate}T23:59:59.999Z`);
+    const findings = BT.storage.getDevelopmentFindings().filter(item => {
+      const confirmedTime = Date.parse(item?.confirmedAt || '');
+      return Number.isFinite(confirmedTime) && confirmedTime <= cutoffTime;
+    });
+    return BT.storage.getPlayers()
+      .filter(player => !player.archived)
+      .map(player => {
+        const profile = BT.developmentCore.profileForPlayer(findings, player.id, `${cutoffDate}T23:59:59.999Z`);
+        return {
+          playerId: player.id,
+          playerName: String(player.name || '').slice(0, 120),
+          priorities: profile.priorities.slice(0, 3).map(priority => ({
+            category: priority.category,
+            skillKey: priority.skillKey,
+            observation: String(priority.latestObservation || '').slice(0, 500),
+            drillTags: (priority.drillTags || []).slice(0, 10),
+            roleRelevant: Boolean(priority.roleRelevant),
+            priority: priority.effectivePriority
+          }))
+        };
+      })
+      .filter(player => player.priorities.length > 0);
+  }
+
   function buildAIPayload(slots, preferences) {
     const strategy = BT.teamStrategy?.ensure?.() || BT.teamStrategy?.current?.() || {};
     const strategyForAI = BT.teamStrategy?.forAI?.(strategy) || strategy;
@@ -298,6 +325,8 @@ BT.seasonplanner = (function() {
         ? 'Das aktuelle Teamkonzept ersetzt frühere Systeme vollständig. Ausgeschlossene oder archivierte Taktiken dürfen nicht reaktiviert werden.'
         : 'Das aktuelle Teamkonzept ergänzt die bisherigen Prinzipien.'
     });
+    const cutoffDate = (slots || []).map(slot => slot.date).filter(Boolean).sort()[0] || BT.util.todayISO();
+    const hasFridayStationMode = (slots || []).some(slot => slot.fridayStationMode === true);
     return {
       team: scheduleConfig().teamName,
       trainingResources: { availableBaskets: Math.max(1, Math.min(8, Number(BT.storage.getSetting('availableTrainingBaskets', 2)) || 2)) },
@@ -333,8 +362,12 @@ BT.seasonplanner = (function() {
       },
       coachInput,
       slots,
+      playerDevelopment: hasFridayStationMode ? playerDevelopmentContext(cutoffDate) : [],
+      developmentTaxonomy: hasFridayStationMode
+        ? Object.fromEntries(Object.entries(BT.developmentCore?.TAXONOMY || {}).map(([category, skills]) => [category, [...skills]]))
+        : {},
       performanceContext: performanceContext(slots),
-      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor älteren Trainings-, Spiel- und Texteingaben. Bei replacesPrevious=true dürfen excludedConcepts selbst dann nicht verwendet werden, wenn sie in historischen Daten vorkommen. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Verwende für Teamtaktik ausschließlich Inhalte aus tacticalPlaybook. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift; verwende keine fest wiederholte Wochenrotation der Stationsinhalte. Die Gruppenrotation innerhalb jeder Einheit ist notwendig.'
+      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor älteren Trainings-, Spiel- und Texteingaben. Bei replacesPrevious=true dürfen excludedConcepts selbst dann nicht verwendet werden, wenn sie in historischen Daten vorkommen. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Verwende für Teamtaktik ausschließlich Inhalte aus tacticalPlaybook. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift. Die übrigen Stationen decken bestätigte Spielerprioritäten ab; Spieler wählen offen und ohne Pflichtrotation. Verwende keine fest wiederholte Wochenrotation der Stationsinhalte.'
     };
   }
 
@@ -620,7 +653,7 @@ BT.seasonplanner = (function() {
       freethrows: [], shots: []
     };
     training.startTime = slot.time;
-    if (!BT.stationTraining.applyAI(training, game, entry)) throw new Error('Die KI hat kein vollständiges 105-Minuten-Stationstraining geliefert.');
+    if (!BT.stationTraining.applyAI(training, game, entry, payload.playerDevelopment)) throw new Error('Die KI hat kein vollständiges 105-Minuten-Stationstraining geliefert.');
     BT.storage.upsertTraining(training);
     saveToLibraries(training.plan, friday);
     return training;
@@ -628,7 +661,7 @@ BT.seasonplanner = (function() {
 
   return {
     BAVARIA_SCHOOL_BREAKS, parseLeagueId, scheduleConfig, saveScheduleConfig,
-    closureFor, buildSlots, buildAIPayload, performanceContext, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan,
+    closureFor, buildSlots, buildAIPayload, performanceContext, playerDevelopmentContext, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan,
     generateFridayTraining
   };
 })();
