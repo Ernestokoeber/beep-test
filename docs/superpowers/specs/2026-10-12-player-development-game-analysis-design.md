@@ -1,7 +1,7 @@
 # CourtHub Spielauswertung und individuelle Spielerentwicklung
 
-Datum: 12.10.2026  
-Status: Entwurf nach fachlicher Abstimmung; schriftliche Freigabe steht aus.  
+Datum: 12.10.2026
+Status: Fachlich freigegeben am 12.10.2026.
 Basis: lokaler `main`, Commit `96df895`.
 
 ## Ziel und Erfolgskriterien
