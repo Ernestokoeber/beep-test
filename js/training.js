@@ -17,6 +17,23 @@ BT.training = (function() {
     injured: 'V'
   };
 
+  async function replanFridayTraining(button, friday, game, existing) {
+    if (!game) throw new Error('Das zugehörige Wochenendspiel wurde nicht gefunden.');
+    const previousLabel = button?.textContent || '';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'KI plant …';
+    }
+    try {
+      return await BT.seasonplanner.generateFridayTraining(friday, game, existing);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = previousLabel;
+      }
+    }
+  }
+
   function renderList(target) {
     const root = renderTemplate('tpl-training-list');
     target.appendChild(root);
@@ -52,17 +69,12 @@ BT.training = (function() {
         const existing = BT.storage.getTrainings().find(training => training.date === friday && !training.endedAt && training.status !== 'completed') || null;
         if (!game) { BT.util.toast('Das zugehörige Wochenendspiel wurde nicht gefunden.'); return; }
         if (existing && !existing.stationTraining && existing.plan?.drills?.length && !confirm('Den bestehenden Trainingsplan durch ein neues KI-Stationstraining mit 105 Minuten ersetzen?')) return;
-        const previousLabel = stationButton.textContent;
-        stationButton.disabled = true;
-        stationButton.textContent = 'KI plant …';
         try {
-          const training = await BT.seasonplanner.generateFridayTraining(friday, game, existing);
+          const training = await replanFridayTraining(stationButton, friday, game, existing);
           location.hash = '#/training/' + training.id;
         } catch (error) {
           console.error(error);
           BT.util.toast('KI-Freitagstraining konnte nicht erstellt werden: ' + error.message);
-          stationButton.disabled = false;
-          stationButton.textContent = previousLabel;
         }
         return;
       }
@@ -282,16 +294,20 @@ BT.training = (function() {
     $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
     $('[data-action="training-live"]', detailRoot).addEventListener('click', () => BT.trainingLive.open(training.id));
     BT.trainingLive.syncLauncher(currentTraining);
-    $('[data-action="station-training"]', detailRoot).addEventListener('click', () => {
+    $('[data-action="station-training"]', detailRoot).addEventListener('click', async e => {
       const game = BT.stationTraining.weekendGameForFriday(currentTraining.date);
       if (!game) { BT.util.toast('Für diesen Freitag wurde kein Spiel am folgenden Wochenende gefunden.'); return; }
       if (!currentTraining.stationTraining && currentTraining.plan?.drills?.length && !confirm('Den bestehenden Trainingsplan durch das 105-Minuten-Stationstraining ersetzen?')) return;
-      BT.stationTraining.apply(currentTraining, game);
-      save();
-      renderPlanBox();
-      syncStationTrainingUI();
-      $('[data-pane="load"].subnav-btn', detailRoot)?.click();
-      BT.util.toast('Freitags-Stationstraining mit Belastungssteuerung ist bereit.');
+      try {
+        currentTraining = await replanFridayTraining(e.currentTarget, currentTraining.date, game, currentTraining);
+        renderPlanBox();
+        syncStationTrainingUI();
+        $('[data-pane="load"].subnav-btn', detailRoot)?.click();
+        BT.util.toast('KI-Freitagstraining mit Spielerfokus ist bereit.');
+      } catch (error) {
+        console.error(error);
+        BT.util.toast('KI-Freitagstraining konnte nicht aktualisiert werden: ' + error.message);
+      }
     });
     $('[data-action="training-timer"]', detailRoot).addEventListener('click', () => BT.trainingTimer.open(training.id));
     $('[data-action="ai-summary"]', detailRoot).addEventListener('click', () => openAISummary(currentTraining));
@@ -3402,6 +3418,6 @@ BT.training = (function() {
     detailRoot.querySelector(`.pane[data-pane="${pane}"]`)?.scrollIntoView({ block: 'start' });
   }
 
-  return { renderList, renderDetail, openPlayerStatsModal, openShotCapture, cleanup };
+  return { renderList, renderDetail, replanFridayTraining, openPlayerStatsModal, openShotCapture, cleanup };
 })();
 
