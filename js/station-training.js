@@ -192,9 +192,16 @@ BT.stationTraining = (() => {
       priority: Math.max(1, Math.min(5, Number(priority?.priority) || 1))
     })).filter(priority => priority.category && priority.skillKey && priority.observation);
     const focusKeys = new Set(developmentFocuses.map(priority => `${priority.category}:${priority.skillKey}`));
-    const recommendedStationIds = stations
+    let recommendedStationIds = stations
       .filter(station => (station.focusAreas || []).some(area => focusKeys.has(`${area.category}:${area.skillKey}`)))
       .map(station => station.id);
+    if (!recommendedStationIds.length && developmentFocuses.length) {
+      const focusCategories = new Set(developmentFocuses.map(priority => priority.category));
+      recommendedStationIds = stations
+        .filter(station => (station.focusAreas || []).some(area => focusCategories.has(area.category)))
+        .slice(0, 2)
+        .map(station => station.id);
+    }
     return { developmentFocuses, recommendedStationIds };
   }
 
@@ -364,10 +371,39 @@ BT.stationTraining = (() => {
     });
   }
 
+  function refreshPlayerDevelopment(training) {
+    if (!training?.stationTraining || !BT.developmentCore?.profileForPlayer || !BT.storage.getDevelopmentFindings) return;
+    const cutoffIso = `${training.date}T23:59:59.999Z`;
+    const cutoffTime = Date.parse(cutoffIso);
+    if (!Number.isFinite(cutoffTime)) return;
+    const findings = BT.storage.getDevelopmentFindings().filter(item => {
+      const confirmedTime = Date.parse(item?.confirmedAt || '');
+      return Number.isFinite(confirmedTime) && confirmedTime <= cutoffTime;
+    });
+    const profiles = BT.storage.getPlayers().filter(player => !player.archived).map(player => {
+      const profile = BT.developmentCore.profileForPlayer(findings, player.id, cutoffIso);
+      return {
+        playerId: player.id,
+        priorities: (profile.priorities || []).slice(0, 3).map(priority => ({
+          category: priority.category,
+          skillKey: priority.skillKey,
+          observation: priority.latestObservation,
+          drillTags: priority.drillTags || [],
+          roleRelevant: Boolean(priority.roleRelevant),
+          priority: priority.effectivePriority
+        }))
+      };
+    });
+    Object.keys(training.stationTraining.players).forEach(playerId => {
+      Object.assign(training.stationTraining.players[playerId], developmentForPlayer(playerId, profiles, training.stationTraining.stations));
+    });
+  }
+
   function render(target, training, onSave) {
     if (!target) return;
     if (!training.stationTraining) { target.replaceChildren(); return; }
     ensurePlayers(training);
+    refreshPlayerDevelopment(training);
     const escapeHTML = BT.util.escapeHTML;
     const state = training.stationTraining;
     const players = BT.storage.getPlayers().filter(player => !player.archived && !BT.staff?.isCoachOnly(training, player.id)).sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -380,11 +416,13 @@ BT.stationTraining = (() => {
         <div><span class="section-kicker">Freitag · 105 Minuten</span><h3>Individuelle Stationen & Belastungssteuerung</h3><p>Die Ampel wird aus Tagesform, Schmerzen, Spielminuten und der Belastung der letzten sieben Tage berechnet.</p></div>
         <div class="station-traffic-summary"><span class="traffic-green">${counts.green} Grün</span><span class="traffic-yellow">${counts.yellow} Gelb</span><span class="traffic-red">${counts.red} Rot</span></div>
       </section>
-      <div class="station-grid">${state.stations.map((station) => `<article class="station-card"><span>${escapeHTML(station.label)} · ${station.minutes} min</span><h4>${escapeHTML(station.title)}</h4><details class="training-guide"><summary>Aufbau &amp; Ablauf</summary>${BT.trainingInstructions ? BT.trainingInstructions.markup(BT.trainingInstructions.descriptionFor(training, station)) : `<p>${escapeHTML(station.description)}</p>`}</details><small>Offene Wahl · Coach steuert nur die Belegung</small></article>`).join('')}</div>
+      <div class="station-grid">${state.stations.map((station) => `<article class="station-card"><span>${escapeHTML(station.label)} · ${station.minutes} min</span><h4>${escapeHTML(station.title)}</h4><details class="training-guide" open><summary>Ziel, Aufbau &amp; Ablauf</summary>${BT.trainingInstructions ? BT.trainingInstructions.markup(BT.trainingInstructions.descriptionFor(training, station)) : `<p>${escapeHTML(station.description)}</p>`}</details><small>Offene Wahl · Coach steuert nur die Belegung</small></article>`).join('')}</div>
       <section class="station-load-section"><div class="section-head compact"><div><span class="section-kicker">Session-RPE</span><h3>Belastung pro Spieler</h3></div></div><div class="station-player-list">${players.map(player => {
         const entry = state.players[player.id];
         const stationNames = (entry.recommendedStationIds || []).map(id => state.stations.find(station => station.id === id)?.title).filter(Boolean);
-        const developmentMarkup = entry.developmentFocuses?.length ? `<div class="station-development"><strong>Entwicklungsfokus</strong><ul>${entry.developmentFocuses.map(focus => `<li>${escapeHTML(focus.observation)}</li>`).join('')}</ul><p>${stationNames.length ? `Passende Stationen: ${stationNames.map(escapeHTML).join(', ')}` : 'Freie Auswahl mit dem Coach abstimmen.'}</p></div>` : '';
+        const developmentMarkup = entry.developmentFocuses?.length
+          ? `<div class="station-development"><strong>Individueller Trainingsauftrag</strong><p><b>Empfohlene Stationen:</b> ${stationNames.length ? stationNames.map(escapeHTML).join(', ') : 'Keine passende Station im aktuellen Plan – mit dem Coach abstimmen.'}</p><ul>${entry.developmentFocuses.map(focus => `<li>${escapeHTML(focus.observation)}</li>`).join('')}</ul></div>`
+          : '<div class="station-development station-development-empty"><strong>Stationsvorschlag</strong><p>Keine bestätigte Spieleranalyse hinterlegt – freie Wahl mit dem Coach abstimmen.</p></div>';
         return `<article class="station-player-card" data-station-player="${escapeHTML(player.id)}">
           <header><strong>${escapeHTML(player.name)}</strong>${entry.injured?'<span class="att-chip bad">Verletzt · Schonung</span>':''}<span class="station-light station-light-${entry.light}">${entry.light === 'green' ? 'Grün' : entry.light === 'yellow' ? 'Gelb' : 'Rot'}</span><span>Ziel-RPE <b data-station-output="target">${entry.targetRpe}</b></span></header>
           <div class="station-player-fields">
