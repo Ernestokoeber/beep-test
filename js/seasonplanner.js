@@ -664,6 +664,19 @@ BT.seasonplanner = (function() {
     return focus ? `${normalizedStationText(focus.category)}:${normalizedStationText(focus.skillKey)}` : '';
   }
 
+  function requiredPrimaryFocuses(playerDevelopment) {
+    const seen = new Set();
+    return (Array.isArray(playerDevelopment) ? playerDevelopment : []).flatMap(player => {
+      const focus = Array.isArray(player?.priorities) ? player.priorities[0] : null;
+      const category = String(focus?.category || '');
+      const skillKey = String(focus?.skillKey || '');
+      const key = `${category}:${skillKey}`;
+      if (!category || !skillKey || seen.has(key)) return [];
+      seen.add(key);
+      return [{ category, skillKey }];
+    });
+  }
+
   function isMeaningfullyNewFridayPlan(stations, previousPlan) {
     if (!previousPlan) return true;
     if (!Array.isArray(stations) || stations.length !== 5) return false;
@@ -686,6 +699,7 @@ BT.seasonplanner = (function() {
     let slot;
     let payload;
     let entry;
+    let replanFeedback = '';
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       slot = fridaySlot(friday, game);
       if (previousPlan) {
@@ -694,10 +708,23 @@ BT.seasonplanner = (function() {
         slot.replanRequirement = 'Keine Stationsbezeichnung übernehmen und mindestens drei der fünf primären focusAreas fachlich verändern.';
       }
       payload = buildAIPayload([slot], BT.storage.getSetting('seasonCoachInput', {}));
-      const response = await BT.api.ai('planSeason', { data: payload });
+      const requiredFocuses = requiredPrimaryFocuses(payload.playerDevelopment);
+      if (requiredFocuses.length) payload.slots[0].requiredPrimaryFocuses = requiredFocuses;
+      if (replanFeedback) payload.slots[0].replanFeedback = replanFeedback;
+      let response;
+      try {
+        response = await BT.api.ai('planSeason', { data: payload });
+      } catch (error) {
+        if (attempt === 1 && error?.code === 'AI_INVALID_RESPONSE') {
+          replanFeedback = String(error.message || 'Der erste Entwurf war fachlich unvollständig.').slice(0, 300);
+          continue;
+        }
+        throw error;
+      }
       [entry] = validateBatchResponse(response, [slot]);
       if (isMeaningfullyNewFridayPlan(entry?.stationTraining?.stations, previousPlan)) break;
       if (attempt === 2) throw new Error('Die KI hat zweimal denselben oder einen zu ähnlichen Stationsplan geliefert. Der bisherige Plan wurde nicht verändert.');
+      replanFeedback = 'Der erste Entwurf war dem bisherigen Stationsplan zu ähnlich.';
     }
     const training = existing || {
       date: friday,

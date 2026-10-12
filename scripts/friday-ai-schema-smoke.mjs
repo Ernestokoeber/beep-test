@@ -152,14 +152,25 @@ context.BT.api = { ai: async (action, body) => {
   assert.match(body.data.instructions, /Ausschlussreferenz/i, 'Der Freitagspayload erklärt den Umgang mit dem bisherigen Plan nicht');
   assert.doesNotMatch(body.data.instructions, /Gruppenrotation innerhalb jeder Einheit ist notwendig/i, 'Der Freitagspayload darf keine widersprüchliche Pflichtrotation enthalten');
   assert.equal(JSON.stringify(body.data.playerDevelopment).includes('PDF-Beleg'), false, 'PDF-Auszüge dürfen nicht an den Trainingsgenerator gehen');
-  return { data: fridayPlanningCalls === 1 ? recovered.value : changedFriday };
+  assert.equal(
+    JSON.stringify(body.data.slots[0].requiredPrimaryFocuses),
+    JSON.stringify([{ category: 'decision', skillKey: 'turnover-control' }]),
+    'Die zwingend abzudeckenden Hauptprioritäten fehlen im Neuplanungsauftrag'
+  );
+  if (fridayPlanningCalls === 1) {
+    const error = new Error('Das Stationstraining deckt nicht alle höchsten Spielerprioritäten ab.');
+    error.code = 'AI_INVALID_RESPONSE';
+    throw error;
+  }
+  assert.match(body.data.slots[0].replanFeedback, /Spielerprioritäten/i, 'Der zweite Versuch erhält den Validierungsgrund nicht');
+  return { data: changedFriday };
 } };
 await context.BT.seasonplanner.generateFridayTraining('2026-10-09', game, existing);
 const saved = context.BT.storage.getTraining(existing.id);
-assert.equal(fridayPlanningCalls, 2, 'Ein unveränderter KI-Entwurf muss genau einen neuen Versuch auslösen');
+assert.equal(fridayPlanningCalls, 2, 'Eine fachlich ungültige KI-Antwort muss genau einen neuen Versuch auslösen');
 assert.equal(context.BT.storage.getTrainings().length, 1, 'Replanning must update the existing training');
 assert.equal(saved.stationTraining.stations.length, 5);
-assert.equal(saved.stationTraining.stations[1].title, 'Neue Alternative 2', 'Nach dem identischen Erstentwurf wurde nicht die fachlich neue Stationskombination gespeichert');
+assert.equal(saved.stationTraining.stations[1].title, 'Neue Alternative 2', 'Nach der abgelehnten Erstantwort wurde nicht die fachlich gültige Stationskombination gespeichert');
 assert.equal(saved.stationTraining.stations[0].description, value.stationTraining.stations[0].description);
 assert.equal(saved.plan.drills[2].description, value.drills[2].description);
 assert(saved.plan.drills[2].description.endsWith('ENDE DER ANLEITUNG'));
