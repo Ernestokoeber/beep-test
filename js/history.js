@@ -2,7 +2,8 @@ window.BT = window.BT || {};
 
 BT.history = (function() {
   const { $, renderTemplate, formatDate, escapeHTML, downloadCSV, downloadJSON, shareOrDownloadJSON, pickFile, readFileAsText, todayISO } = BT.util;
-  const IMPORT_LISTS = ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'jerseyDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics'];
+  const DEVELOPMENT_LISTS = new Set(['developmentFindings', 'developmentImportReceipts']);
+  const IMPORT_LISTS = ['players', 'sessions', 'trainings', 'games', 'opponents', 'tableDuties', 'jerseyDuties', 'notes', 'freethrows', 'drills', 'templates', 'phases', 'tactics', 'developmentFindings', 'developmentImportReceipts'];
 
   function renderList(target) {
     const root = renderTemplate('tpl-history');
@@ -153,14 +154,18 @@ BT.history = (function() {
   function applyBackup(data, mode) {
     const current = BT.storage.load();
     if (mode === 'r') {
-      const replacement = { schemaVersion: 4, settings: importSettings(data) };
+      const replacement = { schemaVersion: 5, settings: importSettings(data) };
       IMPORT_LISTS.forEach(key => { replacement[key] = importList(data, key); });
       BT.storage.save(replacement);
       return;
     }
     if (mode === 'm') {
-      const merged = { schemaVersion: 4, settings: Object.assign({}, current.settings || {}, importSettings(data)) };
-      IMPORT_LISTS.forEach(key => { merged[key] = mergeById(importList(current, key), importList(data, key)); });
+      const merged = { schemaVersion: 5, settings: Object.assign({}, current.settings || {}, importSettings(data)) };
+      IMPORT_LISTS.forEach(key => {
+        merged[key] = DEVELOPMENT_LISTS.has(key)
+          ? BT.developmentCore.mergeVersionedById(importList(current, key), importList(data, key))
+          : mergeById(importList(current, key), importList(data, key));
+      });
       BT.storage.save(merged);
       return;
     }

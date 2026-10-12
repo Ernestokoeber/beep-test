@@ -103,4 +103,91 @@ const mergedWorkspace = core.mergeDevelopmentWorkspace(
 assert.equal(mergedWorkspace.developmentFindings.length, 3);
 assert.equal(mergedWorkspace.developmentImportReceipts.length, 2);
 
-console.log('CourtHub Spielerentwicklung: Fachmodell, Priorisierung und Merge erfolgreich.');
+dom.window.BT.util = {
+  seasonForDate: () => '26/27',
+  todayISO: () => '2026-10-12',
+  uuid: prefix => prefix + 'test',
+  $: () => null,
+  renderTemplate: () => dom.window.document.createElement('div'),
+  formatDate: value => value,
+  escapeHTML: value => value,
+  downloadCSV() {},
+  downloadJSON() {},
+  shareOrDownloadJSON: async () => 'downloaded',
+  pickFile: async () => null,
+  readFileAsText: async () => '',
+  confirmBtn() {}
+};
+const protectedTraining = { id: 'tr_u9ki7ul9pxyo', date: '2026-10-13', title: 'Dienstag Mannschaftstraining' };
+const schemaFour = {
+  schemaVersion: 4,
+  meta: { updatedAt: '2026-10-12T17:00:00.000Z' },
+  players: [{ id: 'p1', name: 'Dhruva' }],
+  sessions: [],
+  trainings: [protectedTraining],
+  games: [{ id: 'g1' }, { id: 'g2' }, { id: 'g3' }, { id: 'g4' }],
+  opponents: [], tableDuties: [], jerseyDuties: [], notes: [], freethrows: [],
+  drills: [], templates: [], phases: [], tactics: [], settings: {}
+};
+dom.window.localStorage.setItem('beepTest_v1', JSON.stringify(schemaFour));
+dom.window.eval(readFileSync(new URL('../js/storage.js', import.meta.url), 'utf8'));
+const storage = dom.window.BT.storage;
+const migrated = storage.load();
+assert.equal(migrated.schemaVersion, 5, 'Schema 4 wird nicht auf Schema 5 migriert');
+assert.deepEqual(Array.from(migrated.developmentFindings), []);
+assert.deepEqual(Array.from(migrated.developmentImportReceipts), []);
+assert.equal(JSON.stringify(migrated.trainings[0]), JSON.stringify(protectedTraining), 'Bestehende Trainings werden bei der Migration verändert');
+
+const importFindings = [
+  finding({ id: 'df_import_1' }),
+  finding({ id: 'df_import_2', category: 'role', skillKey: 'point-guard-organization' })
+];
+const receipt = {
+  id: 'dir_import_1',
+  sourceHash: importFindings[0].sourceHash,
+  sourceLabel: 'Bewertung Illertal',
+  gameId: 'g1',
+  findingIds: importFindings.map(item => item.id),
+  importedAt: NOW,
+  confirmedAt: NOW
+};
+const savedImport = storage.saveDevelopmentImport({ receipt, findings: importFindings });
+assert.equal(savedImport.findings.length, 2, 'Bestätigte Befunde werden nicht gemeinsam gespeichert');
+assert.equal(storage.getDevelopmentFindings({ playerId: 'p1' }).length, 2, 'Spielerfilter liefert nicht die bestätigten Befunde');
+assert.equal(storage.getDevelopmentImportReceipts().length, 1, 'Importbeleg fehlt');
+
+const beforeInvalidBatch = dom.window.localStorage.getItem('beepTest_v1');
+assert.throws(() => storage.saveDevelopmentImport({
+  receipt: { ...receipt, id: 'dir_import_2', sourceHash: 'sha256:' + 'b'.repeat(64) },
+  findings: [
+    finding({ id: 'df_valid', sourceHash: 'sha256:' + 'b'.repeat(64) }),
+    finding({ id: 'df_invalid', sourceHash: 'sha256:' + 'b'.repeat(64), skillKey: 'frei-erfunden' })
+  ]
+}), dom.window.TypeError, 'Ein ungültiger Befund muss den vollständigen Batch verwerfen');
+assert.equal(dom.window.localStorage.getItem('beepTest_v1'), beforeInvalidBatch, 'Fehlgeschlagener Batch verändert den Workspace');
+assert.throws(
+  () => storage.updateDevelopmentFinding('df_import_1', { playerId: 'p_fremd' }),
+  dom.window.TypeError,
+  'Unzulässige Felder dürfen über das Profil nicht verändert werden'
+);
+const updated = storage.updateDevelopmentFinding('df_import_1', { coachPriority: 5, status: 'developing' });
+assert.equal(updated.coachPriority, 5);
+assert.equal(updated.status, 'developing');
+
+dom.window.eval(readFileSync(new URL('../js/history.js', import.meta.url), 'utf8'));
+const history = dom.window.BT.history;
+const newerRemoteFinding = finding({ id: 'df_import_1', observation: 'Neuere Backup-Fassung', updatedAt: '2026-10-12T19:00:00.000Z' });
+history.applyBackup({ ...schemaFour, developmentFindings: [newerRemoteFinding] }, 'm');
+const mergedBackup = storage.load();
+assert.equal(mergedBackup.schemaVersion, 5);
+assert.equal(mergedBackup.developmentFindings.find(item => item.id === 'df_import_1').observation, 'Neuere Backup-Fassung', 'Entwicklungsbefunde werden beim Backup-Merge nicht versioniert zusammengeführt');
+assert.equal(mergedBackup.trainings[0].id, protectedTraining.id, 'Backup-Merge verliert bestehende Trainings');
+history.applyBackup(schemaFour, 'r');
+const replacedBackup = storage.load();
+assert.equal(replacedBackup.schemaVersion, 5);
+assert.deepEqual(Array.from(replacedBackup.developmentFindings), []);
+assert.deepEqual(Array.from(replacedBackup.developmentImportReceipts), []);
+assert.equal(replacedBackup.players[0].id, 'p1', 'Schema-4-Backup verliert Spieler beim Ersetzen');
+assert.equal(replacedBackup.trainings[0].id, protectedTraining.id, 'Schema-4-Backup verliert Trainings beim Ersetzen');
+
+console.log('CourtHub Spielerentwicklung: Fachmodell, Schema, Backup und Merge erfolgreich.');

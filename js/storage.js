@@ -2,7 +2,7 @@ window.BT = window.BT || {};
 
 BT.storage = (function() {
   const KEY = 'beepTest_v1';
-  const CURRENT_SCHEMA = 4;
+  const CURRENT_SCHEMA = 5;
   let readCache = null;
 
   function load() {
@@ -23,6 +23,8 @@ BT.storage = (function() {
       data.tableDuties = data.tableDuties || [];
       data.jerseyDuties = data.jerseyDuties || [];
       data.tactics = data.tactics || [];
+      data.developmentFindings = data.developmentFindings || [];
+      data.developmentImportReceipts = data.developmentImportReceipts || [];
       if (data.schemaVersion < CURRENT_SCHEMA) {
         migrate(data);
         localStorage.setItem(KEY, JSON.stringify(data));
@@ -72,6 +74,11 @@ BT.storage = (function() {
       data.opponents = data.opponents || [];
       data.schemaVersion = 4;
     }
+    if (data.schemaVersion < 5) {
+      data.developmentFindings = data.developmentFindings || [];
+      data.developmentImportReceipts = data.developmentImportReceipts || [];
+      data.schemaVersion = 5;
+    }
   }
 
   function normalizedTnaNumber(value) {
@@ -100,7 +107,82 @@ BT.storage = (function() {
   }
 
   function empty() {
-    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], opponents: [], tableDuties: [], jerseyDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], tactics: [], settings: {} };
+    return { schemaVersion: CURRENT_SCHEMA, meta: {}, players: [], sessions: [], trainings: [], games: [], opponents: [], tableDuties: [], jerseyDuties: [], notes: [], freethrows: [], drills: [], templates: [], phases: [], tactics: [], developmentFindings: [], developmentImportReceipts: [], settings: {} };
+  }
+
+  function developmentContext(data) {
+    return {
+      playerIds: new Set((data.players || []).map(item => item.id)),
+      gameIds: new Set((data.games || []).map(item => item.id))
+    };
+  }
+
+  function getDevelopmentFindings(filter) {
+    const criteria = filter || {};
+    const allowed = ['playerId', 'sourceGameId', 'category', 'skillKey', 'kind', 'status', 'scope'];
+    return (load().developmentFindings || [])
+      .filter(item => allowed.every(key => criteria[key] === undefined || item[key] === criteria[key]))
+      .map(item => JSON.parse(JSON.stringify(item)));
+  }
+
+  function getDevelopmentImportReceipts() {
+    return (load().developmentImportReceipts || []).map(item => JSON.parse(JSON.stringify(item)));
+  }
+
+  function validateImportReceipt(receipt, findings, data) {
+    if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) throw new TypeError('Ungültiger Importbeleg.');
+    if (typeof receipt.id !== 'string' || !receipt.id.trim()) throw new TypeError('Ungültiger Importbeleg.');
+    if (typeof receipt.sourceHash !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(receipt.sourceHash)) throw new TypeError('Ungültiger Importbeleg.');
+    if (typeof receipt.gameId !== 'string' || !data.games.some(item => item.id === receipt.gameId)) throw new TypeError('Ungültiger Importbeleg.');
+    if (!Array.isArray(receipt.findingIds) || receipt.findingIds.length !== findings.length) throw new TypeError('Ungültiger Importbeleg.');
+    if (!Number.isFinite(Date.parse(receipt.importedAt)) || !Number.isFinite(Date.parse(receipt.confirmedAt))) throw new TypeError('Ungültiger Importbeleg.');
+    const expectedIds = findings.map(item => item.id).sort();
+    const receiptIds = [...new Set(receipt.findingIds)].sort();
+    if (receiptIds.length !== expectedIds.length || receiptIds.some((id, index) => id !== expectedIds[index])) throw new TypeError('Ungültiger Importbeleg.');
+    if (findings.some(item => item.scope !== 'player'
+      || item.sourceType !== 'player-evaluation-pdf'
+      || item.sourceGameId !== receipt.gameId
+      || item.sourceHash !== receipt.sourceHash)) {
+      throw new TypeError('Importbeleg und Befunde passen nicht zusammen.');
+    }
+    return JSON.parse(JSON.stringify(receipt));
+  }
+
+  function saveDevelopmentImport(payload) {
+    const data = load();
+    const findings = payload?.findings;
+    if (!Array.isArray(findings) || findings.length === 0) throw new TypeError('Mindestens ein Befund ist erforderlich.');
+    const normalized = findings.map(item => BT.developmentCore.validateFinding(item, developmentContext(data)));
+    if (new Set(normalized.map(item => item.id)).size !== normalized.length) throw new TypeError('Befund-IDs müssen eindeutig sein.');
+    if (normalized.some(item => (data.developmentFindings || []).some(existing => existing.id === item.id))) throw new TypeError('Ein Befund existiert bereits.');
+    const receipt = validateImportReceipt(payload.receipt, normalized, data);
+    if ((data.developmentImportReceipts || []).some(item => item.id === receipt.id || item.sourceHash === receipt.sourceHash)) {
+      throw new Error('Diese PDF wurde bereits importiert.');
+    }
+    const next = JSON.parse(JSON.stringify(data));
+    next.developmentFindings = (next.developmentFindings || []).concat(normalized);
+    next.developmentImportReceipts = (next.developmentImportReceipts || []).concat(receipt);
+    save(next);
+    return {
+      receipt: JSON.parse(JSON.stringify(receipt)),
+      findings: normalized.map(item => JSON.parse(JSON.stringify(item)))
+    };
+  }
+
+  function updateDevelopmentFinding(id, changes) {
+    const allowed = new Set(['coachPriority', 'pinned', 'roleRelevant', 'status', 'linkedDrillIds', 'coachNote']);
+    if (!changes || typeof changes !== 'object' || Array.isArray(changes) || Object.keys(changes).some(key => !allowed.has(key))) {
+      throw new TypeError('Unzulässige Änderung am Entwicklungsbefund.');
+    }
+    const data = load();
+    const index = (data.developmentFindings || []).findIndex(item => item.id === id);
+    if (index < 0) throw new Error('Der Entwicklungsbefund existiert nicht mehr.');
+    const candidate = Object.assign({}, data.developmentFindings[index], changes, { updatedAt: new Date().toISOString() });
+    const normalized = BT.developmentCore.validateFinding(candidate, developmentContext(data));
+    const next = JSON.parse(JSON.stringify(data));
+    next.developmentFindings[index] = normalized;
+    save(next);
+    return JSON.parse(JSON.stringify(normalized));
   }
 
   function getSetting(key, fallback) {
@@ -619,7 +701,8 @@ BT.storage = (function() {
     getShotCategories, setShotCategories,
     getSetting, setSetting,
     getPhases, upsertPhase, getPhaseForDate,
-    getSeasons, getActiveSeason, setActiveSeason, inActiveSeason
+    getSeasons, getActiveSeason, setActiveSeason, inActiveSeason,
+    getDevelopmentFindings, getDevelopmentImportReceipts, saveDevelopmentImport, updateDevelopmentFinding
   };
 })();
 
