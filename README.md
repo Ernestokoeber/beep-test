@@ -16,6 +16,7 @@ Installierbare Basketball-Plattform für das Trainerteam des TSV Lindau. CourtHu
 - adapterbasierte Project-Atlas-Anbindung mit Revision, Confidence und Provenance
 - QR-Selbst-Check-in mit Trainerfreigabe
 - Spielerziele, Verfügbarkeit, Trainerfeedback und Einsatzbriefing
+- Spielerbewertungs-PDFs als bestätigungspflichtige Entwicklungsbeobachtungen mit eindeutiger Spiel- und Spielerzuordnung
 - Drag-and-drop-Trainingsplan mit Zeit- und Belastungsübersicht sowie iCal-Export
 - vollständige, aufklappbare Übungsanleitungen mit Aufbau, Ablauf, Umfang, Pausen und Coaching in allen Trainingsansichten
 - mobiler Coach-Modus „Training Live“ mit aktuellem/nächstem Drill, persistenter Uhr, Schnellbewertung und Trainingsauswertung
@@ -45,3 +46,5 @@ npx vercel dev
 Vor dem ersten Start `schema.sql` in der PostgreSQL-Datenbank ausführen und die Werte in `.env.local` setzen. Die vollständige Produktionsanleitung steht in `DEPLOY.md`.
 
 Alle Trainingsdaten bleiben im Gastmodus lokal im Browser. Nach der Anmeldung wird der lokale Stand mit dem Team-Workspace abgeglichen.
+
+Der Workspace verwendet Schema 5. Es ergänzt die synchronisierten Listen `developmentFindings` und `developmentImportReceipts`; ältere Schema-4-Backups werden beim Laden verlustfrei erweitert. Eine PDF-Auswertung bleibt bis zur ausdrücklichen Einzelbestätigung durch den Coach im Arbeitsspeicher. PDF-Datei und vollständiger Dokumenttext werden nicht im Workspace gespeichert.
