@@ -9,6 +9,7 @@ const scripts = [
   ...['bootstrap.js','core.mjs','clock.mjs','journal.mjs','merge.mjs','bridge.mjs','controller.mjs','view.mjs','report.mjs','export.mjs'].map(file=>'js/live-game/'+file),
   'js/coaching-staff.js', 'js/coaching-staff.mjs',
   'js/training-timer.js',
+  'js/development-core.js',
   'js/training-live.js',
   'js/training-shots.js',
   'js/station-training.js',
