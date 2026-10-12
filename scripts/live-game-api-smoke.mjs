@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {protectWorkspace} from '../js/live-game/merge.mjs';
 import {createSession} from '../js/live-game/core.mjs';
 import {emptyDraft,reviseMatchday} from '../js/matchday/model.mjs';
-import {filterWorkspaceForRole,hasValidTacticsShape} from '../api/_lib/workspace-data.js';
+import {filterWorkspaceForRole,hasValidDevelopmentShape,hasValidTacticsShape} from '../api/_lib/workspace-data.js';
 import {method,noStore,safeError} from '../api/_lib/http.js';
 // Execute the endpoint body with controlled auth and DB boundaries, never a network DB.
 const source=readFileSync(new URL('../api/workspace.js',import.meta.url),'utf8').replace(/^import .*;\r?$/gm,'').replace('export default async function handler','return async function handler');
@@ -15,10 +15,11 @@ s.schemaVersion=2;
 const md=reviseMatchday(undefined,{id:'md',parents:[],actorId:'u',deviceId:'d',recordedAt:'2026-09-29',value:emptyDraft()});
 current.data.games[0].matchday=md;
 const query=async(sql,args)=>{assert.ok(args.includes('org'),'Organization boundary missing');if(sql.includes('UPDATE')){updates.push(args);return {rows:race?[]:[{version:4}]};}return {rows:[current]};};
-const handler=new Function('query','canWrite','requireMembership','method','noStore','safeError','filterWorkspaceForRole','hasValidTacticsShape','protectWorkspace',source)(query,r=>['admin','coach','assistant'].includes(r),async()=>({role,sub:'u',organization_id:'org'}),method,noStore,safeError,filterWorkspaceForRole,hasValidTacticsShape,protectWorkspace);
+const handler=new Function('query','canWrite','requireMembership','method','noStore','safeError','filterWorkspaceForRole','hasValidDevelopmentShape','hasValidTacticsShape','protectWorkspace',source)(query,r=>['admin','coach','assistant'].includes(r),async()=>({role,sub:'u',organization_id:'org'}),method,noStore,safeError,filterWorkspaceForRole,hasValidDevelopmentShape,hasValidTacticsShape,protectWorkspace);
 async function request(body){let code,result;const res={setHeader(){},status(n){code=n;return this;},json(data){result=data;return this;},end(){}};await handler({method:'PUT',body},res);return {code,result};}
 role='viewer';assert.equal((await request({data:{},expectedVersion:3})).code,403);assert.equal(updates.length,0);
 role='coach';assert.equal((await request({data:{games:[]},expectedVersion:3})).code,409);
+assert.equal((await request({data:{games:[],developmentFindings:{}},expectedVersion:3})).code,400);
 assert.equal((await request({data:{games:[{id:'g'}]},expectedVersion:2})).code,409);
 assert.equal((await request({data:{games:[{id:'g',liveStats:{schemaVersion:8}}]},expectedVersion:3})).code,400);
 assert.equal((await request({data:{games:[{id:'g'}],huge:'x'.repeat(4*1024*1024)},expectedVersion:3})).code,413);
