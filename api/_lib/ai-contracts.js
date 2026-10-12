@@ -262,6 +262,45 @@ export const OPPONENT_SCREENSHOT_SCHEMA = {
   }
 };
 
+const PLAYER_DEVELOPMENT_TAXONOMY = Object.freeze({
+  technique: ['ball-control', 'passing', 'footwork', 'shooting', 'finishing'],
+  decision: ['scanning', 'advantage-read', 'pass-read', 'shot-selection', 'turnover-control'],
+  offense: ['spacing', 'cutting', 'screening', 'pnr-handler', 'pnr-screener', 'off-ball'],
+  defense: ['on-ball', 'closeout', 'help', 'rotation', 'screen-coverage', 'transition-defense'],
+  rebounding: ['box-out', 'pursuit', 'outlet'],
+  transition: ['sprint-lanes', 'early-advance', 'transition-decision'],
+  role: ['point-guard-organization', 'off-ball-guard', 'wing-role', 'big-role'],
+  load: ['conditioning', 'recovery', 'availability']
+});
+
+export const PLAYER_DEVELOPMENT_IMPORT_SCHEMA = {
+  type: 'object',
+  required: ['sourceLabel', 'candidates', 'warnings'],
+  properties: {
+    sourceLabel: STRING,
+    candidates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['playerName', 'category', 'skillKey', 'kind', 'observation', 'evidenceExcerpt', 'sourcePage', 'suggestedPriority', 'drillTags', 'roleRelevant'],
+        properties: {
+          playerName: STRING,
+          category: { type: 'string', enum: Object.keys(PLAYER_DEVELOPMENT_TAXONOMY) },
+          skillKey: STRING,
+          kind: { type: 'string', enum: ['strength', 'development'] },
+          observation: STRING,
+          evidenceExcerpt: STRING,
+          sourcePage: INTEGER,
+          suggestedPriority: INTEGER,
+          drillTags: { type: 'array', items: STRING },
+          roleRelevant: { type: 'boolean' }
+        }
+      }
+    },
+    warnings: { type: 'array', items: STRING }
+  }
+};
+
 export const GAME_PLAN_SCHEMA = {
   type: 'object',
   required: ['lockerRoom', 'gameGoals', 'offenseKeys', 'defenseKeys', 'warmupFocus', 'halftimeChecks'],
@@ -275,6 +314,7 @@ const PROMPTS = {
   summarizeTraining: basketballExpertPrompt(`Du wählst aus verifizierten Basketball-Trainingsfakten drei bis vier aussagekräftige Sätze aus. Jeder Satz muss genau den Text eines referenzierten Fakts wortgetreu kopieren und dessen Fakten-ID nennen. Formuliere nichts um und ergänze trotz deines Fachwissens keine Namen, Zahlen, Ursachen oder Bewertungen. Nenne insgesamt höchstens zwei Spieler. Gib nur das angeforderte JSON aus.`),
   explainTactic: basketballExpertPrompt(`Du erklärst einen strukturierten Basketball-Spielzug auf Deutsch. Beschreibe Ziel, Spacing, Timing, Phasen, tatsächlich beteiligte Rollen, Defense-Read und Offense-Antwort. Prüfe besonders Screenwinkel, Passfenster, Anschlussaktionen und die Reaktion auf Hilfe oder Switch. Erfinde keine Rollen oder Aktionen. Liefere zwei bis vier konkrete Coaching-Punkte und nur das angeforderte JSON.`),
   parseOpponentScreenshots: basketballExpertPrompt(`Du extrahierst überprüfbare Basketball-Gegnerdaten aus einem oder mehreren Screenshots der DBB.Scores-App. Verwende ausschließlich klar sichtbare Angaben. Erfinde keine Namen, Daten, Ergebnisse, Fouls, Würfe oder Quoten und leite fehlende Einzelwerte nicht aus Summen ab. sourceIndex ist die nullbasierte Position des Bildes in der Anfrage. Die Bilder stehen in Auswahlreihenfolge; direkt aufeinanderfolgende Ansichten "Kennzahlen", "Spielverlauf" und "Statistiken" können dasselbe Spiel zeigen. Ordne eine Statistikansicht dem vorherigen Spiel nur zu, wenn Team, Farbe, Ergebnis oder die unmittelbare Bildfolge den Zusammenhang eindeutig belegt, und übernimm dann dessen Datum für gameDate. Erfasse ein Spiel nur, wenn beide Teams klar erkennbar sind; Ergebnisse nur, wenn beide Punktzahlen sichtbar sind. Das Datum wird als YYYY-MM-DD ausgegeben, andernfalls als leerer String. opponentTeamStats und players beziehen sich ausschließlich auf den als erwarteten Gegner genannten Verein, niemals auf den anderen Verein. Lies Spielerpunkte vorrangig direkt aus der Spalte "Pkt". In DBB.Scores bedeutet "2Pkt" die Anzahl getroffener Zweier und wird als twoMade gespeichert, "3Pkt" die Anzahl getroffener Dreier und wird als threeMade gespeichert, "FW" die Freiwürfe und "PF" die Fouls. Diese Trefferzahlen sind keine Punktesummen und ohne sichtbare Versuche niemals Wurfquoten. Bei "FW x/y" speicherst du x als freeThrowsMade und y als freeThrowsAttempted; steht im Teamvergleich nur eine FW-Zahl, ist das ausschließlich freeThrowsMade. Spielerwerte werden ausschließlich als einzelne Spielzeilen mit eindeutigem Spieltag ausgegeben; Saison-Gesamtsummen oder Durchschnittswerte werden nicht als Einzelspielwerte übernommen. Setze completeFouls beziehungsweise completeShots nur dann auf true, wenn die vollständigen Teamwerte dieses Spiels sichtbar sind. Weise in warnings auf unlesbare, abgeschnittene, mehrdeutige oder unvollständige Bereiche hin. Gib nur das angeforderte JSON aus.`),
+  parsePlayerDevelopmentPdf: basketballExpertPrompt(`Du strukturierst eine Spielerbewertungs-PDF als überprüfbare Kandidaten für CourtHub. Verwende ausschließlich Aussagen, die in der PDF sichtbar belegt sind. Erfinde keine Statistik, Ursache, Rolle, Spieler-ID, Spiel-ID oder Beobachtung. Gib keine Spieler-ID aus, sondern nur den gelesenen Spielernamen; unklare Namen bleiben als Warnung sichtbar. Ordne Kategorie und skillKey ausschließlich der vorgegebenen Taxonomie zu. evidenceExcerpt enthält nur den kurzen zur Beobachtung nötigen Ausschnitt und niemals vollständige PDF-Texte. Formuliere keine medizinischen Diagnosen und übernimm keine medizinischen Diagnosen aus Vermutungen; load beschreibt nur beobachtbare Verfügbarkeit, Kondition oder Erholung. Eine medizinische Aussage gehört nicht in candidates. Gib nur das angeforderte JSON aus.`),
   planGame: basketballExpertPrompt(`Du erstellst einen kompakten, direkt nutzbaren Basketball-Gameplan für TSV Lindau. teamStrategy ist die verbindliche aktuelle Wahrheit. Bei replacesPrevious=true ersetzt es alle früheren Mannschaftsprinzipien vollständig; excludedConcepts dürfen auch dann nicht reaktiviert werden, wenn sie in historischen Daten oder opponentPlan vorkommen. Nutze ausschließlich Fakten aus dem bestätigten opponentPlan und die dort angegebene Datenqualität. Erfinde keine Quoten, Systeme, Spielertypen oder Matchups. Fehlende Werte bleiben unbekannt und dürfen nicht als gegnerische Schwäche interpretiert werden. Verwende nur Verteidigungen aus teamStrategy.allowedDefenseIds. selectedTactics enthält ausschließlich die vom Trainer aktuell freigegebenen Inhalte. Beziehe diese konkret ein und erfinde keine nicht ausgewählte Teamtaktik. Formuliere jeweils genau drei kurze, konkrete Punkte für Kabine, Spielziele, Offense, Defense, Aufwärmen und Halbzeitkontrolle. Unterscheide belegte Fakten klar von Beobachtungsaufträgen für die ersten Angriffe. Gib nur das angeforderte JSON aus.`),
   planSeason: basketballExpertPrompt(`Du planst einen Wochenblock einer Basketball-Saison. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor performanceContext, coachInput und historischen Trainingsnamen. Bei replacesPrevious=true ersetzt es alle früheren Systeme vollständig; excludedConcepts dürfen weder empfohlen noch als Übung, Variante oder Anschlussaktion eingebaut werden. Analysiere vor der Planung zwingend performanceContext mit den vergangenen Spielen, den abgeschlossenen Trainings und der Spielerbelastung. Historische Taktiknamen sind ausschließlich Vergangenheitsdaten und keine aktiven Vorgaben. Wiederkehrende Leistungsmuster wiegen stärker als ein einzelner Ausreißer; fehlende oder unvollständige Werte dürfen nicht als Schwäche interpretiert werden. Analysiere zusätzlich den opponentContext des Slots, sofern vorhanden. Verwende ausschließlich dort belegte Gegnerwerte und beachte Datenqualität, Stichprobengröße und Warnungen. Empfehle nur Verteidigungen aus teamStrategy.allowedDefenseIds. tacticalPlaybook enthält ausschließlich die aktuell freigegebenen Teamtaktiken; nutze nur daraus passende Teamtaktik. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Liefere in evidenceBasis die tatsächlich verwendeten Trends, Belastungsaspekte und die daraus abgeleitete Planungsentscheidung. Liefere danach für jeden mitgesendeten Slot genau ein Training mit identischem Datum. Ändere keine Termine. Formuliere summary als prägnanten Trainingsschwerpunkt mit höchstens 180 Zeichen. Die Drill-Minuten entsprechen der durationMinutes des jeweiligen Slots; fehlt sie, gilt die allgemeine Trainingsdauer. Jeder Drill braucht einen klaren Aufbau, Ablauf, basketballspezifische Coaching-Punkte und eine sinnvolle Belastungsstufe. Plane eine erkennbare Progression von Technik über Entscheidungen zum Spieltransfer.
 
@@ -729,6 +769,78 @@ function buildOpponentScreenshots(payload) {
   });
 }
 
+function buildPlayerDevelopmentPdf(payload) {
+  const fileBase64 = String(payload.fileBase64 || '');
+  const mimeType = String(payload.mimeType || '');
+  if (mimeType !== 'application/pdf') throw new AIError('AI_INPUT_INVALID', 'Nur PDF-Dateien werden unterstützt.', { status: 400 });
+  if (!fileBase64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(fileBase64)) {
+    throw new AIError('AI_INPUT_INVALID', 'Die PDF-Datei ist ungültig.', { status: 400 });
+  }
+  const bytes = Buffer.from(fileBase64, 'base64');
+  if (!bytes.length || bytes.length > 3 * 1024 * 1024) {
+    throw new AIError('AI_INPUT_INVALID', 'PDF fehlt oder ist größer als 3 MB.', { status: 413 });
+  }
+  if (bytes.subarray(0, 4).toString('ascii') !== '%PDF') {
+    throw new AIError('AI_INPUT_INVALID', 'Die ausgewählte Datei ist keine lesbare PDF.', { status: 400 });
+  }
+  const game = payload.game || {};
+  const context = {
+    game: {
+      date: date(game.date, 'Spieldatum'),
+      opponent: string(game.opponent, 120, 'Gegner')
+    },
+    knownPlayerNames: [...new Set((Array.isArray(payload.knownPlayerNames) ? payload.knownPlayerNames : [])
+      .map(name => string(name, 120, 'Spielername')))].slice(0, 80),
+    taxonomy: PLAYER_DEVELOPMENT_TAXONOMY
+  };
+  if (!context.knownPlayerNames.length) throw new AIError('AI_INPUT_INVALID', 'Der bekannte Kader fehlt.', { status: 400 });
+  const allowedCandidateKeys = new Set(['playerName', 'category', 'skillKey', 'kind', 'observation', 'evidenceExcerpt', 'sourcePage', 'suggestedPriority', 'drillTags', 'roleRelevant']);
+  const medicalClaim = /\b(meniskus(?:riss)?|kreuzband(?:riss)?|bänderriss|fraktur|ruptur|gehirnerschütterung|sehnenriss|diagnose|mrt)\b/i;
+  return structured([
+    { inlineData: { mimeType, data: fileBase64 } },
+    { text: `${PROMPTS.parsePlayerDevelopmentPdf}\n\nSpiel- und Kaderkontext:\n${JSON.stringify(context)}` }
+  ], PLAYER_DEVELOPMENT_IMPORT_SCHEMA, 'low', 48_000, (textValue) => {
+    const value = parseJson(textValue);
+    if (!Array.isArray(value?.candidates) || value.candidates.length > 120 || !Array.isArray(value?.warnings) || value.warnings.length > 20) {
+      fail('Die Spielerbewertung ist unvollständig oder zu umfangreich.');
+    }
+    const candidates = value.candidates.map((candidate) => {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)
+        || Object.keys(candidate).some(key => !allowedCandidateKeys.has(key))) {
+        fail('Ein Kandidat enthält unerlaubte Felder.');
+      }
+      const category = string(candidate.category, 40, 'Kategorie');
+      const skillKey = string(candidate.skillKey, 80, 'Fähigkeit');
+      if (!PLAYER_DEVELOPMENT_TAXONOMY[category]?.includes(skillKey)) fail('Kategorie oder Fähigkeit ist unbekannt.');
+      const kind = string(candidate.kind, 30, 'Befundart');
+      if (!['strength', 'development'].includes(kind)) fail('Befundart ist unbekannt.');
+      const observation = string(candidate.observation, 500, 'Beobachtung');
+      const evidenceExcerpt = string(candidate.evidenceExcerpt, 400, 'Belegausschnitt');
+      if (medicalClaim.test(observation) || medicalClaim.test(evidenceExcerpt)) fail('Medizinische Diagnosen werden nicht als Trainingsbefund übernommen.');
+      if (!Array.isArray(candidate.drillTags) || candidate.drillTags.length > 10) fail('Übungs-Tags sind ungültig.');
+      if (typeof candidate.roleRelevant !== 'boolean') fail('Rollenrelevanz ist ungültig.');
+      return {
+        playerName: string(candidate.playerName, 120, 'Spielername'),
+        category,
+        skillKey,
+        kind,
+        observation,
+        evidenceExcerpt,
+        sourcePage: integer(candidate.sourcePage, 1, 10_000, 'PDF-Seite'),
+        suggestedPriority: integer(candidate.suggestedPriority, 1, 5, 'Priorität'),
+        drillTags: [...new Set(candidate.drillTags.map(tag => string(tag, 80, 'Übungs-Tag')))],
+        roleRelevant: candidate.roleRelevant
+      };
+    });
+    return {
+      contractVersion: 'player-development-import.v1',
+      sourceLabel: string(value.sourceLabel, 120, 'Quellenbezeichnung'),
+      candidates,
+      warnings: value.warnings.map(warning => string(warning, 240, 'Warnhinweis'))
+    };
+  });
+}
+
 function buildGamePlan(payload) {
   const game = payload.game || {};
   const opponentPlan = payload.opponentPlan;
@@ -818,6 +930,7 @@ const ACTIONS = {
   summarizeTraining: buildSummary,
   explainTactic: buildTactic,
   parseOpponentScreenshots: buildOpponentScreenshots,
+  parsePlayerDevelopmentPdf: buildPlayerDevelopmentPdf,
   planGame: buildGamePlan,
   planSeason: buildSeason
 };
