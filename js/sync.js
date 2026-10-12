@@ -149,7 +149,12 @@ BT.sync = (function() {
           if (++conflicts >= 3) { setStatus('error', 'Wiederholter Datenkonflikt. Live-Aktionen bleiben lokal gesichert.'); return; }
           const remote = error.data.conflict;
           const latestLocal = cleanForSync(BT.storage.load());
-          const mergedDevelopment = BT.developmentCore.mergeDevelopmentWorkspace(latestLocal, remote.data);
+          const mergedDevelopment = BT.developmentCore?.mergeDevelopmentWorkspace
+            ? BT.developmentCore.mergeDevelopmentWorkspace(latestLocal, remote.data)
+            : {
+                developmentFindings: latestLocal.developmentFindings || remote.data?.developmentFindings || [],
+                developmentImportReceipts: latestLocal.developmentImportReceipts || remote.data?.developmentImportReceipts || []
+              };
           latestLocal.developmentFindings = mergedDevelopment.developmentFindings;
           latestLocal.developmentImportReceipts = mergedDevelopment.developmentImportReceipts;
           remote.data = Object.assign({}, remote.data, {
