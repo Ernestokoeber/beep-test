@@ -161,19 +161,17 @@
         .filter(item => item?.scope === 'player' && item.playerId === normalizedPlayerId && item.confirmedAt)
         .map(item => ({ ...item, evidenceRefs: [...(item.evidenceRefs || [])], drillTags: [...(item.drillTags || [])], linkedDrillIds: [...(item.linkedDrillIds || [])] }))
         .sort((a, b) => confirmedTime(b) - confirmedTime(a) || String(a.id).localeCompare(String(b.id)));
-      const groups = new Map();
-      for (const item of history.filter(item => item.status !== 'achieved')) {
+      const developmentGroups = new Map();
+      const strengthGroups = new Map();
+      for (const item of history) {
+        if (item.kind === 'development' && item.status === 'achieved') continue;
         const key = item.category + ':' + item.skillKey;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(item);
+        const target = item.kind === 'strength' ? strengthGroups : developmentGroups;
+        if (!target.has(key)) target.set(key, []);
+        target.get(key).push(item);
       }
-      const development = [];
-      const strengths = [];
-      for (const items of groups.values()) {
-        const summary = summarizeGroup(items, normalizedPlayerId, nowMs);
-        if (items.some(item => item.kind === 'development')) development.push(summary);
-        else strengths.push(summary);
-      }
+      const development = [...developmentGroups.values()].map(items => summarizeGroup(items, normalizedPlayerId, nowMs));
+      const strengths = [...strengthGroups.values()].map(items => summarizeGroup(items, normalizedPlayerId, nowMs));
       const order = (a, b) => b.score - a.score
         || Date.parse(b.latestConfirmedAt) - Date.parse(a.latestConfirmedAt)
         || a.groupId.localeCompare(b.groupId);

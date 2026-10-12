@@ -75,7 +75,8 @@ const findings = [
   finding({ id: 'df_spacing', sourceGameId: 'g4', category: 'offense', skillKey: 'spacing', suggestedPriority: 3, pinned: true, drillTags: ['spacing'] }),
   finding({ id: 'df_fourth', sourceGameId: 'g4', category: 'defense', skillKey: 'closeout', suggestedPriority: 2 }),
   finding({ id: 'df_achieved', sourceGameId: 'g4', category: 'technique', skillKey: 'shooting', suggestedPriority: 5, status: 'achieved' }),
-  finding({ id: 'df_strength', sourceGameId: 'g3', category: 'transition', skillKey: 'early-advance', kind: 'strength', suggestedPriority: 4 })
+  finding({ id: 'df_strength', sourceGameId: 'g3', category: 'transition', skillKey: 'early-advance', kind: 'strength', suggestedPriority: 4 }),
+  finding({ id: 'df_same_skill_strength', sourceGameId: 'g4', kind: 'strength', observation: 'Unter Druck wurde mehrfach ruhig organisiert.' })
 ].map(item => core.validateFinding(item, context));
 
 const profile = core.profileForPlayer(findings, 'p1', NOW);
@@ -84,7 +85,7 @@ assert.equal(profile.priorities[0].groupId, 'p1:offense:spacing', 'Fixierte Entw
 const repeated = profile.priorities.find(item => item.skillKey === 'turnover-control');
 assert.equal(repeated.distinctGameCount, 2, 'Mehrere Fundstellen aus demselben Spiel dürfen den Wiederholungsbonus nicht erhöhen');
 assert.deepEqual(Array.from(repeated.drillTags), ['advantage-read', 'passing', 'pressure'], 'Übungs-Tags müssen eindeutig und reproduzierbar sein');
-assert.equal(profile.strengths.length, 1, 'Stärken müssen getrennt von Entwicklungsfeldern ausgegeben werden');
+assert.equal(profile.strengths.length, 2, 'Stärken müssen auch bei gleichem Skill getrennt von Entwicklungsfeldern ausgegeben werden');
 assert(!profile.priorities.some(item => item.skillKey === 'shooting'), 'Erreichte Ziele dürfen nicht als aktuelle Priorität erscheinen');
 assert.equal(profile.history.length, findings.length, 'Die Historie muss alle bestätigten Spielerbefunde enthalten');
 
