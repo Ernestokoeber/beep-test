@@ -62,12 +62,16 @@ const aiEntry = {
   stationTraining: {
     rationale: 'Spielnah frisch geplant, ohne die Kombination der Vorwoche zu wiederholen.',
     stations: Array.from({ length: 5 }, (_, index) => ({
-      title: `Neue KI-Station ${index + 1}`, category: `KI-Kategorie ${index + 1}`, description: `Individuelle KI-Aufgabe ${index + 1}`,
+      title: index === 3 ? 'Spacing Catch-and-Shoot' : `Neue KI-Station ${index + 1}`,
+      category: index === 3 ? 'Wurf' : `KI-Kategorie ${index + 1}`,
+      description: index === 3 ? 'Nach dem Catch sofort wurfbereit sein und freie Distanzwürfe nehmen.' : `Individuelle KI-Aufgabe ${index + 1}`,
       focusAreas: index === 0
         ? [{ category: 'decision', skillKey: 'turnover-control' }]
         : index === 1
           ? [{ category: 'defense', skillKey: 'closeout' }]
-          : [{ category: 'technique', skillKey: 'shooting' }]
+          : index === 3
+            ? [{ category: 'offense', skillKey: 'spacing' }]
+            : [{ category: 'technique', skillKey: 'shooting' }]
     }))
   }
 };
@@ -83,6 +87,12 @@ const playerDevelopment = [{
     category: 'defense', skillKey: 'help-position', observation: 'Früh in der Helpside stehen.',
     drillTags: ['Help', 'Closeout'], roleRelevant: true, priority: 4
   }]
+}, {
+  playerId: 'p5', playerName: 'Spieler 5',
+  priorities: [{
+    category: 'role', skillKey: 'off-ball-wing', observation: 'Nach dem Catch schneller entscheiden und freie Catch-and-Shoot-Würfe nehmen.',
+    drillTags: ['Catch-and-Shoot', 'Spacing'], roleRelevant: true, priority: 5
+  }]
 }];
 assert(stations.applyAI(friday, suggestion.game, aiEntry, playerDevelopment), 'Gültiger KI-Freitagsplan wird abgelehnt');
 assert.equal(friday.stationTraining.source, 'gemini');
@@ -93,6 +103,7 @@ assert.equal(friday.stationTraining.players.p1.light, 'red', 'Belastungsampel ge
 assert.equal(friday.stationTraining.players.p1.developmentFocuses[0].observation, '<b>Ball sichern</b>');
 assert.deepEqual(friday.stationTraining.players.p1.recommendedStationIds, ['station_1']);
 assert.deepEqual(friday.stationTraining.players.p2.recommendedStationIds, ['station_2'], 'Wenn kein exakter Skill passt, muss die thematisch passende Station derselben Kategorie empfohlen werden');
+assert.deepEqual(friday.stationTraining.players.p5.recommendedStationIds, ['station_4'], 'Bestätigte Spieleranalysen ohne passende Kategorie müssen über ihren basketballspezifischen Inhalt einer Station zugeordnet werden');
 
 window.BT.storage.getDevelopmentFindings = () => [{ confirmedAt: '2026-10-08T18:00:00.000Z' }];
 window.BT.developmentCore = {

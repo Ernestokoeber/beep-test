@@ -61,6 +61,47 @@ BT.stationTraining = (() => {
   const isoDate = value => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
   const addDays = (value, days) => { const date = dateAtNoon(value); date.setDate(date.getDate() + days); return isoDate(date); };
   const clean = value => String(value == null ? '' : value).trim();
+  const MATCH_STOP_WORDS = new Set(['ball', 'coach', 'durch', 'freie', 'freien', 'gegen', 'individuell', 'individuelle', 'nehmen', 'spieler', 'station', 'training', 'werden']);
+
+  function matchTokens(value) {
+    const rawTokens = clean(value).toLocaleLowerCase('de-DE')
+      .normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss')
+      .split(/[^a-z0-9]+/).filter(token => token.length >= 4 && !MATCH_STOP_WORDS.has(token));
+    const tokens = new Set(rawTokens);
+    rawTokens.forEach(token => {
+      if (/turnover|ballverlust|ballkontroll|ballhandling|ballfuehr|drib|handle/.test(token)) tokens.add('ball-control');
+      if (/assist|ballvortrag|pass|playmak/.test(token)) tokens.add('playmaking');
+      if (/catch|spacing|offball/.test(token)) tokens.add('spacing');
+      if (/shoot|wurf|wuerf/.test(token)) tokens.add('shooting');
+      if (/drive|finish|korbabschluss|korbleger|layup|floater|runner/.test(token)) tokens.add('finishing');
+      if (/closeout|defen|help|slide/.test(token)) tokens.add('defense');
+      if (/ausbox|boxout|rebound/.test(token)) tokens.add('rebounding');
+      if (/balls?creen|blockstell|pickandroll|screen|pnr|roller/.test(token)) tokens.add('screening');
+      if (/freethrow|freiwurf/.test(token)) tokens.add('free-throw');
+    });
+    return tokens;
+  }
+
+  function semanticStationScore(station, focuses) {
+    const stationTokens = matchTokens([
+      station.title, station.category, station.description,
+      ...(station.focusAreas || []).flatMap(area => [area.category, area.skillKey])
+    ].join(' '));
+    return focuses.reduce((score, focus, index) => {
+      const priorityWeight = Math.max(1, 3 - index);
+      const sources = [
+        [focus.skillKey, 4],
+        [(focus.drillTags || []).join(' '), 3],
+        [focus.category, 2],
+        [focus.observation, 1]
+      ];
+      return score + sources.reduce((subtotal, [source, sourceWeight]) => {
+        let matches = 0;
+        matchTokens(source).forEach(token => { if (stationTokens.has(token)) matches += 1; });
+        return subtotal + matches * sourceWeight * priorityWeight;
+      }, 0);
+    }, 0);
+  }
 
   function mondayFor(value) {
     const date = dateAtNoon(value);
@@ -201,6 +242,15 @@ BT.stationTraining = (() => {
         .filter(station => (station.focusAreas || []).some(area => focusCategories.has(area.category)))
         .slice(0, 2)
         .map(station => station.id);
+    }
+    if (!recommendedStationIds.length && developmentFocuses.length) {
+      const rankedStations = stations.map((station, index) => ({
+        id: station.id,
+        index,
+        score: semanticStationScore(station, developmentFocuses)
+      })).filter(station => station.score > 0)
+        .sort((left, right) => right.score - left.score || left.index - right.index);
+      recommendedStationIds = rankedStations.slice(0, 1).map(station => station.id);
     }
     return { developmentFocuses, recommendedStationIds };
   }
