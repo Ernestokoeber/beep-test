@@ -367,7 +367,7 @@ BT.seasonplanner = (function() {
         ? Object.fromEntries(Object.entries(BT.developmentCore?.TAXONOMY || {}).map(([category, skills]) => [category, [...skills]]))
         : {},
       performanceContext: performanceContext(slots),
-      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor älteren Trainings-, Spiel- und Texteingaben. Bei replacesPrevious=true dürfen excludedConcepts selbst dann nicht verwendet werden, wenn sie in historischen Daten vorkommen. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Verwende für Teamtaktik ausschließlich Inhalte aus tacticalPlaybook. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift. Die übrigen Stationen decken bestätigte Spielerprioritäten ab; Spieler wählen offen und ohne Pflichtrotation. Verwende keine fest wiederholte Wochenrotation der Stationsinhalte.'
+      instructions: 'Erzeuge für jeden Slot genau einen veränderbaren Trainingsentwurf. teamStrategy ist die verbindliche aktuelle Wahrheit und hat Vorrang vor älteren Trainings-, Spiel- und Texteingaben. Bei replacesPrevious=true dürfen excludedConcepts selbst dann nicht verwendet werden, wenn sie in historischen Daten vorkommen. Belastungsvorgabe und Spielabstand müssen eingehalten werden. Nutze opponentContext nur mit der dort ausgewiesenen Datenqualität und erfinde keine fehlenden Gegnerwerte. Verwende für Teamtaktik ausschließlich Inhalte aus tacticalPlaybook. Gegnerbezogene Inhalte dürfen höchstens 25 Prozent einer normalen Einheit ausmachen. Gewichte coachInput.problems ebenfalls mit höchstens 25 Prozent; ein Problem darf nie die ganze Einheit dominieren. Für fridayStationMode=true muss die KI selbst ein neues individuelles 105-Minuten-Stationstraining liefern, wobei höchstens eine von fünf Stationen das genannte Problem oder eine Gegnerbesonderheit aufgreift. Die übrigen Stationen decken bestätigte Spielerprioritäten ab; Spieler wählen offen und ohne Pflichtrotation. Verwende keine fest wiederholte Wochenrotation der Stationsinhalte. Wenn previousStationPlan vorhanden ist, dient er als Ausschlussreferenz: Keine Stationsbezeichnung darf übernommen werden und mindestens drei der fünf primären focusAreas müssen fachlich neu sein.'
     };
   }
 
@@ -640,12 +640,65 @@ BT.seasonplanner = (function() {
     };
   }
 
+  function previousFridayPlan(training) {
+    const stations = training?.stationTraining?.stations;
+    if (!Array.isArray(stations) || stations.length !== 5) return null;
+    return {
+      stations: stations.map(station => ({
+        title: String(station?.title || '').slice(0, 120),
+        category: String(station?.category || '').slice(0, 80),
+        focusAreas: (Array.isArray(station?.focusAreas) ? station.focusAreas : []).map(area => ({
+          category: String(area?.category || '').slice(0, 40),
+          skillKey: String(area?.skillKey || '').slice(0, 80)
+        })).filter(area => area.category && area.skillKey).slice(0, 4)
+      }))
+    };
+  }
+
+  function normalizedStationText(value) {
+    return String(value || '').trim().toLocaleLowerCase('de-DE').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
+  }
+
+  function primaryFocusKey(station) {
+    const focus = station?.focusAreas?.[0];
+    return focus ? `${normalizedStationText(focus.category)}:${normalizedStationText(focus.skillKey)}` : '';
+  }
+
+  function isMeaningfullyNewFridayPlan(stations, previousPlan) {
+    if (!previousPlan) return true;
+    if (!Array.isArray(stations) || stations.length !== 5) return false;
+    const previousTitles = new Set(previousPlan.stations.map(station => normalizedStationText(station.title)).filter(Boolean));
+    const previousFocuses = new Set(previousPlan.stations.map(primaryFocusKey).filter(Boolean));
+    const allTitlesNew = stations.every(station => {
+      const title = normalizedStationText(station?.title);
+      return title && !previousTitles.has(title);
+    });
+    const newPrimaryFocuses = stations.filter(station => {
+      const focus = primaryFocusKey(station);
+      return focus && !previousFocuses.has(focus);
+    }).length;
+    return allTitlesNew && newPrimaryFocuses >= 3;
+  }
+
   async function generateFridayTraining(friday, game, existing = null) {
     if (!game || !BT.stationTraining) throw new Error('Das Wochenendspiel für das Freitagstraining fehlt.');
-    const slot = fridaySlot(friday, game);
-    const payload = buildAIPayload([slot], BT.storage.getSetting('seasonCoachInput', {}));
-    const response = await BT.api.ai('planSeason', { data: payload });
-    const [entry] = validateBatchResponse(response, [slot]);
+    const previousPlan = previousFridayPlan(existing);
+    let slot;
+    let payload;
+    let entry;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      slot = fridaySlot(friday, game);
+      if (previousPlan) {
+        slot.previousStationPlan = previousPlan;
+        slot.replanAttempt = attempt;
+        slot.replanRequirement = 'Keine Stationsbezeichnung übernehmen und mindestens drei der fünf primären focusAreas fachlich verändern.';
+      }
+      payload = buildAIPayload([slot], BT.storage.getSetting('seasonCoachInput', {}));
+      const response = await BT.api.ai('planSeason', { data: payload });
+      [entry] = validateBatchResponse(response, [slot]);
+      if (isMeaningfullyNewFridayPlan(entry?.stationTraining?.stations, previousPlan)) break;
+      if (attempt === 2) throw new Error('Die KI hat zweimal denselben oder einen zu ähnlichen Stationsplan geliefert. Der bisherige Plan wurde nicht verändert.');
+    }
     const training = existing || {
       date: friday,
       startTime: slot.time,
