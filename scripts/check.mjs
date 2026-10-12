@@ -10,6 +10,7 @@ const scripts = [
   'js/coaching-staff.js', 'js/coaching-staff.mjs',
   'js/training-timer.js',
   'js/development-core.js',
+  'js/development-import.js',
   'js/training-live.js',
   'js/training-shots.js',
   'js/station-training.js',
