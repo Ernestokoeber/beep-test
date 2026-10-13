@@ -177,7 +177,7 @@ assert.equal(updated.status, 'developing');
 
 dom.window.eval(readFileSync(new URL('../js/history.js', import.meta.url), 'utf8'));
 const history = dom.window.BT.history;
-const newerRemoteFinding = finding({ id: 'df_import_1', observation: 'Neuere Backup-Fassung', updatedAt: '2026-10-12T19:00:00.000Z' });
+const newerRemoteFinding = finding({ id: 'df_import_1', observation: 'Neuere Backup-Fassung', updatedAt: new Date(Date.parse(updated.updatedAt) + 3600000).toISOString() });
 history.applyBackup({ ...schemaFour, developmentFindings: [newerRemoteFinding] }, 'm');
 const mergedBackup = storage.load();
 assert.equal(mergedBackup.schemaVersion, 5);

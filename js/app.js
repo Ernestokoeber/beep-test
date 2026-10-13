@@ -169,8 +169,13 @@
   }
 
   let renderedHash = location.hash || '#/dashboard';
+  let storageReady = null;
   let initialSync = Promise.resolve();
   async function route() {
+    if (storageReady) {
+      try { await storageReady; }
+      catch { return; }
+    }
     const hash = location.hash || '#/dashboard';
     if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
       await initialSync;
@@ -320,9 +325,20 @@
 
   window.addEventListener('hashchange', route);
   let initialized = false;
-  function init() {
+  async function init() {
     if (initialized) return;
     initialized = true;
+    try {
+      if (BT.storage?.ready) {
+        storageReady = BT.storage.ready();
+        await storageReady;
+        storageReady = null;
+      }
+    } catch (error) {
+      app.textContent = 'Die gespeicherten CourtHub-Daten konnten nicht geladen werden. Bitte die App erneut öffnen. Keine Website-Daten löschen.';
+      console.error('Workspace initialization failed', error);
+      return;
+    }
     setupTheme(); setupHamburger(); setupViewportMetrics(); setupTopbarHeight();
     // Selected games and edited plans can rebuild inside the current route.
     if (window.MutationObserver) {
@@ -344,13 +360,15 @@
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     let reloadingForUpdate = false;
     let hadController = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
+    navigator.serviceWorker.addEventListener('controllerchange', async () => {
       const isUpdate = hadController;
       hadController = !!navigator.serviceWorker.controller;
       // First installation can claim this page without downloading it again.
       // Existing clients reload once to pick up the newly installed release.
       if (!isUpdate || !hadController || reloadingForUpdate) return;
       reloadingForUpdate = true;
+      try { if (BT.storage?.flush) await BT.storage.flush(); }
+      catch { reloadingForUpdate = false; return; }
       location.reload();
     });
     window.addEventListener('load', () => {

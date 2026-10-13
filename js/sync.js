@@ -14,15 +14,18 @@ BT.sync = (function() {
     const fingerprint=await tokenFingerprint(sessionToken);
     if(fingerprint!==undefined)localStorage.setItem(IDENTITY_KEY,JSON.stringify({user,fingerprint}));
   } catch {} }
-  function activateTeam(nextUser) {
+  async function activateTeam(nextUser) {
     const next = nextUser?.organization?.id;
     if (!next) return;
     // Preserve the old team's cache, but never upload it into a newly signed-in team.
     const previous = localStorage.getItem(OWNER_KEY);
     if (previous && previous !== next) {
-      localStorage.setItem('courthub_team_cache:' + previous, JSON.stringify(BT.storage.load()));
-      const cached = JSON.parse(localStorage.getItem('courthub_team_cache:' + next) || '{"games":[]}');
-      BT.storage.save(cached, { fromSync: true, preserveTimestamp: true });
+      if (BT.storage.cacheWorkspace) await BT.storage.cacheWorkspace(previous, BT.storage.load());
+      else localStorage.setItem('courthub_team_cache:' + previous, JSON.stringify(BT.storage.load()));
+      const cached = BT.storage.getCachedWorkspace
+        ? await BT.storage.getCachedWorkspace(next)
+        : JSON.parse(localStorage.getItem('courthub_team_cache:' + next) || '{"games":[]}');
+      await BT.storage.save(cached, { fromSync: true, preserveTimestamp: true });
       storeVersion(0);
     }
     localStorage.setItem(OWNER_KEY, next);
@@ -105,7 +108,7 @@ BT.sync = (function() {
     if (!current(epoch)) return;
     applying = true;
     try {
-      BT.storage.save(protectedData, { fromSync: true, preserveTimestamp: true });
+      await BT.storage.save(protectedData, { fromSync: true, preserveTimestamp: true });
       storeVersion(nextVersion);
     } finally {
       applying = false;
@@ -115,6 +118,8 @@ BT.sync = (function() {
 
   async function pushLatest(epoch) {
     if (!user || !current(epoch)) return;
+    await BT.storage.flush?.();
+    if (!current(epoch)) return;
     setStatus('syncing');
 
     let conflicts = 0;
@@ -133,7 +138,7 @@ BT.sync = (function() {
         if(bridge && result.data){
           const accepted=await bridge.mergeAccepted(BT.storage.load(),result.data,scope);
           if(!current(epoch))return;
-          BT.storage.save(accepted,{fromSync:true,preserveTimestamp:true});
+          await BT.storage.save(accepted,{fromSync:true,preserveTimestamp:true});
         }
         if (bridge) await bridge.ack(prepared.receipt, scope);
         if (!current(epoch)) return;
@@ -167,7 +172,7 @@ BT.sync = (function() {
           if (bridge && (await bridge.hasPending(liveScope()))) {
             const merged = await bridge.beforeApply(remote.data, liveScope());
             if (!current(epoch)) return;
-            BT.storage.save(merged, { fromSync: true, preserveTimestamp: true });
+            await BT.storage.save(merged, { fromSync: true, preserveTimestamp: true });
             continue;
           }
 
@@ -177,7 +182,7 @@ BT.sync = (function() {
             clearTimeout(timer);
             timer = null;
             pushRequested = false;
-            BT.storage.save(latestLocal, { fromSync: true, preserveTimestamp: true });
+            await BT.storage.save(latestLocal, { fromSync: true, preserveTimestamp: true });
             continue;
           }
 
@@ -254,7 +259,7 @@ BT.sync = (function() {
     if(bridge && timestamp(local)>=timestamp(remote.data)){
       local=await bridge.mergeAccepted(local,remote.data,liveScope());
       if(!current(epoch))return;
-      BT.storage.save(local,{fromSync:true,preserveTimestamp:true});
+      await BT.storage.save(local,{fromSync:true,preserveTimestamp:true});
     }
     if (!hasTeamData(remote.data) && hasTeamData(local)) {
       await push();
@@ -281,7 +286,7 @@ BT.sync = (function() {
     pushRequested = false;
     BT.api.setToken(result.token);
     sessionToken=BT.api.getToken();
-    activateTeam(result.user);
+    await activateTeam(result.user);
     user = result.user;
     const epoch=sessionEpoch;await rememberIdentity();if(!current(epoch))return;
     emit();
@@ -335,7 +340,7 @@ BT.sync = (function() {
     try {
       const result = await BT.api.me();
       if(epoch!==sessionEpoch||BT.api.getToken()!==token)return;
-      activateTeam(result.user);
+      await activateTeam(result.user);
       user = result.user;
       await rememberIdentity();if(!current(epoch))return;
       emit();

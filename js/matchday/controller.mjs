@@ -42,7 +42,7 @@ export async function openMatchday({gameId,scope,deps=browserDependencies(gameId
   async function write(next){guarded();const saved=await journal.append(gameId,next);ensure(identityOK(),'identity','Lokal gesichert. Konto gewechselt; Ansicht neu öffnen.');envelope=saved;localStatus='pending';
     const data=deps.load(),target=data.games?.find(g=>g.id===gameId);ensure(target,'deletion','Spiel entfernt; Vorbereitung bleibt im Journal.');
     target.matchday=mergeMatchday(target.matchday,saved).value;
-    try{deps.save(data);}catch(e){error='Lokal gesichert; Teamdaten konnten nicht gespeichert werden: '+e.message;}
+    try{await deps.save(data);}catch(e){error='Lokal gesichert; Teamdaten konnten nicht gespeichert werden: '+e.message;}
   }
   const metadata=()=>({id:deps.uuid(),actorId:scope.actorId,deviceId:deps.deviceId,recordedAt:new Date(deps.now()).toISOString()});
   function saveDraft(value,{parents=selectDraft(envelope).heads}={}){

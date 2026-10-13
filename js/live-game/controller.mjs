@@ -45,7 +45,7 @@ export async function openLiveGame({gameId,scope,deps=browserDependencies(gameId
     const data=deps.load(),game=data.games?.find(g=>g.id===gameId);
     ensure(game,'deletion','Spiel fehlt. Aktionen bleiben im lokalen Journal erhalten.');
     game.liveStats=mergeLiveStats(live,game.liveStats).value;
-    try{deps.save(data);}catch(e){error='Im Live-Journal gesichert; Teamdaten konnten nicht gespeichert werden: '+e.message;}
+    try{await deps.save(data);}catch(e){error='Im Live-Journal gesichert; Teamdaten konnten nicht gespeichert werden: '+e.message;}
   }
   async function execute(command){
     ensure(!archiveReadOnly(),'archive','Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.');

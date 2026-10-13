@@ -4,11 +4,126 @@ BT.storage = (function() {
   const KEY = 'beepTest_v1';
   const CURRENT_SCHEMA = 5;
   let readCache = null;
+  // Small workspaces keep the existing synchronous storage path. Once it is
+  // full, keep an immutable read snapshot and persist writes in IndexedDB.
+  // Never discard the old localStorage copy before a transaction commits.
+  const DB_NAME = 'courthub-workspace';
+  const STORE = 'workspaces';
+  let databasePromise = null;
+  let readyPromise = null;
+  let workspaceRaw = null;
+  let committedRaw = null;
+  let lastWrite = Promise.resolve();
+  let writeSequence = 0;
+  let pendingWrites = 0;
+
+  function openDatabase() {
+    if (!databasePromise) databasePromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('Der Browser stellt keinen erweiterten Datenspeicher bereit.')); return; }
+      const request = window.indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(STORE);
+      request.onerror = () => { databasePromise = null; reject(request.error); };
+      request.onblocked = () => { databasePromise = null; reject(new Error('Bitte andere CourtHub-Tabs schließen und erneut versuchen.')); };
+      request.onsuccess = () => {
+        const database = request.result;
+        database.onversionchange = () => { database.close(); databasePromise = null; };
+        resolve(database);
+      };
+    });
+    return databasePromise;
+  }
+
+  async function readPersistent(key = KEY) {
+    const database = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(STORE, 'readonly');
+      const request = transaction.objectStore(STORE).get(key);
+      transaction.oncomplete = () => resolve(request.result ?? null);
+      transaction.onabort = () => reject(transaction.error || new Error('Datenspeicher konnte nicht gelesen werden.'));
+      transaction.onerror = () => {};
+    });
+  }
+
+  function ready() {
+    if (!readyPromise) readyPromise = (async () => {
+      if (!window.indexedDB) return;
+      const raw = await readPersistent();
+      if (raw !== null && workspaceRaw === null) {
+        JSON.parse(raw); // A corrupt persisted record must not become an empty workspace.
+        workspaceRaw = committedRaw = raw;
+      }
+    })();
+    return readyPromise;
+  }
+
+  function flush() { return lastWrite; }
+
+  async function writePersistent(key, raw) {
+    const database = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(STORE, 'readwrite');
+      transaction.oncomplete = resolve;
+      transaction.onabort = () => reject(transaction.error || new Error('Daten konnten nicht dauerhaft gespeichert werden.'));
+      transaction.onerror = () => {};
+      transaction.objectStore(STORE).put(raw, key);
+    });
+  }
+
+  async function cacheWorkspace(teamId, data) {
+    await flush();
+    const key = 'courthub_team_cache:' + teamId;
+    const raw = JSON.stringify(data);
+    if (window.indexedDB) {
+      await writePersistent(key, raw);
+      localStorage.removeItem(key);
+    } else localStorage.setItem(key, raw);
+  }
+
+  async function getCachedWorkspace(teamId) {
+    const key = 'courthub_team_cache:' + teamId;
+    const raw = window.indexedDB ? await readPersistent(key) : null;
+    return JSON.parse(raw ?? localStorage.getItem(key) ?? '{"games":[]}');
+  }
+
+  function persist(raw, config) {
+    const sequence = ++writeSequence;
+    workspaceRaw = raw;
+    pendingWrites++;
+    const write = lastWrite.catch(() => {}).then(async () => {
+      await writePersistent(KEY, raw);
+      committedRaw = raw;
+      try {
+        localStorage.removeItem(KEY);
+        localStorage.setItem('courthub_workspace_revision', BT.util.uuid('ws_'));
+      } catch { /* The committed IndexedDB record remains authoritative. */ }
+      if (!config.fromSync && BT.sync?.queueSave) BT.sync.queueSave(JSON.parse(raw));
+    }).catch(error => {
+      if (sequence === writeSequence) workspaceRaw = committedRaw;
+      BT.util.toast?.('Speichern fehlgeschlagen. Bitte geöffnet lassen und erneut versuchen.');
+      throw error;
+    }).finally(() => { pendingWrites--; });
+    lastWrite = write;
+    // Existing synchronous callers receive the snapshot immediately. Async
+    // callers (imports, sync, reload) still observe transaction failures.
+    write.catch(error => console.error('Workspace persistence failed', error));
+    return write;
+  }
+
+  window.addEventListener?.('storage', async event => {
+    if (event.key !== 'courthub_workspace_revision' || pendingWrites) return;
+    try {
+      const raw = await readPersistent();
+      if (raw !== null && !pendingWrites) {
+        workspaceRaw = committedRaw = raw;
+        window.dispatchEvent(new Event('hashchange'));
+      }
+    } catch (error) { console.error('Workspace refresh failed', error); }
+  });
 
   function load() {
     if (readCache) return readCache;
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = workspaceRaw ?? localStorage.getItem(KEY);
       if (!raw) return empty();
       const data = JSON.parse(raw);
       if (!data.schemaVersion) return empty();
@@ -27,7 +142,9 @@ BT.storage = (function() {
       data.developmentImportReceipts = data.developmentImportReceipts || [];
       if (data.schemaVersion < CURRENT_SCHEMA) {
         migrate(data);
-        localStorage.setItem(KEY, JSON.stringify(data));
+        // A schema migration must remain readable even when storage is full.
+        try { save(data, { fromSync: true, preserveTimestamp: true }); }
+        catch (error) { console.error('Schema migration could not be persisted', error); }
       }
       return data;
     } catch (e) {
@@ -102,7 +219,15 @@ BT.storage = (function() {
     validatePlayerTnaNumbers(data.players);
     data.meta = data.meta || {};
     if (!config.preserveTimestamp) data.meta.updatedAt = new Date().toISOString();
-    localStorage.setItem(KEY, JSON.stringify(data));
+    const raw = JSON.stringify(data);
+    if (workspaceRaw !== null) return persist(raw, config);
+    try {
+      localStorage.setItem(KEY, raw);
+      lastWrite = Promise.resolve();
+    } catch (error) {
+      if (!window.indexedDB || (error.name !== 'QuotaExceededError' && error.code !== 22 && error.code !== 1014)) throw error;
+      return persist(raw, config);
+    }
     if (!config.fromSync && window.BT && BT.sync && BT.sync.queueSave) BT.sync.queueSave(data);
   }
 
@@ -685,7 +810,7 @@ BT.storage = (function() {
   }
 
   return {
-    load, save, withReadCache,
+    load, save, ready, flush, cacheWorkspace, getCachedWorkspace, withReadCache,
     getPlayers, getPlayer, upsertPlayer, setArchived, deletePlayer, attendanceForActivePlayers,
     getSessions, getSession, createSession, updateSession, deleteSession,
     getTrainings, getTraining, upsertTraining, deleteTraining, restoreTraining,

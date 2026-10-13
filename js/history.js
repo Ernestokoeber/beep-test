@@ -156,8 +156,7 @@ BT.history = (function() {
     if (mode === 'r') {
       const replacement = { schemaVersion: 5, settings: importSettings(data) };
       IMPORT_LISTS.forEach(key => { replacement[key] = importList(data, key); });
-      BT.storage.save(replacement);
-      return;
+      return BT.storage.save(replacement);
     }
     if (mode === 'm') {
       const merged = { schemaVersion: 5, settings: Object.assign({}, current.settings || {}, importSettings(data)) };
@@ -166,8 +165,7 @@ BT.history = (function() {
           ? BT.developmentCore.mergeVersionedById(importList(current, key), importList(data, key))
           : mergeById(importList(current, key), importList(data, key));
       });
-      BT.storage.save(merged);
-      return;
+      return BT.storage.save(merged);
     }
     throw new Error('Ungültiger Importmodus.');
   }
@@ -182,17 +180,22 @@ BT.history = (function() {
         alert('Ungültige Backup-Datei.');
         return;
       }
+      await BT.storage.ready?.();
       const current = BT.storage.load();
       const hasData = hasImportableData(current);
       const choice = hasData
         ? prompt('Backup importieren:\n  "m" = Mergen (bestehende Daten behalten, neue ergänzen)\n  "r" = Ersetzen (alle aktuellen Daten löschen)\n  Abbrechen = leer lassen', 'm')
         : 'r';
       if (!choice) return;
-      applyBackup(data, choice);
+      await applyBackup(data, choice);
+      await BT.storage.flush?.();
       alert('Import erfolgreich.');
       location.reload();
     } catch (e) {
-      alert('Fehler beim Import: ' + e.message);
+      const quota = e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014;
+      alert(quota
+        ? 'Backup konnte nicht gespeichert werden: Der verfügbare Browserspeicher ist ausgeschöpft. Bestehende Daten bleiben erhalten. Bitte keine Website-Daten löschen.'
+        : 'Fehler beim Import: ' + e.message);
     }
   }
 
