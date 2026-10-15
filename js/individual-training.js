@@ -89,9 +89,13 @@ BT.individualTraining = (function() {
   function needsPilotStart(data) {
     const profiles = data.profiles || [];
     if (!profiles.length) return false;
-    return profiles.some(profile => !(data.sessions || []).some(session =>
-      session.individual_profile_id === profile.id && Number(session.unit_number) === 1 && session.status !== 'cancelled'
-    ));
+    return profiles.some(profile => {
+      const session = (data.sessions || []).find(item =>
+        item.individual_profile_id === profile.id && Number(item.unit_number) === 1 && item.status !== 'cancelled'
+      );
+      if (!session) return true;
+      return !(data.plans || []).some(plan => plan.session_id === session.id && plan.individual_profile_id === profile.id);
+    });
   }
 
   function currentFocus(data, profileId) {

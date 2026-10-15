@@ -121,13 +121,16 @@ async function insertPilotTemplate(client, session, profiles, createdBy) {
   return plans;
 }
 
-async function addSessionParticipant(client, session, profile) {
+async function addSessionParticipantRecord(client, session, profile) {
   await client.query(
     `INSERT INTO individual_session_participants (session_id, individual_profile_id)
      VALUES ($1, $2)
      ON CONFLICT (session_id, individual_profile_id) DO NOTHING`,
     [session.id, profile.id]
   );
+}
+
+async function addSessionNotification(client, session, profile) {
   await client.query(
     `INSERT INTO individual_notifications
       (individual_profile_id, notification_key, kind, due_at, payload)
@@ -139,7 +142,12 @@ async function addSessionParticipant(client, session, profile) {
   );
 }
 
-async function ensurePilotStart(client, auth) {
+async function addSessionParticipant(client, session, profile) {
+  await addSessionParticipantRecord(client, session, profile);
+  await addSessionNotification(client, session, profile);
+}
+
+async function ensurePilotStartCore(client, auth) {
   await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [auth.sub]);
   const profileResult = await client.query(
     `SELECT * FROM individual_profiles
@@ -173,15 +181,21 @@ async function ensurePilotStart(client, auth) {
   }
 
   for (const profile of profiles) {
-    await addSessionParticipant(client, session, profile);
+    await addSessionParticipantRecord(client, session, profile);
+  }
+  return { session, profiles, profileIds: profiles.map(profile => profile.id) };
+}
+
+async function ensurePilotStartExtras(client, auth, ensured) {
+  for (const profile of ensured.profiles) {
+    await addSessionNotification(client, ensured.session, profile);
     const plan = await client.query(
       `SELECT id FROM individual_session_plans
         WHERE session_id = $1 AND individual_profile_id = $2`,
-      [session.id, profile.id]
+      [ensured.session.id, profile.id]
     );
-    if (!plan.rows[0]) await insertPilotTemplate(client, session, [profile], auth.sub);
+    if (!plan.rows[0]) await insertPilotTemplate(client, ensured.session, [profile], auth.sub);
   }
-  return { session, profileIds: profiles.map(profile => profile.id) };
 }
 
 async function insertApprovedDraftPlans(client, session, profiles, createdBy) {
@@ -227,13 +241,25 @@ export function createIndividualManageHandler(deps = {}) {
         return res.status(403).json({ error: 'Kein Zugriff auf Individual Training.' });
       }
 
-      const result = await runTransaction(async client => {
-        if (action === 'ensurePilotStart') {
-          if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen den Pilotstart planen.');
-          const ensured = await ensurePilotStart(client, auth);
-          return { status: 200, body: { ...ensured, ensured: true } };
+      if (action === 'ensurePilotStart') {
+        if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen den Pilotstart planen.');
+        const ensured = await runTransaction(client => ensurePilotStartCore(client, auth));
+        let detailsComplete = true;
+        try {
+          await runTransaction(client => ensurePilotStartExtras(client, auth, ensured));
+        } catch (error) {
+          detailsComplete = false;
+          console.error('[individual-pilot-details]', error);
         }
+        return res.status(200).json({
+          session: ensured.session,
+          profileIds: ensured.profileIds,
+          ensured: true,
+          detailsComplete
+        });
+      }
 
+      const result = await runTransaction(async client => {
         if (action === 'createProfile') {
           if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen Individualprofile anlegen.');
           const playerProfileId = text(req.body.playerProfileId, 'Spielerprofil-ID', { min: 1, max: 120 });
