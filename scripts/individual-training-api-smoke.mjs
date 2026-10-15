@@ -70,6 +70,34 @@ const forbiddenResponse = response();
 await forbiddenCreate({ method: 'POST', body: { action: 'createProfile', playerProfileId: 'p1' }, headers: {} }, forbiddenResponse);
 assert.equal(forbiddenResponse.statusCode, 403, 'Spieler darf Individualprofile anlegen');
 
+const ensuredSql = [];
+let planSequence = 0;
+const ensureHandler = createIndividualManageHandler({
+  requireMembership: async () => coachAuth,
+  transaction: async callback => callback({
+    query: async (sql, params) => {
+      ensuredSql.push({ sql, params });
+      if (sql.includes('SELECT id FROM users')) return { rows: [{ id: IDS.coach }] };
+      if (sql.includes('FROM individual_profiles') && sql.includes('active = TRUE')) return { rows: [
+        { id: IDS.profile, organization_id: IDS.organization, coach_user_id: IDS.coach },
+        { id: IDS.otherProfile, organization_id: IDS.organization, coach_user_id: IDS.coach }
+      ] };
+      if (sql.includes('FROM individual_sessions') && sql.includes('unit_number = 1')) return { rows: [] };
+      if (sql.includes('INSERT INTO individual_sessions')) return { rows: [{ id: IDS.session, scheduled_for: '2026-10-19T18:15:00.000Z', unit_number: 1, status: 'planned' }] };
+      if (sql.includes('SELECT id FROM individual_session_plans')) return { rows: [] };
+      if (sql.includes('INSERT INTO individual_session_plans')) return { rows: [{ id: `88888888-8888-4888-8888-88888888888${planSequence++}` }] };
+      return { rows: [] };
+    }
+  })
+});
+const ensureResponse = response();
+await ensureHandler({ method: 'POST', headers: {}, body: { action: 'ensurePilotStart' } }, ensureResponse);
+assert.equal(ensureResponse.statusCode, 200, 'Verbindlicher Pilotstart wurde nicht automatisch angelegt');
+assert.equal(ensureResponse.body.profileIds.length, 2, 'Die gemeinsame Einheit enthält nicht beide Pilotspieler');
+assert(ensuredSql.some(item => item.sql.includes('INSERT INTO individual_sessions') && item.params?.[2] === '2026-10-19T18:15:00.000Z'));
+assert.equal(ensuredSql.filter(item => item.sql.includes('INSERT INTO individual_session_participants')).length, 2);
+assert.equal(ensuredSql.filter(item => item.sql.includes('INSERT INTO individual_session_plans')).length, 2);
+
 const sessionSql = [];
 const sessionHandler = createIndividualManageHandler({
   requireMembership: async () => coachAuth,

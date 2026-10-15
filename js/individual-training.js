@@ -86,6 +86,14 @@ BT.individualTraining = (function() {
       .sort((a, b) => Date.parse(a.scheduled_for) - Date.parse(b.scheduled_for))[0] || null;
   }
 
+  function needsPilotStart(data) {
+    const profiles = data.profiles || [];
+    if (!profiles.length) return false;
+    return profiles.some(profile => !(data.sessions || []).some(session =>
+      session.individual_profile_id === profile.id && Number(session.unit_number) === 1 && session.status !== 'cancelled'
+    ));
+  }
+
   function currentFocus(data, profileId) {
     const today = new Date().toISOString().slice(0, 10);
     return (data.focuses || []).find(item => item.individual_profile_id === profileId && item.valid_from <= today && item.valid_until >= today)
@@ -282,7 +290,7 @@ BT.individualTraining = (function() {
         <div class="wide"><dt>Wochenfokus</dt><dd>${focus ? BT.util.escapeHTML(focus.title) : 'Noch nicht freigegeben'}</dd></div>
         <div class="wide"><dt>KI-Status</dt><dd>${latestDraft ? BT.util.escapeHTML(draftLabel(latestDraft.status)) : 'Noch kein Entwurf'}</dd></div>
       </dl>
-      <div class="individual-actions"><button class="btn" data-action="invite-player">Einladungslink</button><button class="btn primary" data-action="open-profile">Spieler öffnen</button></div>
+      <div class="individual-actions"><button class="btn" type="button" data-action="invite-player">Einladungslink</button><button class="btn primary" type="button" data-action="open-profile">Spieler öffnen</button></div>
     </article>`;
   }
 
@@ -460,7 +468,7 @@ BT.individualTraining = (function() {
     host.innerHTML = `<div class="section-head"><div><span class="section-kicker">Coach-Ansicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div></div>
       ${renderPilotRoadmap(data, sessions)}
       <div class="individual-detail-grid">
-        <form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>
+        ${activeSession && ['planned', 'in_progress'].includes(activeSession.status) ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · 105 Minuten</p></section>` : `<form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>`}
         <form class="card" data-coach-note><h4>Private Coach-Notiz</h4><textarea name="note" maxlength="5000" required></textarea><button class="btn" type="submit">Privat speichern</button></form>
         <form class="card" data-release-feedback><h4>Feedback freigeben</h4><textarea name="content" maxlength="5000" required></textarea><button class="btn primary" type="submit">Für Spieler freigeben</button></form>
       </div>
@@ -477,7 +485,7 @@ BT.individualTraining = (function() {
       <section class="card"><h4>Einheiten</h4>${sessions.length ? `<ul>${sessions.map(item => `<li>${fmt(item.scheduled_for)} · ${BT.util.escapeHTML(item.status)} · Einheit ${item.unit_number || '–'} · ${BT.util.escapeHTML(item.attendance_status)}</li>`).join('')}</ul>` : '<p class="muted">Noch keine Einheit angelegt.</p>'}</section>
       <section class="card private-coach-card"><h4>Private Notizen</h4>${notes.length ? notes.map(item => `<p>${BT.util.escapeHTML(item.note)} <small>${fmt(item.created_at)}</small></p>`).join('') : '<p class="muted">Keine privaten Notizen.</p>'}</section>
       <section class="card"><h4>Freigegebenes Feedback</h4>${feedback.length ? feedback.map(item => `<p>${BT.util.escapeHTML(item.content)}</p>`).join('') : '<p class="muted">Noch nichts freigegeben.</p>'}</section>`;
-    host.querySelector('[data-plan-session]').addEventListener('submit', async event => {
+    host.querySelector('[data-plan-session]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
       const secondProfileId = form.get('secondProfileId');
       try { await BT.api.individualAction('createSession', { profileIds: [profile.id, secondProfileId].filter(Boolean), scheduledDate: form.get('scheduledDate'), scheduledTime: form.get('scheduledTime'), durationMinutes: 105 }); await render(root.parentElement); }
@@ -552,10 +560,18 @@ BT.individualTraining = (function() {
       try { await BT.api.individualAction('createProfile', { playerProfileId: form.get('playerProfileId'), pilotStartedOn: form.get('pilotStartedOn') }); await render(target); }
       catch (error) { notice(root, error.message, true); }
     });
-    root.querySelectorAll('[data-profile-id]').forEach(card => {
+    root.addEventListener('click', async event => {
+      const actionButton = event.target.closest('[data-action]');
+      const card = actionButton?.closest('[data-profile-id]');
+      if (!actionButton || !card) return;
       const profile = data.profiles.find(item => item.id === card.dataset.profileId);
-      card.querySelector('[data-action="open-profile"]').addEventListener('click', () => renderCoachDetail(root, profile, data));
-      card.querySelector('[data-action="invite-player"]').addEventListener('click', async () => {
+      if (!profile) return;
+      if (actionButton.dataset.action === 'open-profile') {
+        renderCoachDetail(root, profile, data);
+        root.querySelector('[data-role="individual-detail"]')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (actionButton.dataset.action === 'invite-player') {
         try {
           const result = await BT.api.individualAction('createInvite', { profileId: profile.id, expiresInHours: 72 });
           const url = result.inviteUrl || `${location.origin}${location.pathname}?individualInvite=${encodeURIComponent(result.token)}#/account`;
@@ -566,7 +582,7 @@ BT.individualTraining = (function() {
           else await navigator.clipboard.writeText(url);
           notice(root, 'Einladungslink wurde bereitgestellt. Er ist einmal verwendbar.');
         } catch (error) { notice(root, error.message, true); }
-      });
+      }
     });
   }
 
@@ -580,10 +596,23 @@ BT.individualTraining = (function() {
       return;
     }
     try {
-      const data = await loadOverview();
+      let data = await loadOverview();
       if (request !== activeRequest) return;
+      let pilotStartError = null;
+      if (['admin', 'coach'].includes(current.role) && needsPilotStart(data)) {
+        try {
+          await BT.api.individualAction('ensurePilotStart', {});
+          data = await loadOverview();
+          if (request !== activeRequest) return;
+        } catch (error) {
+          pilotStartError = error;
+        }
+      }
       if (current.role === 'player') renderPlayer(target, data);
-      else renderCoach(target, data);
+      else {
+        renderCoach(target, data);
+        if (pilotStartError) notice(target.querySelector('.individual-view'), pilotStartError.message, true);
+      }
     } catch (error) {
       if (request !== activeRequest) return;
       target.innerHTML = `<section class="view individual-view"><h2>Individual Training</h2><p class="auth-status error">${BT.util.escapeHTML(error.message)}</p><button class="btn" data-retry>Erneut laden</button></section>`;

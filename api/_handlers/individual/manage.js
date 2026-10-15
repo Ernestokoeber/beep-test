@@ -121,6 +121,67 @@ async function insertPilotTemplate(client, session, profiles, createdBy) {
   return plans;
 }
 
+async function addSessionParticipant(client, session, profile) {
+  await client.query(
+    `INSERT INTO individual_session_participants (session_id, individual_profile_id)
+     VALUES ($1, $2)
+     ON CONFLICT (session_id, individual_profile_id) DO NOTHING`,
+    [session.id, profile.id]
+  );
+  await client.query(
+    `INSERT INTO individual_notifications
+      (individual_profile_id, notification_key, kind, due_at, payload)
+     VALUES ($1, $1::text || ':attendance:' || ($3::timestamptz - interval '2 hours')::text,
+             'attendance', $3::timestamptz - interval '2 hours',
+             jsonb_build_object('sessionId', $2::text, 'scheduledFor', $3::text))
+     ON CONFLICT (individual_profile_id, notification_key) DO NOTHING`,
+    [profile.id, session.id, session.scheduled_for]
+  );
+}
+
+async function ensurePilotStart(client, auth) {
+  await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [auth.sub]);
+  const profileResult = await client.query(
+    `SELECT * FROM individual_profiles
+      WHERE organization_id = $1 AND coach_user_id = $2 AND active = TRUE
+      ORDER BY created_at ASC`,
+    [auth.organization_id, auth.sub]
+  );
+  const profiles = profileResult.rows;
+  if (!profiles.length) throw new IndividualRequestError(409, 'Zuerst muss mindestens ein Pilotspieler angelegt werden.');
+  assertParticipantCapacity(profiles.map(profile => profile.id));
+
+  const existing = await client.query(
+    `SELECT * FROM individual_sessions
+      WHERE organization_id = $1 AND coach_user_id = $2 AND unit_number = 1 AND status <> 'cancelled'
+      ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+    [auth.organization_id, auth.sub]
+  );
+  let session = existing.rows[0] || null;
+  if (!session) {
+    const scheduledFor = zonedDateTimeToInstant('2026-10-19', '20:15:00');
+    const created = await client.query(
+      `INSERT INTO individual_sessions
+        (organization_id, coach_user_id, scheduled_for, duration_minutes, unit_number)
+       VALUES ($1, $2, $3, 105, 1)
+       RETURNING *`,
+      [auth.organization_id, auth.sub, scheduledFor]
+    );
+    session = created.rows[0];
+  }
+
+  for (const profile of profiles) {
+    await addSessionParticipant(client, session, profile);
+    const plan = await client.query(
+      `SELECT id FROM individual_session_plans
+        WHERE session_id = $1 AND individual_profile_id = $2`,
+      [session.id, profile.id]
+    );
+    if (!plan.rows[0]) await insertPilotTemplate(client, session, [profile], auth.sub);
+  }
+  return { session, profileIds: profiles.map(profile => profile.id) };
+}
+
 async function insertApprovedDraftPlans(client, session, profiles, createdBy) {
   const plans = [];
   for (const profile of profiles) {
@@ -165,6 +226,12 @@ export function createIndividualManageHandler(deps = {}) {
       }
 
       const result = await runTransaction(async client => {
+        if (action === 'ensurePilotStart') {
+          if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen den Pilotstart planen.');
+          const ensured = await ensurePilotStart(client, auth);
+          return { status: 200, body: { ...ensured, ensured: true } };
+        }
+
         if (action === 'createProfile') {
           if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen Individualprofile anlegen.');
           const playerProfileId = text(req.body.playerProfileId, 'Spielerprofil-ID', { min: 1, max: 120 });
@@ -235,21 +302,7 @@ export function createIndividualManageHandler(deps = {}) {
              RETURNING *`,
             [auth.organization_id, auth.sub, assertPilotSessionInstant(req.body.scheduledFor, expectedDate, req.body.scheduledTime ? `${requestedTime}:00` : null), durationMinutes, unitNumber]
           );
-          for (const profile of profiles) {
-            await client.query(
-              `INSERT INTO individual_session_participants (session_id, individual_profile_id)
-               VALUES ($1, $2)`, [created.rows[0].id, profile.id]
-            );
-            await client.query(
-              `INSERT INTO individual_notifications
-                (individual_profile_id, notification_key, kind, due_at, payload)
-               VALUES ($1, $1::text || ':attendance:' || ($3::timestamptz - interval '2 hours')::text,
-                       'attendance', $3::timestamptz - interval '2 hours',
-                       jsonb_build_object('sessionId', $2::text, 'scheduledFor', $3::text))
-               ON CONFLICT (individual_profile_id, notification_key) DO NOTHING`,
-              [profile.id, created.rows[0].id, created.rows[0].scheduled_for]
-            );
-          }
+          for (const profile of profiles) await addSessionParticipant(client, created.rows[0], profile);
           const fixedPlans = await insertPilotTemplate(client, created.rows[0], profiles, auth.sub);
           const plans = fixedPlans || await insertApprovedDraftPlans(client, created.rows[0], profiles, auth.sub);
           return { status: 201, body: { session: created.rows[0], profileIds: profiles.map(profile => profile.id), plans } };

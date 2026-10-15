@@ -14,7 +14,15 @@ function browser(role, overview) {
     api: {
       getIndividualOverview: async () => overview,
       syncIndividualMutations: async mutations => ({ results: mutations.map(item => ({ mutation_id: item.mutationId, applied: true })) }),
-      individualAction: async () => ({})
+      individualAction: async action => {
+        if (action === 'ensurePilotStart' && overview.role === 'coach' && overview.profiles?.length && !overview.sessions?.length) {
+          overview.sessions = overview.profiles.map((item, index) => ({
+            id: `session-${index + 1}`, individual_profile_id: item.id,
+            scheduled_for: '2026-10-19T18:15:00.000Z', status: 'planned', unit_number: 1, attendance_status: 'pending'
+          }));
+        }
+        return {};
+      }
     },
     storage: { getPlayers: () => [
       { id: 'player-1', name: 'Thomas Albrecht' },
@@ -83,6 +91,8 @@ assert(cardText.includes('Teilnahme'));
 assert(cardText.includes('Wochenfokus'));
 assert(cardText.includes('Rückmeldung'));
 coachWindow.document.querySelector('[data-action="open-profile"]').click();
+assert.equal(coachWindow.document.querySelector('[data-action="open-profile"]').type, 'button');
+assert.equal(coachWindow.document.querySelector('[data-role="individual-detail"]').hidden, false, 'Spieler öffnen reagiert nicht');
 assert.equal(coachWindow.document.querySelectorAll('[data-pilot-unit]').length, 8, 'Coach-Ansicht zeigt nicht alle acht Piloteinheiten');
 const assessmentUnits = [...coachWindow.document.querySelectorAll('.individual-roadmap-unit.assessment')].map(item => Number(item.dataset.pilotUnit));
 assert.deepEqual(assessmentUnits, [1, 4, 8], 'Einheit 1, 4 und 8 sind nicht als Testeinheiten sichtbar');
@@ -103,5 +113,17 @@ assert(liveText.includes('+1 Min.'));
 assert(liveText.includes('Überspringen'));
 assert(liveText.includes('Taktik öffnen'));
 assert(!coachWindow.document.body.classList.contains('individual-player-mode'));
+
+const initiallyUnplanned = {
+  ...coachData,
+  sessions: [], plans: [], exercises: [], measurements: [], readiness: [], notifications: []
+};
+const unplannedWindow = browser('coach', initiallyUnplanned);
+await unplannedWindow.BT.individualTraining.render(unplannedWindow.document.querySelector('#app'));
+const plannedCardText = unplannedWindow.document.querySelector('[data-profile-id]').textContent;
+assert(!plannedCardText.includes('Nicht geplant'), 'Bestehende Pilotprofile bleiben ohne verbindliche erste Einheit');
+assert(plannedCardText.includes('19.10.2026'), 'Automatisch angelegter Pilotstart wird auf der Spielerkarte nicht angezeigt');
+unplannedWindow.document.querySelector('[data-action="open-profile"]').click();
+assert.equal(unplannedWindow.document.querySelector('[data-role="individual-detail"]').hidden, false, 'Spieler öffnen funktioniert nach der automatischen Planung nicht');
 
 console.log('Individual Training UI: Rollenansichten, Privattrennung, Offline-Queue und Logout erfolgreich.');
