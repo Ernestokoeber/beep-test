@@ -210,7 +210,8 @@
     } else if (hash === '#/individual/account') {
       BT.account.render(app);
     } else if (hash.startsWith('#/individual/player/')) {
-      BT.individualTraining.render(app, decodeURIComponent(hash.slice('#/individual/player/'.length)));
+      const [profileId, pane = 'overview'] = hash.slice('#/individual/player/'.length).split('/');
+      BT.individualTraining.render(app, decodeURIComponent(profileId), pane);
     } else if (isDashboard) {
       const currentUser = BT.sync?.getState?.().user;
       if (currentUser && ['admin', 'coach'].includes(currentUser.role)) {

@@ -3,6 +3,11 @@
 body.individual-workspace-mode .topbar nav > :not(.individual-navigation) { display:none !important; }
 body.individual-workspace-mode .topbar nav > .individual-navigation { display:grid; gap:.25rem; width:100%; }
 body.individual-workspace-mode .individual-navigation .individual-switch-workspace { margin-top:1rem; border-top:1px solid rgba(255,255,255,.2); border-radius:0; }
+body.individual-workspace-mode .individual-navigation .individual-selected-player { background:rgba(255,255,255,.08); }
+body.individual-workspace-mode .individual-navigation .individual-player-menu-label { margin-top:.8rem; color:#f0ad4e; }
+body.individual-workspace-mode .individual-navigation .individual-pane-link { padding-left:1.45rem; font-size:.94rem; }
+.individual-player-title { align-items:center; margin-bottom:1rem; }
+.individual-current-pane { display:inline-flex; align-items:center; min-height:2rem; padding:.35rem .7rem; border-radius:999px; color:#087443; background:rgba(8,116,67,.1); font-size:.82rem; font-weight:800; }
 .individual-hero { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; padding:1.4rem; border-radius:24px; color:#fff; background:linear-gradient(135deg,#004b2b,#087443); margin-bottom:1rem; }
 .individual-hero h2 { color:inherit; margin:.2rem 0; }
 .individual-hero p { margin:0; opacity:.82; }
@@ -138,6 +143,7 @@ body.individual-player-mode .mobile-dock { grid-template-columns:1fr; }
   body.individual-workspace-mode .mobile-dock { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
   body.individual-workspace-mode .topbar nav { right:0; bottom:0; left:auto; width:min(88vw,380px); border-left:1px solid rgba(255,255,255,.18); box-shadow:-18px 0 45px rgba(0,27,16,.32); }
   body.individual-workspace-mode .individual-profile-grid { grid-template-columns:1fr; }
+  .individual-player-title { align-items:flex-start; }
   body:not(.individual-player-mode) .mobile-dock { grid-template-columns:repeat(5,minmax(0,1fr)); }
   .individual-grid,.individual-detail-grid { grid-template-columns:1fr; }
   .individual-hero { flex-direction:column; }

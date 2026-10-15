@@ -96,6 +96,8 @@ assert(coachWindow.location.hash.endsWith(`/individual/player/${profile.id}`), '
 await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id);
 assert(coachWindow.document.querySelector('.individual-coach-detail-page'), 'Eigene mobile Spieleransicht fehlt');
 assert(coachWindow.document.querySelector('[href="#/individual"]'), 'Rückweg zum Coach-Cockpit fehlt');
+assert.equal(coachWindow.document.querySelectorAll('.individual-pane-link').length, 6, 'Spielerfunktionen fehlen im Individual-Menü');
+assert(coachWindow.document.querySelector('.individual-pane-link.active')?.textContent.includes('Übersicht'), 'Übersicht ist im Menü nicht aktiv');
 assert.equal(coachWindow.document.querySelectorAll('[data-pilot-unit]').length, 8, 'Coach-Ansicht zeigt nicht alle acht Piloteinheiten');
 const assessmentUnits = [...coachWindow.document.querySelectorAll('.individual-roadmap-unit.assessment')].map(item => Number(item.dataset.pilotUnit));
 assert.deepEqual(assessmentUnits, [1, 4, 8], 'Einheit 1, 4 und 8 sind nicht als Testeinheiten sichtbar');
@@ -104,7 +106,13 @@ assert(roadmapText.includes('19.10.2026'));
 assert(roadmapText.includes('16.11.2026'));
 assert(roadmapText.includes('14.12.2026'));
 assert(roadmapText.includes('Freigegebenen Ablauf anzeigen'));
+assert(!coachWindow.document.querySelector('[data-measurement]'), 'Messwertformular steht fälschlich offen in der Übersicht');
+assert(!coachWindow.document.querySelector('[data-weekly-focus]'), 'Wochenfokus steht fälschlich offen in der Übersicht');
+assert(!coachWindow.document.querySelector('[data-coach-note]'), 'Notizformular steht fälschlich offen in der Übersicht');
+
+await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'training');
 assert(coachWindow.document.querySelector('[data-action="start-live-training"]'), 'Geführter Trainingsstart fehlt');
+assert(!coachWindow.document.querySelector('[data-measurement]'), 'Messwerte sind nicht vom Trainingsbereich getrennt');
 coachWindow.document.querySelector('[data-action="start-live-training"]').click();
 assert(coachWindow.document.querySelector('.individual-live-shell'), 'Geführter Vollbildmodus fehlt');
 const liveText = coachWindow.document.querySelector('.individual-live-shell').textContent;
@@ -116,6 +124,17 @@ assert(liveText.includes('+1 Min.'));
 assert(liveText.includes('Überspringen'));
 assert(liveText.includes('Taktik öffnen'));
 assert(!coachWindow.document.body.classList.contains('individual-player-mode'));
+
+await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'measurements');
+assert(coachWindow.document.querySelector('[data-measurement]'), 'Eigener Messwertbereich fehlt');
+assert(!coachWindow.document.querySelector('[data-weekly-focus]'), 'Wochenfokus steht im Messwertbereich offen');
+await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'focus');
+assert(coachWindow.document.querySelector('[data-weekly-focus]'), 'Eigener Wochenfokusbereich fehlt');
+await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'feedback');
+assert(coachWindow.document.querySelector('[data-coach-note]'), 'Eigener Notizbereich fehlt');
+assert(coachWindow.document.querySelector('[data-release-feedback]'), 'Eigener Feedbackbereich fehlt');
+await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'ai-history');
+assert(coachWindow.document.querySelector('.private-coach-card'), 'Eigener KI- und Verlaufsbereich fehlt');
 
 const initiallyUnplanned = {
   ...coachData,

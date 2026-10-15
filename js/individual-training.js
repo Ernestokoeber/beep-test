@@ -123,15 +123,25 @@ BT.individualTraining = (function() {
     </section>`;
   }
 
-  function renderIndividualNavigation(data, current, selectedProfileId = null) {
+  function renderIndividualNavigation(data, current, selectedProfileId = null, selectedPane = 'overview') {
     const navigation = document.querySelector('[data-role="individual-navigation"]');
     if (!navigation) return;
     const coachLinks = ['admin', 'coach'].includes(current.role)
-      ? (data.profiles || []).map(profile => `<a href="#/individual/player/${encodeURIComponent(profile.id)}" class="${profile.id === selectedProfileId ? 'active' : ''}"><span class="nav-icon" aria-hidden="true">◉</span><span>${BT.util.escapeHTML(playerName(profile))}</span></a>`).join('')
+      ? (data.profiles || []).map(profile => `<a href="#/individual/player/${encodeURIComponent(profile.id)}/overview" class="${profile.id === selectedProfileId ? 'individual-selected-player' : ''}"><span class="nav-icon" aria-hidden="true">◉</span><span>${BT.util.escapeHTML(playerName(profile))}</span></a>`).join('')
       : '';
+    const selectedProfile = (data.profiles || []).find(profile => profile.id === selectedProfileId);
+    const paneLinks = selectedProfile ? [
+      ['overview', '⌂', 'Übersicht'],
+      ['training', '▶', 'Training durchführen'],
+      ['measurements', '#', 'Messwerte'],
+      ['focus', '◎', 'Wochenfokus'],
+      ['feedback', '✎', 'Notizen & Feedback'],
+      ['ai-history', '◆', 'KI & Verlauf']
+    ].map(([pane, icon, label]) => `<a href="#/individual/player/${encodeURIComponent(selectedProfile.id)}/${pane}" class="individual-pane-link ${pane === selectedPane ? 'active' : ''}"><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></a>`).join('') : '';
     navigation.innerHTML = `<span class="nav-section-label">Individual Training</span>
       <a href="#/individual" class="${selectedProfileId ? '' : 'active'}"><span class="nav-icon" aria-hidden="true">⌂</span><span>${current.role === 'player' ? 'Mein Training' : 'Coach-Cockpit'}</span></a>
       ${coachLinks}
+      ${selectedProfile ? `<span class="nav-section-label individual-player-menu-label">${BT.util.escapeHTML(playerName(selectedProfile))}</span>${paneLinks}` : ''}
       <span class="nav-section-label">Verwaltung</span>
       <a href="#/individual/account"><span class="nav-icon" aria-hidden="true">◉</span><span>Konto &amp; Synchronisierung</span></a>
       ${['admin', 'coach'].includes(current.role) ? '<a href="#/dashboard" class="individual-switch-workspace"><span class="nav-icon" aria-hidden="true">⇄</span><span>Bereich wechseln</span></a>' : ''}`;
@@ -471,7 +481,7 @@ BT.individualTraining = (function() {
     draw();
   }
 
-  function renderCoachDetail(root, profile, data) {
+  function renderCoachDetail(root, profile, data, pane = 'overview') {
     const host = root.querySelector('[data-role="individual-detail"]');
     const sessions = (data.sessions || []).filter(item => item.individual_profile_id === profile.id);
     const activeSession = [...sessions].reverse().find(item => ['planned', 'in_progress'].includes(item.status)) || sessions.at(-1) || null;
@@ -482,91 +492,106 @@ BT.individualTraining = (function() {
     const feedback = (data.releasedFeedback || []).filter(item => item.individual_profile_id === profile.id);
     const drafts = (data.aiDrafts || []).filter(item => item.individual_profile_id === profile.id);
     const latestDraft = drafts[0] || null;
-    host.hidden = false;
-    host.innerHTML = `<div class="section-head"><div><span class="section-kicker">Coach-Ansicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div></div>
-      ${renderPilotRoadmap(data, sessions)}
+    const paneLabels = {
+      overview: 'Übersicht',
+      training: 'Training durchführen',
+      measurements: 'Messwerte',
+      focus: 'Wochenfokus',
+      feedback: 'Notizen & Feedback',
+      'ai-history': 'KI & Verlauf'
+    };
+    if (!paneLabels[pane]) pane = 'overview';
+    const emptySession = '<section class="card"><h4>Keine aktive Einheit</h4><p class="muted">Plane zuerst in der Übersicht die nächste Montagseinheit.</p><a class="btn primary" href="#/individual/player/' + encodeURIComponent(profile.id) + '/overview">Zur Übersicht</a></section>';
+    const overview = `${renderPilotRoadmap(data, sessions)}
       <div class="individual-detail-grid">
-        ${activeSession && ['planned', 'in_progress'].includes(activeSession.status) ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · 105 Minuten</p></section>` : `<form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>`}
+        ${activeSession && ['planned', 'in_progress'].includes(activeSession.status) ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · 105 Minuten</p><a class="btn primary" href="#/individual/player/${encodeURIComponent(profile.id)}/training">Einheit öffnen</a></section>` : `<form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>`}
+      </div>`;
+    const training = activeSession ? `<section class="card individual-session-run-card"><div class="section-head"><div><span class="section-kicker">Durchführung</span><h4>Einheit ${activeSession.unit_number || '–'} · ${fmt(activeSession.scheduled_for)}</h4></div><span>${BT.util.escapeHTML(activeSession.status)}</span></div>
+        <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${exercises.length ? '' : 'disabled'}>▶ Training durchführen</button>
+        <div class="individual-actions"><button class="btn" data-set-attendance="attended">Als anwesend bestätigen</button><button class="btn" data-set-attendance="unexcused_no_show">Unentschuldigt gefehlt</button><button class="btn danger" data-cancel-session>Einheit absagen</button></div>
+        ${plan ? `<h4>${BT.util.escapeHTML(plan.title)}</h4><p>${BT.util.escapeHTML(plan.objective || '')}</p><ol class="individual-exercise-list">${exercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Coaching</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurement_method))}</p><p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
+        <div class="individual-actions"><button class="btn primary" data-complete-session>Einheit abschließen und KI-Entwurf starten</button></div>
+      </section>` : emptySession;
+    const measurementPane = activeSession ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Einheit ${activeSession.unit_number || '–'}</span><h4>Messwerte erfassen</h4></div><strong>${measurements.length} gespeichert</strong></div>
+        <form data-measurement class="individual-feedback-form"><label>Übung<select name="exerciseId"><option value="">Ohne Übungszuordnung</option>${exercises.map(exercise => `<option value="${exercise.id}">${exercise.position}. ${BT.util.escapeHTML(exercise.title)}</option>`).join('')}</select></label><label>Messwertschlüssel<input name="metricKey" required placeholder="z. B. wurf_treffer_frontal"></label><label>Numerischer Wert<input name="numericValue" type="number" step="0.01"></label><label>Oder Textwert<input name="textValue"></label><label>Einheit<input name="unit" placeholder="Treffer, Sekunden …"></label><label>Versuch<input name="attempt" type="number" min="1"></label><button class="btn primary" type="submit">Messwert speichern</button></form>
+      </section>` : emptySession;
+    const focusPane = activeSession ? `<form class="card individual-feedback-form" data-weekly-focus><h4>Persönlichen Wochenfokus freigeben</h4><label>Zielhandlung<input name="title" required maxlength="120"></label><label>Hinweis 1<input name="cueOne" required maxlength="240"></label><label>Hinweis 2, optional<input name="cueTwo" maxlength="240"></label><label>Gelungen, wenn …<input name="successIndicator" required maxlength="300"></label><label>Gültig ab<input name="validFrom" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 1)}" readonly required></label><label>Gültig bis<input name="validUntil" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 6)}" readonly required></label><button class="btn primary" type="submit">Wochenfokus veröffentlichen</button></form>` : emptySession;
+    const feedbackPane = `<div class="individual-detail-grid">
         <form class="card" data-coach-note><h4>Private Coach-Notiz</h4><textarea name="note" maxlength="5000" required></textarea><button class="btn" type="submit">Privat speichern</button></form>
         <form class="card" data-release-feedback><h4>Feedback freigeben</h4><textarea name="content" maxlength="5000" required></textarea><button class="btn primary" type="submit">Für Spieler freigeben</button></form>
       </div>
-      ${activeSession ? `<section class="card individual-session-run-card"><div class="section-head"><div><span class="section-kicker">Durchführung</span><h4>Einheit ${activeSession.unit_number || '–'} · ${fmt(activeSession.scheduled_for)}</h4></div><span>${BT.util.escapeHTML(activeSession.status)}</span></div>
-        <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${exercises.length ? '' : 'disabled'}>▶ Training durchführen</button>
-        <div class="individual-actions"><button class="btn" data-set-attendance="attended">Als anwesend bestätigen</button><button class="btn" data-set-attendance="unexcused_no_show">Unentschuldigt gefehlt</button><button class="btn danger" data-cancel-session>Einheit absagen</button></div>
-        ${plan ? `<h4>${BT.util.escapeHTML(plan.title)}</h4><p>${BT.util.escapeHTML(plan.objective)}</p><ol class="individual-exercise-list">${exercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Coaching</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurement_method))}</p><p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
-        <form data-measurement class="individual-feedback-form"><h4>Messwert erfassen</h4><label>Übung<select name="exerciseId"><option value="">Ohne Übungszuordnung</option>${exercises.map(exercise => `<option value="${exercise.id}">${exercise.position}. ${BT.util.escapeHTML(exercise.title)}</option>`).join('')}</select></label><label>Messwertschlüssel<input name="metricKey" required placeholder="z. B. wurf_treffer_frontal"></label><label>Numerischer Wert<input name="numericValue" type="number" step="0.01"></label><label>Oder Textwert<input name="textValue"></label><label>Einheit<input name="unit" placeholder="Treffer, Sekunden …"></label><label>Versuch<input name="attempt" type="number" min="1"></label><button class="btn" type="submit">Messwert speichern</button></form>
-        <p>${measurements.length} Messwerte gespeichert.</p>
-        <div class="individual-actions"><button class="btn primary" data-complete-session>Einheit abschließen und KI-Entwurf starten</button></div>
-      </section>` : ''}
-      ${activeSession ? `<form class="card individual-feedback-form" data-weekly-focus><h4>Persönlichen Wochenfokus freigeben</h4><label>Zielhandlung<input name="title" required maxlength="120"></label><label>Hinweis 1<input name="cueOne" required maxlength="240"></label><label>Hinweis 2, optional<input name="cueTwo" maxlength="240"></label><label>Gelungen, wenn …<input name="successIndicator" required maxlength="300"></label><label>Gültig ab<input name="validFrom" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 1)}" readonly required></label><label>Gültig bis<input name="validUntil" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 6)}" readonly required></label><button class="btn primary" type="submit">Wochenfokus veröffentlichen</button></form>` : ''}
-      <section class="card private-coach-card"><h4>Privater KI-Entwurf</h4>${latestDraft ? `<p>Status: <strong>${BT.util.escapeHTML(latestDraft.status)}</strong></p>${latestDraft.content ? `<h5>${BT.util.escapeHTML(latestDraft.content.nextSession?.title || '')}</h5><p>${BT.util.escapeHTML(latestDraft.content.analysis || '')}</p><p><b>Wochenfokus:</b> ${BT.util.escapeHTML(latestDraft.content.weeklyFocus?.title || '')}</p>` : ''}<div class="individual-actions">${['queued', 'failed'].includes(latestDraft.status) ? '<button class="btn" data-generate-draft>Entwurf erzeugen</button>' : ''}${latestDraft.status === 'stale' ? '<button class="btn" data-regenerate-draft>Aktuell neu erzeugen</button>' : ''}${latestDraft.status === 'current' ? '<button class="btn primary" data-approve-draft>Prüfung bestätigen und veröffentlichen</button>' : ''}</div>` : '<p class="muted">Nach Abschluss und Synchronisierung wird pro Spieler ein Entwurf angelegt.</p>'}</section>
-      <section class="card"><h4>Einheiten</h4>${sessions.length ? `<ul>${sessions.map(item => `<li>${fmt(item.scheduled_for)} · ${BT.util.escapeHTML(item.status)} · Einheit ${item.unit_number || '–'} · ${BT.util.escapeHTML(item.attendance_status)}</li>`).join('')}</ul>` : '<p class="muted">Noch keine Einheit angelegt.</p>'}</section>
       <section class="card private-coach-card"><h4>Private Notizen</h4>${notes.length ? notes.map(item => `<p>${BT.util.escapeHTML(item.note)} <small>${fmt(item.created_at)}</small></p>`).join('') : '<p class="muted">Keine privaten Notizen.</p>'}</section>
       <section class="card"><h4>Freigegebenes Feedback</h4>${feedback.length ? feedback.map(item => `<p>${BT.util.escapeHTML(item.content)}</p>`).join('') : '<p class="muted">Noch nichts freigegeben.</p>'}</section>`;
+    const aiHistoryPane = `<section class="card private-coach-card"><h4>Privater KI-Entwurf</h4>${latestDraft ? `<p>Status: <strong>${BT.util.escapeHTML(latestDraft.status)}</strong></p>${latestDraft.content ? `<h5>${BT.util.escapeHTML(latestDraft.content.nextSession?.title || '')}</h5><p>${BT.util.escapeHTML(latestDraft.content.analysis || '')}</p><p><b>Wochenfokus:</b> ${BT.util.escapeHTML(latestDraft.content.weeklyFocus?.title || '')}</p>` : ''}<div class="individual-actions">${['queued', 'failed'].includes(latestDraft.status) ? '<button class="btn" data-generate-draft>Entwurf erzeugen</button>' : ''}${latestDraft.status === 'stale' ? '<button class="btn" data-regenerate-draft>Aktuell neu erzeugen</button>' : ''}${latestDraft.status === 'current' ? '<button class="btn primary" data-approve-draft>Prüfung bestätigen und veröffentlichen</button>' : ''}</div>` : '<p class="muted">Nach Abschluss und Synchronisierung wird pro Spieler ein Entwurf angelegt.</p>'}</section>
+      <section class="card"><h4>Einheiten</h4>${sessions.length ? `<ul>${sessions.map(item => `<li>${fmt(item.scheduled_for)} · ${BT.util.escapeHTML(item.status)} · Einheit ${item.unit_number || '–'} · ${BT.util.escapeHTML(item.attendance_status)}</li>`).join('')}</ul>` : '<p class="muted">Noch keine Einheit angelegt.</p>'}</section>`;
+    const paneContent = { overview, training, measurements: measurementPane, focus: focusPane, feedback: feedbackPane, 'ai-history': aiHistoryPane }[pane];
+    host.hidden = false;
+    host.innerHTML = `<div class="section-head individual-player-title"><div><span class="section-kicker">Coach-Ansicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-current-pane">${paneLabels[pane]}</span></div>${paneContent}`;
+    const refresh = () => render(root.parentElement, profile.id, pane);
     host.querySelector('[data-plan-session]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
       const secondProfileId = form.get('secondProfileId');
-      try { await BT.api.individualAction('createSession', { profileIds: [profile.id, secondProfileId].filter(Boolean), scheduledDate: form.get('scheduledDate'), scheduledTime: form.get('scheduledTime'), durationMinutes: 105 }); await render(root.parentElement); }
+      try { await BT.api.individualAction('createSession', { profileIds: [profile.id, secondProfileId].filter(Boolean), scheduledDate: form.get('scheduledDate'), scheduledTime: form.get('scheduledTime'), durationMinutes: 105 }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
-    host.querySelector('[data-coach-note]').addEventListener('submit', async event => {
+    host.querySelector('[data-coach-note]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
-      try { await BT.api.individualAction('addCoachNote', { profileId: profile.id, note: form.get('note') }); await render(root.parentElement); }
+      try { await BT.api.individualAction('addCoachNote', { profileId: profile.id, note: form.get('note') }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
-    host.querySelector('[data-release-feedback]').addEventListener('submit', async event => {
+    host.querySelector('[data-release-feedback]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
-      try { await BT.api.individualAction('saveReleasedFeedback', { profileId: profile.id, content: form.get('content') }); await render(root.parentElement); }
+      try { await BT.api.individualAction('saveReleasedFeedback', { profileId: profile.id, content: form.get('content') }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
     host.querySelectorAll('[data-set-attendance]').forEach(button => button.addEventListener('click', async () => {
-      try { await BT.api.individualAction('setAttendance', { profileId: profile.id, sessionId: activeSession.id, status: button.dataset.setAttendance }); await render(root.parentElement); }
+      try { await BT.api.individualAction('setAttendance', { profileId: profile.id, sessionId: activeSession.id, status: button.dataset.setAttendance }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     }));
     host.querySelector('[data-action="start-live-training"]')?.addEventListener('click', () => renderCoachLive(root.parentElement, profile, data, activeSession));
     host.querySelector('[data-cancel-session]')?.addEventListener('click', async () => {
-      try { await BT.api.individualAction('cancelSession', { profileId: profile.id, sessionId: activeSession.id }); await render(root.parentElement); }
+      try { await BT.api.individualAction('cancelSession', { profileId: profile.id, sessionId: activeSession.id }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
     host.querySelector('[data-measurement]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
       const numeric = form.get('numericValue');
-      try { await BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: activeSession.id, exerciseId: form.get('exerciseId') || null, metricKey: form.get('metricKey'), numericValue: numeric === '' ? null : Number(numeric), textValue: numeric === '' ? form.get('textValue') : null, unit: form.get('unit') || null, attempt: form.get('attempt') ? Number(form.get('attempt')) : null }); await render(root.parentElement); }
+      try { await BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: activeSession.id, exerciseId: form.get('exerciseId') || null, metricKey: form.get('metricKey'), numericValue: numeric === '' ? null : Number(numeric), textValue: numeric === '' ? form.get('textValue') : null, unit: form.get('unit') || null, attempt: form.get('attempt') ? Number(form.get('attempt')) : null }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
     host.querySelector('[data-complete-session]')?.addEventListener('click', async () => {
       try {
         const result = await BT.api.individualAction('completeSession', { profileId: profile.id, sessionId: activeSession.id });
         await Promise.allSettled((result.queuedDrafts || []).map(draft => BT.api.individualAIDraft('generate', { profileId: draft.individual_profile_id, sessionId: draft.session_id })));
-        await render(root.parentElement);
+        await refresh();
       } catch (error) { notice(root, error.message, true); }
     });
     host.querySelector('[data-weekly-focus]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
-      try { await BT.api.individualAction('setFocus', { profileId: profile.id, sessionId: activeSession.id, title: form.get('title'), cueOne: form.get('cueOne'), cueTwo: form.get('cueTwo'), successIndicator: form.get('successIndicator'), validFrom: form.get('validFrom'), validUntil: form.get('validUntil') }); await render(root.parentElement); }
+      try { await BT.api.individualAction('setFocus', { profileId: profile.id, sessionId: activeSession.id, title: form.get('title'), cueOne: form.get('cueOne'), cueTwo: form.get('cueTwo'), successIndicator: form.get('successIndicator'), validFrom: form.get('validFrom'), validUntil: form.get('validUntil') }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
     host.querySelector('[data-generate-draft]')?.addEventListener('click', async () => {
-      try { await BT.api.individualAIDraft('generate', { profileId: profile.id, sessionId: latestDraft.session_id }); await render(root.parentElement); }
+      try { await BT.api.individualAIDraft('generate', { profileId: profile.id, sessionId: latestDraft.session_id }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
     host.querySelector('[data-regenerate-draft]')?.addEventListener('click', async () => {
-      try { await BT.api.individualAIDraft('regenerate', { profileId: profile.id, sessionId: latestDraft.session_id }); await render(root.parentElement); }
+      try { await BT.api.individualAIDraft('regenerate', { profileId: profile.id, sessionId: latestDraft.session_id }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
     host.querySelector('[data-approve-draft]')?.addEventListener('click', async () => {
-      try { await BT.api.individualAIDraft('approve', { draftId: latestDraft.id }); await render(root.parentElement); }
+      try { await BT.api.individualAIDraft('approve', { draftId: latestDraft.id }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
   }
 
-  function renderCoachDetailPage(target, profile, data) {
+  function renderCoachDetailPage(target, profile, data, pane = 'overview') {
     target.innerHTML = `<section class="view individual-view individual-coach-detail-page">
       <div class="individual-cockpit-nav"><a class="btn small" href="#/individual">← Coach-Cockpit</a><span>Individual Training</span></div>
       <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
       <section data-role="individual-detail"></section>
     </section>`;
-    renderCoachDetail(target.querySelector('.individual-view'), profile, data);
+    renderCoachDetail(target.querySelector('.individual-view'), profile, data, pane);
   }
 
   function renderCoach(target, data) {
@@ -612,7 +637,7 @@ BT.individualTraining = (function() {
     });
   }
 
-  async function render(target, selectedProfileId = null) {
+  async function render(target, selectedProfileId = null, selectedPane = 'overview') {
     const request = ++activeRequest;
     const current = user();
     document.body.classList.remove('individual-live-mode');
@@ -634,13 +659,13 @@ BT.individualTraining = (function() {
           pilotStartError = error;
         }
       }
-      renderIndividualNavigation(data, current, selectedProfileId);
+      renderIndividualNavigation(data, current, selectedProfileId, selectedPane);
       if (current.role === 'player') renderPlayer(target, data);
       else {
         const selectedProfile = selectedProfileId ? data.profiles.find(profile => profile.id === selectedProfileId) : null;
         if (selectedProfileId && !selectedProfile) {
           target.innerHTML = '<section class="view individual-view"><a class="btn small" href="#/individual">← Coach-Cockpit</a><p class="auth-status error">Spielerprofil nicht gefunden.</p></section>';
-        } else if (selectedProfile) renderCoachDetailPage(target, selectedProfile, data);
+        } else if (selectedProfile) renderCoachDetailPage(target, selectedProfile, data, selectedPane);
         else renderCoach(target, data);
         if (pilotStartError) notice(target.querySelector('.individual-view'), pilotStartError.message, true);
       }
