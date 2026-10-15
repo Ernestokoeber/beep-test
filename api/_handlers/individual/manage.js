@@ -143,9 +143,11 @@ async function ensurePilotStart(client, auth) {
   await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [auth.sub]);
   const profileResult = await client.query(
     `SELECT * FROM individual_profiles
-      WHERE organization_id = $1 AND coach_user_id = $2 AND active = TRUE
+      WHERE organization_id = $1
+        AND active = TRUE
+        AND ($2 = 'admin' OR coach_user_id = $3)
       ORDER BY created_at ASC`,
-    [auth.organization_id, auth.sub]
+    [auth.organization_id, auth.role, auth.sub]
   );
   const profiles = profileResult.rows;
   if (!profiles.length) throw new IndividualRequestError(409, 'Zuerst muss mindestens ein Pilotspieler angelegt werden.');

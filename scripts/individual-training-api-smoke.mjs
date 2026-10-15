@@ -24,6 +24,7 @@ function response() {
 
 const playerAuth = { sub: IDS.player, organization_id: IDS.organization, role: 'player' };
 const coachAuth = { sub: IDS.coach, organization_id: IDS.organization, role: 'coach' };
+const adminAuth = { sub: IDS.player, organization_id: IDS.organization, role: 'admin' };
 let observedPlayerParams = null;
 const ownProfile = await findIndividualProfile(playerAuth, IDS.otherProfile, async (_sql, params) => {
   observedPlayerParams = params;
@@ -97,6 +98,32 @@ assert.equal(ensureResponse.body.profileIds.length, 2, 'Die gemeinsame Einheit e
 assert(ensuredSql.some(item => item.sql.includes('INSERT INTO individual_sessions') && item.params?.[2] === '2026-10-19T18:15:00.000Z'));
 assert.equal(ensuredSql.filter(item => item.sql.includes('INSERT INTO individual_session_participants')).length, 2);
 assert.equal(ensuredSql.filter(item => item.sql.includes('INSERT INTO individual_session_plans')).length, 2);
+const ensuredProfilesQuery = ensuredSql.find(item => item.sql.includes('FROM individual_profiles') && item.sql.includes('active = TRUE'));
+assert(ensuredProfilesQuery.sql.includes("$2 = 'admin' OR coach_user_id = $3"), 'Pilotstart muss dieselben Adminprofile wie die Übersicht verwenden');
+assert.deepEqual(ensuredProfilesQuery.params, [IDS.organization, 'coach', IDS.coach]);
+
+const adminEnsureSql = [];
+const adminEnsureHandler = createIndividualManageHandler({
+  requireMembership: async () => adminAuth,
+  transaction: async callback => callback({
+    query: async (sql, params) => {
+      adminEnsureSql.push({ sql, params });
+      if (sql.includes('SELECT id FROM users')) return { rows: [{ id: IDS.player }] };
+      if (sql.includes('FROM individual_profiles') && sql.includes('active = TRUE')) return { rows: [
+        { id: IDS.profile, organization_id: IDS.organization, coach_user_id: IDS.coach },
+        { id: IDS.otherProfile, organization_id: IDS.organization, coach_user_id: IDS.coach }
+      ] };
+      if (sql.includes('FROM individual_sessions') && sql.includes('unit_number = 1')) return { rows: [{ id: IDS.session, scheduled_for: '2026-10-19T18:15:00.000Z', unit_number: 1, status: 'planned' }] };
+      if (sql.includes('SELECT id FROM individual_session_plans')) return { rows: [{ id: IDS.measurement }] };
+      return { rows: [] };
+    }
+  })
+});
+const adminEnsureResponse = response();
+await adminEnsureHandler({ method: 'POST', headers: {}, body: { action: 'ensurePilotStart' } }, adminEnsureResponse);
+assert.equal(adminEnsureResponse.statusCode, 200, 'Administrator muss sichtbare Pilotprofile automatisch planen können');
+const adminProfilesQuery = adminEnsureSql.find(item => item.sql.includes('FROM individual_profiles') && item.sql.includes('active = TRUE'));
+assert.deepEqual(adminProfilesQuery.params, [IDS.organization, 'admin', IDS.player]);
 
 const sessionSql = [];
 const sessionHandler = createIndividualManageHandler({
