@@ -14,7 +14,7 @@ BT.account = (function() {
   }
 
   function formatSync(value) {
-    if (!value) return 'Noch nicht synchronisiert';
+    if (!value) return 'Noch nicht geprüft';
     return new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
   }
 
@@ -23,7 +23,7 @@ BT.account = (function() {
       guest: 'Gastmodus · nur dieses Gerät',
       syncing: 'Synchronisierung läuft …',
       pending: 'Änderungen werden übertragen …',
-      synced: 'Teamdaten synchronisiert',
+      synced: 'Serverstand geprüft',
       offline: 'Offline · Synchronisierung wartet',
       error: state.lastError || 'Synchronisierung gestört'
     };
@@ -47,7 +47,7 @@ BT.account = (function() {
     root.querySelector('[data-role="account-name"]').textContent = state.user.displayName;
     root.querySelector('[data-role="account-email"]').textContent = state.user.email;
     root.querySelector('[data-role="account-team"]').textContent = state.user.organization?.name || 'TSV Lindau Basketball';
-    root.querySelector('[data-role="last-sync"]').textContent = formatSync(state.lastSyncAt);
+    root.querySelector('[data-role="last-sync"]').textContent = formatSync(state.lastCheckedAt);
     root.querySelector('[data-role="workspace-version"]').textContent = String(state.version);
   }
 
@@ -165,10 +165,10 @@ BT.account = (function() {
     });
 
     root.querySelector('[data-action="sync-now"]').addEventListener('click', async () => {
-      sessionStatus.textContent = 'Synchronisierung läuft …';
+      sessionStatus.textContent = 'Serverstand wird abgeglichen …';
       try {
         await BT.sync.syncNow();
-        sessionStatus.textContent = 'Teamdaten sind aktuell.';
+        sessionStatus.textContent = 'Serverstand wurde geprüft.';
         update(root);
       } catch (error) {
         sessionStatus.textContent = 'Fehler: ' + error.message;

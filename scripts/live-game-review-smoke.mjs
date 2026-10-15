@@ -20,7 +20,7 @@ function harness(local,remote,bridge){
 const noJournal={beforeSend:async data=>({data,receipt:[]}),beforeApply:async d=>d,ack:async()=>{},hasPending:async()=>false,mergeAccepted:async(local,remote)=>protectWorkspace(local,remote)};
 for(const notify of [true,false])await test('cross-tab token switch during journal await; storage event='+notify,async()=>{
   let release,entered;const gate=new Promise(r=>{entered=r;});let blocked=false;
-  const bridge={...noJournal,beforeSend:async data=>{if(blocked){entered();await new Promise(r=>{release=r;});}return {data,receipt:[]};}};
+  const bridge={...noJournal,hasPending:async()=>blocked,beforeSend:async data=>{if(blocked){entered();await new Promise(r=>{release=r;});}return {data,receipt:[]};}};
   const data={games:[{id:'private-a',notes:'PRIVATE TEAM A'}],meta:{updatedAt:'2026-09-29'}};
   const h=harness(data,data,bridge);try{await h.w.BT.sync.login();blocked=true;const pending=h.w.BT.sync.syncNow();await gate;
     h.setToken('TOKEN_B');if(notify)h.w.dispatchEvent(new h.w.StorageEvent('storage',{key:'beeptest_auth_token',newValue:'TOKEN_B'}));release();await pending;

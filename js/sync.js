@@ -4,6 +4,7 @@ BT.sync = (function() {
   const VERSION_KEY = 'beeptest_workspace_version';
   const IDENTITY_KEY = 'courthub_live_identity';
   const OWNER_KEY = 'courthub_workspace_team';
+  const REFRESH_INTERVAL_MS = 30_000;
   async function tokenFingerprint(token) {
     if(!token)return null;
     if(!crypto.subtle)return undefined;
@@ -38,11 +39,13 @@ BT.sync = (function() {
   })();
   let timer = null;
   let pushWorker = null;
+  let reconcileWorker = null;
   let pushRequested = false;
   let sessionEpoch = 0;
   let applying = false;
   let status = 'guest';
   let lastSyncAt = null;
+  let lastCheckedAt = null;
   let lastError = null;
   function accountCurrent() {
     try {const owner=localStorage.getItem(OWNER_KEY);return BT.api.getToken()===sessionToken&&(!user?.organization?.id||!owner||owner===user.organization.id);}
@@ -70,7 +73,7 @@ BT.sync = (function() {
 
   function getState() {
     if(user&&!accountCurrent())invalidateOtherTab();
-    return { user, version, status, lastSyncAt, lastError, sessionEpoch };
+    return { user, version, status, lastSyncAt, lastCheckedAt, lastError, sessionEpoch };
   }
 
   function liveScope() { return { organizationId: user?.organization?.id, actorId: user?.id, sessionEpoch }; }
@@ -236,13 +239,14 @@ BT.sync = (function() {
     setStatus(navigator.onLine ? 'pending' : 'offline');
   }
 
-  async function reconcile() {
+  async function reconcileLatest() {
     const epoch = sessionEpoch;
     if (pushWorker) await pushWorker;
     if (!current(epoch)) return;
     setStatus('syncing');
     const remote = await BT.api.getWorkspace();
     if (!current(epoch)) return;
+    lastCheckedAt = new Date().toISOString();
     let local = BT.storage.load();
     storeVersion(remote.version);
 
@@ -279,6 +283,16 @@ BT.sync = (function() {
     setStatus('synced');
   }
 
+  function reconcile() {
+    if (reconcileWorker) return reconcileWorker;
+    const pending = reconcileLatest();
+    const tracked = pending.finally(() => {
+      if (reconcileWorker === tracked) reconcileWorker = null;
+    });
+    reconcileWorker = tracked;
+    return tracked;
+  }
+
   async function setSession(result) {
     sessionEpoch += 1;
     clearTimeout(timer);
@@ -288,6 +302,7 @@ BT.sync = (function() {
     sessionToken=BT.api.getToken();
     await activateTeam(result.user);
     user = result.user;
+    lastCheckedAt = null;
     const epoch=sessionEpoch;await rememberIdentity();if(!current(epoch))return;
     emit();
     await reconcile();
@@ -317,18 +332,15 @@ BT.sync = (function() {
     user = null;
     version = 0;
     lastSyncAt = null;
+    lastCheckedAt = null;
     setStatus('guest');
   }
 
   async function syncNow() {
     if (!user) throw new Error('Bitte zuerst anmelden.');
-    if (user.role === 'viewer') {
-      await reconcile();
-      return;
-    }
     clearTimeout(timer);
     timer = null;
-    await push();
+    await reconcile();
   }
 
   async function init() {
@@ -365,6 +377,13 @@ BT.sync = (function() {
   window.addEventListener('online', () => {
     if (user) reconcile().catch((error) => setStatus('error', error.message));
   });
+  function refreshWhenActive() {
+    if (!user || !navigator.onLine || document.visibilityState === 'hidden') return;
+    reconcile().catch((error) => setStatus('error', error.message));
+  }
+  window.addEventListener('focus', refreshWhenActive);
+  document.addEventListener('visibilitychange', refreshWhenActive);
+  setInterval(refreshWhenActive, REFRESH_INTERVAL_MS);
   window.addEventListener('storage',()=>{if(user&&!accountCurrent())invalidateOtherTab();});
   window.addEventListener('offline', () => {
     if (user) setStatus('offline');

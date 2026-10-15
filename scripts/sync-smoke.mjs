@@ -107,6 +107,7 @@ assert(requests[1].data.settings.tacticsBoardDraft.steps[0].offense[0].x === 30,
 assert(requests[1].data.developmentFindings.map(item => item.id).sort().join(',') === 'df_25,df_30', 'Unabhängige Entwicklungsbefunde gehen beim Konflikt verloren');
 assert(maximumActiveRequests === 1, 'Konfliktbehandlung startet eine parallele Workspace-Anfrage');
 
+remote = workspace(30, '2026-08-08T10:00:03.000Z');
 controls[1].resolve({ version: 3, updatedAt: '2026-08-08T10:00:03.000Z' });
 await Promise.all([firstSync, secondSync]);
 
@@ -114,4 +115,5 @@ assert(local.settings.tacticsBoardDraft.steps[0].offense[0].x === 30, 'Der Spiel
 assert(remoteApplications === 1, 'Der gezielte Entwicklungsmerge wurde nicht lokal übernommen');
 assert(toasts.length === 0, 'Ein interner Sync-Konflikt wird fälschlich als fremde Änderung gemeldet');
 
+dom.window.close();
 console.log('Sync-Smoke-Test erfolgreich.');
