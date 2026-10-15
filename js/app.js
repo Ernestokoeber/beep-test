@@ -177,6 +177,14 @@
       catch { return; }
     }
     const hash = location.hash || '#/dashboard';
+    const individualWorkspace = hash.startsWith('#/individual');
+    document.body.classList.toggle('individual-workspace-mode', individualWorkspace);
+    const brandLink = document.querySelector('.brand');
+    const brandTitle = document.querySelector('.brand-text');
+    const individualDockLabel = document.querySelector('.individual-mobile-link small');
+    if (brandLink) brandLink.href = individualWorkspace ? '#/individual' : '#/dashboard';
+    if (brandTitle) brandTitle.textContent = individualWorkspace ? 'Individual Training' : 'CourtHub';
+    if (individualDockLabel) individualDockLabel.textContent = individualWorkspace ? 'Cockpit' : 'Individual';
     if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
       await initialSync;
       if ((location.hash || '#/dashboard') !== hash) return;
@@ -199,6 +207,10 @@
       BT.checkin.render(app, token);
     } else if (hash === '#/individual') {
       BT.individualTraining.render(app);
+    } else if (hash === '#/individual/account') {
+      BT.account.render(app);
+    } else if (hash.startsWith('#/individual/player/')) {
+      BT.individualTraining.render(app, decodeURIComponent(hash.slice('#/individual/player/'.length)));
     } else if (isDashboard) {
       const currentUser = BT.sync?.getState?.().user;
       if (currentUser && ['admin', 'coach'].includes(currentUser.role)) {

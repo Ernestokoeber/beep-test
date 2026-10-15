@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom';
 
 function browser(role, overview) {
   const dom = new JSDOM(`<!doctype html><body>
-    <nav><a data-nav="dashboard"></a><a data-nav="individual"></a><a data-nav="account"></a></nav>
+    <nav><div data-role="individual-navigation"></div><a data-nav="dashboard"></a><a data-nav="individual"></a><a data-nav="account"></a></nav>
     <nav class="mobile-dock"><a data-mobile-nav="dashboard"></a><a data-mobile-nav="individual"></a><button data-role="mobile-more"></button></nav>
     <main id="app"></main></body>`, { url: 'https://coach.tsv-lindau.de/#/individual', runScripts: 'outside-only' });
   const window = dom.window;
@@ -92,7 +92,10 @@ assert(cardText.includes('Wochenfokus'));
 assert(cardText.includes('Rückmeldung'));
 coachWindow.document.querySelector('[data-action="open-profile"]').click();
 assert.equal(coachWindow.document.querySelector('[data-action="open-profile"]').type, 'button');
-assert.equal(coachWindow.document.querySelector('[data-role="individual-detail"]').hidden, false, 'Spieler öffnen reagiert nicht');
+assert(coachWindow.location.hash.endsWith(`/individual/player/${profile.id}`), 'Spieler öffnen führt nicht auf eine eigene Detailseite');
+await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id);
+assert(coachWindow.document.querySelector('.individual-coach-detail-page'), 'Eigene mobile Spieleransicht fehlt');
+assert(coachWindow.document.querySelector('[href="#/individual"]'), 'Rückweg zum Coach-Cockpit fehlt');
 assert.equal(coachWindow.document.querySelectorAll('[data-pilot-unit]').length, 8, 'Coach-Ansicht zeigt nicht alle acht Piloteinheiten');
 const assessmentUnits = [...coachWindow.document.querySelectorAll('.individual-roadmap-unit.assessment')].map(item => Number(item.dataset.pilotUnit));
 assert.deepEqual(assessmentUnits, [1, 4, 8], 'Einheit 1, 4 und 8 sind nicht als Testeinheiten sichtbar');
@@ -124,6 +127,6 @@ const plannedCardText = unplannedWindow.document.querySelector('[data-profile-id
 assert(!plannedCardText.includes('Nicht geplant'), 'Bestehende Pilotprofile bleiben ohne verbindliche erste Einheit');
 assert(plannedCardText.includes('19.10.2026'), 'Automatisch angelegter Pilotstart wird auf der Spielerkarte nicht angezeigt');
 unplannedWindow.document.querySelector('[data-action="open-profile"]').click();
-assert.equal(unplannedWindow.document.querySelector('[data-role="individual-detail"]').hidden, false, 'Spieler öffnen funktioniert nach der automatischen Planung nicht');
+assert(unplannedWindow.location.hash.endsWith(`/individual/player/${profile.id}`), 'Spieler öffnen funktioniert nach der automatischen Planung nicht');
 
 console.log('Individual Training UI: Rollenansichten, Privattrennung, Offline-Queue und Logout erfolgreich.');

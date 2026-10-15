@@ -123,6 +123,20 @@ BT.individualTraining = (function() {
     </section>`;
   }
 
+  function renderIndividualNavigation(data, current, selectedProfileId = null) {
+    const navigation = document.querySelector('[data-role="individual-navigation"]');
+    if (!navigation) return;
+    const coachLinks = ['admin', 'coach'].includes(current.role)
+      ? (data.profiles || []).map(profile => `<a href="#/individual/player/${encodeURIComponent(profile.id)}" class="${profile.id === selectedProfileId ? 'active' : ''}"><span class="nav-icon" aria-hidden="true">◉</span><span>${BT.util.escapeHTML(playerName(profile))}</span></a>`).join('')
+      : '';
+    navigation.innerHTML = `<span class="nav-section-label">Individual Training</span>
+      <a href="#/individual" class="${selectedProfileId ? '' : 'active'}"><span class="nav-icon" aria-hidden="true">⌂</span><span>${current.role === 'player' ? 'Mein Training' : 'Coach-Cockpit'}</span></a>
+      ${coachLinks}
+      <span class="nav-section-label">Verwaltung</span>
+      <a href="#/individual/account"><span class="nav-icon" aria-hidden="true">◉</span><span>Konto &amp; Synchronisierung</span></a>
+      ${['admin', 'coach'].includes(current.role) ? '<a href="#/dashboard" class="individual-switch-workspace"><span class="nav-icon" aria-hidden="true">⇄</span><span>Bereich wechseln</span></a>' : ''}`;
+  }
+
   function nextPilotDate(sessions) {
     const dates = [...new Set((sessions || []).map(item => new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -546,6 +560,15 @@ BT.individualTraining = (function() {
     });
   }
 
+  function renderCoachDetailPage(target, profile, data) {
+    target.innerHTML = `<section class="view individual-view individual-coach-detail-page">
+      <div class="individual-cockpit-nav"><a class="btn small" href="#/individual">← Coach-Cockpit</a><span>Individual Training</span></div>
+      <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
+      <section data-role="individual-detail"></section>
+    </section>`;
+    renderCoachDetail(target.querySelector('.individual-view'), profile, data);
+  }
+
   function renderCoach(target, data) {
     const existing = new Set((data.profiles || []).map(profile => profile.player_profile_id));
     const available = (BT.storage?.getPlayers?.() || []).filter(player => !player.archived && !existing.has(player.id));
@@ -571,8 +594,7 @@ BT.individualTraining = (function() {
       const profile = data.profiles.find(item => item.id === card.dataset.profileId);
       if (!profile) return;
       if (actionButton.dataset.action === 'open-profile') {
-        renderCoachDetail(root, profile, data);
-        root.querySelector('[data-role="individual-detail"]')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        location.hash = `#/individual/player/${encodeURIComponent(profile.id)}`;
         return;
       }
       if (actionButton.dataset.action === 'invite-player') {
@@ -590,7 +612,7 @@ BT.individualTraining = (function() {
     });
   }
 
-  async function render(target) {
+  async function render(target, selectedProfileId = null) {
     const request = ++activeRequest;
     const current = user();
     document.body.classList.remove('individual-live-mode');
@@ -612,9 +634,14 @@ BT.individualTraining = (function() {
           pilotStartError = error;
         }
       }
+      renderIndividualNavigation(data, current, selectedProfileId);
       if (current.role === 'player') renderPlayer(target, data);
       else {
-        renderCoach(target, data);
+        const selectedProfile = selectedProfileId ? data.profiles.find(profile => profile.id === selectedProfileId) : null;
+        if (selectedProfileId && !selectedProfile) {
+          target.innerHTML = '<section class="view individual-view"><a class="btn small" href="#/individual">← Coach-Cockpit</a><p class="auth-status error">Spielerprofil nicht gefunden.</p></section>';
+        } else if (selectedProfile) renderCoachDetailPage(target, selectedProfile, data);
+        else renderCoach(target, data);
         if (pilotStartError) notice(target.querySelector('.individual-view'), pilotStartError.message, true);
       }
     } catch (error) {
