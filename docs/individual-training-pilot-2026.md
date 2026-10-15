@@ -25,6 +25,15 @@ Die versionierten Vorlagen liegen in `api/_lib/individual-pilot.js`. Einheit 1 e
 - Offline-Konflikte werden anhand der Server-Eingangszeit entschieden; Gerätezeit bleibt nur Nachweis.
 - Abmelden entfernt lokale Individual-Caches und die persönliche Offline-Warteschlange.
 
+## Verbindlicher Coach-Ablauf
+
+- Ernesto gelangt nach der Anmeldung in die Startzentrale und wählt dort zwischen den getrennten Arbeitsbereichen **Mannschaft** und **Individual Training**.
+- Das Individual-Cockpit zeigt Thomas und Adnan gemeinsam mit nächster Einheit, Zu- oder Absage, Synchronisierungsstatus, offener Rückmeldung, aktuellem Wochenfokus und KI-Status.
+- Die Spielerkarte führt in Vorbereitung und Verwaltung der persönlichen Einheit; Einladungsverwaltung bleibt nachgeordnet.
+- `Training durchführen` öffnet einen reduzierten Vollbildmodus. Der aktuelle Block steht groß im Fokus, der nächste Block und der gesamte Ablauf bleiben sichtbar.
+- Die Durchführung umfasst eine durchgehende Trainingsuhr, Blockuhr, Coaching-Points, Messwerterfassung, Schnellbewertung (`Funktioniert`, `Wiederholen`, `Problem`), Trainernotiz, Taktik-Schnellzugriff, Zeitkorrektur sowie Vor-, Weiter- und Überspringen-Steuerung.
+- Beim Abschluss werden tatsächliche Dauer, Bewertung und Notiz je Übung gespeichert; erst danach wird die Einheit abgeschlossen und der private KI-Prozess ausgelöst.
+
 ## Erinnerungen
 
 Der serverseitige Scheduler aktiviert montags eine Terminerinnerung 60 bis 120 Minuten vor der festen Startzeit um 20:15 Uhr. Die Dienstagserinnerung entfällt. Freitags wird der persönliche Beobachtungsfokus 60 bis 120 Minuten vor dem Mannschaftstraining um 20:15 Uhr aktiviert; samstags folgt ungefähr um 12:00 Uhr genau eine Rückmeldungsaufforderung. Eine Folgeerinnerung gibt es nicht. Die paarweise angelegten UTC-Zeitfenster fangen die Sommer-/Winterzeit von `Europe/Berlin` ab; die idempotente Verarbeitung verhindert doppelte Auslieferungen. Dashboard-Auslieferung funktioniert unabhängig von Web-Push.

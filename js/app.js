@@ -200,9 +200,18 @@
     } else if (hash === '#/individual') {
       BT.individualTraining.render(app);
     } else if (isDashboard) {
-      // Das bisherige Menue bleibt sichtbar, bis das Dashboard vollstaendig in
-      // einem losgeloesten Fragment aufgebaut wurde. So entsteht beim Wechsel
-      // kein leerer Bildschirm.
+      const currentUser = BT.sync?.getState?.().user;
+      if (currentUser && ['admin', 'coach'].includes(currentUser.role)) {
+        BT.individualTraining.renderHub(app);
+      } else {
+        // Das bisherige Menue bleibt sichtbar, bis das Dashboard vollstaendig in
+        // einem losgeloesten Fragment aufgebaut wurde. So entsteht beim Wechsel
+        // kein leerer Bildschirm.
+        const dashboardView = document.createDocumentFragment();
+        BT.dashboard.render(dashboardView);
+        app.replaceChildren(dashboardView);
+      }
+    } else if (hash === '#/team') {
       const dashboardView = document.createDocumentFragment();
       BT.dashboard.render(dashboardView);
       app.replaceChildren(dashboardView);
@@ -280,7 +289,7 @@
     const mobileLinks = document.querySelectorAll('[data-mobile-nav]');
     mobileLinks.forEach(a => a.classList.remove('active'));
     let active = 'dashboard';
-    if (hash.startsWith('#/dashboard') || hash === '#/' || hash === '') {
+    if (hash.startsWith('#/dashboard') || hash === '#/team' || hash === '#/' || hash === '') {
       active = 'dashboard';
     } else if (hash.startsWith('#/individual')) {
       active = 'individual';
@@ -328,6 +337,10 @@
   }
 
   window.addEventListener('hashchange', route);
+  window.addEventListener('bt-sync-change', () => {
+    const hash = location.hash || '#/dashboard';
+    if (hash === '#/dashboard' || hash === '#/' || hash === '') route();
+  });
   let initialized = false;
   async function init() {
     if (initialized) return;

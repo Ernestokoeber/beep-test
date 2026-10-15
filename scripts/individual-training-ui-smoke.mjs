@@ -16,7 +16,10 @@ function browser(role, overview) {
       syncIndividualMutations: async mutations => ({ results: mutations.map(item => ({ mutation_id: item.mutationId, applied: true })) }),
       individualAction: async () => ({})
     },
-    storage: { getPlayers: () => [{ id: 'player-1', name: 'Thomas Albrecht' }] }
+    storage: { getPlayers: () => [
+      { id: 'player-1', name: 'Thomas Albrecht' },
+      { id: 'player-2', name: 'Adnan Demir' }
+    ] }
   };
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
   window.eval(readFileSync(new URL('../js/individual-training.js', import.meta.url), 'utf8'));
@@ -50,8 +53,38 @@ assert(!Array.from({ length: playerWindow.localStorage.length }, (_, index) => p
 
 const coachData = { ...playerData, role: 'coach', coachNotes: [{ individual_profile_id: profile.id, note: 'Privat' }], aiDrafts: [] };
 const coachWindow = browser('coach', coachData);
+coachWindow.BT.individualTraining.renderHub(coachWindow.document.querySelector('#app'));
+const hubText = coachWindow.document.querySelector('#app').textContent;
+assert(hubText.includes('Mannschaft'));
+assert(hubText.includes('Individual Training'));
+assert(coachWindow.document.querySelector('[data-workspace="team"][href="#/team"]'));
+assert(coachWindow.document.querySelector('[data-workspace="individual"][href="#/individual"]'));
+
+coachData.plans = [{ id: 'plan-1', session_id: session.id, individual_profile_id: profile.id, title: 'Beep-Test & Grundlinie' }];
+coachData.exercises = [
+  { id: 'exercise-1', session_id: session.id, individual_profile_id: profile.id, position: 1, title: 'Beep-Test', duration_minutes: 20, repetitions: { protocol: '20-m shuttle' }, measurement_method: { metric: 'level' }, coaching_cues: ['Rhythmus halten'] },
+  { id: 'exercise-2', session_id: session.id, individual_profile_id: profile.id, position: 2, title: 'Ballhandling', duration_minutes: 15, repetitions: { sets: 3 }, measurement_method: { metric: 'errors' }, coaching_cues: ['Tief bleiben'] }
+];
+coachData.feedback = [{ individual_profile_id: profile.id, training_date: '2026-10-13', implementation_score: 4 }];
+coachData.focuses = [{ individual_profile_id: profile.id, title: 'Ball tief und eng führen', valid_from: '2026-10-13', valid_until: '2026-10-19' }];
 await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'));
 assert(coachWindow.document.querySelector('[data-profile-id]'), 'Coach-Cockpit zeigt kein Profil');
+const cardText = coachWindow.document.querySelector('[data-profile-id]').textContent;
+assert(cardText.includes('Teilnahme'));
+assert(cardText.includes('Wochenfokus'));
+assert(cardText.includes('Rückmeldung'));
+coachWindow.document.querySelector('[data-action="open-profile"]').click();
+assert(coachWindow.document.querySelector('[data-action="start-live-training"]'), 'Geführter Trainingsstart fehlt');
+coachWindow.document.querySelector('[data-action="start-live-training"]').click();
+assert(coachWindow.document.querySelector('.individual-live-shell'), 'Geführter Vollbildmodus fehlt');
+const liveText = coachWindow.document.querySelector('.individual-live-shell').textContent;
+assert(liveText.includes('Beep-Test'));
+assert(liveText.includes('Als Nächstes'));
+assert(liveText.includes('Ballhandling'));
+assert(liveText.includes('Funktioniert'));
+assert(liveText.includes('+1 Min.'));
+assert(liveText.includes('Überspringen'));
+assert(liveText.includes('Taktik öffnen'));
 assert(!coachWindow.document.body.classList.contains('individual-player-mode'));
 
 console.log('Individual Training UI: Rollenansichten, Privattrennung, Offline-Queue und Logout erfolgreich.');

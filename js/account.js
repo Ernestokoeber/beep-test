@@ -143,11 +143,10 @@ BT.account = (function() {
       const form = new FormData(event.currentTarget);
       authStatus.textContent = 'Anmeldung läuft …';
       try {
-        await BT.sync.login(form.get('email'), form.get('password'));
+        const loggedIn = await BT.sync.login(form.get('email'), form.get('password'));
         authStatus.textContent = '';
-        update(root);
-        loadMembers(root);
         BT.util.toast('Anmeldung erfolgreich. Teamdaten sind synchronisiert.');
+        location.hash = loggedIn.role === 'player' ? '#/individual' : '#/dashboard';
       } catch (error) {
         authStatus.textContent = 'Fehler: ' + error.message;
       }
@@ -159,11 +158,10 @@ BT.account = (function() {
       authStatus.textContent = 'Konto wird erstellt …';
       try {
         const individualInviteToken = new URLSearchParams(location.search).get('individualInvite');
-        await BT.sync.register(form.get('displayName'), form.get('email'), form.get('password'), form.get('inviteCode'), individualInviteToken);
+        const registered = await BT.sync.register(form.get('displayName'), form.get('email'), form.get('password'), form.get('inviteCode'), individualInviteToken);
         authStatus.textContent = '';
-        update(root);
-        loadMembers(root);
         BT.util.toast(individualInviteToken ? 'Spielerkonto erstellt.' : 'Trainerkonto erstellt. Lokale Daten wurden übernommen.');
+        location.hash = registered.role === 'player' ? '#/individual' : '#/dashboard';
       } catch (error) {
         authStatus.textContent = 'Fehler: ' + error.message;
       }
