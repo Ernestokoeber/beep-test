@@ -61,6 +61,29 @@ body.individual-workspace-mode .individual-navigation .individual-pane-link { pa
 .individual-roadmap-details { margin-top:.75rem; }
 .individual-roadmap-details > summary { cursor:pointer; color:#087443; font-weight:800; }
 .individual-roadmap-details .individual-exercise-list { margin-bottom:0; }
+.individual-measurement-intro { margin:.75rem 0 1rem; padding:.85rem 1rem; border-left:4px solid #087443; border-radius:0 14px 14px 0; background:rgba(8,116,67,.08); }
+.individual-measurement-intro p { margin:0; }
+.individual-measurement-exercises { display:grid; gap:.75rem; }
+.individual-measurement-exercise { padding:0; overflow:hidden; }
+.individual-measurement-exercise > summary { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem; cursor:pointer; list-style:none; }
+.individual-measurement-exercise > summary::-webkit-details-marker { display:none; }
+.individual-measurement-exercise > summary span { display:grid; gap:.15rem; min-width:0; }
+.individual-measurement-exercise > summary small { color:#a86d15; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.individual-measurement-exercise > summary strong { overflow-wrap:anywhere; }
+.individual-measurement-exercise > summary b { flex:0 0 auto; color:#087443; font-size:.82rem; }
+.individual-measurement-exercise[open] > summary { border-bottom:1px solid var(--border); background:rgba(8,116,67,.04); }
+.individual-measurement-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; padding:1rem; }
+.individual-measurement-grid form { display:grid; align-content:start; gap:.65rem; padding:.8rem; border:1px solid var(--border); border-radius:14px; background:var(--surface-soft,#f7f9f8); }
+.individual-measurement-grid label { display:grid; gap:.35rem; font-weight:750; }
+.individual-measurement-grid label > span { display:flex; justify-content:space-between; gap:.5rem; }
+.individual-measurement-grid label small { color:var(--muted); font-weight:600; }
+.individual-measurement-grid textarea { min-height:5rem; }
+.individual-measurement-history { margin-top:1rem; }
+.individual-measurement-history ul { display:grid; gap:.45rem; margin:0; padding:0; list-style:none; }
+.individual-measurement-history li { display:flex; justify-content:space-between; gap:1rem; padding:.7rem 0; border-top:1px solid var(--border); }
+.individual-measurement-history li span { display:grid; gap:.15rem; }
+.individual-measurement-history li small { color:var(--muted); }
+.individual-measurement-history li > b { text-align:right; }
 
 .individual-start-hub { max-width:1180px; margin:0 auto; }
 .individual-hub-head { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.5rem; }
@@ -166,4 +189,6 @@ body.individual-player-mode .mobile-dock { grid-template-columns:1fr; }
   .individual-roadmap-unit { grid-template-columns:58px minmax(0,1fr); padding:.8rem; gap:.75rem; }
   .individual-roadmap-number { min-height:58px; }
   .individual-roadmap-heading { flex-direction:column; gap:.4rem; }
+  .individual-measurement-grid { grid-template-columns:1fr; padding:.75rem; }
+  .individual-measurement-exercise > summary { align-items:flex-start; }
 }

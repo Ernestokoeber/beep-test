@@ -66,7 +66,9 @@ const pilotRoadmap = [1, 2, 3, 4, 5, 6, 7, 8].map(unitNumber => ({
   kind: [1, 4, 8].includes(unitNumber) ? 'assessment' : 'development',
   title: unitNumber === 1 ? 'Piloteinheit 1 – Ausgangsniveau' : unitNumber === 4 ? 'Piloteinheit 4 – Zwischenmessung' : unitNumber === 8 ? 'Piloteinheit 8 – Abschlusstest' : `Piloteinheit ${unitNumber} – individuelle Entwicklung`,
   objective: 'Verbindliches Ziel',
-  template: [1, 4, 8].includes(unitNumber) ? { exercises: [{ title: 'Testblock', durationMinutes: 60, repetitions: {}, measurementMethod: {}, coachingCues: [] }] } : null
+  template: unitNumber === 1
+    ? { title: 'Piloteinheit 1 – Ausgangsniveau', objective: 'Ausgangsniveau erfassen', exercises: [{ title: 'Ausgangsmessung Wurf', durationMinutes: 12, repetitions: { totalAttempts: 25 }, measurementMethod: { metrics: ['Treffer je Position'] }, coachingCues: [] }] }
+    : [4, 8].includes(unitNumber) ? { exercises: [{ title: 'Testblock', durationMinutes: 60, repetitions: {}, measurementMethod: {}, coachingCues: [] }] } : null
 }));
 const coachData = { ...playerData, role: 'coach', pilotRoadmap, coachNotes: [{ individual_profile_id: profile.id, note: 'Privat' }], aiDrafts: [] };
 const coachWindow = browser('coach', coachData);
@@ -106,13 +108,13 @@ assert(roadmapText.includes('19.10.2026'));
 assert(roadmapText.includes('16.11.2026'));
 assert(roadmapText.includes('14.12.2026'));
 assert(roadmapText.includes('Freigegebenen Ablauf anzeigen'));
-assert(!coachWindow.document.querySelector('[data-measurement]'), 'Messwertformular steht fälschlich offen in der Übersicht');
+assert(!coachWindow.document.querySelector('[data-guided-measurement]'), 'Messwertformular steht fälschlich offen in der Übersicht');
 assert(!coachWindow.document.querySelector('[data-weekly-focus]'), 'Wochenfokus steht fälschlich offen in der Übersicht');
 assert(!coachWindow.document.querySelector('[data-coach-note]'), 'Notizformular steht fälschlich offen in der Übersicht');
 
 await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'training');
 assert(coachWindow.document.querySelector('[data-action="start-live-training"]'), 'Geführter Trainingsstart fehlt');
-assert(!coachWindow.document.querySelector('[data-measurement]'), 'Messwerte sind nicht vom Trainingsbereich getrennt');
+assert(!coachWindow.document.querySelector('[data-guided-measurement]'), 'Messwerte sind nicht vom Trainingsbereich getrennt');
 coachWindow.document.querySelector('[data-action="start-live-training"]').click();
 assert(coachWindow.document.querySelector('.individual-live-shell'), 'Geführter Vollbildmodus fehlt');
 const liveText = coachWindow.document.querySelector('.individual-live-shell').textContent;
@@ -126,7 +128,12 @@ assert(liveText.includes('Taktik öffnen'));
 assert(!coachWindow.document.body.classList.contains('individual-player-mode'));
 
 await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'measurements');
-assert(coachWindow.document.querySelector('[data-measurement]'), 'Eigener Messwertbereich fehlt');
+assert(coachWindow.document.querySelector('[data-guided-measurement]'), 'Eigener Messwertbereich fehlt');
+const measurementText = coachWindow.document.querySelector('#app').textContent;
+assert(measurementText.includes('Wähle die Übung'));
+assert(measurementText.includes('Beobachtung'));
+assert(!measurementText.includes('Messwertschlüssel'), 'Technischer Datenbankschlüssel ist für Trainer sichtbar');
+assert(!measurementText.includes('Numerischer Wert'), 'Technischer Datentyp ist für Trainer sichtbar');
 assert(!coachWindow.document.querySelector('[data-weekly-focus]'), 'Wochenfokus steht im Messwertbereich offen');
 await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'focus');
 assert(coachWindow.document.querySelector('[data-weekly-focus]'), 'Eigener Wochenfokusbereich fehlt');
@@ -147,5 +154,8 @@ assert(!plannedCardText.includes('Nicht geplant'), 'Bestehende Pilotprofile blei
 assert(plannedCardText.includes('19.10.2026'), 'Automatisch angelegter Pilotstart wird auf der Spielerkarte nicht angezeigt');
 unplannedWindow.document.querySelector('[data-action="open-profile"]').click();
 assert(unplannedWindow.location.hash.endsWith(`/individual/player/${profile.id}`), 'Spieler öffnen funktioniert nach der automatischen Planung nicht');
+await unplannedWindow.BT.individualTraining.render(unplannedWindow.document.querySelector('#app'), profile.id, 'measurements');
+assert(unplannedWindow.document.querySelectorAll('[data-guided-measurement]').length > 0, 'Verbindliche Einheit 1 dient nicht als Rückfallplan bei fehlenden Übungszeilen');
+assert(unplannedWindow.document.querySelector('#app').textContent.includes('Treffer frontal'), 'Trainerfreundliche Wurferfassung fehlt im Rückfallplan');
 
 console.log('Individual Training UI: Rollenansichten, Privattrennung, Offline-Queue und Logout erfolgreich.');

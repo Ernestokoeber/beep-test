@@ -341,10 +341,13 @@ BT.individualTraining = (function() {
     };
   }
 
-  function renderCoachLive(target, profile, data, session) {
-    const exercises = (data.exercises || [])
+  function renderCoachLive(target, profile, data, session, fallbackExercises = []) {
+    const storedExercises = (data.exercises || [])
       .filter(item => item.session_id === session.id && item.individual_profile_id === profile.id)
       .sort((a, b) => Number(a.position) - Number(b.position));
+    const exercises = storedExercises.length
+      ? storedExercises.map(item => ({ ...item, database_id: item.id }))
+      : fallbackExercises.map((item, index) => ({ ...item, id: `template-${index + 1}`, database_id: null }));
     if (!exercises.length) {
       notice(target.querySelector('.individual-view'), 'Für diese Einheit ist noch kein Übungsplan gespeichert.', true);
       return;
@@ -379,6 +382,7 @@ BT.individualTraining = (function() {
     const draw = () => {
       const item = exercise();
       const next = exercises[state.index + 1];
+      const quickMeasurements = measurementDefinitions(item);
       const planned = Math.max(1, Number(item.duration_minutes) || 1) * 60 + Number(state.adjustments[item.id] || 0);
       const repetitions = typeof item.repetitions === 'string' ? item.repetitions : JSON.stringify(item.repetitions || {});
       const measurement = typeof item.measurement_method === 'string' ? item.measurement_method : JSON.stringify(item.measurement_method || {});
@@ -410,9 +414,11 @@ BT.individualTraining = (function() {
             </div>
             <label class="individual-live-note">Trainernotiz<textarea data-live-note maxlength="500" placeholder="Beobachtung zu diesem Block …">${BT.util.escapeHTML(state.notes[item.id] || '')}</textarea></label>
             <div class="individual-live-quick-actions"><button class="btn" type="button" data-live-quick-note>Schnellnotiz mit Zeit</button><button class="btn" type="button" data-live-tactics>Taktik öffnen</button></div>
-            <form class="individual-live-measurement" data-live-measurement>
-              <strong>Messwert direkt erfassen</strong><input name="metricKey" required placeholder="Messwert, z. B. Level"><input name="numericValue" type="number" step="0.01" required placeholder="Wert"><input name="unit" placeholder="Einheit"><button class="btn" type="submit">Speichern</button>
-            </form>
+            ${quickMeasurements.length ? `<form class="individual-live-measurement" data-live-measurement>
+              <strong>Ergebnis direkt erfassen</strong>
+              <select name="metric" aria-label="Beobachtung wählen">${quickMeasurements.map(definition => `<option value="${definition.key}" data-type="${definition.type}" data-unit="${BT.util.escapeHTML(definition.unit || '')}">${BT.util.escapeHTML(definition.label)}</option>`).join('')}</select>
+              <input name="value" required placeholder="Ergebnis"><button class="btn" type="submit">Speichern</button>
+            </form>` : ''}
             <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
           </section>
           <aside class="individual-live-side">
@@ -454,9 +460,12 @@ BT.individualTraining = (function() {
         try { await BT.api.individualAction('setAttendance', { profileId: profile.id, sessionId: session.id, status: button.dataset.liveAttendance }); notice(target, 'Teilnahme gespeichert.'); }
         catch (error) { notice(target, error.message, true); }
       });
-      target.querySelector('[data-live-measurement]').onsubmit = async event => {
+      const liveMeasurementForm = target.querySelector('[data-live-measurement]');
+      if (liveMeasurementForm) liveMeasurementForm.onsubmit = async event => {
         event.preventDefault(); const form = new FormData(event.currentTarget);
-        try { await BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: item.id, metricKey: form.get('metricKey'), numericValue: Number(form.get('numericValue')), unit: form.get('unit') || null }); event.currentTarget.reset(); notice(target, 'Messwert gespeichert.'); }
+        const selected = event.currentTarget.elements.metric.selectedOptions[0];
+        const numeric = selected.dataset.type === 'number';
+        try { await BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: item.database_id, metricKey: form.get('metric'), numericValue: numeric ? Number(form.get('value')) : null, textValue: numeric ? null : form.get('value'), unit: selected.dataset.unit || null }); event.currentTarget.reset(); notice(target, 'Ergebnis gespeichert.'); }
         catch (error) { notice(target, error.message, true); }
       };
       target.querySelector('[data-live-finish]').onclick = async () => {
@@ -464,9 +473,9 @@ BT.individualTraining = (function() {
         const finishButton = target.querySelector('[data-live-finish]'); finishButton.disabled = true; notice(target, 'Tatsächlichen Ablauf wird gespeichert …');
         try {
           const writes = exercises.flatMap(entry => {
-            const values = [BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.id, metricKey: 'tatsaechliche_dauer', numericValue: Number(state.elapsed[entry.id] || 0), unit: 'Sekunden' })];
-            if (state.ratings[entry.id]) values.push(BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.id, metricKey: 'schnellbewertung', textValue: state.ratings[entry.id] }));
-            if ((state.notes[entry.id] || '').trim()) values.push(BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.id, metricKey: 'trainernotiz', textValue: state.notes[entry.id].trim() }));
+            const values = [BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.database_id, metricKey: 'tatsaechliche_dauer', numericValue: Number(state.elapsed[entry.id] || 0), unit: 'Sekunden' })];
+            if (state.ratings[entry.id]) values.push(BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.database_id, metricKey: 'schnellbewertung', textValue: state.ratings[entry.id] }));
+            if ((state.notes[entry.id] || '').trim()) values.push(BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.database_id, metricKey: 'trainernotiz', textValue: state.notes[entry.id].trim() }));
             return values;
           });
           await Promise.all(writes);
@@ -481,12 +490,123 @@ BT.individualTraining = (function() {
     draw();
   }
 
+  function measurementDefinitions(exercise) {
+    const title = String(exercise?.title || '').toLocaleLowerCase('de-DE');
+    const number = (key, label, unit = '', max = null, attempts = 0) => ({ key, label, type: 'number', unit, max, attempts });
+    const choice = (key, label, choices) => ({ key, label, type: 'choice', choices });
+    const text = (key, label, placeholder = 'Kurz und verständlich eintragen') => ({ key, label, type: 'text', placeholder });
+    if (title.includes('dynamische aktivierung')) return [];
+    if (title.includes('check-in') || title.includes('readiness')) return [number('readiness', 'Tagesform', 'von 10', 10)];
+    if (title.includes('ballkontrolle')) return [
+      number('zeit', 'Zeit', 'Sekunden', null, 2),
+      number('ballverluste', 'Ballverluste', 'Anzahl', null, 2),
+      number('ausgelassene_huetchen', 'Ausgelassene Hütchen', 'Anzahl', 5, 2),
+      choice('blick_oben', 'Blick oben', ['Ja', 'Teilweise', 'Nein']),
+      choice('schwache_hand', 'Schwache Hand', ['Sicher', 'Wechselhaft', 'Unsicher'])
+    ];
+    if (title.includes('korbabschluss')) return [
+      number('treffer_rechts', 'Treffer rechts', 'von 10', 10),
+      number('treffer_links', 'Treffer links', 'von 10', 10),
+      number('korrekte_abschlusshand', 'Richtige Abschlusshand', 'von 20', 20),
+      number('korrekte_schrittfolge', 'Korrekte Schrittfolge', 'von 20', 20),
+      number('ballverlust_vor_abschluss', 'Ballverlust vor Abschluss', 'Anzahl', 20),
+      choice('technik', 'Technik insgesamt', ['Stabil', 'Wechselhaft', 'Unsicher'])
+    ];
+    if (title.includes('wurf')) return [
+      number('treffer_baseline_links', 'Treffer Baseline links', 'von 5', 5),
+      number('treffer_fluegel_links', 'Treffer Flügel links', 'von 5', 5),
+      number('treffer_frontal', 'Treffer frontal', 'von 5', 5),
+      number('treffer_fluegel_rechts', 'Treffer Flügel rechts', 'von 5', 5),
+      number('treffer_baseline_rechts', 'Treffer Baseline rechts', 'von 5', 5),
+      choice('fehlwurfrichtung', 'Häufigste Fehlwurfrichtung', ['Zu kurz', 'Zu lang', 'Links', 'Rechts', 'Unterschiedlich']),
+      choice('balance', 'Balance', ['Stabil', 'Wechselhaft', 'Unsicher']),
+      choice('wurflinie', 'Wurflinie', ['Stabil', 'Wechselhaft', 'Unsicher']),
+      choice('follow_through', 'Follow-through', ['Stabil', 'Wechselhaft', 'Unsicher'])
+    ];
+    if (title.includes('technikkorrektur')) return [text('coach_beobachtung', 'Was wurde korrigiert?')];
+    if (title.includes('wahrnehmung') || title.includes('entscheidung')) return [
+      number('entscheidung_richtig', 'Richtige Entscheidungen', 'von 18', 18),
+      number('entscheidung_verspaetet', 'Verspätete Entscheidungen', 'Anzahl', 18),
+      number('entscheidung_falsch', 'Falsche Entscheidungen', 'Anzahl', 18),
+      number('ballverluste', 'Ballverluste', 'Anzahl', 18),
+      number('treffer', 'Treffer', 'Anzahl', 18)
+    ];
+    if (title.includes('eins-gegen-eins')) return [
+      number('vorteil_erzeugt', 'Vorteil erzeugt', 'von 8', 8),
+      number('abschluss_erreicht', 'Abschluss erreicht', 'von 8', 8),
+      number('treffer', 'Treffer', 'von 8', 8),
+      number('ballverluste', 'Ballverluste', 'Anzahl', 8),
+      choice('genutzte_seite', 'Bevorzugte Seite', ['Links', 'Rechts', 'Ausgeglichen']),
+      choice('coach_bewertung', 'Entscheidungen insgesamt', ['Gut', 'Wechselhaft', 'Unsicher'])
+    ];
+    if (title.includes('kontrollmessung')) return [
+      choice('kontrollbereich', 'Wiederholter Bereich', ['Ballkontrolle', 'Korbabschluss', 'Wurf']),
+      text('kontrollwert', 'Ergebnis nach dem Coaching', 'Zum Beispiel: 7 Treffer aus 10 oder 13,4 Sekunden')
+    ];
+    if (title.includes('reflexion')) return [
+      text('funktionierte_am_besten', 'Was funktionierte am besten?'),
+      text('am_schwierigsten', 'Was war am schwierigsten?'),
+      text('hinweis_naechstes_training', 'Welcher Hinweis gilt fürs nächste Training?')
+    ];
+    if (title.includes('vollständigkeitsprüfung')) return [
+      choice('vollstaendig', 'Alle Tests vollständig?', ['Ja', 'Nein']),
+      choice('vergleichbar', 'Bedingungen vergleichbar?', ['Ja', 'Nein']),
+      text('abweichung', 'Abweichung oder äußerer Fehler', 'Nur ausfüllen, wenn etwas die Messung beeinflusst hat')
+    ];
+    if (title.includes('auswertung') || title.includes('entwicklungsblock')) return [text('coach_beobachtung', 'Coach-Beobachtung')];
+    return [text('beobachtung', 'Beobachtung')];
+  }
+
+  function measurementInput(definition) {
+    if (definition.type === 'choice') {
+      return `<select name="value" required><option value="">Bitte wählen</option>${definition.choices.map(value => `<option value="${BT.util.escapeHTML(value)}">${BT.util.escapeHTML(value)}</option>`).join('')}</select>`;
+    }
+    if (definition.type === 'text') return `<textarea name="value" required maxlength="500" placeholder="${BT.util.escapeHTML(definition.placeholder || '')}"></textarea>`;
+    return `<input name="value" type="number" inputmode="decimal" min="0" ${definition.max === null ? '' : `max="${definition.max}"`} step="0.01" required>`;
+  }
+
+  function renderMeasurementPane(activeSession, exercises, measurements) {
+    const trackable = exercises.map(exercise => ({ exercise, definitions: measurementDefinitions(exercise) })).filter(item => item.definitions.length);
+    const forms = trackable.map(({ exercise, definitions }) => {
+      const saved = measurements.filter(item => exercise.id && item.exercise_id === exercise.id).length;
+      return `<details class="card individual-measurement-exercise">
+        <summary><span><small>Übung ${exercise.position}</small><strong>${BT.util.escapeHTML(exercise.title)}</strong></span><b>${saved ? `${saved} gespeichert` : 'Öffnen'}</b></summary>
+        <div class="individual-measurement-grid">${definitions.map(definition => `<form data-guided-measurement data-exercise-id="${exercise.id || ''}" data-metric-key="${definition.key}" data-value-type="${definition.type}" data-unit="${BT.util.escapeHTML(definition.unit || '')}">
+          <label><span>${BT.util.escapeHTML(definition.label)}${definition.unit ? ` <small>${BT.util.escapeHTML(definition.unit)}</small>` : ''}</span>${measurementInput(definition)}</label>
+          ${definition.attempts ? `<label><span>Durchgang</span><select name="attempt" required>${Array.from({ length: definition.attempts }, (_, index) => `<option value="${index + 1}">${index + 1}</option>`).join('')}</select></label>` : ''}
+          <button class="btn primary" type="submit">${BT.util.escapeHTML(definition.label)} speichern</button>
+        </form>`).join('')}</div>
+      </details>`;
+    }).join('');
+    const exerciseNames = new Map(exercises.filter(item => item.id).map(item => [item.id, item.title]));
+    const labels = new Map(exercises.flatMap(exercise => measurementDefinitions(exercise).map(definition => [definition.key, definition.label])));
+    const history = measurements.length ? measurements.slice().reverse().map(item => {
+      const value = item.numeric_value !== null && item.numeric_value !== undefined ? Number(item.numeric_value) : item.text_value;
+      return `<li><span><strong>${BT.util.escapeHTML(labels.get(item.metric_key) || String(item.metric_key).replaceAll('_', ' '))}</strong><small>${BT.util.escapeHTML(exerciseNames.get(item.exercise_id) || 'Einheit 1')}${item.attempt ? ` · Durchgang ${item.attempt}` : ''}</small></span><b>${BT.util.escapeHTML(value)}${item.unit ? ` ${BT.util.escapeHTML(item.unit)}` : ''}</b></li>`;
+    }).join('') : '<li class="muted">Noch keine Ergebnisse gespeichert.</li>';
+    return `<section class="individual-measurement-intro"><p>Wähle die Übung und trage nur das beobachtete Ergebnis ein. CourtHub ordnet es automatisch richtig zu.</p></section>
+      <div class="individual-measurement-exercises">${forms || '<section class="card"><p class="muted">Für diese Einheit sind keine Messungen vorgesehen.</p></section>'}</div>
+      <section class="card individual-measurement-history"><h4>Gespeicherte Ergebnisse</h4><ul>${history}</ul></section>`;
+  }
+
   function renderCoachDetail(root, profile, data, pane = 'overview') {
     const host = root.querySelector('[data-role="individual-detail"]');
     const sessions = (data.sessions || []).filter(item => item.individual_profile_id === profile.id);
     const activeSession = [...sessions].reverse().find(item => ['planned', 'in_progress'].includes(item.status)) || sessions.at(-1) || null;
     const plan = (data.plans || []).find(item => item.session_id === activeSession?.id && item.individual_profile_id === profile.id);
     const exercises = (data.exercises || []).filter(item => item.session_id === activeSession?.id && item.individual_profile_id === profile.id);
+    const roadmapUnit = (data.pilotRoadmap || []).find(item => Number(item.unitNumber) === Number(activeSession?.unit_number));
+    const fallbackTemplate = roadmapUnit?.template || null;
+    const displayPlan = plan || fallbackTemplate;
+    const displayExercises = exercises.length ? exercises : (fallbackTemplate?.exercises || []).map((exercise, index) => ({
+      id: null,
+      position: index + 1,
+      title: exercise.title,
+      duration_minutes: exercise.durationMinutes,
+      repetitions: exercise.repetitions,
+      measurement_method: exercise.measurementMethod,
+      coaching_cues: exercise.coachingCues
+    }));
     const measurements = (data.measurements || []).filter(item => item.individual_profile_id === profile.id && item.session_id === activeSession?.id);
     const notes = (data.coachNotes || []).filter(item => item.individual_profile_id === profile.id);
     const feedback = (data.releasedFeedback || []).filter(item => item.individual_profile_id === profile.id);
@@ -507,14 +627,12 @@ BT.individualTraining = (function() {
         ${activeSession && ['planned', 'in_progress'].includes(activeSession.status) ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · 105 Minuten</p><a class="btn primary" href="#/individual/player/${encodeURIComponent(profile.id)}/training">Einheit öffnen</a></section>` : `<form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>`}
       </div>`;
     const training = activeSession ? `<section class="card individual-session-run-card"><div class="section-head"><div><span class="section-kicker">Durchführung</span><h4>Einheit ${activeSession.unit_number || '–'} · ${fmt(activeSession.scheduled_for)}</h4></div><span>${BT.util.escapeHTML(activeSession.status)}</span></div>
-        <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${exercises.length ? '' : 'disabled'}>▶ Training durchführen</button>
+        <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${displayExercises.length ? '' : 'disabled'}>▶ Training durchführen</button>
         <div class="individual-actions"><button class="btn" data-set-attendance="attended">Als anwesend bestätigen</button><button class="btn" data-set-attendance="unexcused_no_show">Unentschuldigt gefehlt</button><button class="btn danger" data-cancel-session>Einheit absagen</button></div>
-        ${plan ? `<h4>${BT.util.escapeHTML(plan.title)}</h4><p>${BT.util.escapeHTML(plan.objective || '')}</p><ol class="individual-exercise-list">${exercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Coaching</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurement_method))}</p><p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
+        ${displayPlan ? `<h4>${BT.util.escapeHTML(displayPlan.title)}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Coaching</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurement_method))}</p><p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
         <div class="individual-actions"><button class="btn primary" data-complete-session>Einheit abschließen und KI-Entwurf starten</button></div>
       </section>` : emptySession;
-    const measurementPane = activeSession ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Einheit ${activeSession.unit_number || '–'}</span><h4>Messwerte erfassen</h4></div><strong>${measurements.length} gespeichert</strong></div>
-        <form data-measurement class="individual-feedback-form"><label>Übung<select name="exerciseId"><option value="">Ohne Übungszuordnung</option>${exercises.map(exercise => `<option value="${exercise.id}">${exercise.position}. ${BT.util.escapeHTML(exercise.title)}</option>`).join('')}</select></label><label>Messwertschlüssel<input name="metricKey" required placeholder="z. B. wurf_treffer_frontal"></label><label>Numerischer Wert<input name="numericValue" type="number" step="0.01"></label><label>Oder Textwert<input name="textValue"></label><label>Einheit<input name="unit" placeholder="Treffer, Sekunden …"></label><label>Versuch<input name="attempt" type="number" min="1"></label><button class="btn primary" type="submit">Messwert speichern</button></form>
-      </section>` : emptySession;
+    const measurementPane = activeSession ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Einheit ${activeSession.unit_number || '–'}</span><h4>Ergebnisse erfassen</h4></div><strong>${measurements.length} gespeichert</strong></div></section>${renderMeasurementPane(activeSession, displayExercises, measurements)}` : emptySession;
     const focusPane = activeSession ? `<form class="card individual-feedback-form" data-weekly-focus><h4>Persönlichen Wochenfokus freigeben</h4><label>Zielhandlung<input name="title" required maxlength="120"></label><label>Hinweis 1<input name="cueOne" required maxlength="240"></label><label>Hinweis 2, optional<input name="cueTwo" maxlength="240"></label><label>Gelungen, wenn …<input name="successIndicator" required maxlength="300"></label><label>Gültig ab<input name="validFrom" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 1)}" readonly required></label><label>Gültig bis<input name="validUntil" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 6)}" readonly required></label><button class="btn primary" type="submit">Wochenfokus veröffentlichen</button></form>` : emptySession;
     const feedbackPane = `<div class="individual-detail-grid">
         <form class="card" data-coach-note><h4>Private Coach-Notiz</h4><textarea name="note" maxlength="5000" required></textarea><button class="btn" type="submit">Privat speichern</button></form>
@@ -548,17 +666,17 @@ BT.individualTraining = (function() {
       try { await BT.api.individualAction('setAttendance', { profileId: profile.id, sessionId: activeSession.id, status: button.dataset.setAttendance }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     }));
-    host.querySelector('[data-action="start-live-training"]')?.addEventListener('click', () => renderCoachLive(root.parentElement, profile, data, activeSession));
+    host.querySelector('[data-action="start-live-training"]')?.addEventListener('click', () => renderCoachLive(root.parentElement, profile, data, activeSession, displayExercises));
     host.querySelector('[data-cancel-session]')?.addEventListener('click', async () => {
       try { await BT.api.individualAction('cancelSession', { profileId: profile.id, sessionId: activeSession.id }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
-    host.querySelector('[data-measurement]')?.addEventListener('submit', async event => {
+    host.querySelectorAll('[data-guided-measurement]').forEach(formElement => formElement.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
-      const numeric = form.get('numericValue');
-      try { await BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: activeSession.id, exerciseId: form.get('exerciseId') || null, metricKey: form.get('metricKey'), numericValue: numeric === '' ? null : Number(numeric), textValue: numeric === '' ? form.get('textValue') : null, unit: form.get('unit') || null, attempt: form.get('attempt') ? Number(form.get('attempt')) : null }); await refresh(); }
+      const numeric = event.currentTarget.dataset.valueType === 'number';
+      try { await BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: activeSession.id, exerciseId: event.currentTarget.dataset.exerciseId || null, metricKey: event.currentTarget.dataset.metricKey, numericValue: numeric ? Number(form.get('value')) : null, textValue: numeric ? null : form.get('value'), unit: event.currentTarget.dataset.unit || null, attempt: form.get('attempt') ? Number(form.get('attempt')) : null }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
-    });
+    }));
     host.querySelector('[data-complete-session]')?.addEventListener('click', async () => {
       try {
         const result = await BT.api.individualAction('completeSession', { profileId: profile.id, sessionId: activeSession.id });
