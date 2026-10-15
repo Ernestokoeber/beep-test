@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="station-training.css">
   <link rel="stylesheet" href="live-game.css">
   <link rel="stylesheet" href="matchday.css">
+  <link rel="stylesheet" href="individual-training.css">
 </head>
 <body>
   <header class="topbar">
@@ -53,6 +54,7 @@
       <div class="context-navigation" data-role="context-navigation" hidden></div>
       <span class="nav-section-label">Coaching</span>
       <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon" aria-hidden="true">⌂</span><span>Start</span></a>
+      <a href="#/individual" data-nav="individual"><span class="nav-icon" aria-hidden="true">◎</span><span>Individual Training</span></a>
       <a href="#/training" data-nav="training"><span class="nav-icon" aria-hidden="true">▶</span><span>Training</span></a>
       <a href="#/games" data-nav="games"><span class="nav-icon" aria-hidden="true">◉</span><span>Spiele &amp; Atlas</span></a>
       <a href="#/jerseys" data-nav="jerseys"><span class="nav-icon" aria-hidden="true">♧</span><span>Trikots &amp; Waschdienst</span></a>
@@ -80,6 +82,7 @@
   <main id="app"></main>
 
   <nav class="mobile-dock" aria-label="Schnellnavigation">
+    <a href="#/individual" data-mobile-nav="individual" class="individual-mobile-link"><span aria-hidden="true">◎</span><small>Individual</small></a>
     <a href="#/dashboard" data-mobile-nav="dashboard"><span aria-hidden="true">⌂</span><small>Start</small></a>
     <a href="#/training" data-mobile-nav="training"><span aria-hidden="true">▶</span><small>Training</small></a>
     <a href="#/games" data-mobile-nav="games"><span aria-hidden="true">◉</span><small>Spiele</small></a>
@@ -1511,6 +1514,7 @@
   <script defer src="js/storage.js"></script>
   <script defer src="js/coaching-staff.js"></script>
   <script defer src="js/api.js"></script>
+  <script defer src="js/individual-training.js"></script>
   <script defer src="js/checkin.js"></script>
   <script defer src="js/live-game/bootstrap.js"></script>
   <script defer src="js/sync.js"></script>

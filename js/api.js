@@ -82,8 +82,8 @@ BT.api = (function() {
   return {
     getToken,
     setToken,
-    register: (displayName, email, password, inviteCode) => request('/auth/register', {
-      method: 'POST', auth: false, body: { displayName, email, password, inviteCode }
+    register: (displayName, email, password, inviteCode, individualInviteToken) => request('/auth/register', {
+      method: 'POST', auth: false, body: { displayName, email, password, inviteCode, individualInviteToken }
     }),
     login: (email, password) => request('/auth/login', {
       method: 'POST', auth: false, body: { email, password }
@@ -120,6 +120,13 @@ BT.api = (function() {
       });
       return request('/games/sync?' + query.toString());
     },
-    getAtlasAnalysis: (atlasGameId) => request('/games/atlas?gameId=' + encodeURIComponent(atlasGameId))
+    getAtlasAnalysis: (atlasGameId) => request('/games/atlas?gameId=' + encodeURIComponent(atlasGameId)),
+    getIndividualOverview: (profileId) => request('/individual/overview' + (profileId ? '?profileId=' + encodeURIComponent(profileId) : '')),
+    individualAction: (action, payload = {}) => request('/individual/manage', { method: 'POST', body: { action, ...payload } }),
+    individualAIDraft: (action, payload = {}) => request('/individual/ai-drafts', { method: 'POST', body: { action, ...payload }, timeoutMs: 55_000 }),
+    getIndividualPushKey: () => request('/individual/push'),
+    saveIndividualPush: (subscription) => request('/individual/push', { method: 'POST', body: subscription }),
+    removeIndividualPush: (endpoint) => request('/individual/push', { method: 'DELETE', body: { endpoint } }),
+    syncIndividualMutations: (mutations) => request('/individual/sync', { method: 'POST', body: { mutations } })
   };
 })();

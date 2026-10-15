@@ -9,8 +9,17 @@
     },
     "api/games/atlas.js": {
       "maxDuration": 30
+    },
+    "api/individual/ai-drafts.js": {
+      "maxDuration": 60
+    },
+    "api/individual/reminders.js": {
+      "maxDuration": 60
     }
   },
+  "crons": [
+    { "path": "/api/individual/reminders", "schedule": "*/15 * * * *" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

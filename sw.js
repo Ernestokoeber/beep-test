@@ -1,6 +1,6 @@
 // Bump this whenever any app file or the offline asset manifest changes.
 // Cached files stay fixed for a release; the new worker installs the next release.
-const CACHE = 'courthub-v214';
+const CACHE = 'courthub-v216';
 const ASSETS = [
   './js/training-shots.js',
   './',
@@ -11,6 +11,7 @@ const ASSETS = [
   './station-training.css',
   './live-game.css',
   './matchday.css',
+  './individual-training.css',
   './vendor/jspdf.umd.min.js',
   './vendor/three/three.module.min.js',
   './vendor/three/three.core.min.js',
@@ -52,6 +53,7 @@ const ASSETS = [
   './js/coaching-staff.js',
   './js/coaching-staff.mjs',
   './js/api.js',
+  './js/individual-training.js',
   './js/checkin.js',
   './js/sync.js',
   './js/levels.js',
@@ -190,5 +192,30 @@ self.addEventListener('fetch', (event) => {
       }
     })
   );
+});
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data?.json() || {}; } catch { payload = {}; }
+  event.waitUntil(self.registration.showNotification(payload.title || 'CourtHub', {
+    body: payload.body || 'Neue Erinnerung im Individual Training.',
+    tag: payload.tag || 'courthub-individual',
+    data: { url: payload.url || '/#/individual' },
+    icon: './icons/logo-192.png',
+    badge: './icons/logo-192.png'
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || '/#/individual', self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async clients => {
+    const current = clients.find(client => client.url.startsWith(self.location.origin));
+    if (current) {
+      await current.focus();
+      return current.navigate(target);
+    }
+    return self.clients.openWindow(target);
+  }));
 });
 

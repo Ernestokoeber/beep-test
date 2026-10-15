@@ -25,6 +25,16 @@ export default async function handler(req, res) {
     if (!membership) return res.status(403).json({ error: 'Keinem Team zugeordnet.' });
 
     await query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
+    let individualProfileId = null;
+    if (membership.role === 'player') {
+      const profile = await query(
+        `SELECT id FROM individual_profiles
+          WHERE organization_id = $1 AND user_id = $2 AND active = TRUE
+          LIMIT 1`,
+        [membership.organization_id, user.id]
+      );
+      individualProfileId = profile.rows[0]?.id || null;
+    }
     return res.status(200).json({
       token: signToken(user),
       user: {
@@ -32,6 +42,7 @@ export default async function handler(req, res) {
         email: user.email,
         displayName: user.display_name,
         role: membership.role,
+        individualProfileId,
         organization: {
           id: membership.organization_id,
           name: membership.organization_name,

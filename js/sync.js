@@ -223,14 +223,14 @@ BT.sync = (function() {
   }
 
   function push() {
-    if (!user || !current(sessionEpoch) || user.role === 'viewer') return Promise.resolve();
+    if (!user || !current(sessionEpoch) || user.role === 'viewer' || user.role === 'player') return Promise.resolve();
     pushRequested = true;
     if (!pushWorker) pushWorker = drainPushes(sessionEpoch);
     return pushWorker;
   }
 
   function queueSave(data) {
-    if (!user || !current(sessionEpoch) || user.role === 'viewer' || applying) return;
+    if (!user || !current(sessionEpoch) || user.role === 'viewer' || user.role === 'player' || applying) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
@@ -244,6 +244,13 @@ BT.sync = (function() {
     if (pushWorker) await pushWorker;
     if (!current(epoch)) return;
     setStatus('syncing');
+    if (user?.role === 'player') {
+      await BT.individualTraining?.syncPending?.();
+      if (!current(epoch)) return;
+      lastCheckedAt = lastSyncAt = new Date().toISOString();
+      setStatus('synced');
+      return;
+    }
     const remote = await BT.api.getWorkspace();
     if (!current(epoch)) return;
     lastCheckedAt = new Date().toISOString();
@@ -314,8 +321,8 @@ BT.sync = (function() {
     return result.user;
   }
 
-  async function register(displayName, email, password, inviteCode) {
-    const result = await BT.api.register(displayName, email, password, inviteCode);
+  async function register(displayName, email, password, inviteCode, individualInviteToken) {
+    const result = await BT.api.register(displayName, email, password, inviteCode, individualInviteToken);
     await setSession(result);
     return result.user;
   }
@@ -329,6 +336,7 @@ BT.sync = (function() {
     sessionToken=null;
     try { localStorage.removeItem(IDENTITY_KEY); } catch {}
     try { localStorage.removeItem(VERSION_KEY); } catch { /* Offline-Speicher blockiert. */ }
+    BT.individualTraining?.clearLocalData?.();
     user = null;
     version = 0;
     lastSyncAt = null;

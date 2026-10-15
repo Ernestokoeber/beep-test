@@ -14,7 +14,7 @@ const scripts = [
   'js/training-live.js',
   'js/training-shots.js',
   'js/station-training.js',
-  'js/util.js', 'js/storage.js', 'js/api.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',
+  'js/util.js', 'js/storage.js', 'js/api.js', 'js/individual-training.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',
   'js/schedule.js', 'js/season-ai-draft.js', 'js/seasonplanner.js', 'js/training.js', 'js/tactics.js', 'js/screen-academy.js',
   'js/play-designer/main.js', 'js/play-designer/styles.js', 'js/play-designer/rendering.js',
   'js/play-designer/court-enhancements.js', 'js/play-designer/layout-fix.js',
@@ -41,12 +41,17 @@ const scripts = [
   'js/video-import/main.js', 'js/tablecrew.js', 'js/jerseys.js', 'js/history.js', 'js/account.js', 'js/app.js',
   'js/checkin.js', 'js/games.js', 'js/opponents.js',
   'api/_lib/db.js', 'api/_lib/http.js', 'api/_lib/auth.js', 'api/_lib/workspace-data.js',
+  'api/_lib/individual-training.js', 'api/_lib/individual-access.js', 'api/_lib/individual-pilot.js',
   'api/_lib/ai-contracts.js', 'api/_lib/gemini-client.js', 'api/_lib/ai-handler.js',
   'api/auth/register.js', 'api/auth/login.js', 'api/auth/me.js',
   'api/workspace.js', 'api/members.js', 'api/ai/gemini.js',
   'api/_lib/checkin.js', 'api/checkin/manage.js', 'api/checkin/public.js', 'api/checkin/qr.js',
-  'api/games/sync.js', 'api/games/atlas.js', 'api/games/atlas-webhook.js'
+  'api/games/sync.js', 'api/games/atlas.js', 'api/games/atlas-webhook.js',
+  'api/individual/overview.js', 'api/individual/manage.js', 'api/individual/sync.js',
+  'api/individual/ai-drafts.js', 'api/individual/push.js', 'api/individual/reminders.js'
 ];
+
+scripts.push('scripts/migrate.mjs');
 
 for (const file of scripts) execFileSync(process.execPath, ['--check', resolve(root, file)], { stdio: 'inherit' });
 for (const file of ['package.json', 'manifest.webmanifest', 'vercel.json']) JSON.parse(readFileSync(resolve(root, file), 'utf8'));

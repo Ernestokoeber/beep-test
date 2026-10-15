@@ -6,7 +6,8 @@ BT.account = (function() {
     admin: 'Administrator',
     coach: 'Trainer',
     assistant: 'Assistenztrainer',
-    viewer: 'Lesender Zugriff'
+    viewer: 'Lesender Zugriff',
+    player: 'Individualspieler'
   };
 
   function initials(name) {
@@ -49,11 +50,13 @@ BT.account = (function() {
     root.querySelector('[data-role="account-team"]').textContent = state.user.organization?.name || 'TSV Lindau Basketball';
     root.querySelector('[data-role="last-sync"]').textContent = formatSync(state.lastCheckedAt);
     root.querySelector('[data-role="workspace-version"]').textContent = String(state.version);
+    const members = root.querySelector('.team-members-card');
+    if (members) members.hidden = state.user.role === 'player';
   }
 
   async function loadMembers(root) {
     const state = BT.sync.getState();
-    if (!state.user) return;
+    if (!state.user || state.user.role === 'player') return;
     const list = root.querySelector('[data-role="team-members"]');
     const status = root.querySelector('[data-role="members-status"]');
     status.textContent = 'Trainerteam wird geladen …';
@@ -75,6 +78,7 @@ BT.account = (function() {
           const select = document.createElement('select');
           select.setAttribute('aria-label', 'Rolle für ' + member.displayName);
           Object.entries(ROLE_LABELS).forEach(([value, label]) => {
+            if (value === 'player') return;
             const option = document.createElement('option');
             option.value = value;
             option.textContent = label;
@@ -154,11 +158,12 @@ BT.account = (function() {
       const form = new FormData(event.currentTarget);
       authStatus.textContent = 'Konto wird erstellt …';
       try {
-        await BT.sync.register(form.get('displayName'), form.get('email'), form.get('password'), form.get('inviteCode'));
+        const individualInviteToken = new URLSearchParams(location.search).get('individualInvite');
+        await BT.sync.register(form.get('displayName'), form.get('email'), form.get('password'), form.get('inviteCode'), individualInviteToken);
         authStatus.textContent = '';
         update(root);
         loadMembers(root);
-        BT.util.toast('Trainerkonto erstellt. Lokale Daten wurden übernommen.');
+        BT.util.toast(individualInviteToken ? 'Spielerkonto erstellt.' : 'Trainerkonto erstellt. Lokale Daten wurden übernommen.');
       } catch (error) {
         authStatus.textContent = 'Fehler: ' + error.message;
       }

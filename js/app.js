@@ -197,6 +197,8 @@
     if (hash.startsWith('#/checkin/')) {
       const token = decodeURIComponent(hash.slice('#/checkin/'.length));
       BT.checkin.render(app, token);
+    } else if (hash === '#/individual') {
+      BT.individualTraining.render(app);
     } else if (isDashboard) {
       // Das bisherige Menue bleibt sichtbar, bis das Dashboard vollstaendig in
       // einem losgeloesten Fragment aufgebaut wurde. So entsteht beim Wechsel
@@ -280,6 +282,8 @@
     let active = 'dashboard';
     if (hash.startsWith('#/dashboard') || hash === '#/' || hash === '') {
       active = 'dashboard';
+    } else if (hash.startsWith('#/individual')) {
+      active = 'individual';
     } else if (hash.startsWith('#/players') || hash.startsWith('#/player/')) {
       active = 'players';
     } else if (hash.startsWith('#/training')) {

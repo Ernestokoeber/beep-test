@@ -1,12 +1,13 @@
 import { transaction } from '../_lib/db.js';
 import { hashPassword, safeEqual, signToken, validEmail, validPassword } from '../_lib/auth.js';
+import { claimIndividualInvite } from '../_lib/individual-access.js';
 import { method, noStore, safeError } from '../_lib/http.js';
 
 export default async function handler(req, res) {
   noStore(res);
   if (!method(req, res, ['POST'])) return;
 
-  const { email, password, displayName, inviteCode } = req.body || {};
+  const { email, password, displayName, inviteCode, individualInviteToken } = req.body || {};
   const normalizedEmail = String(email || '').trim().toLowerCase();
   const name = String(displayName || '').trim();
 
@@ -27,21 +28,39 @@ export default async function handler(req, res) {
       if (isFirstUser && (!bootstrapEmail || normalizedEmail !== bootstrapEmail)) {
         return { status: 403, error: 'Das erste Administratorkonto ist für die konfigurierte TSV-E-Mail reserviert.' };
       }
+      const isIndividualRegistration = !isFirstUser && typeof individualInviteToken === 'string' && individualInviteToken.length > 0;
       const configuredInvite = process.env.REGISTRATION_INVITE_CODE;
-      if (!isFirstUser && (!configuredInvite || !safeEqual(inviteCode, configuredInvite))) {
+      if (!isFirstUser && !isIndividualRegistration && (!configuredInvite || !safeEqual(inviteCode, configuredInvite))) {
         return { status: 403, error: 'Der Einladungscode ist ungültig.' };
       }
 
       const teamName = process.env.TEAM_NAME || 'TSV Lindau Basketball';
       const teamSlug = process.env.TEAM_SLUG || 'tsv-lindau-basketball';
-      const organizationResult = await client.query(
-        `INSERT INTO organizations (name, slug)
-         VALUES ($1, $2)
-         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
-         RETURNING id, name, slug`,
-        [teamName, teamSlug]
-      );
-      const organization = organizationResult.rows[0];
+      let organization;
+      if (isIndividualRegistration) {
+        const invitationOrganization = await client.query(
+          `SELECT o.id, o.name, o.slug
+             FROM individual_invites ii
+             JOIN organizations o ON o.id = ii.organization_id
+            WHERE ii.token_hash = encode(digest($1, 'sha256'), 'hex')
+              AND ii.used_at IS NULL
+              AND ii.revoked_at IS NULL
+              AND ii.expires_at > clock_timestamp()
+            LIMIT 1`,
+          [individualInviteToken]
+        );
+        organization = invitationOrganization.rows[0];
+        if (!organization) return { status: 403, error: 'Die Individual-Einladung ist ungültig oder abgelaufen.' };
+      } else {
+        const organizationResult = await client.query(
+          `INSERT INTO organizations (name, slug)
+           VALUES ($1, $2)
+           ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id, name, slug`,
+          [teamName, teamSlug]
+        );
+        organization = organizationResult.rows[0];
+      }
 
       const passwordHash = await hashPassword(password);
       const userResult = await client.query(
@@ -51,7 +70,16 @@ export default async function handler(req, res) {
         [normalizedEmail, name, passwordHash]
       );
       const user = userResult.rows[0];
-      const role = isFirstUser ? 'admin' : 'coach';
+      const role = isFirstUser ? 'admin' : (isIndividualRegistration ? 'player' : 'coach');
+      let individualProfileId = null;
+
+      if (isIndividualRegistration) {
+        const claimed = await claimIndividualInvite(client, individualInviteToken, user.id);
+        if (!claimed || claimed.organization_id !== organization.id) {
+          throw Object.assign(new Error('Individual-Einladung konnte nicht zugeordnet werden.'), { publicStatus: 409 });
+        }
+        individualProfileId = claimed.profile.id;
+      }
 
       await client.query(
         'INSERT INTO memberships (user_id, organization_id, role) VALUES ($1, $2, $3)',
@@ -64,7 +92,7 @@ export default async function handler(req, res) {
         [organization.id, user.id]
       );
 
-      return { status: 201, user, role, organization };
+      return { status: 201, user, role, organization, individualProfileId };
     });
 
     if (result.error) return res.status(result.status).json({ error: result.error });
@@ -73,10 +101,12 @@ export default async function handler(req, res) {
       email: result.user.email,
       displayName: result.user.display_name,
       role: result.role,
+      individualProfileId: result.individualProfileId,
       organization: result.organization
     };
     return res.status(201).json({ token: signToken(result.user), user: account });
   } catch (error) {
+    if (error.publicStatus) return res.status(error.publicStatus).json({ error: error.message });
     return safeError('register', error, res, 'Konto konnte nicht erstellt werden.');
   }
 }

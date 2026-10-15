@@ -78,3 +78,11 @@ export async function requireMembership(req, res) {
 export function canWrite(role) {
   return role === 'admin' || role === 'coach' || role === 'assistant';
 }
+
+export function isIndividualCoach(role) {
+  return role === 'admin' || role === 'coach';
+}
+
+export function isIndividualPlayer(role) {
+  return role === 'player';
+}

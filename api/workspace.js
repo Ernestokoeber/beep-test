@@ -13,6 +13,7 @@ export default async function handler(req, res) {
   try {
     const auth = await requireMembership(req, res);
     if (!auth) return;
+    if (auth.role === 'player') return res.status(403).json({ error: 'Spielerkonten haben keinen Zugriff auf den Team-Workspace.' });
 
     if (req.method === 'GET') {
       const { rows } = await query(

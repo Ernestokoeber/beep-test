@@ -18,6 +18,7 @@ export default async function handler(req, res) {
            FROM memberships m
            JOIN users u ON u.id = m.user_id
           WHERE m.organization_id = $1
+            AND m.role <> 'player'
           ORDER BY m.created_at ASC`,
         [auth.organization_id]
       );

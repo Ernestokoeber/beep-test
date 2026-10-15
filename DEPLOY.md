@@ -6,7 +6,17 @@ Das GitHub-Repository `Ernestokoeber/beep-test` in Vercel als neues Projekt impo
 
 ## 2. PostgreSQL verbinden
 
-Im Vercel Marketplace eine Neon-PostgreSQL-Datenbank mit dem Projekt verbinden. Anschließend `schema.sql` einmal in der Neon SQL Console ausführen. Falls die Integration keinen Wert namens `DATABASE_URL` anlegt, den gepoolten Neon-Connection-String unter diesem Namen als Vercel-Umgebungsvariable hinterlegen.
+Im Vercel Marketplace eine Neon-PostgreSQL-Datenbank mit dem Projekt verbinden. Anschließend `schema.sql` einmal in der Neon SQL Console ausführen. Danach die versionierten, ausschließlich additiven Migrationen mit `npm run db:migrate` anwenden. Falls die Integration keinen Wert namens `DATABASE_URL` anlegt, den gepoolten Neon-Connection-String unter diesem Namen als Vercel-Umgebungsvariable hinterlegen.
+
+Vor jeder Migration ist eine überprüfte Sicherung erforderlich. `npm run db:migrate` verwendet eine PostgreSQL-Advisory-Lock, führt jede Datei aus `migrations/` höchstens einmal aus und protokolliert die Version in `schema_migrations`.
+
+Der Rückweg wird ausschließlich auf einer wiederhergestellten Datenbankkopie geprüft:
+
+```bash
+ALLOW_DESTRUCTIVE_MIGRATION_ROLLBACK=yes npm run db:migrate:down
+```
+
+Dieser Befehl ist destruktiv und darf nicht gegen die produktive Datenbank ausgeführt werden.
 
 ## 3. Geschützte Umgebungsvariablen
 
@@ -29,8 +39,14 @@ Für Production, Preview und Development setzen:
 | `ATLAS_ACCESS_CLIENT_SECRET` | Cloudflare-Access-Service-Token-Secret für Atlas |
 | `ATLAS_IDENTITY_EMAIL` | Identitätsheader für lokale/direkte Atlas-Tests; hinter Cloudflare Access nicht erforderlich |
 | `PUBLIC_APP_URL` | kanonische PWA-Adresse für QR-Codes, z. B. `https://coach.tsv-lindau.de` |
+| `CRON_SECRET` | zufälliges Geheimnis für den Vercel-Scheduler der Individual-Erinnerungen |
+| `VAPID_SUBJECT` | Kontakt-URI für Web-Push, z. B. `mailto:admin@example.org` |
+| `VAPID_PUBLIC_KEY` | öffentlicher VAPID-Schlüssel für die PWA |
+| `VAPID_PRIVATE_KEY` | ausschließlich serverseitiger privater VAPID-Schlüssel |
 
 Geheimnisse niemals in Git committen. Nach Änderungen an Variablen neu deployen.
+
+VAPID-Schlüssel einmalig lokal mit `npx web-push generate-vapid-keys` erzeugen. Der Scheduler läuft alle 15 Minuten. Alle Fälligkeiten werden in `Europe/Berlin` berechnet; ohne Push-Berechtigung oder VAPID-Konfiguration bleiben Dashboard-Erinnerungen aktiv.
 
 ## 4. Erstes Konto und Rollen
 
