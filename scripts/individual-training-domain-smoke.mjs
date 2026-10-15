@@ -55,19 +55,24 @@ assert.equal(staleDraft({ status: 'current', content: {} }).status, 'stale');
 assert.throws(() => staleDraft({ status: 'approved', content: {} }), /freigegebener Entwurf/);
 
 const reminderPlan = buildWeeklyReminderPlan({
-  profileId: 'thomas', tuesdayDate: '2026-10-20', fridayDate: '2026-10-23'
+  profileId: 'thomas', sessionAt: '2026-10-19T18:15:00.000Z', fridayDate: '2026-10-23'
 });
-assert.equal(reminderPlan.length, 6);
+assert.equal(reminderPlan.length, 3);
 assert.deepEqual(reminderPlan.map(item => item.kind), [
-  'focus', 'feedback_request', 'feedback_followup',
-  'focus', 'feedback_request', 'feedback_followup'
+  'attendance', 'focus', 'feedback_request'
 ]);
 assert.deepEqual(buildWeeklyReminderPlan({
-  profileId: 'thomas', tuesdayDate: '2026-11-03', fridayDate: '2026-11-06', suspended: true
+  profileId: 'thomas', sessionAt: '2026-11-09T19:15:00.000Z', fridayDate: '2026-11-13', suspended: true
 }), []);
-assert.equal(new Set(reminderPlan.map(item => item.notificationKey)).size, 6, 'Erinnerungen müssen idempotent sein');
-assert.equal(reminderPlan[0].dueAt, '2026-10-20T17:45:00.000Z', 'Oktobertermin muss die Sommerzeit Europe/Berlin berücksichtigen');
-assert.equal(zonedDateTimeToInstant('2026-11-03', '19:45:00'), '2026-11-03T18:45:00.000Z', 'Winterzeit Europe/Berlin ist falsch');
+assert.equal(new Set(reminderPlan.map(item => item.notificationKey)).size, 3, 'Erinnerungen müssen idempotent sein');
+assert.equal(reminderPlan[0].dueAt, '2026-10-19T16:15:00.000Z', 'Montagserinnerung muss am Anfang des freigegebenen Zeitfensters liegen');
+assert.equal(reminderPlan[1].dueAt, '2026-10-23T16:15:00.000Z', 'Freitagsfokus muss die Sommerzeit Europe/Berlin berücksichtigen');
+assert.equal(reminderPlan[2].dueAt, '2026-10-24T10:00:00.000Z', 'Samstagsabfrage muss ungefähr um 12:00 Uhr liegen');
+assert.equal(zonedDateTimeToInstant('2026-11-06', '18:15:00'), '2026-11-06T17:15:00.000Z', 'Winterzeit Europe/Berlin ist falsch');
+
+const cronConfig = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+assert.equal(cronConfig.crons.length, 6, 'Sommer- und Winterzeitfenster für Montag, Freitag und Samstag fehlen');
+assert(cronConfig.crons.every(job => !job.schedule.includes('*/')), 'Vercel-Hobby darf keinen hochfrequenten Cron enthalten');
 
 for (const unit of [1, 4, 8]) assert.equal(assertTemplateDuration(pilotSessionTemplate(unit)), 105, `Einheit ${unit} dauert nicht 105 Minuten`);
 const unitOne = pilotSessionTemplate(1);

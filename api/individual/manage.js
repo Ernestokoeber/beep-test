@@ -39,6 +39,12 @@ function berlinDate(instant) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant));
 }
 
+function berlinTime(instant) {
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).format(new Date(instant));
+}
+
 function addDays(date, days) {
   const value = new Date(`${date}T12:00:00Z`);
   value.setUTCDate(value.getUTCDate() + days);
@@ -58,6 +64,7 @@ function assertPilotSessionInstant(value, expectedDate, localTime) {
   if (localDate < '2026-10-19') throw new TypeError('Der Pilot beginnt am 19. Oktober 2026.');
   if (localDate === '2026-11-02') throw new TypeError('Am 2. November 2026 ist die Halle ferienbedingt geschlossen.');
   if (localDate !== expectedDate) throw new TypeError(`Der nächste offene Pilottermin ist Montag, ${expectedDate}.`);
+  if (berlinTime(instant) !== '20:15') throw new TypeError('Die Montagseinheiten beginnen verbindlich um 20:15 Uhr.');
   return instant;
 }
 
@@ -217,6 +224,7 @@ export function createIndividualManageHandler(deps = {}) {
           const requestedDate = req.body.scheduledDate ? isoDate(req.body.scheduledDate, 'Termin') : berlinDate(isoInstant(req.body.scheduledFor, 'Termin'));
           const requestedTime = String(req.body.scheduledTime || '');
           if (req.body.scheduledTime && !/^\d{2}:\d{2}$/.test(requestedTime)) throw new TypeError('Startzeit ist ungültig.');
+          if (requestedTime && requestedTime !== '20:15') throw new TypeError('Die Montagseinheiten beginnen verbindlich um 20:15 Uhr.');
           if (requestedDate !== expectedDate) throw new TypeError(`Der nächste offene Pilottermin ist Montag, ${expectedDate}.`);
           const durationMinutes = Number(req.body.durationMinutes ?? 105);
           if (durationMinutes !== 105) throw new TypeError('Eine Piloteinheit dauert verbindlich 105 Minuten.');
@@ -231,6 +239,15 @@ export function createIndividualManageHandler(deps = {}) {
             await client.query(
               `INSERT INTO individual_session_participants (session_id, individual_profile_id)
                VALUES ($1, $2)`, [created.rows[0].id, profile.id]
+            );
+            await client.query(
+              `INSERT INTO individual_notifications
+                (individual_profile_id, notification_key, kind, due_at, payload)
+               VALUES ($1, $1::text || ':attendance:' || ($3::timestamptz - interval '2 hours')::text,
+                       'attendance', $3::timestamptz - interval '2 hours',
+                       jsonb_build_object('sessionId', $2::text, 'scheduledFor', $3::text))
+               ON CONFLICT (individual_profile_id, notification_key) DO NOTHING`,
+              [profile.id, created.rows[0].id, created.rows[0].scheduled_for]
             );
           }
           const fixedPlans = await insertPilotTemplate(client, created.rows[0], profiles, auth.sub);
@@ -254,6 +271,15 @@ export function createIndividualManageHandler(deps = {}) {
               WHERE session_id = $3 AND individual_profile_id = $4
               RETURNING *`,
             [status, isIndividualPlayer(auth.role), session.id, profile.id]
+          );
+          await client.query(
+            `UPDATE individual_notifications
+                SET stopped_at = CASE WHEN $3 = 'declined' THEN clock_timestamp() ELSE NULL END
+              WHERE individual_profile_id = $1
+                AND kind = 'attendance'
+                AND payload->>'sessionId' = $2
+                AND dashboard_visible_at IS NULL`,
+            [profile.id, session.id, status]
           );
           const attendance = await client.query(
             'SELECT attendance_status FROM individual_session_participants WHERE session_id = $1', [session.id]
@@ -325,6 +351,10 @@ export function createIndividualManageHandler(deps = {}) {
           );
           if (!cancelled.rows[0]) throw new IndividualRequestError(409, 'Die Einheit kann in diesem Status nicht abgesagt werden.');
           await client.query(
+            `UPDATE individual_notifications SET stopped_at = clock_timestamp()
+              WHERE kind = 'attendance' AND payload->>'sessionId' = $1 AND stopped_at IS NULL`, [session.id]
+          );
+          await client.query(
             `UPDATE individual_notifications n SET stopped_at = clock_timestamp()
               FROM individual_weekly_focus f
              WHERE f.source_session_id = $1
@@ -362,13 +392,12 @@ export function createIndividualManageHandler(deps = {}) {
           );
           if (!focus.rows[0]) throw new IndividualRequestError(404, 'Wochenfokus nicht gefunden.');
           const trainingDay = String(req.body.trainingDay || '');
-          if (!['tuesday', 'friday'].includes(trainingDay)) throw new TypeError('Ungültiger Trainingstag.');
+          if (trainingDay !== 'friday') throw new TypeError('Rückmeldungen werden im Pilot nur für das Freitagstraining erfasst.');
           const trainingDate = isoDate(req.body.trainingDate, 'Trainingsdatum');
           if (trainingDate < databaseDate(focus.rows[0].valid_from) || trainingDate > databaseDate(focus.rows[0].valid_until)) {
             throw new TypeError('Trainingsdatum liegt außerhalb des freigegebenen Wochenfokus.');
           }
-          const expectedWeekday = trainingDay === 'tuesday' ? 2 : 5;
-          if (new Date(`${trainingDate}T12:00:00Z`).getUTCDay() !== expectedWeekday) throw new TypeError('Trainingstag und Datum stimmen nicht überein.');
+          if (new Date(`${trainingDate}T12:00:00Z`).getUTCDay() !== 5) throw new TypeError('Trainingstag und Datum stimmen nicht überein.');
           const previous = await client.query(
             `SELECT * FROM individual_weekly_feedback
               WHERE individual_profile_id = $1 AND training_date = $2 FOR UPDATE`,
@@ -392,7 +421,7 @@ export function createIndividualManageHandler(deps = {}) {
             `UPDATE individual_notifications
                 SET stopped_at = clock_timestamp()
               WHERE individual_profile_id = $1
-                AND kind IN ('feedback_request', 'feedback_followup')
+                AND kind = 'feedback_request'
                 AND payload->>'trainingDate' = $2
                 AND stopped_at IS NULL`,
             [profile.id, trainingDate]
@@ -427,23 +456,18 @@ export function createIndividualManageHandler(deps = {}) {
               validFrom, validUntil, auth.sub]
           );
           await client.query(
-            `WITH training_days AS (
-               SELECT day::date AS training_date,
-                      CASE extract(isodow FROM day) WHEN 2 THEN 'tuesday' ELSE 'friday' END AS training_day
+            `WITH friday AS (
+               SELECT day::date AS training_date, 'friday'::text AS training_day
                  FROM generate_series($3::date, $4::date, interval '1 day') day
-                WHERE extract(isodow FROM day) IN (2, 5)
+                WHERE extract(isodow FROM day) = 5
              ), reminders AS (
                SELECT training_date, training_day, 'focus'::text AS kind,
-                      (training_date + time '19:45') AT TIME ZONE 'Europe/Berlin' AS due_at
-                 FROM training_days
+                      (training_date + time '18:15') AT TIME ZONE 'Europe/Berlin' AS due_at
+                 FROM friday
                UNION ALL
                SELECT training_date, training_day, 'feedback_request',
                       (training_date + 1 + time '12:00') AT TIME ZONE 'Europe/Berlin'
-                 FROM training_days
-               UNION ALL
-               SELECT training_date, training_day, 'feedback_followup',
-                      (training_date + 1 + time '19:00') AT TIME ZONE 'Europe/Berlin'
-                 FROM training_days
+                 FROM friday
              )
              INSERT INTO individual_notifications
                (individual_profile_id, notification_key, kind, due_at, payload)

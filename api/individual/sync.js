@@ -49,6 +49,15 @@ async function applyMutation(client, auth, profile, mutation) {
         RETURNING session_id`, [status, uuid(payload.entityId, 'Einheiten-ID'), profile.id]
     );
     if (!updated.rows[0]) throw new TypeError('Einheit nicht gefunden.');
+    await client.query(
+      `UPDATE individual_notifications
+          SET stopped_at = CASE WHEN $3 = 'declined' THEN clock_timestamp() ELSE NULL END
+        WHERE individual_profile_id = $1
+          AND kind = 'attendance'
+          AND payload->>'sessionId' = $2
+          AND dashboard_visible_at IS NULL`,
+      [profile.id, payload.entityId, status]
+    );
     const all = await client.query('SELECT attendance_status FROM individual_session_participants WHERE session_id = $1', [payload.entityId]);
     if (all.rows.length && all.rows.every(row => row.attendance_status === 'declined')) {
       await client.query(
@@ -77,7 +86,7 @@ async function applyMutation(client, auth, profile, mutation) {
   } else if (kind === 'weekly_feedback') {
     const feedback = validateWeeklyFeedback(payload);
     const trainingDay = String(payload.trainingDay || '');
-    if (!['tuesday', 'friday'].includes(trainingDay)) throw new TypeError('Ungültiger Trainingstag.');
+    if (trainingDay !== 'friday') throw new TypeError('Rückmeldungen werden im Pilot nur für das Freitagstraining erfasst.');
     const trainingDate = isoDate(payload.trainingDate);
     const focus = await client.query(
       `SELECT valid_from, valid_until FROM individual_weekly_focus
@@ -88,8 +97,7 @@ async function applyMutation(client, auth, profile, mutation) {
     if (trainingDate < databaseDate(focus.rows[0].valid_from) || trainingDate > databaseDate(focus.rows[0].valid_until)) {
       throw new TypeError('Trainingsdatum liegt außerhalb des freigegebenen Wochenfokus.');
     }
-    const expectedWeekday = trainingDay === 'tuesday' ? 2 : 5;
-    if (new Date(`${trainingDate}T12:00:00Z`).getUTCDay() !== expectedWeekday) throw new TypeError('Trainingstag und Datum stimmen nicht überein.');
+    if (new Date(`${trainingDate}T12:00:00Z`).getUTCDay() !== 5) throw new TypeError('Trainingstag und Datum stimmen nicht überein.');
     const previous = await client.query(
       `SELECT * FROM individual_weekly_feedback
         WHERE individual_profile_id = $1 AND training_date = $2 FOR UPDATE`,
@@ -138,7 +146,7 @@ async function applyMutation(client, auth, profile, mutation) {
       `UPDATE individual_notifications
           SET stopped_at = clock_timestamp()
         WHERE individual_profile_id = $1
-          AND kind IN ('feedback_request', 'feedback_followup')
+          AND kind = 'feedback_request'
           AND payload->>'trainingDate' = $2
           AND stopped_at IS NULL`,
       [profile.id, trainingDate]

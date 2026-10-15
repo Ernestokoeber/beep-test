@@ -70,6 +70,38 @@ const forbiddenResponse = response();
 await forbiddenCreate({ method: 'POST', body: { action: 'createProfile', playerProfileId: 'p1' }, headers: {} }, forbiddenResponse);
 assert.equal(forbiddenResponse.statusCode, 403, 'Spieler darf Individualprofile anlegen');
 
+const sessionSql = [];
+const sessionHandler = createIndividualManageHandler({
+  requireMembership: async () => coachAuth,
+  transaction: async callback => callback({
+    query: async (sql, params) => {
+      sessionSql.push({ sql, params });
+      if (sql.includes('FROM individual_profiles')) return { rows: [{ id: IDS.profile, organization_id: IDS.organization, coach_user_id: IDS.coach }] };
+      if (sql.includes("status = 'completed'")) return { rows: [{ count: 0 }] };
+      if (sql.includes('SELECT max((scheduled_for')) return { rows: [{ date: null }] };
+      if (sql.includes('INSERT INTO individual_sessions')) return { rows: [{ id: IDS.session, scheduled_for: '2026-10-19T18:15:00.000Z', unit_number: 1 }] };
+      if (sql.includes('INSERT INTO individual_session_plans')) return { rows: [{ id: IDS.measurement }] };
+      return { rows: [] };
+    }
+  })
+});
+const sessionResponse = response();
+await sessionHandler({
+  method: 'POST', headers: {}, body: {
+    action: 'createSession', profileIds: [IDS.profile], scheduledDate: '2026-10-19', scheduledTime: '20:15', durationMinutes: 105
+  }
+}, sessionResponse);
+assert.equal(sessionResponse.statusCode, 201, 'Feste Montagseinheit um 20:15 Uhr wurde nicht angelegt');
+assert(sessionSql.some(item => item.sql.includes("'attendance', $3::timestamptz - interval '2 hours'")), 'Montagserinnerung wurde nicht mit der Einheit angelegt');
+const invalidSessionResponse = response();
+await sessionHandler({
+  method: 'POST', headers: {}, body: {
+    action: 'createSession', profileIds: [IDS.profile], scheduledDate: '2026-10-19', scheduledTime: '19:30', durationMinutes: 105
+  }
+}, invalidSessionResponse);
+assert.equal(invalidSessionResponse.statusCode, 400, 'Abweichende Montagstartzeit wurde akzeptiert');
+assert.match(invalidSessionResponse.body.error, /20:15/);
+
 const attendanceSql = [];
 const attendanceHandler = createIndividualManageHandler({
   requireMembership: async () => playerAuth,

@@ -14,7 +14,7 @@ const handler = createIndividualReminderHandler({
       sqlSeen.push(sql);
       if (sql.includes('FROM individual_notifications n')) return { rows: [{
         id: '11111111-1111-4111-8111-111111111111', individual_profile_id: '22222222-2222-4222-8222-222222222222',
-        kind: 'feedback_followup', notification_key: 'only-once', payload: { trainingDate: '2026-10-20' }
+        kind: 'feedback_request', notification_key: 'only-once', payload: { trainingDate: '2026-10-23' }
       }] };
       return { rows: [] };
     }

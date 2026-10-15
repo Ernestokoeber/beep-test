@@ -10,6 +10,14 @@ function authorized(req) {
 
 function pushPayload(notification) {
   const payload = notification.payload || {};
+  if (notification.kind === 'attendance') {
+    return {
+      title: 'Individualtraining heute',
+      body: 'Deine Montagseinheit beginnt um 20:15 Uhr.',
+      tag: notification.notification_key,
+      url: '/#/individual'
+    };
+  }
   if (notification.kind === 'focus') {
     return {
       title: 'Dein Wochenfokus',
@@ -19,7 +27,7 @@ function pushPayload(notification) {
     };
   }
   return {
-    title: notification.kind === 'feedback_followup' ? 'Letzte Erinnerung zur Rückmeldung' : 'Kurze Trainingsrückmeldung',
+    title: 'Kurze Trainingsrückmeldung',
     body: 'Bitte tragen Sie Ihre kurze Rückmeldung zum Mannschaftstraining ein.',
     tag: notification.notification_key,
     url: '/#/individual'

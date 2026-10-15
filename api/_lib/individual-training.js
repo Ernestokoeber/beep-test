@@ -170,20 +170,18 @@ export function zonedDateTimeToInstant(date, time, timeZone = INDIVIDUAL_TIMEZON
   return new Date(guess).toISOString();
 }
 
-export function buildWeeklyReminderPlan({ profileId, tuesdayDate, fridayDate, suspended = false }) {
+export function buildWeeklyReminderPlan({ profileId, sessionAt, fridayDate, suspended = false }) {
   if (suspended) return [];
-  const days = [tuesdayDate, fridayDate];
-  const entries = [];
-  for (const date of days) {
-    const focus = zonedDateTimeToInstant(date, '19:45:00');
-    const nextDate = new Date(`${date}T12:00:00Z`);
-    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
-    const feedbackDay = nextDate.toISOString().slice(0, 10);
-    const request = zonedDateTimeToInstant(feedbackDay, '12:00:00');
-    const followup = zonedDateTimeToInstant(feedbackDay, '19:00:00');
-    for (const [kind, dueAt] of [['focus', focus], ['feedback_request', request], ['feedback_followup', followup]]) {
-      entries.push({ kind, dueAt, notificationKey: reminderKey(profileId, kind, dueAt) });
-    }
-  }
-  return entries;
+  const session = new Date(sessionAt);
+  if (!Number.isFinite(session.getTime())) throw new TypeError('Montagstermin ist ungültig.');
+  const mondayReminder = new Date(session.getTime() - 120 * 60 * 1000).toISOString();
+  const fridayFocus = zonedDateTimeToInstant(fridayDate, '18:15:00');
+  const saturday = new Date(`${fridayDate}T12:00:00Z`);
+  saturday.setUTCDate(saturday.getUTCDate() + 1);
+  const saturdayFeedback = zonedDateTimeToInstant(saturday.toISOString().slice(0, 10), '12:00:00');
+  return [
+    ['attendance', mondayReminder],
+    ['focus', fridayFocus],
+    ['feedback_request', saturdayFeedback]
+  ].map(([kind, dueAt]) => ({ kind, dueAt, notificationKey: reminderKey(profileId, kind, dueAt) }));
 }

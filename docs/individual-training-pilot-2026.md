@@ -6,6 +6,7 @@ Implementierungsreferenz für die am 15. Oktober 2026 vollständig freigegebene 
 
 - Start: Montag, 19. Oktober 2026
 - Dauer: acht tatsächlich durchgeführte Montagseinheiten zu je 105 Minuten
+- Feste Startzeit: montags um 20:15 Uhr
 - Teilnehmer: Thomas Albrecht und Adnan Gasum, höchstens zwei Spieler je Einheit
 - Ressource: ein Korb
 - Schließwoche: 2. bis 6. November 2026; der 2. November zählt nicht als Einheit
@@ -26,7 +27,7 @@ Die versionierten Vorlagen liegen in `api/_lib/individual-pilot.js`. Einheit 1 e
 
 ## Erinnerungen
 
-Der serverseitige Scheduler aktiviert Dienstag und Freitag um 19:45 Uhr den Fokus, Mittwoch und Samstag um 12:00 Uhr die Rückmeldungsaufforderung und bei weiter fehlender Antwort genau einmal um 19:00 Uhr die Folgeerinnerung. PostgreSQL berechnet die Zeitpunkte mit `Europe/Berlin`, einschließlich Sommer-/Winterzeit. Dashboard-Auslieferung funktioniert unabhängig von Web-Push.
+Der serverseitige Scheduler aktiviert montags eine Terminerinnerung 60 bis 120 Minuten vor der festen Startzeit um 20:15 Uhr. Die Dienstagserinnerung entfällt. Freitags wird der persönliche Beobachtungsfokus 60 bis 120 Minuten vor dem Mannschaftstraining um 20:15 Uhr aktiviert; samstags folgt ungefähr um 12:00 Uhr genau eine Rückmeldungsaufforderung. Eine Folgeerinnerung gibt es nicht. Die paarweise angelegten UTC-Zeitfenster fangen die Sommer-/Winterzeit von `Europe/Berlin` ab; die idempotente Verarbeitung verhindert doppelte Auslieferungen. Dashboard-Auslieferung funktioniert unabhängig von Web-Push.
 
 ## KI-Lebenszyklus
 

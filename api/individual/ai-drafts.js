@@ -81,18 +81,15 @@ async function publishApprovedContent(client, auth, draft) {
       focus.successIndicator, auth.sub, draft.session_id]
   );
   await client.query(
-    `WITH training_days AS (
-       SELECT day::date AS training_date,
-              CASE extract(isodow FROM day) WHEN 2 THEN 'tuesday' ELSE 'friday' END AS training_day
+    `WITH friday AS (
+       SELECT day::date AS training_date, 'friday'::text AS training_day
          FROM generate_series($3::date, $4::date, interval '1 day') day
-        WHERE extract(isodow FROM day) IN (2, 5)
+        WHERE extract(isodow FROM day) = 5
      ), reminders AS (
        SELECT training_date, training_day, 'focus'::text AS kind,
-              (training_date + time '19:45') AT TIME ZONE 'Europe/Berlin' AS due_at FROM training_days
+              (training_date + time '18:15') AT TIME ZONE 'Europe/Berlin' AS due_at FROM friday
        UNION ALL SELECT training_date, training_day, 'feedback_request',
-              (training_date + 1 + time '12:00') AT TIME ZONE 'Europe/Berlin' FROM training_days
-       UNION ALL SELECT training_date, training_day, 'feedback_followup',
-              (training_date + 1 + time '19:00') AT TIME ZONE 'Europe/Berlin' FROM training_days
+              (training_date + 1 + time '12:00') AT TIME ZONE 'Europe/Berlin' FROM friday
      )
      INSERT INTO individual_notifications (individual_profile_id, notification_key, kind, due_at, payload)
      SELECT $1, $1::text || ':' || kind || ':' || due_at::text, kind, due_at,
