@@ -18,12 +18,12 @@
     }
   },
   "crons": [
-    { "path": "/api/individual/reminders", "schedule": "15 16 * * 1" },
-    { "path": "/api/individual/reminders", "schedule": "15 17 * * 1" },
-    { "path": "/api/individual/reminders", "schedule": "15 16 * * 5" },
-    { "path": "/api/individual/reminders", "schedule": "15 17 * * 5" },
-    { "path": "/api/individual/reminders", "schedule": "0 10 * * 6" },
-    { "path": "/api/individual/reminders", "schedule": "0 11 * * 6" }
+    { "path": "/api/individual/reminders?slot=monday-summer", "schedule": "15 16 * * 1" },
+    { "path": "/api/individual/reminders?slot=monday-winter", "schedule": "15 17 * * 1" },
+    { "path": "/api/individual/reminders?slot=friday-summer", "schedule": "15 16 * * 5" },
+    { "path": "/api/individual/reminders?slot=friday-winter", "schedule": "15 17 * * 5" },
+    { "path": "/api/individual/reminders?slot=saturday-summer", "schedule": "0 10 * * 6" },
+    { "path": "/api/individual/reminders?slot=saturday-winter", "schedule": "0 11 * * 6" }
   ],
   "headers": [
     {

@@ -73,6 +73,7 @@ assert.equal(zonedDateTimeToInstant('2026-11-06', '18:15:00'), '2026-11-06T17:15
 const cronConfig = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
 assert.equal(cronConfig.crons.length, 6, 'Sommer- und Winterzeitfenster für Montag, Freitag und Samstag fehlen');
 assert(cronConfig.crons.every(job => !job.schedule.includes('*/')), 'Vercel-Hobby darf keinen hochfrequenten Cron enthalten');
+assert.equal(new Set(cronConfig.crons.map(job => job.path)).size, cronConfig.crons.length, 'Jedes Vercel-Zeitfenster benötigt einen eindeutigen Cron-Pfad');
 
 for (const unit of [1, 4, 8]) assert.equal(assertTemplateDuration(pilotSessionTemplate(unit)), 105, `Einheit ${unit} dauert nicht 105 Minuten`);
 const unitOne = pilotSessionTemplate(1);
