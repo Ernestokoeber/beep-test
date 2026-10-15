@@ -1,6 +1,6 @@
-import { query } from '../_lib/db.js';
-import { getMembership, signToken, validEmail, verifyPassword } from '../_lib/auth.js';
-import { method, noStore, safeError } from '../_lib/http.js';
+import { query } from '../../_lib/db.js';
+import { getMembership, signToken, validEmail, verifyPassword } from '../../_lib/auth.js';
+import { method, noStore, safeError } from '../../_lib/http.js';
 
 export default async function handler(req, res) {
   noStore(res);

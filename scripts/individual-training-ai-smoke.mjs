@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { buildAIRequest } from '../api/_lib/ai-contracts.js';
-import { createIndividualAIDraftHandler } from '../api/individual/ai-drafts.js';
+import { createIndividualAIDraftHandler } from '../api/_handlers/individual/ai-drafts.js';
 
 const valid = {
   analysis: 'Der Blick blieb bei den gemessenen Läufen häufiger oben.',

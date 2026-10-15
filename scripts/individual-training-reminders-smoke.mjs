@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createIndividualReminderHandler } from '../api/individual/reminders.js';
+import { createIndividualReminderHandler } from '../api/_handlers/individual/reminders.js';
 
 const previousSecret = process.env.CRON_SECRET;
 delete process.env.VAPID_PUBLIC_KEY;

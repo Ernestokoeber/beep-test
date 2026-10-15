@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { findIndividualProfile } from '../api/_lib/individual-access.js';
-import { createIndividualOverviewHandler } from '../api/individual/overview.js';
-import { createIndividualManageHandler } from '../api/individual/manage.js';
+import { createIndividualOverviewHandler } from '../api/_handlers/individual/overview.js';
+import { createIndividualManageHandler } from '../api/_handlers/individual/manage.js';
 
 const IDS = {
   profile: '11111111-1111-4111-8111-111111111111',

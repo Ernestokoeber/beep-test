@@ -1,8 +1,8 @@
-import { transaction } from '../_lib/db.js';
+import { transaction } from '../../_lib/db.js';
 import QRCode from 'qrcode';
-import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../_lib/auth.js';
-import { findIndividualProfile, hashIndividualInviteToken, newIndividualInviteToken } from '../_lib/individual-access.js';
-import { assertTemplateDuration, pilotSessionTemplate } from '../_lib/individual-pilot.js';
+import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../../_lib/auth.js';
+import { findIndividualProfile, hashIndividualInviteToken, newIndividualInviteToken } from '../../_lib/individual-access.js';
+import { assertTemplateDuration, pilotSessionTemplate } from '../../_lib/individual-pilot.js';
 import {
   assertParticipantCapacity,
   optionalText,
@@ -14,8 +14,8 @@ import {
   validateReadiness,
   validateWeeklyFeedback,
   zonedDateTimeToInstant
-} from '../_lib/individual-training.js';
-import { method, noStore, safeError } from '../_lib/http.js';
+} from '../../_lib/individual-training.js';
+import { method, noStore, safeError } from '../../_lib/http.js';
 
 class IndividualRequestError extends Error {
   constructor(status, message) { super(message); this.status = status; }

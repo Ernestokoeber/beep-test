@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import { transaction } from '../_lib/db.js';
-import { isIndividualPlayer, requireMembership } from '../_lib/auth.js';
-import { findIndividualProfile } from '../_lib/individual-access.js';
-import { method, noStore, safeError } from '../_lib/http.js';
+import { transaction } from '../../_lib/db.js';
+import { isIndividualPlayer, requireMembership } from '../../_lib/auth.js';
+import { findIndividualProfile } from '../../_lib/individual-access.js';
+import { method, noStore, safeError } from '../../_lib/http.js';
 
 function endpointHash(endpoint) {
   return createHash('sha256').update(endpoint).digest('hex');

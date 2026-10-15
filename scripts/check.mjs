@@ -43,12 +43,13 @@ const scripts = [
   'api/_lib/db.js', 'api/_lib/http.js', 'api/_lib/auth.js', 'api/_lib/workspace-data.js',
   'api/_lib/individual-training.js', 'api/_lib/individual-access.js', 'api/_lib/individual-pilot.js',
   'api/_lib/ai-contracts.js', 'api/_lib/gemini-client.js', 'api/_lib/ai-handler.js',
-  'api/auth/register.js', 'api/auth/login.js', 'api/auth/me.js',
+  'api/auth/[route].js', 'api/_handlers/auth/register.js', 'api/_handlers/auth/login.js', 'api/_handlers/auth/me.js',
   'api/workspace.js', 'api/members.js', 'api/ai/gemini.js',
   'api/_lib/checkin.js', 'api/checkin/manage.js', 'api/checkin/public.js', 'api/checkin/qr.js',
   'api/games/sync.js', 'api/games/atlas.js', 'api/games/atlas-webhook.js',
-  'api/individual/overview.js', 'api/individual/manage.js', 'api/individual/sync.js',
-  'api/individual/ai-drafts.js', 'api/individual/push.js', 'api/individual/reminders.js'
+  'api/individual/[route].js',
+  'api/_handlers/individual/overview.js', 'api/_handlers/individual/manage.js', 'api/_handlers/individual/sync.js',
+  'api/_handlers/individual/ai-drafts.js', 'api/_handlers/individual/push.js', 'api/_handlers/individual/reminders.js'
 ];
 
 scripts.push('scripts/migrate.mjs');

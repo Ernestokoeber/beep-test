@@ -1,8 +1,8 @@
-import { transaction } from '../_lib/db.js';
-import { isIndividualPlayer, requireMembership } from '../_lib/auth.js';
-import { findIndividualProfile } from '../_lib/individual-access.js';
-import { mutationId, validateAttendanceStatus, validateReadiness, validateWeeklyFeedback, uuid } from '../_lib/individual-training.js';
-import { method, noStore, safeError } from '../_lib/http.js';
+import { transaction } from '../../_lib/db.js';
+import { isIndividualPlayer, requireMembership } from '../../_lib/auth.js';
+import { findIndividualProfile } from '../../_lib/individual-access.js';
+import { mutationId, validateAttendanceStatus, validateReadiness, validateWeeklyFeedback, uuid } from '../../_lib/individual-training.js';
+import { method, noStore, safeError } from '../../_lib/http.js';
 
 function isoDate(value) {
   const normalized = String(value || '');

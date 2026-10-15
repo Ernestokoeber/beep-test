@@ -1,7 +1,7 @@
-import { transaction } from '../_lib/db.js';
-import { hashPassword, safeEqual, signToken, validEmail, validPassword } from '../_lib/auth.js';
-import { claimIndividualInvite } from '../_lib/individual-access.js';
-import { method, noStore, safeError } from '../_lib/http.js';
+import { transaction } from '../../_lib/db.js';
+import { hashPassword, safeEqual, signToken, validEmail, validPassword } from '../../_lib/auth.js';
+import { claimIndividualInvite } from '../../_lib/individual-access.js';
+import { method, noStore, safeError } from '../../_lib/http.js';
 
 export default async function handler(req, res) {
   noStore(res);

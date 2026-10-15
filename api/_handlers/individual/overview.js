@@ -1,7 +1,7 @@
-import { query } from '../_lib/db.js';
-import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../_lib/auth.js';
-import { findIndividualProfile } from '../_lib/individual-access.js';
-import { method, noStore, safeError } from '../_lib/http.js';
+import { query } from '../../_lib/db.js';
+import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../../_lib/auth.js';
+import { findIndividualProfile } from '../../_lib/individual-access.js';
+import { method, noStore, safeError } from '../../_lib/http.js';
 
 export function createIndividualOverviewHandler(deps = {}) {
   const execute = deps.query || query;

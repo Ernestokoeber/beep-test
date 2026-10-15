@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { transaction } from '../_lib/db.js';
-import { isIndividualCoach, requireMembership } from '../_lib/auth.js';
-import { findIndividualProfile } from '../_lib/individual-access.js';
-import { generateWithGemini } from '../_lib/gemini-client.js';
-import { canApproveDraft, uuid } from '../_lib/individual-training.js';
-import { method, noStore, safeError } from '../_lib/http.js';
+import { transaction } from '../../_lib/db.js';
+import { isIndividualCoach, requireMembership } from '../../_lib/auth.js';
+import { findIndividualProfile } from '../../_lib/individual-access.js';
+import { generateWithGemini } from '../../_lib/gemini-client.js';
+import { canApproveDraft, uuid } from '../../_lib/individual-training.js';
+import { method, noStore, safeError } from '../../_lib/http.js';
 
 class DraftRequestError extends Error {
   constructor(status, message) { super(message); this.status = status; }

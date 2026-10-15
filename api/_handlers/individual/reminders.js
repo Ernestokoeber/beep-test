@@ -1,6 +1,6 @@
 import webpush from 'web-push';
-import { transaction } from '../_lib/db.js';
-import { method, noStore, safeError } from '../_lib/http.js';
+import { transaction } from '../../_lib/db.js';
+import { method, noStore, safeError } from '../../_lib/http.js';
 import { createIndividualAIDraftHandler } from './ai-drafts.js';
 
 function authorized(req) {

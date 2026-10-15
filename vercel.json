@@ -10,10 +10,7 @@
     "api/games/atlas.js": {
       "maxDuration": 30
     },
-    "api/individual/ai-drafts.js": {
-      "maxDuration": 60
-    },
-    "api/individual/reminders.js": {
+    "api/individual/[route].js": {
       "maxDuration": 60
     }
   },
