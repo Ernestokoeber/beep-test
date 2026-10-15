@@ -133,6 +133,48 @@ BT.individualTraining = (function() {
     return value.toISOString().slice(0, 10);
   }
 
+  function roadmapDate(value) {
+    if (!value) return '—';
+    return new Intl.DateTimeFormat('de-DE', {
+      timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
+    }).format(new Date(`${value}T12:00:00Z`));
+  }
+
+  function sessionStatusLabel(status) {
+    return ({ planned: 'Angelegt', in_progress: 'Läuft', completed: 'Abgeschlossen', cancelled: 'Ausgefallen' })[status] || 'Vorgesehen';
+  }
+
+  function roadmapExercise(exercise, index) {
+    return `<li><strong>${index + 1}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.durationMinutes} Min.</strong>
+      <details><summary>Wiederholungen, Messung und Coaching</summary>
+        <p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions || {}))}</p>
+        <p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurementMethod || {}))}</p>
+        <p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coachingCues || []).join(' · '))}</p>
+      </details></li>`;
+  }
+
+  function renderPilotRoadmap(data, sessions) {
+    const roadmap = data.pilotRoadmap || [];
+    if (!roadmap.length) return '';
+    const cards = roadmap.map(unit => {
+      const matching = (sessions || []).filter(session => Number(session.unit_number) === Number(unit.unitNumber));
+      const actual = [...matching].reverse().find(session => session.status !== 'cancelled') || matching.at(-1) || null;
+      const isAssessment = unit.kind === 'assessment';
+      const planDate = actual ? localBerlinDate(actual.scheduled_for) : unit.scheduledDate;
+      const exercises = unit.template?.exercises || [];
+      return `<article class="individual-roadmap-unit ${isAssessment ? 'assessment' : ''} ${actual?.status || 'upcoming'}" data-pilot-unit="${unit.unitNumber}">
+        <div class="individual-roadmap-number"><span>Einheit</span><strong>${unit.unitNumber}</strong></div>
+        <div class="individual-roadmap-content">
+          <div class="individual-roadmap-heading"><div><small>${isAssessment ? 'Verbindliche Testeinheit' : 'Entwicklungseinheit'}</small><h5>${BT.util.escapeHTML(unit.title)}</h5></div><span>${BT.util.escapeHTML(sessionStatusLabel(actual?.status))}</span></div>
+          <p class="individual-roadmap-date">${BT.util.escapeHTML(roadmapDate(planDate))} · 20:15 Uhr · ${unit.durationMinutes} Minuten</p>
+          <p>${BT.util.escapeHTML(unit.objective)}</p>
+          ${exercises.length ? `<details class="individual-roadmap-details"><summary>Freigegebenen Ablauf anzeigen</summary><ol class="individual-exercise-list">${exercises.map(roadmapExercise).join('')}</ol></details>` : '<p class="muted">Der individuelle Ablauf entsteht nach Auswertung der vorherigen Einheit.</p>'}
+        </div>
+      </article>`;
+    }).join('');
+    return `<section class="card individual-roadmap"><div class="section-head"><div><span class="section-kicker">Verbindlicher Wochenablauf</span><h4>Pilotplan 2026 · alle acht Einheiten</h4><p class="muted">Der 2. November entfällt wegen der bayerischen Allerheiligenferien. Bei einem Ausfall bleibt die Einheitsnummer offen und wird am nächsten Montag fortgeführt.</p></div></div><div class="individual-roadmap-list">${cards}</div></section>`;
+  }
+
   function urlBase64ToUint8Array(value) {
     const padding = '='.repeat((4 - value.length % 4) % 4);
     const raw = atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'));
@@ -416,6 +458,7 @@ BT.individualTraining = (function() {
     const latestDraft = drafts[0] || null;
     host.hidden = false;
     host.innerHTML = `<div class="section-head"><div><span class="section-kicker">Coach-Ansicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div></div>
+      ${renderPilotRoadmap(data, sessions)}
       <div class="individual-detail-grid">
         <form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>
         <form class="card" data-coach-note><h4>Private Coach-Notiz</h4><textarea name="note" maxlength="5000" required></textarea><button class="btn" type="submit">Privat speichern</button></form>

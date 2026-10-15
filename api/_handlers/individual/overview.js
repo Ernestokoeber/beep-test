@@ -2,6 +2,7 @@ import { query } from '../../_lib/db.js';
 import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../../_lib/auth.js';
 import { findIndividualProfile } from '../../_lib/individual-access.js';
 import { method, noStore, safeError } from '../../_lib/http.js';
+import { pilotRoadmap } from '../../_lib/individual-pilot.js';
 
 export function createIndividualOverviewHandler(deps = {}) {
   const execute = deps.query || query;
@@ -41,7 +42,7 @@ export function createIndividualOverviewHandler(deps = {}) {
         profiles = result.rows;
       }
       const profileIds = profiles.map(profile => profile.id);
-      if (profileIds.length === 0) return res.status(200).json({ role: auth.role, profiles: [], sessions: [], plans: [], exercises: [], measurements: [], readiness: [], focuses: [], feedback: [], releasedFeedback: [], notifications: [] });
+      if (profileIds.length === 0) return res.status(200).json({ role: auth.role, profiles: [], pilotRoadmap: pilotRoadmap(), sessions: [], plans: [], exercises: [], measurements: [], readiness: [], focuses: [], feedback: [], releasedFeedback: [], notifications: [] });
 
       const [sessions, plans, exercises, measurements, readiness, focuses, feedback, releasedFeedback, notifications] = await Promise.all([
         execute(
@@ -101,6 +102,7 @@ export function createIndividualOverviewHandler(deps = {}) {
       const payload = {
         role: auth.role,
         profiles,
+        pilotRoadmap: pilotRoadmap(),
         sessions: sessions.rows,
         plans: plans.rows,
         exercises: exercises.rows,

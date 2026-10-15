@@ -2,6 +2,17 @@ export const PILOT_TEMPLATE_VERSION = 'courthub-individual-pilot-2026.v1';
 export const PILOT_START_DATE = '2026-10-19';
 export const PILOT_CLOSED_DATES = Object.freeze(['2026-11-02']);
 
+const pilotDates = Object.freeze([
+  '2026-10-19',
+  '2026-10-26',
+  '2026-11-09',
+  '2026-11-16',
+  '2026-11-23',
+  '2026-11-30',
+  '2026-12-07',
+  '2026-12-14'
+]);
+
 const baselineMeasurements = Object.freeze([
   {
     title: 'Ausgangsmessung Ballkontrolle', durationMinutes: 8,
@@ -133,6 +144,22 @@ export function pilotSessionTemplate(unitNumber) {
   if (Number(unitNumber) === 1) return unitOne();
   if ([4, 8].includes(Number(unitNumber))) return assessmentUnit(Number(unitNumber));
   return null;
+}
+
+export function pilotRoadmap() {
+  return pilotDates.map((scheduledDate, index) => {
+    const unitNumber = index + 1;
+    const template = pilotSessionTemplate(unitNumber);
+    return {
+      unitNumber,
+      scheduledDate,
+      durationMinutes: 105,
+      kind: template ? 'assessment' : 'development',
+      title: template?.title || `Piloteinheit ${unitNumber} – individuelle Entwicklung`,
+      objective: template?.objective || 'Der konkrete Schwerpunkt wird nach der vorherigen Montagseinheit aus den Messwerten, Beobachtungen und dem Wochenfeedback erstellt.',
+      template
+    };
+  });
 }
 
 export function assertTemplateDuration(template, expected = 105) {

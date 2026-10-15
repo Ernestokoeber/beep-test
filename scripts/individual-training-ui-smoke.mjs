@@ -51,7 +51,16 @@ assert(queueKeys.some(key => key.startsWith('courthub_individual_queue:')), 'Off
 playerWindow.BT.individualTraining.clearLocalData();
 assert(!Array.from({ length: playerWindow.localStorage.length }, (_, index) => playerWindow.localStorage.key(index)).some(key => key.startsWith('courthub_individual_')), 'Logout löscht persönliche Individualdaten nicht');
 
-const coachData = { ...playerData, role: 'coach', coachNotes: [{ individual_profile_id: profile.id, note: 'Privat' }], aiDrafts: [] };
+const pilotRoadmap = [1, 2, 3, 4, 5, 6, 7, 8].map(unitNumber => ({
+  unitNumber,
+  scheduledDate: ['2026-10-19', '2026-10-26', '2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30', '2026-12-07', '2026-12-14'][unitNumber - 1],
+  durationMinutes: 105,
+  kind: [1, 4, 8].includes(unitNumber) ? 'assessment' : 'development',
+  title: unitNumber === 1 ? 'Piloteinheit 1 – Ausgangsniveau' : unitNumber === 4 ? 'Piloteinheit 4 – Zwischenmessung' : unitNumber === 8 ? 'Piloteinheit 8 – Abschlusstest' : `Piloteinheit ${unitNumber} – individuelle Entwicklung`,
+  objective: 'Verbindliches Ziel',
+  template: [1, 4, 8].includes(unitNumber) ? { exercises: [{ title: 'Testblock', durationMinutes: 60, repetitions: {}, measurementMethod: {}, coachingCues: [] }] } : null
+}));
+const coachData = { ...playerData, role: 'coach', pilotRoadmap, coachNotes: [{ individual_profile_id: profile.id, note: 'Privat' }], aiDrafts: [] };
 const coachWindow = browser('coach', coachData);
 coachWindow.BT.individualTraining.renderHub(coachWindow.document.querySelector('#app'));
 const hubText = coachWindow.document.querySelector('#app').textContent;
@@ -74,6 +83,14 @@ assert(cardText.includes('Teilnahme'));
 assert(cardText.includes('Wochenfokus'));
 assert(cardText.includes('Rückmeldung'));
 coachWindow.document.querySelector('[data-action="open-profile"]').click();
+assert.equal(coachWindow.document.querySelectorAll('[data-pilot-unit]').length, 8, 'Coach-Ansicht zeigt nicht alle acht Piloteinheiten');
+const assessmentUnits = [...coachWindow.document.querySelectorAll('.individual-roadmap-unit.assessment')].map(item => Number(item.dataset.pilotUnit));
+assert.deepEqual(assessmentUnits, [1, 4, 8], 'Einheit 1, 4 und 8 sind nicht als Testeinheiten sichtbar');
+const roadmapText = coachWindow.document.querySelector('.individual-roadmap').textContent;
+assert(roadmapText.includes('19.10.2026'));
+assert(roadmapText.includes('16.11.2026'));
+assert(roadmapText.includes('14.12.2026'));
+assert(roadmapText.includes('Freigegebenen Ablauf anzeigen'));
 assert(coachWindow.document.querySelector('[data-action="start-live-training"]'), 'Geführter Trainingsstart fehlt');
 coachWindow.document.querySelector('[data-action="start-live-training"]').click();
 assert(coachWindow.document.querySelector('.individual-live-shell'), 'Geführter Vollbildmodus fehlt');

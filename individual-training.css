@@ -33,6 +33,25 @@
 .individual-cockpit-nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; color:var(--muted); font-weight:700; }
 .individual-cockpit-head { align-items:flex-start; }
 .individual-start-live { width:100%; min-height:3.25rem; margin:.4rem 0; font-size:1rem; }
+.individual-roadmap { margin:1rem 0; }
+.individual-roadmap .section-head { align-items:flex-start; }
+.individual-roadmap .section-head h4 { margin:.2rem 0; }
+.individual-roadmap-list { display:grid; gap:.75rem; margin-top:1rem; }
+.individual-roadmap-unit { display:grid; grid-template-columns:74px minmax(0,1fr); gap:1rem; padding:1rem; border:1px solid var(--border); border-radius:18px; background:var(--surface-soft,#f7f9f8); }
+.individual-roadmap-unit.assessment { border-color:#168453; background:linear-gradient(135deg,rgba(20,160,94,.11),rgba(255,255,255,.7)); box-shadow:inset 4px 0 0 #168453; }
+.individual-roadmap-number { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:74px; border-radius:16px; color:#fff; background:#244b39; }
+.individual-roadmap-unit.assessment .individual-roadmap-number { background:#087443; }
+.individual-roadmap-number span { font-size:.68rem; font-weight:750; letter-spacing:.08em; text-transform:uppercase; opacity:.8; }
+.individual-roadmap-number strong { font-size:2rem; line-height:1; }
+.individual-roadmap-content { min-width:0; }
+.individual-roadmap-heading { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; }
+.individual-roadmap-heading small { color:#087443; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+.individual-roadmap-heading h5 { margin:.2rem 0; font-size:1.02rem; }
+.individual-roadmap-heading > span { flex:0 0 auto; border-radius:999px; padding:.32rem .58rem; color:#315344; background:rgba(49,83,68,.1); font-size:.75rem; font-weight:800; }
+.individual-roadmap-date { margin:.35rem 0; color:var(--muted); font-weight:750; }
+.individual-roadmap-details { margin-top:.75rem; }
+.individual-roadmap-details > summary { cursor:pointer; color:#087443; font-weight:800; }
+.individual-roadmap-details .individual-exercise-list { margin-bottom:0; }
 
 .individual-start-hub { max-width:1180px; margin:0 auto; }
 .individual-hub-head { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.5rem; }
@@ -130,4 +149,7 @@ body.individual-player-mode .mobile-dock { grid-template-columns:1fr; }
   .individual-live-measurement { grid-template-columns:1fr; }
   .individual-live-instructions { grid-template-columns:1fr; }
   .individual-live-rating { grid-template-columns:1fr; }
+  .individual-roadmap-unit { grid-template-columns:58px minmax(0,1fr); padding:.8rem; gap:.75rem; }
+  .individual-roadmap-number { min-height:58px; }
+  .individual-roadmap-heading { flex-direction:column; gap:.4rem; }
 }

@@ -16,7 +16,7 @@ import {
   validateReadiness,
   validateWeeklyFeedback
 } from '../api/_lib/individual-training.js';
-import { assertTemplateDuration, pilotSessionTemplate } from '../api/_lib/individual-pilot.js';
+import { assertTemplateDuration, pilotRoadmap, pilotSessionTemplate } from '../api/_lib/individual-pilot.js';
 
 assert.equal(INDIVIDUAL_TIMEZONE, 'Europe/Berlin');
 assert.deepEqual(assertParticipantCapacity(['thomas', 'adnan']), ['thomas', 'adnan']);
@@ -76,6 +76,12 @@ assert(cronConfig.crons.every(job => !job.schedule.includes('*/')), 'Vercel-Hobb
 assert.equal(new Set(cronConfig.crons.map(job => job.path)).size, cronConfig.crons.length, 'Jedes Vercel-Zeitfenster benötigt einen eindeutigen Cron-Pfad');
 
 for (const unit of [1, 4, 8]) assert.equal(assertTemplateDuration(pilotSessionTemplate(unit)), 105, `Einheit ${unit} dauert nicht 105 Minuten`);
+const roadmap = pilotRoadmap();
+assert.equal(roadmap.length, 8, 'Der sichtbare Pilotplan muss alle acht Einheiten enthalten');
+assert.deepEqual(roadmap.filter(item => item.kind === 'assessment').map(item => item.unitNumber), [1, 4, 8]);
+assert.equal(roadmap[0].scheduledDate, '2026-10-19');
+assert.equal(roadmap[3].scheduledDate, '2026-11-16');
+assert.equal(roadmap[7].scheduledDate, '2026-12-14');
 const unitOne = pilotSessionTemplate(1);
 assert.equal(unitOne.exercises.find(item => item.title === 'Ausgangsmessung Korbabschluss').repetitions.totalFinishes, 20);
 assert.equal(unitOne.exercises.find(item => item.title === 'Ausgangsmessung Wurf').repetitions.totalAttempts, 25);
