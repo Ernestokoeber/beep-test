@@ -58,6 +58,8 @@ jobs:
         run: node scripts/training-instructions-browser.mjs
       - name: Run mobile navigation browser E2E
         run: npm run test:navigation:browser
+      - name: Run training pages browser E2E
+        run: npm run test:training:browser
       - name: Run jersey duty browser E2E
         env:
           E2E_BASE_URL: http://127.0.0.1:4173

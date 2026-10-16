@@ -428,12 +428,14 @@ BT.trainingLive = (() => {
     if (!active) return;
     const session = active.session;
     const current = activeBlock(session);
-    if (action === 'close') { close(); return; }
+    if (action === 'close') { if (active.onBack) active.onBack(); else close(); return; }
     if (action === 'shots') {
       const stationRound = active.training.stationTraining?.stations?.length === 5 && session.blocks.length === 8 && session.activeIndex >= 2 && session.activeIndex <= 6;
       const targets = stationRound ? active.training.stationTraining.stations.flatMap(station => station.shotTargets || []) : current?.shotTargets || [];
       const field = targets.find(target => target.kind === 'field');
+      const pageTraining = active.pageMode ? active.training.id : null;
       close();
+      if (pageTraining) { location.hash = '#/training/' + encodeURIComponent(pageTraining) + '/' + (field ? 'shots?category=' + encodeURIComponent(field.category || '') : 'ft'); return; }
       BT.training?.openShotCapture(field ? 'shots' : 'ft', field?.category);
       return;
     }
@@ -480,7 +482,9 @@ BT.trainingLive = (() => {
     if (action === 'tactic') { openTactic(); return; }
     if (action === 'finish') { finish(); return; }
     if (action === 'load-management') {
+      const pageTraining = active.pageMode ? active.training.id : null;
       close();
+      if (pageTraining) { location.hash = '#/training/' + encodeURIComponent(pageTraining) + '/load'; return; }
       document.querySelector('.subnav-btn[data-pane="load"]')?.click();
       return;
     }
@@ -685,7 +689,7 @@ BT.trainingLive = (() => {
       block.note = event.target.value.slice(0, 1200);
       scheduleSave();
     });
-    root.addEventListener('keydown', event => { if (event.key === 'Escape' && root.querySelector('[data-live="sheet"]').hidden) close(); });
+    root.addEventListener('keydown', event => { if (event.key === 'Escape' && root.querySelector('[data-live="sheet"]').hidden) handleAction('close'); });
     active.persistOnHide = () => {
       if (document.visibilityState === 'hidden') save();
     };
@@ -694,7 +698,7 @@ BT.trainingLive = (() => {
     window.addEventListener('pagehide', active.persistOnPageHide);
   }
 
-  function open(trainingId) {
+  function open(trainingId, options = {}) {
     close();
     const training = BT.storage.getTraining(trainingId);
     if (!training) { BT.util?.toast?.('Training wurde nicht gefunden.'); return false; }
@@ -705,17 +709,30 @@ BT.trainingLive = (() => {
       return false;
     }
     const root = createRoot();
+    if (options.target) {
+      root.classList.add('training-live-page');
+      root.setAttribute('role', 'region'); root.removeAttribute('aria-modal');
+      const main = root.querySelector('.training-live-main');
+      const content = document.createElement('div'); content.className = main.className;
+      content.append(...main.childNodes); main.replaceWith(content);
+      const secondary = root.querySelector('.training-live-footer-secondary');
+      secondary.prepend(root.querySelector('[data-live-action="skip"]'));
+      root.querySelector('[data-live="current-view"]').append(secondary);
+      const previous = root.querySelector('[data-live-action="previous"]');
+      previous.textContent = '←'; previous.setAttribute('aria-label', 'Vorherige Übung');
+    }
     active = {
       training, session, root, interval: 0, saveTimer: 0, signaled: new Set(), tactic: null,
-      previousFocus: document.activeElement, persistOnHide: null, persistOnPageHide: null
+      previousFocus: document.activeElement, persistOnHide: null, persistOnPageHide: null,
+      pageMode: !!options.target, onBack: options.onBack
     };
     bind();
-    document.body.appendChild(root);
-    document.documentElement.classList.add('training-live-open');
+    (options.target || document.body).appendChild(root);
+    if (!options.target) document.documentElement.classList.add('training-live-open');
     renderStatic();
     active.interval = window.setInterval(tick, 250);
     save();
-    root.querySelector('[data-live-action="toggle"]')?.focus();
+    if (!options.target) root.querySelector('[data-live-action="toggle"]')?.focus();
     return true;
   }
 

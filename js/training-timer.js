@@ -137,15 +137,15 @@ BT.trainingTimer = (() => {
     document.documentElement.classList.remove('training-timer-open');
     a.previousFocus?.focus();
   }
-  function open(trainingId) {
+  function open(trainingId, options = {}) {
     close();
     const key = prefix + String(trainingId);
     let raw;
     try { raw = JSON.parse(memory.get(key) || localStorage.getItem(key) || 'null'); }
     catch (_) { try { raw = JSON.parse(memory.get(key) || 'null'); } catch (_) { raw = null; } }
     const s = normalize(raw);
-    const root = document.createElement('dialog');
-    root.className = 'training-timer';
+    const root = document.createElement(options.target ? 'section' : 'dialog');
+    root.className = 'training-timer' + (options.target ? ' training-timer-page' : '');
     root.setAttribute('aria-labelledby', 'training-timer-title');
     root.innerHTML = `
       <header class="tt-header"><h2 id="training-timer-title">Timer & Punkte</h2><button type="button" data-tt="close" autofocus>Zum Training</button></header>
@@ -174,7 +174,7 @@ BT.trainingTimer = (() => {
       if (!action) return;
       tick();
       const now = Date.now();
-      if (action === 'close') { close(); return; }
+      if (action === 'close') { if (options.onBack) options.onBack(); else close(); return; }
       if (action === 'toggle' || action === 'shot-toggle') {
         if (s.mode === 'game' && action === 'shot-toggle') return;
         const c = action === 'toggle' ? s.clock : s.shot;
@@ -233,13 +233,15 @@ BT.trainingTimer = (() => {
     });
     root.addEventListener('cancel', event => { event.preventDefault(); close(); });
     root.addEventListener('close', () => { if (active?.root === root) close(); });
-    document.body.appendChild(root);
-    document.documentElement.classList.add('training-timer-open');
-    if (typeof root.showModal === 'function') root.showModal(); else root.setAttribute('open', '');
+    (options.target || document.body).appendChild(root);
+    if (!options.target) {
+      document.documentElement.classList.add('training-timer-open');
+      if (typeof root.showModal === 'function') root.showModal(); else root.setAttribute('open', '');
+    }
     tick(); save();
     active.visibility = () => { tick(); save(); };
     document.addEventListener('visibilitychange', active.visibility);
-    window.addEventListener('hashchange', close);
+    if (!options.target) window.addEventListener('hashchange', close);
     window.addEventListener('pagehide', save);
     active.interval = setInterval(() => tick(true), 100);
     BT.wake?.acquire('training-timer');

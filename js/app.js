@@ -140,6 +140,7 @@
     const container = document.querySelector('[data-role="context-navigation"]');
     if (!container) return;
     container.replaceChildren();
+    if (app.querySelector('[data-training-page]')) { container.hidden = true; return; }
     const training = app.querySelector('.training-detail-view');
     const sections = [...app.querySelectorAll('.mobile-extra-section[data-menu-label]')];
     const controls = [...app.querySelectorAll('.mobile-extra-action')];
@@ -259,12 +260,14 @@
       const id = hash.slice('#/test/run/'.length);
       BT.test.renderRun(app, id);
     } else if (hash === '#/training') {
-      BT.training.renderList(app);
+      BT.trainingPages.renderList(app);
+    } else if (hash === '#/training/new') {
+      BT.trainingPages.renderNew(app);
     } else if (hash.startsWith('#/training/')) {
-      const id = hash.slice('#/training/'.length);
-      BT.training.renderDetail(app, id);
-      const pane = BT.navigation?.getState()?.trainingPane;
-      if (pane) [...app.querySelectorAll('.subnav-btn')].find(button => button.dataset.pane === pane)?.click();
+      const [path, query = ''] = hash.slice('#/training/'.length).split('?');
+      let parts;
+      try { parts = path.split('/').map(decodeURIComponent); } catch { parts = ['']; }
+      BT.trainingPages.render(app, parts[0], parts[1] || 'overview', parts[2], new URLSearchParams(query));
     } else if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
       BT.games.renderMatchday(app,decodeURIComponent(hash.split('/')[2]),hash.endsWith('?training'));
     } else if (hash === '#/games' || /^#\/games\/[^/]+$/.test(hash)) {

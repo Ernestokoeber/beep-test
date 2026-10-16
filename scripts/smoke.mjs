@@ -188,42 +188,42 @@ const training = window.BT.storage.upsertTraining({
 window.BT.storage.upsertTraining({
   date: secondTrainingDate, startTime: '20:15', note: 'Folgetraining', attendance: [{ playerId: player.id, status: null, late: false, note: '' }], freethrows: [], shots: []
 });
-route('#/training/' + training.id);
+route('#/training/' + training.id + '/clock');
 const trainingBeforeTimer = JSON.stringify(window.BT.storage.getTraining(training.id));
-window.document.querySelector('[data-action="training-timer"]').click();
-assert(window.document.querySelector('dialog.training-timer[open]'), 'Trainingsuhr wird nicht geöffnet');
+assert(window.document.querySelector('.training-timer-page'), 'Trainingsuhr wird nicht als Seite geöffnet');
 window.document.querySelector('[data-tt="score-0-2"]').click();
-window.document.querySelector('[data-tt="close"]').click();
-window.document.querySelector('[data-action="training-timer"]').click();
+route('#/training/' + training.id);
+route('#/training/' + training.id + '/clock');
 assert(window.document.querySelector('[data-tt="points-0"]').textContent === '2', 'Punkte gehen beim Rückwechsel verloren');
-window.document.querySelector('[data-tt="close"]').click();
 assert(JSON.stringify(window.BT.storage.getTraining(training.id)) === trainingBeforeTimer, 'Timer darf Trainingsstatistiken nicht verändern');
+route('#/training/' + training.id + '/plan-options');
 assert(window.document.querySelector('[data-role="plan-duration"]').value === '90', 'Trainingsdauer wurde nicht geladen');
 assert(window.document.querySelector('.intensity-high'), 'Belastungsstufe fehlt');
 assert(window.document.querySelector('[data-role="checkin-card"]'), 'QR-Check-in fehlt');
 assert(!window.document.querySelector('[data-action="export-pdf"]'), 'Einzelner Trainings-PDF-Export darf nicht mehr angeboten werden');
-assert(window.document.querySelector('[data-action="training-live"]')?.textContent.includes('Training durchführen'), 'Sichtbarer Einstieg in Training Live fehlt');
-window.document.querySelector('[data-action="training-live"]').click();
+route('#/training/' + training.id);
+assert(window.document.querySelector('a[href$="/live"]')?.textContent.includes('Training durchführen'), 'Sichtbarer Einstieg in Training Live fehlt');
+route('#/training/' + training.id + '/live');
 assert(window.document.querySelector('.training-live'), 'Training Live wird nicht geöffnet');
 assert(window.document.querySelector('[data-live="block-name"]')?.textContent === 'Defense', 'Training Live übernimmt den geplanten Drill nicht');
-window.document.querySelector('[data-live-action="close"]').click();
+route('#/training/' + training.id + '/event');
 assert(!window.document.querySelector('.training-live'), 'Training Live wird nicht sauber geschlossen');
 window.document.querySelector('[data-action="end-training"]').click();
 await new Promise(resolveWait => window.setTimeout(resolveWait, 20));
 const endedTraining = window.BT.storage.getTraining(training.id);
 assert(endedTraining.endedAt && endedTraining.status === 'completed', 'Training wurde durch Beenden nicht abgeschlossen gespeichert');
 route('#/training');
-assert(window.document.querySelectorAll('[data-role="upcoming-list"] > li').length === 1, 'Anstehende Trainings sind nicht sauber getrennt');
-assert(window.document.querySelectorAll('[data-role="completed-list"] > li').length === 1, 'Absolvierte Trainings sind nicht sauber getrennt');
-assert(window.document.querySelector('[data-role="completed-list"] [data-delete-training]'), 'Löschen fehlt bei absolvierten Trainings');
+assert(window.document.querySelectorAll('[data-training-link]').length === 1, 'Anstehende Trainings sind nicht sauber getrennt');
+window.document.querySelector('[data-filter="completed"]').click();
+assert(window.document.querySelectorAll('[data-training-link]').length === 1, 'Absolvierte Trainings sind nicht sauber getrennt');
 
 const deletableFromList = window.BT.storage.upsertTraining({
   date: new Date(Date.now() + 259200000).toISOString().slice(0, 10), startTime: '20:15', note: 'Aus Liste löschen',
   attendance: [], freethrows: [], shots: []
 });
-route('#/training');
-const listDeleteButton = window.document.querySelector('[data-delete-training="' + deletableFromList.id + '"]');
-assert(listDeleteButton, 'Sichtbarer Löschbutton in der Trainingsliste fehlt');
+route('#/training/' + deletableFromList.id + '/event');
+const listDeleteButton = window.document.querySelector('[data-action="delete"]');
+assert(listDeleteButton, 'Löschen in der Trainingsverwaltung fehlt');
 listDeleteButton.click();
 assert(!window.BT.storage.getTraining(deletableFromList.id), 'Training wurde aus der Liste nicht gelöscht');
 
@@ -231,7 +231,7 @@ const deletableFromDetail = window.BT.storage.upsertTraining({
   date: new Date(Date.now() + 345600000).toISOString().slice(0, 10), startTime: '20:15', note: 'Im Detail löschen',
   attendance: [], freethrows: [], shots: []
 });
-route('#/training/' + deletableFromDetail.id);
+route('#/training/' + deletableFromDetail.id + '/event');
 window.document.querySelector('[data-action="delete"]').click();
 assert(!window.BT.storage.getTraining(deletableFromDetail.id), 'Training wurde im Detail nicht gelöscht');
 

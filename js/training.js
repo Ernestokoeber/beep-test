@@ -240,7 +240,7 @@ BT.training = (function() {
   let checkinSubmissions = [];
   let clockOwner = '';
 
-  function renderDetail(target, id) {
+  function renderDetail(target, id, pageMode = false) {
     const training = BT.storage.getTraining(id);
     if (!training) { location.hash = '#/training'; return; }
     const user = BT.sync?.getState?.().user;
@@ -265,6 +265,7 @@ BT.training = (function() {
     detailAbort = new AbortController();
 
     detailRoot = renderTemplate('tpl-training-detail');
+    if (pageMode) detailRoot.dataset.pageMode = 'true';
     target.appendChild(detailRoot);
 
     syncAttendanceWithPlayers();
@@ -303,7 +304,7 @@ BT.training = (function() {
     });
 
     $('[data-action="share-summary"]', detailRoot).addEventListener('click', () => shareSummary(currentTraining));
-    $('[data-action="training-live"]', detailRoot).addEventListener('click', () => BT.trainingLive.open(training.id));
+    $('[data-action="training-live"]', detailRoot).addEventListener('click', () => pageMode ? location.hash = '#/training/' + encodeURIComponent(training.id) + '/live' : BT.trainingLive.open(training.id));
     BT.trainingLive.syncLauncher(currentTraining);
     $('[data-action="station-training"]', detailRoot).addEventListener('click', async e => {
       const game = BT.stationTraining.weekendGameForFriday(currentTraining.date);
@@ -320,7 +321,7 @@ BT.training = (function() {
         BT.util.toast('KI-Freitagstraining konnte nicht aktualisiert werden: ' + error.message);
       }
     });
-    $('[data-action="training-timer"]', detailRoot).addEventListener('click', () => BT.trainingTimer.open(training.id));
+    $('[data-action="training-timer"]', detailRoot).addEventListener('click', () => pageMode ? location.hash = '#/training/' + encodeURIComponent(training.id) + '/clock' : BT.trainingTimer.open(training.id));
     $('[data-action="ai-summary"]', detailRoot).addEventListener('click', () => openAISummary(currentTraining));
     $('[data-action="end-training"]', detailRoot).addEventListener('click', () => endTraining(currentTraining));
     $('[data-action="export-csv"]', detailRoot).addEventListener('click', () => exportCSV(currentTraining));
@@ -1279,6 +1280,7 @@ BT.training = (function() {
     $$('.subnav-btn', detailRoot).forEach(btn => {
       btn.addEventListener('click', () => {
         const target = btn.dataset.pane;
+        if (detailRoot.dataset.pageMode) { location.hash = '#/training/' + encodeURIComponent(currentTraining.id) + '/' + target; return; }
         BT.navigation?.setState({ trainingPane: target });
         $$('.subnav-btn', detailRoot).forEach(b => b.classList.toggle('active', b === btn));
         $$('.pane', detailRoot).forEach(p => p.classList.toggle('hidden', p.dataset.pane !== target));
@@ -1295,6 +1297,19 @@ BT.training = (function() {
   }
 
   let mapMode = 'hit';
+
+  function showPane(pane, category) {
+    $$('.pane', detailRoot).forEach(p => p.classList.toggle('hidden', p.dataset.pane !== pane));
+    if (pane === 'notes') renderPlayerNotes();
+    if (pane === 'map') renderShotMap();
+    if (pane === 'fitness') renderFitness();
+    if (pane === 'sprints') renderSprints();
+    if (category && pane === 'shots') {
+      currentShotCategory = currentTraining.shots?.find(item =>
+        item.category.trim().toLocaleLowerCase('de-DE') === category.trim().toLocaleLowerCase('de-DE'))?.category || category;
+      renderShotTabs(); renderShots();
+    }
+  }
 
   function setupShotMap() {
     currentTraining.shotMap = currentTraining.shotMap || [];
@@ -3416,6 +3431,7 @@ BT.training = (function() {
 
   function cleanup() {
     if (BT.trainingLive && BT.trainingLive.close) BT.trainingLive.close();
+    BT.trainingTimer?.close();
     if (detailAbort) detailAbort.abort();
     detailAbort = null;
     // Countdown keeps its deadline and alarm across profile pages; the next
@@ -3439,6 +3455,6 @@ BT.training = (function() {
     detailRoot.querySelector(`.pane[data-pane="${pane}"]`)?.scrollIntoView({ block: 'start' });
   }
 
-  return { renderList, renderDetail, replanFridayTraining, openPlayerStatsModal, openShotCapture, cleanup };
+  return { renderList, renderDetail, showPane, renderFridayStationSuggestion, replanFridayTraining, openPlayerStatsModal, openShotCapture, cleanup };
 })();
 

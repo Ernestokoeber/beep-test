@@ -60,7 +60,12 @@ BT.navigation = (function() {
       return parts.length > 4 ? parts.slice(0, 4).join('/') : '#/individual';
     }
     if (hash.startsWith('#/individual')) return '#/individual';
-    if (hash.startsWith('#/training/') || hash.startsWith('#/schedule') || hash.startsWith('#/drills')) return '#/training';
+    if (hash.startsWith('#/training/')) {
+      const parts = hash.split('?')[0].split('/');
+      if (parts[3] === 'drill' || (parts[3] === 'plan' && parts[4])) return parts.slice(0,3).join('/') + '/plan';
+      return parts.length > 3 ? parts.slice(0,3).join('/') : '#/training';
+    }
+    if (hash.startsWith('#/schedule') || hash.startsWith('#/drills')) return '#/training';
     if (hash.startsWith('#/games/') || hash === '#/opponents') return '#/games';
     if (hash.startsWith('#/tactics/')) return '#/tactics';
     if (hash.startsWith('#/history/')) return '#/history';

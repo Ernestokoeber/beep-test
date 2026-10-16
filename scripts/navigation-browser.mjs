@@ -95,17 +95,18 @@ try {
   await direct.locator('[data-page-back]').click();await direct.locator('[data-player-page="overview"]').waitFor();
   await direct.locator('[data-page-back]').click();await direct.locator('[data-role="player-search"]').waitFor();
   await direct.close();
-  await page.goto(base+'/#/training/'+ids.training);await page.locator('.training-detail-view').waitFor();
+  await page.goto(base+'/#/training/'+ids.training+'/timer');await page.locator('.training-detail-view').waitFor();
   await page.evaluate(()=>{
     document.querySelector('[data-timer="60"]').click();
     document.querySelector('[data-timer-action="start"]').click();
     document.querySelector('[data-sprint-action="start"]').click();
   });
-  await page.locator('.subnav-btn[data-pane="attendance"]').click();
+  await page.evaluate(id=>{location.hash='#/training/'+id+'/attendance';},ids.training);
+  await page.locator('[data-training-page="attendance"]').waitFor();
   const trainingPlayer=page.locator('.attendance-list a[href^="#/player/"]').first();
   await trainingPlayer.click();await page.locator('[data-player-page="overview"]').waitFor();
   await page.locator('[data-page-back]').click();await page.locator('.training-detail-view').waitFor();
-  assert.equal(new URL(page.url()).hash,'#/training/'+ids.training);
+  assert.equal(new URL(page.url()).hash,'#/training/'+ids.training+'/attendance');
   assert.equal(await page.locator('[data-role="timer-state"]').textContent(),'Läuft','Countdown läuft nach Profilabstecher weiter.');
   assert.notEqual(await page.locator('[data-role="timer-display"]').textContent(),'00:00');
   assert.equal(await page.locator('[data-role="sprint-state"]').textContent(),'Läuft','Sprintuhr läuft nach Profilabstecher weiter.');
