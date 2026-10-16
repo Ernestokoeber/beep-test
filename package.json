@@ -21,7 +21,8 @@
     "dev": "vercel dev",
     "test:navigation": "node scripts/navigation-smoke.mjs && node scripts/player-pages-smoke.mjs && node scripts/training-pages-smoke.mjs",
     "test:navigation:browser": "node scripts/navigation-browser.mjs",
-    "test:training:browser": "node scripts/training-pages-browser.mjs"
+    "test:training:browser": "node scripts/training-pages-browser.mjs",
+    "test:tactics:browser": "node scripts/tactics-pages-browser.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

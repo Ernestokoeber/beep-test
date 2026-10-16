@@ -324,5 +324,29 @@ BT.tactics = (function() {
   }
 
   const core = { uid, clamp, number, copy, positionBounds: POSITION_BOUNDS, clampX, clampY, point, ballPointForPlayer, currentUser, canEdit, startingElements, emptyTransition, defaultStep, defaultBoard, normalizeTransition, normalizeStep, normalizeBoard, cloneStep, elements, elementById, arrowStyle, boardDuration, stepStartTime, locateTime, distance, pointOnPath, quadraticPoint, positionDuring, interpolateStep, snapshotAt };
-  return { render, renderPlayer, normalizeBoard, templates, phase3Templates, strategyTemplates, availableTactics, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
+  let pageCleanup = null;
+  async function openDraft(board) {
+    if (!canEdit()) return;
+    const userId = currentUser()?.id;
+    const pages = await import('./play-designer/pages.js');
+    if (currentUser()?.id === userId && canEdit()) pages.openDraft(board);
+  }
+  function cleanup() { pageCleanup?.(); pageCleanup = null; }
+  async function renderPage(target, hash) {
+    const host = document.createElement('section');
+    host.className = 'view tactics-page';
+    host.dataset.tacticsPage = 'loading';
+    host.dataset.tacticsRoute = hash;
+    host.innerHTML = '<p role="status">Taktikbereich wird geladen …</p>';
+    target.append(host);
+    try {
+      const pages = await import('./play-designer/pages.js');
+      if (!host.isConnected || location.hash !== hash) return;
+      pageCleanup = pages.renderPage(host, hash);
+    } catch (error) {
+      console.error('Taktikseite konnte nicht geladen werden.', error);
+      if (host.isConnected) host.innerHTML = '<h2>Taktikbereich nicht verfügbar</h2><p>Bitte die Seite erneut laden.</p><a href="#/tactics">Zur Bibliothek</a>';
+    }
+  }
+  return { render, renderPlayer, renderPage, cleanup, openDraft, normalizeBoard, templates, phase3Templates, strategyTemplates, availableTactics, cloneStep, interpolateStep, snapshotAt, arrowStyle, pdfLayout, boardDuration, __core: core };
 })();

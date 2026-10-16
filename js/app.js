@@ -140,7 +140,7 @@
     const container = document.querySelector('[data-role="context-navigation"]');
     if (!container) return;
     container.replaceChildren();
-    if (app.querySelector('[data-training-page]')) { container.hidden = true; return; }
+    if (app.querySelector('[data-training-page], [data-tactics-page]')) { container.hidden = true; return; }
     const training = app.querySelector('.training-detail-view');
     const sections = [...app.querySelectorAll('.mobile-extra-section[data-menu-label]')];
     const controls = [...app.querySelectorAll('.mobile-extra-action')];
@@ -204,6 +204,7 @@
     if (individualDockLabel) individualDockLabel.textContent = individualWorkspace ? 'Cockpit' : 'Individual';
     const leaving=BT.games?.beforeLeave?.();
     if(leaving){const ok=await leaving;if((location.hash||'#/dashboard')!==hash)return;if(!ok){history.replaceState(null,'',renderedHash);return;}}
+    BT.tactics?.cleanup?.();
     const navigationToken = BT.navigation?.begin(hash);
     renderedHash=hash;
     const isDashboard = hash === '#/dashboard' || hash === '#/' || hash === '';
@@ -301,10 +302,8 @@
       BT.drills.renderDetail(app, id);
     } else if (hash === '#/tactics/screens') {
       BT.screenAcademy.render(app);
-    } else if (hash === '#/tactics/player') {
-      BT.tactics.renderPlayer(app);
-    } else if (hash === '#/tactics') {
-      BT.tactics.render(app);
+    } else if (hash === '#/tactics' || hash.startsWith('#/tactics/')) {
+      await BT.tactics.renderPage(app, hash);
     } else if (hash === '#/settings') {
       BT.settings.render(app);
     } else if (hash === '#/account') {

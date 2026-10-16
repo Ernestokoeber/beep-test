@@ -5,7 +5,7 @@ BT.navigation?.dispose?.();
 BT.navigation = (function() {
   const key = 'courtHubPage';
   const listeners = new AbortController();
-  let scope = '', entries = {}, drafts = {}, current = null, frame = 0, lastY = 0;
+  let scope = '', entries = {}, drafts = {}, current = null, frame = 0, lastY = 0, replacement = null;
   const clone = value => JSON.parse(JSON.stringify(value));
   const hashNow = () => location.hash || '#/dashboard';
   function identity() {
@@ -44,10 +44,11 @@ BT.navigation = (function() {
     else {
       const id = globalThis.crypto?.randomUUID?.() || Date.now() + '-' + Math.random();
       current = entries[id] = { id, hash, state: {}, scroll: 0,
-        parent: previous ? { id: previous.id, hash: previous.hash, title: previous.title } : null };
+        parent: replacement?.hash === hash ? replacement.parent : previous ? { id: previous.id, hash: previous.hash, title: previous.title } : null };
       history.replaceState({ ...history.state, [key]: { id, hash, scope } }, '', hash);
     }
     lastY = current.scroll || 0;
+    replacement = null;
     history.scrollRestoration = 'manual';
     persist();
     return { id: current.id, scope, restore: !!existing, scroll: current.scroll || 0 };
@@ -67,7 +68,10 @@ BT.navigation = (function() {
     }
     if (hash.startsWith('#/schedule') || hash.startsWith('#/drills')) return '#/training';
     if (hash.startsWith('#/games/') || hash === '#/opponents') return '#/games';
-    if (hash.startsWith('#/tactics/')) return '#/tactics';
+    if (hash.startsWith('#/tactics/')) {
+      const parts = hash.split('?')[0].split('/');
+      return parts.length > 3 ? parts.slice(0, 3).join('/') : '#/tactics';
+    }
     if (hash.startsWith('#/history/')) return '#/history';
     if (['#/statistics', '#/reports', '#/test/setup'].includes(hash)) return '#/players';
     return '#/team';
@@ -79,6 +83,12 @@ BT.navigation = (function() {
       current = null; // The replacement has no browser-history predecessor inside the app.
       location.replace(fallback || parentRoute());
     }
+  }
+  function replace(hash) {
+    if (hash === hashNow()) return;
+    capture();
+    replacement = { hash, parent: current?.parent || null };
+    location.replace(hash);
   }
   function finish(token) {
     if (!current || token?.id !== current.id || token.scope !== identity() || hashNow() !== current.hash) return;
@@ -129,6 +139,6 @@ BT.navigation = (function() {
     if (current && hashNow() === current.hash) { lastY = window.scrollY || 0; current.scroll = lastY; }
   }, { passive: true, signal: listeners.signal });
   window.addEventListener('pagehide', capture, { signal: listeners.signal });
-  return { begin, finish, back, getState, setState, capture, parentRoute,
+  return { begin, finish, back, replace, getState, setState, capture, parentRoute,
     dispose() { listeners.abort(); cancelAnimationFrame(frame); } };
 })();

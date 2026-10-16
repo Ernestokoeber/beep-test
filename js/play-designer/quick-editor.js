@@ -111,10 +111,11 @@ export function mountQuickEditor(target, options = {}) {
   function persist(message) {
     board = normalizeRecordedBoard(board, core);
     window.BT.storage.setSetting(DRAFT_KEY, board);
+    options.onPersist?.(board);
     if (message) q('[data-role="status"]').textContent = message;
     const saveState = q('[data-role="save-state"]');
-    if (saveState) saveState.textContent = message?.includes('synchronisiert')
-      ? 'Gespeichert und synchronisiert'
+    if (saveState) saveState.textContent = message === 'Play gespeichert.'
+      ? 'Gespeichert'
       : 'Änderungen lokal gesichert';
   }
 
@@ -124,6 +125,7 @@ export function mountQuickEditor(target, options = {}) {
     if (frame) cancelAnimationFrame(frame);
     frame = 0;
   }
+  root.dispose = stop;
 
   function currentSnapshot() {
     const start = core.stepStartTime(board, board.currentStep);
@@ -685,7 +687,7 @@ export function mountQuickEditor(target, options = {}) {
     refresh();
   };
 
-  q('[data-action="open-animation"]').onclick = togglePlayback;
+  q('[data-action="open-animation"]').onclick = options.onPreview ? () => { stop(); options.onPreview(board); } : togglePlayback;
   q('[data-action="open-3d"]').onclick = () => { stop(); openAnimationPlayer(board, { core, initialView: '3d', initialCamera: 'close' }); };
   q('[data-action="export"]').onclick = () => openExportDialog(board);
   root.addEventListener('courthub:open-export', () => openExportDialog(board));
@@ -713,10 +715,9 @@ export function mountQuickEditor(target, options = {}) {
     speed = core.number(event.target.value, 1);
   };
 
-  q('[data-role="title"]').onchange = event => {
+  q('[data-role="title"]').oninput = event => {
     board.title = String(event.target.value || 'Neues Play').slice(0, 100);
     persist('Play-Name geändert.');
-    refresh();
   };
 
   q('[data-role="category"]').onchange = event => {
@@ -727,12 +728,14 @@ export function mountQuickEditor(target, options = {}) {
 
   q('[data-action="save"]').onclick = () => {
     board = normalizeRecordedBoard(window.BT.storage.upsertTactic(board), core);
-    persist('Play gespeichert und synchronisiert.');
+    persist('Play gespeichert.');
     toast('Play gespeichert.');
     refresh();
+    options.onSaved?.(board);
   };
 
   q('[data-action="new"]').onclick = () => {
+    if (options.onNew) { options.onNew(); return; }
     if (!window.confirm('Aktuellen Entwurf verwerfen und ein neues Play beginnen?')) return;
     stop();
     q('.chq-header-more').open = false;
@@ -758,6 +761,7 @@ export function mountQuickEditor(target, options = {}) {
       : `Den aktuellen Entwurf „${board.title}“ vollständig verwerfen?`;
     if (!window.confirm(message)) return;
     deletePlayCompletely(window.BT.storage, board);
+    if (options.onDeleted) { stop(); options.onDeleted(); return; }
     board = normalizeRecordedBoard(core.defaultBoard(), core);
     time = 0;
     pending = null;

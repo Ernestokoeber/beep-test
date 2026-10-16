@@ -17,9 +17,10 @@ export function cleanupVideoImport() {
   window.BT.videoImport?.cleanup?.();
 }
 
-export async function mountVideoImport(target) {
-  cleanupVideoImport();
+export async function mountVideoImport(target, options = {}) {
   const module = await import('../video-import/main.js');
+  if (options.isCurrent && !options.isCurrent()) return null;
+  cleanupVideoImport();
   window.BT.videoImport = module;
   target.replaceChildren();
   const view = module.mount(target);
@@ -37,25 +38,29 @@ async function openVideoImport() {
   location.hash = '#/tactics/import';
 }
 
-function reloadEditor(target, root) {
+function reloadEditor(target, root, options) {
   if (root && !root.isConnected) return;
+  if (options.onReload?.() === false) return;
+  root?.dispose?.();
   target.replaceChildren();
-  mountEditor(target);
+  mountEditor(target, options);
 }
 
-export function mountEditor(target) {
+export function mountEditor(target, options = {}) {
   cleanupVideoImport();
   let root = mountQuickEditor(target, {
+    ...options,
     onVideoImport: () => openVideoImport().catch(error => {
       window.BT.util?.toast?.('Video-Import konnte nicht geöffnet werden: ' + error.message);
     })
   });
-  const reload = () => reloadEditor(target, root);
+  const reload = () => reloadEditor(target, root, options);
 
-  root = enhanceQuickEditor(root, target, { reload });
+  root = enhanceQuickEditor(root, target, { reload, onLibrary: options.onLibrary });
   root = enhanceQuickReorder(root, { reload });
   root = enhanceTacticTrash(root, { reload });
   root.addEventListener('courthub:quick-reload', reload);
+  options.onMount?.(root);
   return root;
 }
 

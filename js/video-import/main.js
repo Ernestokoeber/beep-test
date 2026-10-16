@@ -424,9 +424,8 @@ export function mount(target) {
         clipStart: state.clipStart,
         clipEnd: state.clipEnd
       }));
-      window.BT.storage.setSetting('tacticsBoardDraft', board);
+      window.BT.tactics.openDraft(board);
       toast('Video-Play erstellt. Du kannst jetzt alle Aktionen weiter bearbeiten.');
-      location.hash = '#/tactics';
     } catch (error) {
       toast(error.message);
       q('[data-role="status"]').textContent = error.message;

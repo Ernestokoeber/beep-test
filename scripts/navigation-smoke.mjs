@@ -44,5 +44,13 @@ assert.equal(w.location.hash, '#/player/lena', 'Direkter Link führt zum Profil 
 w.BT.navigation.finish(w.BT.navigation.begin(w.location.hash)); await settle();
 w.BT.navigation.back(); await settle();
 assert.equal(w.location.hash, '#/players', 'Auch der zweite Rückweg nach Direktaufruf bleibt in der App.');
+w.history.replaceState(null, '', '#/tactics/new');
+w.eval(readFileSync(file, 'utf8'));
+w.BT.navigation.begin(w.location.hash);
+assert.equal(typeof w.BT.navigation.replace, 'function', 'Routen ersetzen darf keinen fiktiven Vorgänger erzeugen.');
+w.BT.navigation.replace('#/tactics/saved'); await settle();
+w.BT.navigation.begin(w.location.hash);
+w.BT.navigation.back(); await settle();
+assert.equal(w.location.hash, '#/tactics', 'Nach direkt geöffnetem Formular bleibt Zurück in der App.');
 dom.window.close();
 console.log('Navigation: Rückweg, Vorwärts, Position, Entwurf, Nutzerwechsel und direkter Link geprüft.');

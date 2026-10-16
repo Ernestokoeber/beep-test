@@ -62,7 +62,7 @@ async function verifyPhase3Animations(page) {
 }
 
 async function openQuickEditor(page, boardFactory = 'default') {
-  await page.evaluate(factory => {
+  const seed = await page.evaluate(factory => {
     const core = window.BT.tactics.__core;
     let board = core.defaultBoard();
 
@@ -95,9 +95,19 @@ async function openQuickEditor(page, boardFactory = 'default') {
 
     window.BT.storage.setSetting('tacticsEditorMode', 'pro');
     window.BT.storage.setSetting('tacticsBoardDraft', board);
-    location.hash = '#/tactics';
+    location.hash = '#/tactics/new';
     window.dispatchEvent(new HashChangeEvent('hashchange'));
+    return board;
   }, boardFactory);
+  await page.waitForSelector('[data-tactics-page="edit"]');
+  // These tests exercise the reusable full-screen editor. The routed mobile
+  // shell and navigation are covered separately by tactics-pages-browser.mjs.
+  await page.evaluate(board => {
+    window.BT.tactics.cleanup();
+    window.BT.storage.setSetting('tacticsBoardDraft', board);
+    const app = document.getElementById('app'); app.replaceChildren();
+    window.BT.tactics.render(app);
+  }, seed);
   await page.waitForSelector('[data-role="tactics-quick"]');
   assert(await page.getByRole('button', { name: /Profi-Modus/ }).count() === 0, 'Ein alter gespeicherter Profi-Modus öffnet noch den Legacy-Editor.');
   await page.waitForSelector('.chq-token-hit');

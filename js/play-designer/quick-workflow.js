@@ -65,6 +65,12 @@ function installHistory() {
   recordHistory(storage.getSetting(DRAFT_KEY, core.defaultBoard()));
 }
 
+export function resetEditorHistory() {
+  historyState.entries = [];
+  historyState.index = -1;
+  recordHistory(window.BT.storage.getSetting(DRAFT_KEY, core.defaultBoard()));
+}
+
 function currentBoard() {
   return normalized(window.BT.storage.getSetting(DRAFT_KEY, core.defaultBoard()));
 }
@@ -535,7 +541,7 @@ export function enhanceQuickEditor(root, target, options = {}) {
   redo.textContent = '↷';
 
   const backToLibrary = root.querySelector('[data-action="back-library"]');
-  if (backToLibrary) backToLibrary.onclick = () => openPlaybook(reload);
+  if (backToLibrary) backToLibrary.onclick = () => options.onLibrary ? options.onLibrary() : openPlaybook(reload);
 
   const history = root.querySelector('.chq-toolbar-history') || actions;
   history.append(undo, redo);
@@ -657,6 +663,14 @@ export function enhanceQuickEditor(root, target, options = {}) {
     }
   };
   window.addEventListener('keydown', onKeyboard);
+
+  const disposeEditor = root.dispose;
+  root.dispose = () => {
+    disposeEditor?.();
+    window.removeEventListener('keydown', onKeyboard);
+    historyState.listeners.delete(updateHistoryButtons);
+    observer.disconnect();
+  };
 
   return root;
 }

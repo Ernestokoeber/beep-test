@@ -4,7 +4,7 @@ import { createCourtView } from './court-view.js';
 const core = window.BT.tactics.__core;
 function toast(message){if(window.BT.util?.toast)window.BT.util.toast(message);}
 
-function mountStage(container, boardInput){
+export function mountStage(container, boardInput){
   const board=core.normalizeBoard(boardInput), total=window.BT.tactics.boardDuration(board);
   const readSnapshot=core.createSnapshotReader?.(board)||(time=>window.BT.tactics.snapshotAt(board,time));
   container.innerHTML=`<section class="chpd-center"><section class="chpd-stage" data-role="stage"><div class="chpd-stage-inner"><div class="chpd-stage-head"><div class="chpd-stage-copy"><strong></strong><span></span></div><span class="chpd-badge">TEAM PLAY</span></div><div class="chpd-court-wrap" data-role="court"></div></div></section><section class="chpd-transport"><div class="chpd-transport-buttons"><button class="chpd-btn icon" data-action="restart">↺</button><button class="chpd-btn icon primary" data-action="play">▶</button><button class="chpd-btn icon" data-action="fullscreen">⛶</button></div><div class="chpd-scrubber"><span data-role="time">0.0 s</span><input type="range" min="0" value="0" data-role="scrubber"><span data-role="total"></span></div><div class="chpd-speed"><label class="chpd-toggle"><input type="checkbox" data-role="loop" checked> Loop</label><select data-role="speed"><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="1.5">1,5×</option></select></div></section></section>`;

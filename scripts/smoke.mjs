@@ -514,6 +514,10 @@ const migratedTactic = window.BT.tactics.normalizeBoard({
 assert(migratedTactic.steps[0].elements.filter(item => item.type === 'offense').length === 1, 'Alte Spieler werden nicht zu Angriff-Tokens migriert');
 assert(migratedTactic.steps[0].elements.some(item => item.type === 'arrow' && item.kind === 'pass'), 'Alter Passpfeil wird nicht migriert');
 
+// JSDOM cannot load the native ESM route module. Exercise the existing shell
+// bridge here; tactics-pages-browser.mjs verifies the actual routed interface.
+window.BT.tactics.renderPage = (target, hash) => hash === '#/tactics/player'
+  ? window.BT.tactics.renderPlayer(target) : window.BT.tactics.render(target);
 route('#/tactics');
 assert(window.document.querySelector('[data-tool="offense"]'), 'Angriffs-Token-Werkzeug fehlt');
 assert(window.document.querySelector('[data-tool="defense"]'), 'Verteidigungs-Token-Werkzeug fehlt');
@@ -569,4 +573,6 @@ assert(imported.tableDuties.length === 2 && imported.tableDuties.some(entry => e
 assert(imported.phases.length === 2 && imported.phases.some(entry => entry.id === 'new-phase'), 'Merge ergänzt Saisonphasen nicht');
 
 console.log('UI-Smoke-Test erfolgreich: Dashboard, Gegner-Scouting, Auswertung, Theme, Entwicklung, Spiele/Atlas, Training, Kampfgericht und KI-Saisonplanung.');
+// Let awaited route completion and its frame run before destroying the DOM.
+await new Promise(resolve => window.setTimeout(resolve, 40));
 dom.window.close();

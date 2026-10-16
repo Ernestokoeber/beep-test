@@ -121,7 +121,7 @@ export function openTacticTrash(options = {}) {
 
 export function enhanceTacticTrash(root, options = {}) {
   installTacticTrash();
-  const quickMenu = root?.querySelector?.('.chqw-menu');
+  const quickMenu = root?.querySelector?.('.chqw-menu, .chq-header-menu');
   if (quickMenu && !quickMenu.querySelector('[data-open-trash]')) {
     const button = document.createElement('button');
     button.type = 'button';

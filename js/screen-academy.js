@@ -230,8 +230,7 @@ BT.screenAcademy = (() => {
       }
       article.querySelector('[data-demo]')?.addEventListener('click', () => {
         const board = BT.tactics.normalizeBoard(buildDemo(item.id));
-        BT.storage.setSetting('tacticsBoardDraft', board);
-        location.hash = '#/tactics';
+        BT.tactics.openDraft(board);
       });
       return article;
     };
