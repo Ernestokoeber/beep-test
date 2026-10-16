@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const dom = new JSDOM(html, { url: 'https://coach.tsv-lindau.de/#/training', runScripts: 'outside-only', pretendToBeVisual: true });
 const { window } = dom;
+window.scrollTo = () => {};
 window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 window.ResizeObserver = class { observe() {} disconnect() {} };
 window.HTMLElement.prototype.scrollIntoView = () => {};

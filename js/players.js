@@ -2,20 +2,37 @@ window.BT = window.BT || {};
 
 BT.players = (function() {
   const { $, $$, renderTemplate, ageFrom, escapeHTML } = BT.util;
-  let root, currentTab = 'active';
+  let root, currentTab = 'active', searchQuery = '';
 
   function render(target) {
     root = renderTemplate('tpl-players');
+    root.classList.add('team-page');
+    root.querySelector('[data-role="player-form"]').remove();
     target.appendChild(root);
-
-    root.addEventListener('click', e => { if (e.target.closest('[data-action="new-player"]')) showForm(); });
-    $('[data-action="cancel"]', root).addEventListener('click', () => hideForm());
-    $('[data-role="player-form"]', root).addEventListener('submit', onSubmit);
+    const state = BT.navigation?.getState() || {};
+    currentTab = state.tab === 'archived' ? 'archived' : 'active';
+    searchQuery = state.search || '';
+    const search = $('[data-role="player-search"]', root);
+    search.value = searchQuery;
+    search.addEventListener('input', () => {
+      searchQuery = search.value;
+      BT.navigation?.setState({ search: searchQuery, tab: currentTab });
+      renderList();
+    });
+    root.addEventListener('click', e => {
+      if (e.target.closest('[data-action="new-player"]')) location.hash = '#/players/new';
+    });
 
     $$('.tab', root).forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.tab === currentTab);
+      tab.setAttribute('aria-pressed', String(tab.dataset.tab === currentTab));
       tab.addEventListener('click', () => {
         currentTab = tab.dataset.tab;
-        $$('.tab', root).forEach(t => t.classList.toggle('active', t === tab));
+        $$('.tab', root).forEach(t => {
+          t.classList.toggle('active', t === tab);
+          t.setAttribute('aria-pressed', String(t === tab));
+        });
+        BT.navigation?.setState({ search: searchQuery, tab: currentTab });
         renderList();
       });
     });
@@ -61,9 +78,14 @@ BT.players = (function() {
       availabilityNote: f.elements.availabilityNote.value.trim() || null
     };
     if (!data.name) return;
-    BT.storage.upsertPlayer(data);
-    hideForm();
-    renderList();
+    try {
+      const saved = BT.storage.upsertPlayer(data);
+      BT.navigation?.setState({ draft: null });
+      if (BT.navigation) BT.navigation.back('#/player/' + encodeURIComponent(saved.id));
+      else location.hash = '#/player/' + encodeURIComponent(saved.id);
+    } catch (error) {
+      $('[data-role="form-error"]', root).textContent = error.message;
+    }
   }
 
   function renderList() {
@@ -71,12 +93,17 @@ BT.players = (function() {
     const empty = $('[data-role="empty"]', root);
     const players = BT.storage.getPlayers()
       .filter(p => currentTab === 'archived' ? p.archived : !p.archived)
+      .filter(p => (p.name + ' ' + (p.jerseyNumber || '') + ' ' + (p.position || '')).toLocaleLowerCase('de').includes(searchQuery.trim().toLocaleLowerCase('de')))
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
 
+    const count = $('[data-role="player-count"]', root);
+    if (count) count.textContent = players.length + (players.length === 1 ? ' Spieler' : ' Spieler');
     list.innerHTML = '';
     if (players.length === 0) {
       empty.classList.remove('hidden');
-      if (currentTab === 'archived') {
+      if (searchQuery.trim()) {
+        empty.textContent = 'Kein Spieler gefunden. Ändere deinen Suchbegriff.';
+      } else if (currentTab === 'archived') {
         empty.innerHTML = '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg><p class="empty-body">Archiv ist leer.</p>';
       } else {
         empty.innerHTML = '<svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg><p class="empty-headline">Noch keine Spieler angelegt</p><p class="empty-body">Leg deinen ersten Spieler an, um loszulegen.</p><button class="btn primary" data-action="new-player">+ Neuer Spieler</button>';
@@ -93,41 +120,20 @@ BT.players = (function() {
       if (p.jerseyNumber) metaParts.push('#' + escapeHTML(p.jerseyNumber));
       if (p.tnaNumber) metaParts.push('TNA ' + escapeHTML(p.tnaNumber));
       if (age !== null) metaParts.push(age + ' Jahre');
-      const flame = currentTab === 'active' ? renderStreakFlame(p.id) : '';
-      const sparkline = currentTab === 'active' ? renderFTSparkline(p.id) : '';
       const availability = availabilityBadge(p);
       li.innerHTML = `
-        <div class="info" data-open>
-          <div class="name">${escapeHTML(p.name)}${flame ? ' ' + flame : ''} ${availability}</div>
-          <div class="meta">${metaParts.join(' · ') || '&nbsp;'}</div>
-        </div>
-        ${sparkline ? `<div class="player-spark">${sparkline}</div>` : ''}
-        <div class="actions">
-          <button class="btn small" data-edit>Bearbeiten</button>
-          <button class="btn small" data-archive>${p.archived ? 'Reaktivieren' : 'Archivieren'}</button>
-        </div>
+        <a class="player-row-link" data-player-link href="#/player/${encodeURIComponent(p.id)}">
+          <span class="player-number" aria-hidden="true">${escapeHTML(p.jerseyNumber || p.name.charAt(0))}</span>
+          <span class="info"><strong class="name">${escapeHTML(p.name)}</strong>
+          <span class="meta">${metaParts.join(' · ') || 'Spielerprofil'}</span>${availability}</span>
+          <span class="row-chevron" aria-hidden="true">›</span>
+        </a>
       `;
-      li.querySelector('[data-open]').addEventListener('click', () => {
-        location.hash = '#/player/' + p.id;
-      });
-      li.querySelector('[data-edit]').addEventListener('click', () => showForm(p));
-      li.querySelector('[data-archive]').addEventListener('click', () => {
-        const wasArchived = !!p.archived;
-        BT.storage.setArchived(p.id, !wasArchived);
-        renderList();
-        const msg = wasArchived
-          ? p.name + ' reaktiviert'
-          : p.name + ' archiviert';
-        BT.util.toastUndo(msg, () => {
-          BT.storage.setArchived(p.id, wasArchived);
-          renderList();
-        });
-      });
       list.appendChild(li);
     }
   }
 
-  function renderDetail(target, playerId) {
+  function renderFullDetail(target, playerId) {
     const node = renderTemplate('tpl-player-detail');
     target.appendChild(node);
 
@@ -277,6 +283,15 @@ BT.players = (function() {
       list.querySelectorAll('[data-goal-id]').forEach(card => {
         const goal = goals.find(item => item.id === card.dataset.goalId);
         if (!goal) return;
+        const feedbackInput = card.querySelector('[data-goal-feedback]');
+        feedbackInput.value = BT.navigation?.getState()?.feedbackDrafts?.[goal.id] || '';
+        const rememberFeedback = value => {
+          const drafts = { ...BT.navigation?.getState()?.feedbackDrafts };
+          if (value) drafts[goal.id] = value;
+          else delete drafts[goal.id];
+          BT.navigation?.setState({ feedbackDrafts: drafts });
+        };
+        feedbackInput.addEventListener('input', () => rememberFeedback(feedbackInput.value));
         const progress = card.querySelector('[data-goal-progress]');
         progress.addEventListener('input', () => {
           goal.progress = Number(progress.value);
@@ -291,6 +306,7 @@ BT.players = (function() {
           if (!text) return;
           goal.feedback = Array.isArray(goal.feedback) ? goal.feedback : [];
           goal.feedback.push({ id: BT.util.uuid('fb_'), text, createdAt: new Date().toISOString() });
+          rememberFeedback('');
           saveGoals(); drawGoals();
         });
         card.querySelector('[data-goal-action="toggle"]').addEventListener('click', () => {
@@ -299,6 +315,7 @@ BT.players = (function() {
           saveGoals(); drawGoals();
         });
         card.querySelector('[data-goal-action="delete"]').addEventListener('click', () => {
+          rememberFeedback('');
           const index = goals.indexOf(goal);
           if (index >= 0) goals.splice(index, 1);
           saveGoals(); drawGoals();
@@ -336,9 +353,9 @@ BT.players = (function() {
     const totalPct = Math.round((totalHits / shots.length) * 100);
     if (meta) meta.textContent = shots.length + ' Würfe insgesamt · ' + totalHits + ' Treffer · ' + totalMisses + ' Fehlwürfe · ' + totalPct + '%';
 
+    const cellsLayer = $('[data-role="player-heatmap-cells"]', node);
+    const shotsLayer = $('[data-role="player-heatmap-shots"]', node);
     function render(view) {
-      const cellsLayer = $('[data-role="player-heatmap-cells"]', node);
-      const shotsLayer = $('[data-role="player-heatmap-shots"]', node);
       if (cellsLayer) cellsLayer.innerHTML = '';
       if (shotsLayer) shotsLayer.innerHTML = '';
       if (view === 'shots') BT.heatmap.renderShots(shotsLayer, shots);
@@ -650,5 +667,104 @@ BT.players = (function() {
     `;
   }
 
-  return { render, renderDetail };
+  function restoreDraft(form, key) {
+    const draft = BT.navigation?.getState()?.[key];
+    if (draft) {
+      for (const [name, value] of Object.entries(draft)) {
+        const field = form.elements.namedItem(name);
+        if (field && field.type !== 'submit' && field.type !== 'button') field.value = value;
+      }
+      form.classList.remove('hidden');
+    }
+    form.addEventListener('input', () => {
+      const values = Object.fromEntries([...form.elements].filter(field => field.name && !['submit','button'].includes(field.type)).map(field => [field.name, field.value]));
+      BT.navigation?.setState({ [key]: values });
+    });
+    form.addEventListener('submit', () => {
+      // The existing synchronous submit handler validates and resets on success.
+      if (form.classList.contains('hidden')) BT.navigation?.setState({ [key]: null });
+    });
+  }
+
+  function renderEditor(target, playerId) {
+    const player = playerId ? BT.storage.getPlayer(playerId) : null;
+    if (playerId && !player) return renderMissing(target);
+    root = document.createElement('section');
+    root.className = 'view player-editor';
+    root.dataset.playerPage = 'edit';
+    root.innerHTML = '<div class="section-head"><h2>' + (player ? 'Spieler bearbeiten' : 'Neuer Spieler') + '</h2></div><p class="muted">Stammdaten und Verfügbarkeit für dein Trainerteam.</p>';
+    root.append(renderTemplate('tpl-players').querySelector('[data-role="player-form"]'));
+    target.append(root);
+    showForm(player);
+    const form = $('[data-role="player-form"]', root);
+    const status = document.createElement('p'); status.dataset.role = 'form-error'; status.setAttribute('role','alert');
+    form.append(status);
+    form.addEventListener('submit', onSubmit);
+    restoreDraft(form, 'draft');
+    $('[data-action="cancel"]', root).addEventListener('click', () => {
+      BT.navigation?.setState({ draft: null });
+      if (BT.navigation) BT.navigation.back(player ? '#/player/' + encodeURIComponent(player.id) : '#/players');
+      else location.hash = '#/players';
+    });
+    if (player) {
+      const archive = document.createElement('button'); archive.type='button'; archive.className='btn player-archive';
+      archive.textContent = player.archived ? 'Spieler reaktivieren' : 'Spieler archivieren';
+      archive.addEventListener('click', () => {
+        const archived = !!player.archived;
+        if (!confirm(player.name + (archived ? ' reaktivieren?' : ' archivieren?'))) return;
+        BT.storage.setArchived(player.id, !archived);
+        player.archived = !archived;
+        archive.textContent = player.archived ? 'Spieler reaktivieren' : 'Spieler archivieren';
+      });
+      root.append(archive);
+    }
+  }
+
+  function renderMissing(target) {
+    const node=document.createElement('section'); node.className='view';
+    node.innerHTML='<h2>Spieler nicht gefunden</h2><p>Dieses Profil ist im aktuellen Team nicht vorhanden.</p><a class="btn" href="#/players">Zum Team</a>';
+    target.append(node);
+  }
+
+  function renderDetail(target, playerId, page = 'overview') {
+    const player = BT.storage.getPlayer(playerId);
+    if (!player) return renderMissing(target);
+    if (page === 'edit') return renderEditor(target, playerId);
+    const titles = { overview:'Profil', development:'Entwicklung', shots:'Würfe', fitness:'Fitness', history:'Verlauf', report:'Spielerbericht' };
+    if (!titles[page]) page = 'overview';
+    const source = document.createElement('div');
+    renderFullDetail(source, playerId);
+    const full = source.firstElementChild;
+    full.querySelector('a[href="#/players"]')?.remove();
+    const node = document.createElement('section');
+    node.className='view player-profile'; node.dataset.playerPage=page;
+    const base='#/player/' + encodeURIComponent(playerId);
+    const meta=full.querySelector('[data-role="meta"]');
+    node.innerHTML=`<div class="profile-identity"><span class="profile-jersey" aria-hidden="true">${escapeHTML(player.jerseyNumber || player.name.charAt(0))}</span><div><span class="profile-page-label">${titles[page]}</span><h2 data-role="name">${escapeHTML(player.name)}</h2></div></div>`;
+    node.append(meta);
+    if (page === 'overview') {
+      const focus = (player.goals || []).find(goal => goal.status !== 'done');
+      const availability = AVAILABILITY[effectiveAvailability(player)] || AVAILABILITY.ready;
+      const panel=document.createElement('div');
+      panel.innerHTML=`<div class="profile-status"><span class="att-chip ${availability.cls}">${availability.label}</span>${player.archived ? '<span class="muted-chip">Archiviert</span>' : ''}<a class="profile-edit" href="${base}/edit">Bearbeiten</a></div>
+        <section class="profile-focus"><h3>Aktueller Fokus</h3><p>${escapeHTML(focus?.title || 'Noch kein Entwicklungsziel festgelegt.')}</p><a href="${base}/development">${focus ? 'Entwicklung ansehen' : 'Entwicklungsziel festlegen'}</a></section>
+        <nav class="profile-links" aria-label="Spielerprofil">
+          ${[['development','Entwicklung','Ziele und Trainerfeedback'],['shots','Würfe','Wurfquoten und Wurfkarte'],['fitness','Fitness','Belastung und Leistungswerte'],['history','Verlauf','Teilnahmen, Trends und Beep-Tests'],['report','Bericht & PDF','Vollständigen Spielerbericht öffnen']].map(([route,title,detail])=>`<a href="${base}/${route}"><span><strong>${title}</strong><small>${detail}</small></span><span aria-hidden="true">›</span></a>`).join('')}
+        </nav>`;
+      node.append(panel);
+    } else if (page === 'report') {
+      full.querySelector('[data-role="name"]').textContent='Vollständiger Bericht';
+      node.append(full);
+    } else {
+      for (const section of full.querySelectorAll('[data-player-section="' + page + '"]')) node.append(section);
+    }
+    if (page === 'development' || page === 'report') {
+      const form=node.querySelector('[data-role="goal-form"]');
+      restoreDraft(form,'goalDraft');
+      node.querySelector('[data-action="cancel-goal"]').addEventListener('click',()=>BT.navigation?.setState({goalDraft:null}));
+    }
+    target.append(node);
+  }
+
+  return { render, renderDetail, renderEditor };
 })();

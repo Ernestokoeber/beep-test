@@ -20,8 +20,8 @@ try {
       const ids = await page.evaluate(() => ['Adam Testspieler', 'Boris Testspieler', 'Carlo Testspieler'].map(name => window.BT.storage.upsertPlayer({ name }).id));
       await page.reload();
       // The route must also be discoverable from the mobile menu.
-      await page.locator('[data-role="hamburger"]').tap();
-      await page.locator('[data-nav="jerseys"]').tap();
+      await page.locator('.manage-link').tap();
+      await page.locator('.management-page a[href="#/jerseys"]').tap();
       await page.locator('[data-kit="home"] [data-action="new"]').tap();
       await page.getByLabel('Spieler', { exact: true }).selectOption(ids[0]);
       await page.getByLabel('Notiz (optional)', { exact: true }).fill('Beim nächsten Training mitbringen');

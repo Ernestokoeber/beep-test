@@ -9,6 +9,7 @@ const html = readFileSync(resolve(root, 'index.html'), 'utf8');
 const css = readFileSync(resolve(root, 'style.css'), 'utf8');
 const dom = new JSDOM(html, { url: 'https://coach.tsv-lindau.de/#/dashboard', runScripts: 'outside-only', pretendToBeVisual: true });
 const { window } = dom;
+window.scrollTo = () => {}; // Actual scroll restoration is covered in navigation-browser.mjs.
 
 window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 window.ResizeObserver = class { observe() {} disconnect() {} };
@@ -110,9 +111,9 @@ const player = window.BT.storage.upsertPlayer({ name: 'Test Spieler', position: 
 let invalidTnaRejected=false;try{window.BT.storage.upsertPlayer({name:'Ungültige TNA',tnaNumber:12345678});}catch(error){invalidTnaRejected=/TNA/.test(error.message);}assert(invalidTnaRejected,'Programmatische Spielerupdates müssen ungültige TNA-Werte abweisen');
 route('#/players');
 assert(window.document.querySelector('.player-list')?.textContent.includes('TNA 012345678'), 'Die Spielerliste zeigt die TNA-Nummer nicht an');
-window.document.querySelector('[data-edit]')?.click();
+route('#/player/' + player.id + '/edit');
 assert(window.document.querySelector('[name="tnaNumber"]')?.value === '012345678', 'Das Spielerformular übernimmt die TNA-Nummer nicht');
-route('#/player/' + player.id);
+route('#/player/' + player.id + '/development');
 assert(window.document.querySelector('[data-role="development-panel"]'), 'Spielerziele fehlen');
 
 const game = window.BT.storage.upsertGame({ team: 'herren', date: '2026-08-01', home: 'TSV Lindau', away: 'Testverein', score: '72:65', playerStats: [] });

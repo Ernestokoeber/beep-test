@@ -38,12 +38,12 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     assert(header.y <= 1 && header.height < 100, `${name}: header must stay compact at the top ${JSON.stringify(header)}`);
     assert.equal(await page.locator('#app [data-role="top-att"], #app [data-role="team-heat-wrap"], #app [data-action="share-backup"]').count(), 0);
     await page.locator('[data-role="next-training-card"]').filter({hasText: 'Training öffnen'}).waitFor();
-    assert.equal(await page.locator('.mobile-dock a').count(), 3);
+    assert.equal(await page.locator('.mobile-dock [data-team-nav]:visible').count(), 5);
     await check('Start');
     if (process.env.E2E_MOBILE_HOME_SCREENSHOT && name === '320 px') await page.screenshot({path: process.env.E2E_MOBILE_HOME_SCREENSHOT, fullPage: true});
 
-    await page.locator('[data-role="hamburger"]').tap();
-    await page.locator('[data-role="nav"] a[href="#/statistics"]').tap();
+    await page.locator('.manage-link').tap();
+    await page.locator('.management-page a[href="#/statistics"]').tap();
     await page.locator('.statistics-view').waitFor();
     await page.locator('[data-role="top-att"]').filter({hasText: 'Regelmäßiger Spieler'}).waitFor();
     assert(!(await page.locator('[data-role="top-att"]').innerText()).includes('Erstes Training'));
@@ -54,8 +54,8 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await page.reload(); await page.locator('.statistics-view').waitFor();
     await check('Statistik nach Reload');
 
-    await page.locator('[data-role="mobile-more"]').tap();
-    await page.locator('[data-role="nav"] a[href="#/briefing"]').tap();
+    await page.locator('.manage-link').tap();
+    await page.locator('.management-page a[href="#/briefing"]').tap();
     await page.locator('.briefing-view').waitFor();
     await page.locator('[data-role="briefing-blocks"] > summary').tap();
     await page.locator('.briefing-block').filter({hasText: 'Screen eng nutzen'}).waitFor();
@@ -65,8 +65,8 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await page.locator('.season-ai-panel').waitFor();
     await check('Teamkonzept direkt aus dem Briefing');
 
-    await page.locator('[data-role="mobile-more"]').tap();
-    await page.locator('[data-role="nav"] a[href="#/data"]').tap();
+    await page.locator('.manage-link').tap();
+    await page.locator('.management-page a[href="#/data"]').tap();
     await page.locator('.data-view').waitFor();
     assert(await page.locator('[data-action="share-backup"]').isVisible());
     await check('Daten und Export');
@@ -90,7 +90,7 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await page.locator('[data-context-action="analysis"]').tap();
     await page.locator('.pane[data-pane="analysis"]:not(.hidden)').waitFor();
     await check('Trainingsauswertung im Menü');
-    await page.locator('[data-role="mobile-more"]').tap();
+    await page.locator('[data-role="hamburger"]').tap();
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('[data-role="hamburger"]').getAttribute('aria-expanded'), 'false');
     assert.equal(await page.locator('#app').evaluate(node => node.inert), false);
@@ -102,12 +102,11 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await page.locator('.season-ai-panel').waitFor();
     await check('Saisonplanung im Menü');
     await page.goto(baseUrl + '/#/player/' + data.regular);
-    await page.locator('[data-role="goal-list"]').waitFor();
-    assert(!(await page.locator('[data-role="player-stats"]').isVisible()));
-    await page.locator('[data-role="hamburger"]').tap();
-    await page.locator('[data-context-action="Spielerstatistik und Verlauf"]').tap();
+    await page.locator('[data-player-page="overview"]').waitFor();
+    assert.equal(await page.locator('[data-role="player-stats"]').count(), 0);
+    await page.locator('.profile-links a[href$="/history"]').tap();
     await page.locator('[data-role="player-stats"]').waitFor();
-    await check('Spielerstatistik im Menü');
+    await check('Spielerstatistik als eigene Seite');
     await page.goto(baseUrl + '/#/games');
     await page.locator('[data-role="game-list"] [data-game-id]').first().tap();
     await page.locator('[data-action="open-matchday"]').waitFor();

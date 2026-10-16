@@ -802,8 +802,16 @@ BT.individualTraining = (function() {
     if (role === 'player' && !location.hash.startsWith('#/individual') && !location.hash.startsWith('#/account')) location.hash = '#/individual';
   }
 
+  async function renderAccountNavigation() {
+    const current = user();
+    if (!current) return renderIndividualNavigation({ profiles: [] }, { role: 'guest' });
+    let data = { profiles: [] };
+    try { data = await loadOverview(); } catch { /* Account stays usable offline without a cached overview. */ }
+    if (location.hash === '#/individual/account' && user()?.id === current.id) renderIndividualNavigation(data, current);
+  }
+
   window.addEventListener('bt-sync-change', applyNavigationForRole);
   window.addEventListener('online', () => syncPending().catch(() => {}));
   document.addEventListener('DOMContentLoaded', applyNavigationForRole);
-  return { render, renderHub, queueMutation, syncPending, clearLocalData, applyNavigationForRole };
+  return { render, renderHub, renderAccountNavigation, queueMutation, syncPending, clearLocalData, applyNavigationForRole };
 })();

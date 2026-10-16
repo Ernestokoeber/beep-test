@@ -5,6 +5,7 @@ import { detailedDescription } from './fixtures/training-description.mjs';
 const html = readFileSync('index.html', 'utf8');
 const dom = new JSDOM(html, { url: 'https://coach.tsv-lindau.de/#/dashboard', runScripts: 'outside-only', pretendToBeVisual: true });
 const { window } = dom;
+window.scrollTo = () => {};
 window.matchMedia = () => ({ matches: false, addEventListener() {} });
 window.confirm = () => true;
 window.alert = () => {};

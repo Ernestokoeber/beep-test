@@ -103,7 +103,7 @@ fileInput.dispatchEvent(new window.Event('change', { bubbles: true }));
 assert(!analyzeButton.disabled, 'Die Auswertung wird nach der Fotoauswahl nicht freigeschaltet');
 assert(fileLabel.textContent === 'Auswahl ändern', 'Der Foto-Button bestätigt die Auswahl nicht');
 assert(fileCount.textContent === '12 Fotos ausgewählt.', 'Die Anzahl ausgewählter Fotos wird nicht angezeigt');
-assert(index.includes('href="#/opponents" data-nav="opponents"'), 'Im Menü fehlt der Einstieg zur Gegneranalyse');
+assert(index.includes('href="#/opponents"'), 'Der Einstieg zur Gegneranalyse fehlt');
 
 // A plan formerly saved in a game's coachSummary must also be visible in opponent scouting.
 // Keep the live source intact; do not infer current statistics from historical prose.

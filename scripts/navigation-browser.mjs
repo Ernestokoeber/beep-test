@@ -1,0 +1,137 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { existsSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
+import { verifyMobileCoaching } from './mobile-coaching-browser.mjs';
+const portProbe=createServer(); await new Promise(r=>portProbe.listen(0,'127.0.0.1',r));
+const port=portProbe.address().port; await new Promise(r=>portProbe.close(r));
+const server=spawn(process.execPath,['scripts/static-server.mjs'],{env:{...process.env,PORT:String(port)},stdio:['ignore','pipe','pipe']});
+await new Promise((resolve,reject)=>{server.stdout.once('data',resolve);server.once('error',reject);server.once('exit',code=>reject(new Error('Preview stopped: '+code)));});
+const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL || (existsSync(chromium.executablePath()) ? undefined : 'msedge')});
+const base='http://127.0.0.1:'+port, screenshots=process.env.NAV_SCREENSHOT_DIR || join(tmpdir(),'courthub-navigation-preview');
+mkdirSync(screenshots,{recursive:true});
+try {
+ const authContext=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+ await authContext.route('**/api/**',route=>route.fulfill({status:503,contentType:'application/json',body:'{}'}));
+ await authContext.route('**/api/auth/me',async route=>{
+   await new Promise(resolve=>setTimeout(resolve,250));
+   await route.fulfill({contentType:'application/json',body:JSON.stringify({user:{id:'coach-reload',role:'coach',organization:{id:'team-reload'},displayName:'Trainer'}})});
+ });
+ const authPage=await authContext.newPage();
+ await authPage.goto(base+'/#/players'); await authPage.locator('[data-role="player-search"]').waitFor();
+ const authPlayer=await authPage.evaluate(async()=>{
+   const player=BT.storage.upsertPlayer({name:'Originalname'});
+   await BT.storage.flush();
+   localStorage.setItem('beeptest_auth_token','navigation-test-token');
+   return player.id;
+ });
+ await authPage.goto(base+'/#/player/'+authPlayer+'/edit'); await authPage.reload();
+ await authPage.waitForFunction(()=>BT.sync.getState().user?.id==='coach-reload');
+ await authPage.locator('[name="name"]').fill('Trainerentwurf');
+ await authPage.reload(); await authPage.locator('[data-player-page="edit"]').waitFor();
+ assert.equal(await authPage.locator('[name="name"]').inputValue(),'Trainerentwurf','Angemeldeter Trainer behält Entwurf nach Reload.');
+ assert.equal(await authPage.evaluate(()=>JSON.parse(history.state.courtHubPage.scope)[1]),'team-reload','Organisationskontext wird berücksichtigt.');
+ await authContext.route('**/api/auth/me',route=>route.abort('failed'));
+ await authPage.reload(); await authPage.locator('[data-player-page="edit"]').waitFor();
+ assert.equal(await authPage.locator('[name="name"]').inputValue(),'Trainerentwurf','Offline-Identität behält den Trainerentwurf.');
+ await authContext.close();
+ console.log('Authentifizierter Reload und Offline-Identität geprüft.');
+ for (const width of [320,390,768,1440]) {
+  const context=await browser.newContext({viewport:{width,height:844},serviceWorkers:'block',locale:'de-DE',reducedMotion:'reduce'});
+  await context.route('**/api/**',route=>route.fulfill({status:401,contentType:'application/json',body:'{}'}));
+  const page=await context.newPage(); const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(base+'/#/players');await page.locator('[data-role="player-list"]').waitFor({state:'attached'});
+  const ids=await page.evaluate(()=>{
+   const players=Array.from({length:28},(_,i)=>BT.storage.upsertPlayer({name:'Spieler '+String(i+1).padStart(2,'0'),position:'Guard',jerseyNumber:String(i+1),goals:[{id:'goal-'+i,title:'Linke Hand entwickeln',status:'active',progress:25,feedback:[]}]}));
+   const archived=BT.storage.upsertPlayer({name:'Archivspieler',archived:true});
+   BT.storage.setArchived(archived.id,true);
+   const training=BT.storage.upsertTraining({date:BT.util.todayISO(),attendance:players.slice(0,2).map(p=>({playerId:p.id,status:'present'})),plan:{drills:[]}});
+   return {player:players[24].id,archived:archived.id,training:training.id};
+  });
+  await page.reload();await page.locator('[data-player-link]').first().waitFor();
+  if(width<=900) {
+   assert.deepEqual(await page.locator('.mobile-dock [data-team-nav]:visible small').allTextContents(),['Heute','Training','Team','Taktik','Spiele'],'Fünf feste Hauptbereiche fehlen.');
+   assert.equal(await page.locator('.mobile-dock a:visible').count(),5);
+  } else {
+   assert.equal(await page.locator('.primary-navigation a:visible').count(),5,'Alle fünf Hauptbereiche bleiben auch am Desktop erreichbar.');
+  }
+  await page.locator('[data-role="player-search"]').fill('Spieler');
+  const link=page.locator('[data-player-link][href="#/player/'+ids.player+'"]');
+  await link.scrollIntoViewIfNeeded();
+  const listY=await page.evaluate(()=>scrollY);
+  await link.click();
+  await page.locator('[data-player-page="overview"]').waitFor();
+  await page.waitForFunction(()=>scrollY===0);
+  assert.equal(await page.locator('[data-role="player-list"]').count(),0);
+  assert.equal(await page.locator('[data-role="goal-form"]').count(),0);
+  await page.screenshot({path:join(screenshots,'profile-'+width+'.png')});
+  await page.locator('.profile-links a[href$="/shots"]').click();
+  await page.locator('[data-player-page="shots"]').waitFor();
+  assert.equal(await page.locator('[data-role="player-fitness"]').count(),0);
+  await page.locator('[data-page-back]').click();
+  await page.locator('[data-player-page="overview"]').waitFor();
+  await page.locator('[data-page-back]').click();
+  await page.locator('[data-role="player-search"]').waitFor();
+  assert.equal(await page.locator('[data-role="player-search"]').inputValue(),'Spieler');
+  await page.waitForFunction(y=>Math.abs(scrollY-y)<3,listY);
+  await page.goForward();await page.locator('[data-player-page="overview"]').waitFor();
+  await page.locator('.profile-edit').click();await page.locator('[data-player-page="edit"]').waitFor();
+  await page.locator('[name="name"]').fill('Unfertiger Profilentwurf');
+  await page.reload();await page.locator('[data-player-page="edit"]').waitFor();
+  assert.equal(await page.locator('[name="name"]').inputValue(),'Unfertiger Profilentwurf');
+  await page.locator('[data-page-back]').click();await page.locator('[data-player-page="overview"]').waitFor();
+  await page.locator('.profile-edit').click();await page.locator('[data-player-page="edit"]').waitFor();
+  assert.equal(await page.locator('[name="name"]').inputValue(),'Unfertiger Profilentwurf','Entwurf bleibt auch beim erneuten Öffnen erhalten.');
+  await page.locator('[name="name"]').fill('Gespeicherter Spieler');
+  await page.locator('[data-role="player-form"] button[type="submit"]').click();
+  await page.locator('[data-player-page="overview"]').waitFor();
+  assert.equal(await page.locator('[data-role="name"]').textContent(),'Gespeicherter Spieler');
+  await page.evaluate(()=>BT.storage.flush());
+  const direct=await context.newPage();await direct.goto(base+'/#/player/'+ids.player+'/fitness');
+  await direct.locator('[data-player-page="fitness"]').waitFor();
+  await direct.locator('[data-page-back]').click();await direct.locator('[data-player-page="overview"]').waitFor();
+  await direct.locator('[data-page-back]').click();await direct.locator('[data-role="player-search"]').waitFor();
+  await direct.close();
+  await page.goto(base+'/#/training/'+ids.training);await page.locator('.training-detail-view').waitFor();
+  await page.evaluate(()=>{
+    document.querySelector('[data-timer="60"]').click();
+    document.querySelector('[data-timer-action="start"]').click();
+    document.querySelector('[data-sprint-action="start"]').click();
+  });
+  await page.locator('.subnav-btn[data-pane="attendance"]').click();
+  const trainingPlayer=page.locator('.attendance-list a[href^="#/player/"]').first();
+  await trainingPlayer.click();await page.locator('[data-player-page="overview"]').waitFor();
+  await page.locator('[data-page-back]').click();await page.locator('.training-detail-view').waitFor();
+  assert.equal(new URL(page.url()).hash,'#/training/'+ids.training);
+  assert.equal(await page.locator('[data-role="timer-state"]').textContent(),'Läuft','Countdown läuft nach Profilabstecher weiter.');
+  assert.notEqual(await page.locator('[data-role="timer-display"]').textContent(),'00:00');
+  assert.equal(await page.locator('[data-role="sprint-state"]').textContent(),'Läuft','Sprintuhr läuft nach Profilabstecher weiter.');
+  await page.evaluate(()=>{document.querySelector('[data-timer-action="stop"]').click();document.querySelector('[data-sprint-action="stop"]').click();});
+  await page.goto(base+'/#/players');await page.locator('[data-tab="archived"]').click();
+  await page.locator('[data-player-link][href="#/player/'+ids.archived+'"]').click();
+  await page.locator('[data-player-page="overview"]').waitFor();await page.locator('[data-page-back]').click();
+  await page.locator('[data-tab="archived"].active').waitFor();
+  await page.locator('[data-tab="active"]').click();
+  await page.screenshot({path:join(screenshots,'team-'+width+'.png')});
+  const size=await page.evaluate(()=>({viewport:innerWidth,content:document.documentElement.scrollWidth}));
+  assert(size.content<=size.viewport+1,'Horizontaler Überlauf: '+JSON.stringify(size));
+  assert.deepEqual(errors,[],width+' px: Browserfehler');
+  await page.evaluate(()=>{
+    const getState=BT.sync.getState.bind(BT.sync);
+    BT.sync.getState=()=>({...getState(),user:{id:'preview-coach',role:'coach',displayName:'Coach'}});
+    BT.api.getIndividualOverview=async()=>({role:'coach',profiles:[],sessions:[]});
+    location.hash='#/individual/account';
+  });
+  await page.locator('body.individual-workspace-mode').waitFor();
+  await page.locator('.individual-navigation a[href="#/individual"]').waitFor({state:'attached'});
+  if(width<=900) assert.equal(await page.locator('.mobile-dock [data-team-nav]:visible').count(),0,'Individual-Konto zeigt keine Mannschaftsnavigation.');
+  console.log(width+' px: Seitenwechsel, Zurück/Vorwärts, Suche, Archiv, Scrollposition, Entwurf, Speichern und Trainingseinstieg erfolgreich.');
+  await context.close();
+ }
+ await verifyMobileCoaching(browser,{viewport:{width:320,height:844},isMobile:true,hasTouch:true,locale:'de-DE'},'320 px',base);
+ console.log('Bestehende mobile Coachingwege geprüft.');
+ console.log('Screenshots: '+screenshots);
+} finally {await browser.close();server.kill();}

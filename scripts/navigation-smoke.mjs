@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
+
+const dom = new JSDOM('<header><button data-page-back hidden></button></header><main id="app"><h2>Team</h2></main>', {
+  url: 'https://coach.example/#/players', runScripts: 'outside-only', pretendToBeVisual: true
+});
+const w = dom.window;
+let y = 0;
+Object.defineProperty(w, 'scrollY', { get: () => y });
+w.scrollTo = (_x, top) => { y = typeof _x === 'object' ? _x.top : top; };
+w.BT = { sync: { getState: () => ({ user: null }) } };
+const file = new URL('../js/navigation.js', import.meta.url);
+if (existsSync(file)) w.eval(readFileSync(file, 'utf8'));
+assert(w.BT.navigation, 'Ein gemeinsamer Seitenverlauf mit Rückwegen fehlt.');
+const nav = w.BT.navigation;
+const paint = (title) => { w.document.querySelector('#app').innerHTML = '<h2>' + title + '</h2>'; nav.finish(nav.begin(w.location.hash)); };
+const settle = () => new Promise(r => w.setTimeout(r, 40));
+paint('Team'); await settle();
+nav.setState({ search: 'Lena', tab: 'archived' }); y = 360; nav.capture();
+w.location.hash = '#/player/lena'; paint('Lena'); await settle();
+assert.equal(y, 0, 'Neue Seite beginnt oben.');
+assert.equal(w.document.querySelector('[data-page-back]').hidden, false);
+assert.match(w.document.querySelector('[data-page-back]').getAttribute('aria-label'), /Team/);
+nav.back('#/players'); await settle(); paint('Team'); await settle();
+assert.equal(w.location.hash, '#/players');
+assert.equal(nav.getState().search, 'Lena');
+assert.equal(nav.getState().tab, 'archived');
+assert.equal(y, 360, 'Zurück stellt die Listenposition wieder her.');
+w.history.forward(); await settle(); paint('Lena'); await settle();
+assert.equal(w.location.hash, '#/player/lena');
+nav.setState({ draft: { name: 'Noch nicht gespeichert' } });
+w.eval(readFileSync(file, 'utf8'));
+w.BT.navigation.finish(w.BT.navigation.begin(w.location.hash)); await settle();
+assert.equal(w.BT.navigation.getState().draft.name, 'Noch nicht gespeichert', 'Entwurf überlebt erneute Modulinitialisierung.');
+w.BT.sync.getState = () => ({ user: {id:'another-user',organizationId:'org'} });
+w.BT.navigation.begin(w.location.hash);
+assert.equal(w.BT.navigation.getState().draft, undefined, 'Kein Zustand des vorherigen Nutzers.');
+w.history.replaceState(null, '', '#/player/lena/shots');
+w.eval(readFileSync(file, 'utf8')); // A direct visit has no in-memory source page.
+w.BT.navigation.finish(w.BT.navigation.begin(w.location.hash)); await settle();
+w.BT.navigation.back(); await settle();
+assert.equal(w.location.hash, '#/player/lena', 'Direkter Link führt zum Profil statt aus der App.');
+w.BT.navigation.finish(w.BT.navigation.begin(w.location.hash)); await settle();
+w.BT.navigation.back(); await settle();
+assert.equal(w.location.hash, '#/players', 'Auch der zweite Rückweg nach Direktaufruf bleibt in der App.');
+dom.window.close();
+console.log('Navigation: Rückweg, Vorwärts, Position, Entwurf, Nutzerwechsel und direkter Link geprüft.');

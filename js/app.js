@@ -133,6 +133,7 @@
       }
     });
     window.addEventListener('resize', () => { if (window.innerWidth > 900) setOpen(false); });
+    window.addEventListener('hashchange', () => setOpen(false));
   }
 
   function updateContextNavigation() {
@@ -171,12 +172,22 @@
   let renderedHash = location.hash || '#/dashboard';
   let storageReady = null;
   let initialSync = Promise.resolve();
+  let initialSyncPending = false;
+  let routeRequest = 0;
   async function route() {
+    const request = ++routeRequest;
     if (storageReady) {
       try { await storageReady; }
       catch { return; }
     }
+    // Restore navigation drafts only after online or cached offline identity is known.
+    if (initialSyncPending) await initialSync;
+    if (request !== routeRequest) return;
     const hash = location.hash || '#/dashboard';
+    if (BT.sync?.getState?.().user?.role === 'player' && !hash.startsWith('#/individual') && hash !== '#/account') {
+      location.replace('#/individual');
+      return;
+    }
     const individualWorkspace = hash.startsWith('#/individual');
     document.body.classList.toggle('individual-workspace-mode', individualWorkspace);
     const brandLink = document.querySelector('.brand');
@@ -184,13 +195,15 @@
     const individualDockLabel = document.querySelector('.individual-mobile-link small');
     if (brandLink) brandLink.href = individualWorkspace ? '#/individual' : '#/dashboard';
     if (brandTitle) brandTitle.textContent = individualWorkspace ? 'Individual Training' : 'CourtHub';
-    if (individualDockLabel) individualDockLabel.textContent = individualWorkspace ? 'Cockpit' : 'Individual';
-    if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
-      await initialSync;
-      if ((location.hash || '#/dashboard') !== hash) return;
+    const manageLink = document.querySelector('.manage-link');
+    if (manageLink) {
+      manageLink.href = individualWorkspace ? '#/individual/account' : '#/management';
+      manageLink.setAttribute('aria-label', individualWorkspace ? 'Konto und Synchronisierung' : 'Verwaltung öffnen');
     }
+    if (individualDockLabel) individualDockLabel.textContent = individualWorkspace ? 'Cockpit' : 'Individual';
     const leaving=BT.games?.beforeLeave?.();
     if(leaving){const ok=await leaving;if((location.hash||'#/dashboard')!==hash)return;if(!ok){history.replaceState(null,'',renderedHash);return;}}
+    const navigationToken = BT.navigation?.begin(hash);
     renderedHash=hash;
     const isDashboard = hash === '#/dashboard' || hash === '#/' || hash === '';
     if (!isDashboard) app.innerHTML = '';
@@ -206,12 +219,13 @@
       const token = decodeURIComponent(hash.slice('#/checkin/'.length));
       BT.checkin.render(app, token);
     } else if (hash === '#/individual') {
-      BT.individualTraining.render(app);
+      await BT.individualTraining.render(app);
     } else if (hash === '#/individual/account') {
       BT.account.render(app);
+      await BT.individualTraining.renderAccountNavigation();
     } else if (hash.startsWith('#/individual/player/')) {
       const [profileId, pane = 'overview'] = hash.slice('#/individual/player/'.length).split('/');
-      BT.individualTraining.render(app, decodeURIComponent(profileId), pane);
+      await BT.individualTraining.render(app, decodeURIComponent(profileId), pane);
     } else if (isDashboard) {
       const currentUser = BT.sync?.getState?.().user;
       if (currentUser && ['admin', 'coach'].includes(currentUser.role)) {
@@ -228,11 +242,17 @@
       const dashboardView = document.createDocumentFragment();
       BT.dashboard.render(dashboardView);
       app.replaceChildren(dashboardView);
+    } else if (hash === '#/management') {
+      app.append(BT.util.renderTemplate('tpl-management'));
+    } else if (hash === '#/players/new') {
+      BT.players.renderEditor(app);
     } else if (hash === '#/players') {
       BT.players.render(app);
     } else if (hash.startsWith('#/player/')) {
-      const id = hash.slice('#/player/'.length);
-      BT.players.renderDetail(app, id);
+      const [encodedId, page = 'overview'] = hash.slice('#/player/'.length).split('/');
+      let id;
+      try { id = decodeURIComponent(encodedId); } catch { id = ''; }
+      BT.players.renderDetail(app, id, page);
     } else if (hash === '#/test/setup') {
       BT.test.renderSetup(app);
     } else if (hash.startsWith('#/test/run/')) {
@@ -243,6 +263,8 @@
     } else if (hash.startsWith('#/training/')) {
       const id = hash.slice('#/training/'.length);
       BT.training.renderDetail(app, id);
+      const pane = BT.navigation?.getState()?.trainingPane;
+      if (pane) [...app.querySelectorAll('.subnav-btn')].find(button => button.dataset.pane === pane)?.click();
     } else if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
       BT.games.renderMatchday(app,decodeURIComponent(hash.split('/')[2]),hash.endsWith('?training'));
     } else if (hash === '#/games' || /^#\/games\/[^/]+$/.test(hash)) {
@@ -294,6 +316,7 @@
     }
     if (BT.install && BT.install.refresh) requestAnimationFrame(BT.install.refresh);
     updateContextNavigation();
+    BT.navigation?.finish(navigationToken);
   }
 
   function setActiveNav(hash) {
@@ -319,23 +342,23 @@
     } else if (hash.startsWith('#/tablecrew')) {
       active = 'tablecrew';
     } else if (hash.startsWith('#/reports')) {
-      active = 'reports';
+      active = 'players';
     } else if (hash.startsWith('#/briefing')) {
       active = 'briefing';
     } else if (hash.startsWith('#/statistics')) {
-      active = 'statistics';
+      active = 'players';
     } else if (hash.startsWith('#/data')) {
       active = 'data';
     } else if (hash.startsWith('#/settings')) {
       active = 'settings';
     } else if (hash.startsWith('#/test')) {
-      active = 'setup';
+      active = 'players';
     } else if (hash.startsWith('#/schedule')) {
-      active = 'schedule';
+      active = 'training';
     } else if (hash.startsWith('#/notes')) {
       active = 'notes';
     } else if (hash.startsWith('#/drills')) {
-      active = 'drills';
+      active = 'training';
     } else if (hash.startsWith('#/tactics')) {
       active = 'tactics';
     } else if (hash.startsWith('#/history')) {
@@ -347,6 +370,10 @@
     const mobileActive = document.querySelector('[data-mobile-nav="' + active + '"]');
     if (desktopActive) desktopActive.classList.add('active');
     if (mobileActive) mobileActive.classList.add('active');
+    for (const link of [...links, ...mobileLinks]) {
+      if (link.classList.contains('active')) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    }
   }
 
   window.addEventListener('hashchange', route);
@@ -378,7 +405,10 @@
         menuFrame = requestAnimationFrame(() => { menuFrame = 0; updateContextNavigation(); });
       }).observe(app, {childList: true, subtree: true});
     }
-    if (BT.sync && BT.sync.init) initialSync = Promise.resolve(BT.sync.init()).catch(() => {});
+    if (BT.sync && BT.sync.init) {
+      initialSyncPending = true;
+      initialSync = Promise.resolve(BT.sync.init()).catch(() => {}).finally(() => { initialSyncPending = false; });
+    }
     route();
   }
   if (document.readyState === 'loading') {

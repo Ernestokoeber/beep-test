@@ -238,10 +238,21 @@ BT.training = (function() {
   let detailAbort = null;
   let currentShotCategory = null;
   let checkinSubmissions = [];
+  let clockOwner = '';
 
   function renderDetail(target, id) {
     const training = BT.storage.getTraining(id);
     if (!training) { location.hash = '#/training'; return; }
+    const user = BT.sync?.getState?.().user;
+    const nextClockOwner = JSON.stringify([user?.id || 'guest', user?.organization?.id || '', id]);
+    if (clockOwner !== nextClockOwner) {
+      stopTimer(); timerEndTs = 0; timerSelectedSec = 0; timerStatus = 'ready';
+      sprintRunning = false; sprintElapsedSec = 0;
+      if (sprintRaf) cancelAnimationFrame(sprintRaf);
+      sprintRaf = 0;
+      BT.wake.release('training-sprint');
+      clockOwner = nextClockOwner;
+    }
     currentTraining = training;
     currentTraining.freethrows = currentTraining.freethrows || [];
     currentTraining.shots = currentTraining.shots || [];
@@ -444,7 +455,7 @@ BT.training = (function() {
       card.className = 'att-card status-' + (att.status || 'pending');
       card.innerHTML = `
         <div class="att-head">
-          <button type="button" class="name name-btn" data-role="open-player-stats" title="Spieler-Details & Report">${escapeHTML(player.name)}</button>
+          <a class="name name-btn" href="#/player/${encodeURIComponent(player.id)}" title="Spielerprofil öffnen">${escapeHTML(player.name)}</a>
           <label class="late-box ${att.status !== 'present' ? 'disabled' : ''}">
             <input type="checkbox" data-role="late" ${att.late ? 'checked' : ''} ${att.status !== 'present' ? 'disabled' : ''}>
             Zu spät
@@ -485,8 +496,6 @@ BT.training = (function() {
         renderSummary();
       });
 
-      const openBtn = $('[data-role="open-player-stats"]', card);
-      if (openBtn) openBtn.addEventListener('click', () => openPlayerStatsModal(player, currentTraining));
 
       list.appendChild(card);
     }
@@ -1093,6 +1102,7 @@ BT.training = (function() {
   let sprintRunning = false;
   let sprintStartTs = 0;
   let sprintRaf = 0;
+  let sprintElapsedSec = 0;
 
   function getOrCreateSprint(playerId) {
     if (!currentTraining.sprints) currentTraining.sprints = [];
@@ -1127,14 +1137,13 @@ BT.training = (function() {
     const stopBtn = $('[data-sprint-action="stop"]', detailRoot);
     const resetBtn = $('[data-sprint-action="reset"]', detailRoot);
 
-    sprintRunning = false;
     if (sprintRaf) { cancelAnimationFrame(sprintRaf); sprintRaf = 0; }
-    display.textContent = '00:00.00';
-    setSprintState('ready');
+    display.textContent = formatSprintDisplay(sprintElapsedSec);
+    setSprintState(sprintRunning ? 'running' : sprintElapsedSec ? 'stopped' : 'ready');
 
     function tick() {
       if (!sprintRunning) return;
-      if (!document.body.contains(display)) { sprintRunning = false; return; }
+      if (!document.body.contains(display)) return;
       const sec = (performance.now() - sprintStartTs) / 1000;
       display.textContent = formatSprintDisplay(sec);
       sprintRaf = requestAnimationFrame(tick);
@@ -1146,6 +1155,7 @@ BT.training = (function() {
       BT.audio.startBeep();
       BT.wake.acquire('training-sprint');
       sprintStartTs = performance.now();
+      sprintElapsedSec = 0;
       sprintRunning = true;
       setSprintState('running');
       const list = $('[data-role="sprints"]', detailRoot);
@@ -1155,6 +1165,7 @@ BT.training = (function() {
 
     stopBtn.addEventListener('click', () => {
       if (!sprintRunning) return;
+      sprintElapsedSec = (performance.now() - sprintStartTs) / 1000;
       sprintRunning = false;
       BT.wake.release('training-sprint');
       if (sprintRaf) { cancelAnimationFrame(sprintRaf); sprintRaf = 0; }
@@ -1165,6 +1176,7 @@ BT.training = (function() {
 
     resetBtn.addEventListener('click', () => {
       sprintRunning = false;
+      sprintElapsedSec = 0;
       BT.wake.release('training-sprint');
       if (sprintRaf) { cancelAnimationFrame(sprintRaf); sprintRaf = 0; }
       display.textContent = '00:00.00';
@@ -1172,6 +1184,7 @@ BT.training = (function() {
       const list = $('[data-role="sprints"]', detailRoot);
       if (list) list.classList.remove('capturing');
     });
+    if (sprintRunning) tick();
   }
 
   function renderSprints() {
@@ -1266,6 +1279,7 @@ BT.training = (function() {
     $$('.subnav-btn', detailRoot).forEach(btn => {
       btn.addEventListener('click', () => {
         const target = btn.dataset.pane;
+        BT.navigation?.setState({ trainingPane: target });
         $$('.subnav-btn', detailRoot).forEach(b => b.classList.toggle('active', b === btn));
         $$('.pane', detailRoot).forEach(p => p.classList.toggle('hidden', p.dataset.pane !== target));
         if (target === 'notes') renderPlayerNotes();
@@ -1982,12 +1996,14 @@ BT.training = (function() {
   }
 
   let timerEndTs = 0, timerRaf = 0, timerSelectedSec = 0;
+  let timerStatus = 'ready';
 
   function startTimerWithSec(sec) {
     timerSelectedSec = sec;
     BT.audio.ensureContext();
     BT.wake.acquire('training-timer');
     timerEndTs = performance.now() + sec * 1000;
+    setTimerState('running');
     const display = $('[data-role="timer-display"]', detailRoot);
     if (display) display.textContent = formatTime(sec);
     tickTimer();
@@ -1996,6 +2012,9 @@ BT.training = (function() {
   function setupTimer() {
     const display = $('[data-role="timer-display"]', detailRoot);
     const customInput = $('[data-role="timer-custom"]', detailRoot);
+    setTimerState(timerStatus);
+    if (timerStatus === 'running') tickTimer();
+    else display.textContent = formatTime(timerStatus === 'finished' ? 0 : timerSelectedSec);
 
     $$('[data-timer]', detailRoot).forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2026,6 +2045,7 @@ BT.training = (function() {
   }
 
   function setTimerState(state) {
+    timerStatus = state;
     const el = $('[data-role="timer-state"]', detailRoot);
     if (!el) return;
     el.className = 'timer-state';
@@ -2035,6 +2055,8 @@ BT.training = (function() {
   }
 
   function tickTimer() {
+    if (timerRaf) cancelAnimationFrame(timerRaf);
+    timerRaf = 0;
     const display = $('[data-role="timer-display"]', detailRoot);
     if (!display) { stopTimer(); return; }
     const remainMs = timerEndTs - performance.now();
@@ -3396,13 +3418,12 @@ BT.training = (function() {
     if (BT.trainingLive && BT.trainingLive.close) BT.trainingLive.close();
     if (detailAbort) detailAbort.abort();
     detailAbort = null;
-    if (timerRaf) cancelAnimationFrame(timerRaf);
-    timerRaf = 0;
+    // Countdown keeps its deadline and alarm across profile pages; the next
+    // training render binds it to the new DOM. Sprint timing uses its start timestamp.
     if (sprintRaf) cancelAnimationFrame(sprintRaf);
     sprintRaf = 0;
-    sprintRunning = false;
-    BT.wake.release('training-timer');
-    BT.wake.release('training-sprint');
+    if (timerStatus !== 'running') BT.wake.release('training-timer');
+    if (!sprintRunning) BT.wake.release('training-sprint');
   }
 
   function openShotCapture(pane, category) {

@@ -8,7 +8,7 @@ const scripts = [
   'scripts/export-pnr-blender.mjs', 'scripts/render-pnr-blender.mjs', 'scripts/pnr-athlete-asset.mjs',
   ...['bootstrap.js','core.mjs','clock.mjs','journal.mjs','merge.mjs','bridge.mjs','controller.mjs','view.mjs','report.mjs','export.mjs'].map(file=>'js/live-game/'+file),
   'js/coaching-staff.js', 'js/coaching-staff.mjs',
-  'js/training-timer.js',
+  'js/training-timer.js', 'js/navigation.js', 'js/players.js',
   'js/development-core.js',
   'js/development-import.js',
   'js/training-live.js',
