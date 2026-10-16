@@ -24,7 +24,7 @@ export async function verifyGameArchive(browser, options, name, baseUrl) {
     await page.locator('[data-action="unlock-game"]').tap();await shown;
   };
   try {
-    await page.goto(baseUrl+'/#/dashboard');await page.locator('.mobile-home').waitFor();
+    await page.goto(baseUrl+'/#/team');await page.locator('.mobile-home').waitFor();
     const data=await page.evaluate(()=>{
       const BT=window.BT;
       const players=Array.from({length:5},(_,i)=>BT.storage.upsertPlayer({name:'Archiv Spieler '+i,jerseyNumber:String(i)}));
