@@ -30,14 +30,19 @@ BT.libraryPages = (() => {
       category.innerHTML += categories.map(value => '<option>' + esc(value) + '</option>').join('');
       category.value = categories.includes(state().libraryCategory) ? state().libraryCategory : '';
     }
+    let limit = Math.max(40, Math.min(10000, Number(state().libraryLimit) || 40));
+    const more = document.createElement('button'); more.type='button'; more.className='btn'; more.dataset.libraryMore=''; more.hidden=true; node.append(more);
     const draw = () => {
       const q = search.value.trim().toLocaleLowerCase('de'), cat = category?.value || '';
-      remember({ librarySearch: search.value, libraryCategory: cat });
+      remember({ librarySearch: search.value, libraryCategory: cat, libraryLimit: limit });
       const rows = c.getAll().filter(row => (!cat || (row.category || 'Nicht zugeordnet') === cat) && [c.name(row), row.description, row.category, tacticNote(row) ? 'Taktikboard' : row.body].filter(Boolean).join(' ').toLocaleLowerCase('de').includes(q));
-      node.querySelector('[data-library-count]').textContent = rows.length + (kind === 'drills' ? ' Übungen' : ' Notizen');
-      node.querySelector('[data-library-list]').innerHTML = rows.length ? rows.map(row => '<div data-library-item>' + link(href(kind, row.id), c.name(row), kind === 'drills' ? [row.category, row.minutes ? row.minutes + ' Minuten' : 'Dauer offen', row.description?.slice(0, 110)].filter(Boolean).join(' · ') : tacticNote(row) ? 'Gespeichertes Taktikboard' : row.body?.slice(0, 140)) + '</div>').join('') : '<p class="library-empty">' + (q || cat ? 'Keine passenden Einträge. Ändere deine Suche oder die Kategorie.' : kind === 'drills' ? 'Noch keine Übungen. Lege eine Übung an oder übernimm sie aus einem Trainingsplan.' : 'Noch keine Notizen. Halte deinen nächsten Coaching-Gedanken fest.') + '</p>';
+      const shown=rows.slice(0,limit),noun=rows.length===1?c.singular:kind==='drills'?'Übungen':'Notizen';
+      node.querySelector('[data-library-count]').textContent = (shown.length<rows.length?shown.length+' von ':'')+rows.length+' '+noun;
+      node.querySelector('[data-library-list]').innerHTML = shown.length ? shown.map(row => '<div data-library-item>' + link(href(kind, row.id), c.name(row), kind === 'drills' ? [row.category, row.minutes ? row.minutes + ' Minuten' : 'Dauer offen', row.description?.slice(0, 110)].filter(Boolean).join(' · ') : tacticNote(row) ? 'Gespeichertes Taktikboard' : row.body?.slice(0, 140)) + '</div>').join('') : '<p class="library-empty">' + (q || cat ? 'Keine passenden Einträge. Ändere deine Suche oder die Kategorie.' : kind === 'drills' ? 'Noch keine Übungen. Lege eine Übung an oder übernimm sie aus einem Trainingsplan.' : 'Noch keine Notizen. Halte deinen nächsten Coaching-Gedanken fest.') + '</p>';
+      more.hidden=shown.length>=rows.length;more.textContent='Weitere '+Math.min(40,rows.length-shown.length)+' anzeigen';
     };
-    search.addEventListener('input', draw); category?.addEventListener('change', draw); draw();
+    const filter=()=>{limit=40;draw();};
+    search.addEventListener('input', filter); category?.addEventListener('change', filter); more.addEventListener('click',()=>{limit+=40;draw();}); draw();
   }
   function renderDetail(node, kind, c, row) {
     heading(node, c.name(row), c.singular);
@@ -147,7 +152,7 @@ BT.libraryPages = (() => {
         const seen = new Set(BT.storage.getDrills().map(d => d.name.trim().toLocaleLowerCase('de')));
         for (const cb of choices.filter(cb => cb.checked)) { if(!active())return; const d = candidates[Number(cb.value)], key = d.name.toLocaleLowerCase('de'); if (seen.has(key)) continue; BT.storage.upsertDrill({name:d.name,minutes:d.minutes,description:d.description,category:''}); await BT.storage.flush(); seen.add(key); count++; }
         if(!active())return;
-        node.querySelector('[data-library-status]').textContent = count ? count + ' Übungen übernommen.' : 'Bitte mindestens eine noch nicht übernommene Übung auswählen.';
+        node.querySelector('[data-library-status]').textContent = count ? count + (count===1?' Übung übernommen.':' Übungen übernommen.') : 'Bitte mindestens eine noch nicht übernommene Übung auswählen.';
         if(count) { remember({draft:null}); node.insertAdjacentHTML('beforeend',link(href('drills'),'Übungsbibliothek öffnen')); }
       } catch { if(active())node.querySelector('[data-library-status]').textContent = 'Speichern fehlgeschlagen. '+count+' Übungen wurden bereits übernommen. Deine Auswahl bleibt für einen erneuten Versuch erhalten.'; }
       finally { busy=false; if(active())controls.forEach(el=>el.disabled=false); }
