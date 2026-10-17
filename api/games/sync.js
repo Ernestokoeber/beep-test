@@ -88,6 +88,7 @@ export default async function handler(req, res) {
   try {
     const auth = await requireMembership(req, res);
     if (!auth) return;
+    if (auth.role === 'player') return res.status(403).json({ error: 'Der Mannschaftsbereich ist für Spieler nicht freigegeben.' });
     const leagueId = Number.parseInt(String(req.query?.leagueId || DEFAULT_LEAGUE_ID), 10);
     const teamId = Number.parseInt(String(req.query?.teamId ?? DEFAULT_TEAM_ID), 10);
     const teamName = String(req.query?.teamName || 'TSV Lindau').slice(0, 100);

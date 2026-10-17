@@ -3,6 +3,7 @@ import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../../
 import { findIndividualProfile } from '../../_lib/individual-access.js';
 import { method, noStore, safeError } from '../../_lib/http.js';
 import { pilotRoadmap } from '../../_lib/individual-pilot.js';
+import { individualPlayerData } from '../../_lib/individual-player-data.js';
 
 export function createIndividualOverviewHandler(deps = {}) {
   const execute = deps.query || query;
@@ -135,7 +136,7 @@ export function createIndividualOverviewHandler(deps = {}) {
         payload.aiDrafts = aiDrafts.rows;
         payload.auditLog = auditLog.rows;
       }
-      return res.status(200).json(payload);
+      return res.status(200).json(isIndividualPlayer(auth.role) ? individualPlayerData(payload) : payload);
     } catch (error) {
       return safeError('individual-overview', error, res, 'Individual Training konnte nicht geladen werden.');
     }

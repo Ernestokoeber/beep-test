@@ -15,18 +15,24 @@ BT.sync = (function() {
     const fingerprint=await tokenFingerprint(sessionToken);
     if(fingerprint!==undefined)localStorage.setItem(IDENTITY_KEY,JSON.stringify({user,fingerprint}));
   } catch {} }
+  function workspaceOwner(account) {
+    const team = account?.organization?.id;
+    return account?.role === 'player' && team ? `player:${account.id}:${team}` : team;
+  }
   async function activateTeam(nextUser) {
-    const next = nextUser?.organization?.id;
+    const next = workspaceOwner(nextUser);
     if (!next) return;
     // Preserve the old team's cache, but never upload it into a newly signed-in team.
     const previous = localStorage.getItem(OWNER_KEY);
-    if (previous && previous !== next) {
-      if (BT.storage.cacheWorkspace) await BT.storage.cacheWorkspace(previous, BT.storage.load());
-      else localStorage.setItem('courthub_team_cache:' + previous, JSON.stringify(BT.storage.load()));
+    if (previous !== next && (previous || nextUser.role === 'player')) {
+      if (previous) {
+        if (BT.storage.cacheWorkspace) await BT.storage.cacheWorkspace(previous, BT.storage.load());
+        else localStorage.setItem('courthub_team_cache:' + previous, JSON.stringify(BT.storage.load()));
+      }
       const cached = BT.storage.getCachedWorkspace
         ? await BT.storage.getCachedWorkspace(next)
         : JSON.parse(localStorage.getItem('courthub_team_cache:' + next) || '{"games":[]}');
-      await BT.storage.save(cached, { fromSync: true, preserveTimestamp: true });
+      await BT.storage.save(cached || { games: [] }, { fromSync: true, preserveTimestamp: true });
       storeVersion(0);
     }
     localStorage.setItem(OWNER_KEY, next);
@@ -51,7 +57,7 @@ BT.sync = (function() {
   let lastCheckedAt = null;
   let lastError = null;
   function accountCurrent() {
-    try {const owner=localStorage.getItem(OWNER_KEY);return BT.api.getToken()===sessionToken&&(!user?.organization?.id||!owner||owner===user.organization.id);}
+    try {const owner=localStorage.getItem(OWNER_KEY);return BT.api.getToken()===sessionToken&&(!user?.organization?.id||!owner||owner===workspaceOwner(user));}
     catch {return false;}
   }
   function invalidateOtherTab() {
@@ -428,7 +434,7 @@ BT.sync = (function() {
             const owner=localStorage.getItem(OWNER_KEY),savedUser=saved?.user;
             if(saved?.fingerprint===fingerprint&&fingerprint!==undefined&&token&&typeof savedUser?.id==='string'&&typeof savedUser.organization?.id==='string'&&
                 ['admin','coach','assistant','viewer','player'].includes(savedUser.role)&&
-                owner===savedUser.organization.id)user=savedUser;
+                owner===workspaceOwner(savedUser))user=savedUser;
           } catch {}
         }
         if (cacheAllowed && user) cachedIdentity = true;

@@ -25,6 +25,17 @@ Die versionierten Vorlagen liegen in `api/_lib/individual-pilot.js`. Einheit 1 e
 - Offline-Konflikte werden anhand der Server-Eingangszeit entschieden; Gerätezeit bleibt nur Nachweis.
 - Abmelden entfernt lokale Individual-Caches und die persönliche Offline-Warteschlange.
 
+### Persönlicher QR-Code und freigegebene Spielerdaten
+
+- Die Oberfläche erstellt für jedes Individualprofil einen eigenen Link mit QR-Code. Beide sind standardmäßig 72 Stunden ab Erstellung gültig; das genaue Ende wird in deutscher Ortszeit angezeigt. Ein Ersatzcode widerruft den bisherigen.
+- Der Code ermöglicht genau eine erfolgreiche Kontoregistrierung, auch bei gleichzeitigen Versuchen. Danach bleibt das verknüpfte Spielerkonto bestehen und verwendet E-Mail und Passwort. Eine Einladung für ein bereits verknüpftes Profil wird abgewiesen.
+- Der Link ist ein persönlicher Einladungsschlüssel, keine Prüfung der bürgerlichen Identität: Das erste erfolgreich registrierte Konto wird gebunden. Deshalb ausschließlich an den vorgesehenen Spieler weitergeben.
+- Spieler erhalten ihren Individualtermin, Teilnahme, Tagesform, eigenen Trainingsplan mit Übungen, persönliche Messwerte, Wochenfokus, eigene Rückmeldungen, Erinnerungen und ausdrücklich freigegebenes Coach-Feedback. Der Wochenfokus beschreibt persönliche Ziele und gibt keine Mannschaftstrainingspläne frei.
+- Mannschaftstrainings, Team-Workspace, andere Spielerprofile, Mitgliederverzeichnis, Mannschaftsspiele und Mannschafts-KI bleiben serverseitig gesperrt. Explizite Feldfreigaben entfernen interne Coach-Metadaten; auch als Messwert gespeicherte `trainernotiz`-Einträge werden nicht ausgeliefert. Die Trainervorschau blendet sie ebenfalls aus.
+- Bei einem Kontowechsel erhält ein Spieler einen getrennten lokalen Workspace. Ein zuvor geladener Trainer-Workspace wird nicht als Spielerstand aktiviert; veröffentlichte Mannschaftsspielberichte werden für Spieler nicht automatisch geladen.
+
+Nachweise: `scripts/individual-access-policy-smoke.mjs`, UI-Regressionen und echte PostgreSQL-Prüfung einschließlich paralleler Codeerzeugung, paralleler Registrierung, Ablauf, Ersatz und Profilbindung. Der mobile Browser prüft zusätzlich direkte Mannschaftsrouten und fremde Profilrouten.
+
 ## Verbindlicher Coach-Ablauf
 
 - Ernesto gelangt nach der Anmeldung in die Startzentrale und wählt dort zwischen den getrennten Arbeitsbereichen **Mannschaft** und **Individual Training**.

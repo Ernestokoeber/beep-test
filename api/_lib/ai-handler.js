@@ -61,6 +61,7 @@ export function createAIHandler({ requireMembership, query, generate, getApiKey,
     try {
       const auth = await requireMembership(req, res);
       if (!auth) return;
+      if (auth.role === 'player') throw new AIError('AI_FORBIDDEN', 'Die Mannschafts-KI ist für Spieler nicht freigegeben.', { status: 403 });
       if(req.body?.action==='researchOpponent'&&!['admin','coach','assistant'].includes(auth.role))throw new AIError('AI_FORBIDDEN','Nur das Trainerteam kann eine Webrecherche starten.',{status:403});
 
       const apiKey = String(getApiKey() || '');

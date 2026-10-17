@@ -184,6 +184,7 @@
     return JSON.stringify([state?.sessionEpoch,state?.user?.id,state?.user?.organization?.id,state?.user?.role,owner,BT.api?.getToken?.()]);
   }
   function canApplyPublishedReport() {
+    if (BT.sync?.getState?.().user?.role === 'player') return false;
     const gamePage = document.querySelector('[data-game-page]')?.dataset.gamePage;
     return (!gamePage || ['list','overview','report'].includes(gamePage)) &&
       !document.querySelector('[data-role="published-import"]') && !BT.games?.isLiveOpen?.() &&

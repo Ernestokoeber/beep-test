@@ -20,7 +20,7 @@ BT.individualPlayerView = (function() {
     const session = next || [...sessions].reverse().find(s=>s.status !== 'cancelled');
     const plan = own('plans').find(p=>p.session_id === session?.id);
     const exercises = own('exercises').filter(e=>e.session_id === session?.id).sort((a,b)=>a.position-b.position);
-    const measurements = own('measurements').sort((a,b)=>Date.parse(b.server_received_at || 0)-Date.parse(a.server_received_at || 0));
+    const measurements = own('measurements').filter(row=>row.metric_key !== 'trainernotiz').sort((a,b)=>Date.parse(b.server_received_at || 0)-Date.parse(a.server_received_at || 0));
     const today = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     const focus = own('focuses').find(f=>f.valid_from<=today && f.valid_until>=today);
     const feedback = own('releasedFeedback');

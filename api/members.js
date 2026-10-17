@@ -11,6 +11,7 @@ export default async function handler(req, res) {
   try {
     const auth = await requireMembership(req, res);
     if (!auth) return;
+    if (auth.role === 'player') return res.status(403).json({ error: 'Der Mannschaftsbereich ist für Spieler nicht freigegeben.' });
 
     if (req.method === 'GET') {
       const { rows } = await query(

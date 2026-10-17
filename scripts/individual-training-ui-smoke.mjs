@@ -159,4 +159,18 @@ await unplannedWindow.BT.individualTraining.render(unplannedWindow.document.quer
 assert(unplannedWindow.document.querySelectorAll('[data-guided-measurement]').length > 0, 'Verbindliche Einheit 1 dient nicht als Rückfallplan bei fehlenden Übungszeilen');
 assert(unplannedWindow.document.querySelector('#app').textContent.includes('Treffer frontal'), 'Trainerfreundliche Wurferfassung fehlt im Rückfallplan');
 
-console.log('Individual Training UI: Rollenansichten, Privattrennung, Offline-Queue und Logout erfolgreich.');
+const invitationWindow = browser('coach', {...coachData,profiles:[{...profile,user_id:null}]});
+invitationWindow.BT.api.individualAction = async (action, args) => {
+  assert.equal(action,'createInvite');assert.equal(args.profileId,profile.id);assert.equal(args.expiresInHours,72);
+  return {inviteUrl:'https://coach.test/#/join/synthetic-test-only',qrDataUrl:'data:image/png;base64,',invite:{expires_at:'2026-10-21T12:00:00Z'}};
+};
+await invitationWindow.BT.individualTraining.render(invitationWindow.document.querySelector('#app'));
+invitationWindow.document.querySelector('[data-action="invite-player"]').click();
+await new Promise(resolve=>setTimeout(resolve,0));
+const invitationText=invitationWindow.document.querySelector('[data-role="individual-invite"]').textContent;
+assert.match(invitationText,/21\.10\.2026.*14:00/,'Ablaufdatum muss in deutscher Ortszeit sichtbar sein');
+assert.match(invitationText,/72 Stunden/);assert.match(invitationText,/genau ein Spielerkonto/);
+assert.match(invitationText,/Mannschaftstrainings bleiben gesperrt/);
+assert.match(invitationText,/neuer Link macht die vorherige Einladung ungültig/);
+invitationWindow.close();
+console.log('Individual Training UI: Rollenansichten, Privattrennung, persönliche Einladungsregeln, Offline-Queue und Logout erfolgreich.');

@@ -7,6 +7,7 @@ export default async function handler(req, res) {
   try {
     const auth = await requireMembership(req, res);
     if (!auth) return;
+    if (auth.role === 'player') return res.status(403).json({ error: 'Der Mannschaftsbereich ist für Spieler nicht freigegeben.' });
     const gameId = String(req.query && req.query.gameId || '');
     if (!/^[A-Za-z0-9_-]{4,120}$/.test(gameId)) return res.status(400).json({ error: 'Ungültige Atlas-Spiel-ID.' });
     const base = String(process.env.ATLAS_API_URL || '').replace(/\/$/, '');

@@ -70,6 +70,12 @@ export async function validateRealDatabaseBrowser({root,handlers={},invitation,p
     await page.reload();await page.locator('.individual-player-dashboard').waitFor();
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
     await page.screenshot({path:join(directory,`${proofPrefix}-mobile-player.png`),fullPage:true});
+    for (const route of ['training','team','games','players','individual/player/00000000-0000-4000-8000-000000000000/preview']) {
+      await page.goto(base+'/#/'+route);
+      await page.locator('.individual-player-dashboard').waitFor();
+      assert(!await page.locator('[data-role="workspace-switcher"]').count());
+      assert(await page.locator('.individual-player-dashboard').getByText('Mobiler Testspieler',{exact:true}).count());
+    }
     const otherContext=await browser.newContext({viewport:{width:390,height:844},locale:'de-DE',serviceWorkers:'block'});
     const coachPage=await otherContext.newPage();await coachPage.goto(base+'/#/account');
     const login=coachPage.locator('[data-role="login-form"]');await login.locator('[name="email"]').fill(coachEmail);await login.locator('[name="password"]').fill(password);await login.locator('button[type="submit"]').click();

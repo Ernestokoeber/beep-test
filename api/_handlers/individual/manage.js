@@ -276,6 +276,8 @@ export function createIndividualManageHandler(deps = {}) {
         }
 
         if (action === 'createInvite') {
+          // Share the registration lock so issuing and claiming cannot leave two active codes.
+          await client.query("SELECT pg_advisory_xact_lock(hashtext('beep-test-registration'))");
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
           if (profile.user_id) throw new IndividualRequestError(409, 'Dieser Spieler hat bereits ein zugeordnetes Konto. Er kann sich mit seinem bestehenden Konto anmelden.');
           const hours = Number(req.body.expiresInHours ?? 72);
