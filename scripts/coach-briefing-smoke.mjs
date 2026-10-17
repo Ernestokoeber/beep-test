@@ -5,7 +5,7 @@ import {JSDOM} from 'jsdom';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const dom = new JSDOM(html, {url: 'https://coach.test/', runScripts: 'outside-only'});
 const w = dom.window;
-for (const file of ['util', 'storage', 'coaching-staff', 'team-strategy', 'station-training', 'dashboard']) {
+for (const file of ['util', 'storage', 'coaching-staff', 'team-strategy', 'station-training', 'games', 'dashboard', 'coach-briefing']) {
   w.eval(readFileSync(new URL('../js/' + file + '.js', import.meta.url), 'utf8'));
 }
 const BT = w.BT;

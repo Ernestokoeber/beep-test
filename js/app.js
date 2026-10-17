@@ -280,7 +280,7 @@
       BT.tablecrew.render(app);
     } else if (hash === '#/reports') {
       BT.reports.render(app);
-    } else if (hash === '#/briefing') {
+    } else if (hash === '#/briefing' || hash.startsWith('#/briefing?')) {
       BT.dashboard.renderBriefing(app);
     } else if (hash === '#/statistics') {
       BT.dashboard.renderStatistics(app);

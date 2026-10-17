@@ -85,20 +85,8 @@
   </template>
 
   <template id="tpl-coach-briefing">
-    <section class="view briefing-view"><div class="section-head"><a class="btn small" href="#/dashboard">← Start</a></div>
-      <section class="coach-briefing" data-role="coach-briefing">
-        <div class="coach-briefing-head">
-          <div>
-            <span class="section-kicker">Nächster Einsatz</span>
-            <h3>Trainerbriefing</h3>
-          </div>
-          <button class="btn small" type="button" data-action="share-briefing">Briefing teilen</button>
-        </div>
-        <p class="muted">Ziele, Coaching-Punkte, Teilnahme und Aufgaben für das nächste Training – aus deinen aktuellen Daten.</p>
-        <div class="coach-briefing-grid" data-role="coach-briefing-grid"></div>
-        <div class="coach-briefing-content" data-role="coach-briefing-content"></div>
-        <ul class="coach-briefing-list" data-role="coach-briefing-list"></ul>
-      </section>
+    <section class="view briefing-view">
+      <div class="coach-briefing" data-role="coach-briefing"></div>
 
       <section class="phase-banner hidden" data-role="phase-banner">
         <div class="phase-banner-top">
@@ -1526,6 +1514,7 @@
   <script defer src="js/aiimport.js"></script>
   <script defer src="js/schedule.js"></script>
   <script defer src="js/dashboard.js"></script>
+  <script defer src="js/coach-briefing.js"></script>
   <script defer src="js/reports.js"></script>
   <script defer src="js/settings.js"></script>
   <script defer src="js/account.js"></script>

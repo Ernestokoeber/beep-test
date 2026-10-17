@@ -13,6 +13,7 @@ const scripts = [
   'js/development-import.js',
   'js/training-live.js',
   'js/training-pages.js',
+  'js/coach-briefing.js',
   'js/training-shots.js',
   'js/station-training.js',
   'js/util.js', 'js/storage.js', 'js/api.js', 'js/individual-training.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',

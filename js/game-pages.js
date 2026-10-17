@@ -56,6 +56,7 @@ BT.gamePages = (() => {
       const summary=node('section','gp-summary');summary.dataset.gpUi='';summary.append(node('strong','',status.label),node('p','',`${preparation.roster.filter(p=>p.gameStatus!=='dnp').length} Spieler im Kader · ${preparation.startingFive.length}/5 Starter`));
       summary.append(link(hasLive?(session?'Spieltag öffnen':'Erfassung auswählen'):'Vorbereitung öffnen',path(game.id,hasLive?'live':'prepare/roster'),true));detail.append(summary);
       const links=node('nav','gp-task-list');links.dataset.gpUi='';links.setAttribute('aria-label','Dieses Spiel');
+      links.append(link('Trainerbriefing','#/briefing?game='+encodeURIComponent(game.id)));
       for(const [label,destination]of [...(hasLive?[['Kader & Trainerteam','prepare/roster']]:[]),['Starting Five','prepare/lineup'],['Gameplan','prepare/gameplan'],['Notizen & Fazit','notes'],['Spielerwerte','boxscore'],['Spielauswertung','report'],['Videoanalyse','analysis'],['Spieldaten bearbeiten','edit']])links.append(link(label,path(game.id,destination)));
       detail.append(links);return;
     }

@@ -47,6 +47,7 @@ BT.dashboard = (function() {
   }
 
   function cleanup() {
+    BT.coachBriefing?.cleanup();
     clearInterval(homeTimer); homeTimer=null; homeRoot=null;
     document.removeEventListener('visibilitychange', refreshWhenVisible);
   }
@@ -139,12 +140,7 @@ BT.dashboard = (function() {
   }
 
   function renderBriefing(target) {
-    return cachedRender(target, host => {
-      const root = renderTemplate('tpl-coach-briefing');
-      renderCoachBriefing(root);
-      renderCurrentPhase(root);
-      host.append(root);
-    });
+    return BT.coachBriefing.render(target);
   }
 
   function renderStatistics(target) {
@@ -183,9 +179,8 @@ BT.dashboard = (function() {
     return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
   }
 
-  function buildCoachBriefing() {
+  function buildCoachBriefing(next = nextTraining(BT.storage.getTrainings(), todayISO())) {
     const today = todayISO();
-    const next = nextTraining(BT.storage.getTrainings(), today);
     const targetDate = next?.date || today;
     const players = BT.storage.getPlayers().filter(player => !player.archived && !BT.staff?.isCoachOnly(next, player.id));
     const availability = player => player.availabilityUntil && player.availabilityUntil < targetDate ? 'ready' : player.availability || 'ready';
@@ -290,33 +285,6 @@ BT.dashboard = (function() {
       '', 'Ablauf und Coaching-Punkte', ...blocks.flatMap(block => [block.title + ' · ' + block.meta, ...block.lines.map(line => '• ' + line)]),
       '', 'Vor Beginn klären', ...notes.map(note => '• ' + note.text)].join('\n');
     return {next, present, open, players: players.length, goals: goals.length, plannedMinutes, sections, blocks, notes, shareText};
-  }
-
-  function renderCoachBriefing(root) {
-    const briefing = buildCoachBriefing();
-    const {next, present, open, plannedMinutes} = briefing;
-    $('[data-role="coach-briefing-grid"]', root).innerHTML = `
-      <div><span>Nächstes Training</span><strong>${next ? formatDate(next.date) + (next.startTime ? ' · ' + escapeHTML(next.startTime) : '') : 'Noch nicht geplant'}</strong></div>
-      <div><span>Teilnahme eingetragen</span><strong>${next ? present + ' / ' + briefing.players : 'Noch offen'}</strong><small>${next ? open + ' Status offen' : 'Training zuerst planen'}</small></div>
-      <div><span>Planumfang</span><strong>${plannedMinutes ? plannedMinutes + ' min' : 'Noch offen'}</strong></div>
-      <div><span>Aktive Ziele</span><strong>${briefing.goals}</strong></div>`;
-    const listMarkup = lines => '<ul>' + lines.map(line => '<li>' + escapeHTML(line) + '</li>').join('') + '</ul>';
-    $('[data-role="coach-briefing-content"]', root).innerHTML = briefing.sections.map((section, index) =>
-      '<details class="briefing-section"' + (index === 0 ? ' open' : '') + '><summary>' + escapeHTML(section.title) + '</summary>' + listMarkup(section.lines) +
-      '<a class="btn small" href="' + section.href + '">' + escapeHTML(section.linkLabel) + '</a></details>').join('') +
-      '<details class="briefing-section" data-role="briefing-blocks"><summary>Ablauf und Coaching-Punkte · ' + briefing.blocks.length + ' Blöcke</summary>' +
-      (briefing.blocks.length ? briefing.blocks.map(block => '<article class="briefing-block"><h4>' + escapeHTML(block.title) + '</h4><p class="muted">' + escapeHTML(block.meta) + '</p>' + listMarkup(block.lines) + '</article>').join('') : '<p>Noch keine Übungen geplant.</p>') + '</details>';
-    $('[data-role="coach-briefing-list"]', root).innerHTML = briefing.notes.map(item => '<li class="briefing-' + item.cls + '">' + escapeHTML(item.text) + '</li>').join('');
-    $('[data-action="share-briefing"]', root).addEventListener('click', async () => {
-      // Read again when sharing: another view or sync may have updated the plan.
-      const briefingText = BT.storage.withReadCache ? BT.storage.withReadCache(() => buildCoachBriefing().shareText) : buildCoachBriefing().shareText;
-      if (navigator.share) {
-        try { await navigator.share({ title: 'Trainerbriefing', text: briefingText }); return; }
-        catch (error) { if (error.name === 'AbortError') return; }
-      }
-      try { await navigator.clipboard.writeText(briefingText); BT.util.toast('Trainerbriefing kopiert.'); }
-      catch { BT.util.downloadBlob('trainerbriefing-' + todayISO() + '.txt', new Blob([briefingText], { type: 'text/plain;charset=utf-8' })); }
-    });
   }
 
   function renderCurrentPhase(root) {
@@ -767,5 +735,7 @@ BT.dashboard = (function() {
     downloadJSON('saison_' + activeSeasonSuffix() + '_' + todayISO() + '.json', payload);
   }
 
-  return { render, refresh, cleanup, renderBriefing, renderStatistics, renderData, __test: { buildCoachBriefing, nextTraining, homeAgenda } };
+  return { render, refresh, cleanup, renderBriefing, renderStatistics, renderData, renderPhase:renderCurrentPhase,
+    buildTrainingBriefing:buildCoachBriefing, getAgenda:()=>homeAgenda(BT.storage.getTrainings(),BT.storage.getGames()),
+    __test: { buildCoachBriefing, nextTraining, homeAgenda } };
 })();

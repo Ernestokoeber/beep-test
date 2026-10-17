@@ -54,6 +54,11 @@ BT.navigation = (function() {
     return { id: current.id, scope, restore: !!existing, scroll: current.scroll || 0 };
   }
   function parentRoute(hash = hashNow()) {
+    if (hash === '#/briefing' || hash.startsWith('#/briefing?')) {
+      const params = new URLSearchParams(hash.split('?')[1] || '');
+      for (const [kind,page] of [['training','training'],['game','games']]) if (params.get(kind)) return '#/'+page+'/'+encodeURIComponent(params.get(kind));
+      return '#/team';
+    }
     if (/^#\/player\/[^/]+\/[^/]+$/.test(hash)) return hash.slice(0, hash.lastIndexOf('/'));
     if (hash.startsWith('#/player/') || hash === '#/players/new') return '#/players';
     if (hash.startsWith('#/individual/player/')) {
