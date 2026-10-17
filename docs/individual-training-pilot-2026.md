@@ -55,7 +55,7 @@ Nach Abschluss und erfolgreicher Synchronisierung wird je anwesendem Spieler und
 
 **Produktionsfreigabe weiterhin blockiert:** Der echte Individual-Überblick liefert derzeit `503 DATABASE_QUOTA_EXCEEDED`. Deshalb sind neue Einladungen, reale Registrierungen und das geräteübergreifende Speichern gegen Produktion noch nicht abgenommen. Lokale Tests mit isoliertem Datenbank-/HTTP-Transport und mobile Browserprüfungen sind ausdrücklich kein Nachweis für eine funktionierende Produktionsdatenbank. Keine Migration oder zusätzliche kostenpflichtige Integration wurde aktiviert.
 
-Zusätzliche technische Nachweise: `scripts/individual-invite-smoke.mjs`, `scripts/individual-registration-smoke.mjs`, `scripts/individual-player-validation-smoke.mjs`, `scripts/individual-review-regression.mjs` und `scripts/individual-player-browser.mjs`. Der Browsertest decodiert das tatsächlich serverseitig erzeugte QR-Bild mit OpenCV und öffnet die enthaltene Route mit einem frischen Browserkontext. Die PostgreSQL-Produktionsverbindung und ein physisches iPhone bleiben gesonderte Abnahmeschritte.
+Zusätzliche technische Nachweise: `scripts/individual-invite-smoke.mjs`, `scripts/individual-registration-smoke.mjs`, `scripts/individual-player-validation-smoke.mjs`, `scripts/individual-review-regression.mjs` und `scripts/individual-player-browser.mjs`. Der Browsertest decodiert das tatsächlich serverseitig erzeugte QR-Bild mit ZXing-C++ und öffnet die enthaltene Route mit einem frischen Browserkontext. Die PostgreSQL-Produktionsverbindung und ein physisches iPhone bleiben gesonderte Abnahmeschritte.
 
 | Bereich | Automatischer Nachweis |
 | --- | --- |
@@ -67,3 +67,5 @@ Zusätzliche technische Nachweise: `scripts/individual-invite-smoke.mjs`, `scrip
 | Gesamte Regression | `npm test` |
 
 Migration, Rückweg, Web-Push-Ablehnung, Netzunterbrechung und echte Mobilgeräte werden vor Produktion in einer getrennten Umgebung mit geeigneten Testdaten geprüft. Keine Migration oder Pilotzuordnung wird durch den normalen Deployment-Build automatisch gegen Produktion ausgeführt.
+
+QR-Testvoraussetzung neben dem gebündelten Python/OpenCV: `python -m pip install -r scripts/requirements-qr-validation.txt`. Ein bei der Live-Abnahme zufällig erzeugter, gültiger Code wurde von OpenCV nicht erkannt, von ZXing-C++ korrekt gelesen. Der Abnahmetest verwendet deshalb ZXing-C++ als unabhängigen Decoder; an den produktiven QR-Bildern wurde dafür nichts verändert.

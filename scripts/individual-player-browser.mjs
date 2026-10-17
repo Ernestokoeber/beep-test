@@ -16,7 +16,7 @@ const inviteHandler=createIndividualManageHandler({requireMembership:async()=>({
 const response={setHeader(){},status(code){this.code=code;return this;},json(body){this.body=body;return this;}};await inviteHandler({method:'POST',body:{action:'createInvite',profileId:ids.profile}},response);assert.equal(response.code,201);
 const invitation=response.body,qrPath=join(shots,'einladung-test-qr.png');writeFileSync(qrPath,Buffer.from(invitation.qrDataUrl.split(',')[1],'base64'));
 const bundledPython=join(homedir(),'.cache','codex-runtimes','codex-primary-runtime','dependencies','python','python.exe');
-const decoded=spawnSync(process.env.COURTHUB_QR_PYTHON||(existsSync(bundledPython)?bundledPython:'python'),['-c','import cv2,sys; image=cv2.imread(sys.argv[1]); text,_,_=cv2.QRCodeDetector().detectAndDecode(image); print(text)',qrPath],{encoding:'utf8'});
+const decoded=spawnSync(process.env.COURTHUB_QR_PYTHON||(existsSync(bundledPython)?bundledPython:'python'),['-c','import cv2,zxingcpp,sys; image=cv2.imread(sys.argv[1]); codes=zxingcpp.read_barcodes(image); print(codes[0].text if len(codes)==1 else "")',qrPath],{encoding:'utf8'});
 assert.equal(decoded.status,0,decoded.stderr);assert.equal(decoded.stdout.trim(),invitation.inviteUrl,'Das tatsächlich erzeugte QR-Bild muss exakt den Einladungslink enthalten.');
 const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||(existsSync(chromium.executablePath())?undefined:'msedge')});
 const quota={error:'Das Datenbank-Kontingent ist erschöpft.',code:'DATABASE_QUOTA_EXCEEDED'};

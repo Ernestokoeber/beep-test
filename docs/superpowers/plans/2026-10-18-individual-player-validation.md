@@ -46,7 +46,7 @@
 - [x] Regressionen für 503-/Offline-Warteschlange, Parallelität, Konto-/Rollenwechsel und veraltete Renderantworten rot ausführen.
 - [x] Rückmeldungen erhalten und Sync-Zustand korrekt anzeigen; PWA-Version 242 mit neuen Assets.
 - [x] `npm test`, QR-Decodierung und Browserablauf durchführen; unabhängiger Gesamt-Review, erst danach Veröffentlichung im bestehenden autorisierten Umfang.
-- [ ] Live-UI und isolierte Browserfälle prüfen, Screenshots liefern und den echten Produktionsblocker ausdrücklich dokumentieren.
+- [x] Live-UI und isolierte Browserfälle prüfen, Screenshots liefern und den echten Produktionsblocker ausdrücklich dokumentieren.
 
 ## Nachweise vor Veröffentlichung
 
@@ -54,3 +54,12 @@
 - Mobile Browserprüfung 320/390 Pixel: Exit 0, tatsächliches QR-Bild decodiert, frische Browserkontexte, eigene Seiten, Rückmeldung und 503-Wiederaufnahme.
 - Unabhängiges Review: drei wesentliche Befunde; alle einzeln durch neue Regressionen rot reproduziert und grün korrigiert (Altwarteschlange, Dashboard-Erinnerungen, verspäteter Pilotstart). Keine offenen Codebefunde.
 - Die Produktionsfreigabe bleibt wegen der realen Neon-Sperre ausdrücklich offen. Kein Austausch der Datenbank und keine zusätzlichen Kosten.
+
+## Live-Prüfung
+
+- Vercel-Deployment für c61c43a erfolgreich, PWA 242 öffentlich bestätigt.
+- Browserablauf mit Live-Dateien bei 320/390 Pixeln sowie Coach-Vorschau, Teilen-Abbruch und 105-Minuten-Beispielplan: Exit 0. Alle API-Schreibzugriffe im Browsertest isoliert.
+- Tatsächlicher öffentlicher Einladungsendpunkt: fehlerhafter Token 400, syntaktisch zulässiger Testtoken 503 DATABASE_QUOTA_EXCEEDED, jeweils no-store.
+- Vorhandenes reales Administratorkonto öffnet die Live-Beispielvorschau erfolgreich. Screenshots und Abnahmestatus liegen lokal unter artifacts/individual-training-2026-10-19 (nicht veröffentlicht).
+- QR-Abnahmetest: Ein gültiges zufälliges Symbol wurde von OpenCV nicht erkannt; unabhängiges ZXing-C++ decodiert exakt denselben Link. Test auf ZXing-C++ umgestellt, keine Änderung an produktiven QR-Bildern. Voraussetzung in scripts/requirements-qr-validation.txt gepinnt.
+- Eine Freigabe für reale neue Spieler am Montag wird ausdrücklich nicht erteilt, solange die Produktionsdatenbank gesperrt ist.
