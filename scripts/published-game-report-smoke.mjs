@@ -33,3 +33,15 @@ const published=JSON.parse(fs.readFileSync(new URL('../data/published-game-repor
 const template=publishedGamePatch(published,{id:'ottobeuren',...published.target},published.players.map((p,i)=>({id:'actual-'+i,name:p.name})));
 assert.equal(template.score,'30:93');assert.equal(template.publishedReport.players.length,9);assert.equal(template.playerStats.reduce((s,p)=>s+p.fouls,0),19);assert.equal(template.playerStats.reduce((s,p)=>s+p.freeThrowsAttempted,0),7);
 console.log('Ottobeuren-Vorlage: neun Spieler, 30:93, 19 Fouls und 1/7 Freiwürfe validiert.');
+
+const wasserburg=JSON.parse(fs.readFileSync(new URL('../data/published-game-reports/2026-10-17-wasserburg-lindau.json',import.meta.url)));
+const mobileRoster=wasserburg.players.map((p,i)=>({id:'mobile-'+i,name:p.name,jerseyNumber:i+30}));
+const mobileOriginal=structuredClone(mobileRoster);
+const mobile=publishedGamePatch(wasserburg,{id:'wasserburg',...wasserburg.target,officialMatchId:'existing-match'},mobileRoster);
+assert.equal(mobile.score,'64:55');assert.equal(mobile.officialMatchId,'existing-match');
+assert.equal(mobile.publishedReport.players.length,6);assert.equal(mobile.playerStats.reduce((s,p)=>s+p.points,0),55);
+assert.equal(mobile.playerStats.reduce((s,p)=>s+p.freeThrowsMade,0),6);assert.equal(mobile.playerStats.reduce((s,p)=>s+p.freeThrowsAttempted,0),15);
+assert.equal(mobile.publishedReport.staff[0].playerId,'mobile-5','Spielertrainer mit dem Profil dieses Geräts verknüpfen.');
+assert.deepEqual(mobileRoster,mobileOriginal);assert(mobile.publishedReport.players.every(p=>p.rebounds===null&&p.fieldGoalsAttempted===null));
+assert.equal(mobile.publishedReport.players.find(p=>p.jerseyNumber==='89').name,'Demian Geyer-Hummler');
+console.log('Wasserburg-Vorlage: sechs Spieler, 64:55, 6/15 Freiwürfe und Spielertrainer am Zielgerät validiert.');

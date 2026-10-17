@@ -30,7 +30,12 @@ export function publishedGamePatch(packet,game,roster,now=new Date().toISOString
   requireValue(players.reduce((sum,p)=>sum+p.points,0)===Number(score[ownSide==='home'?1:2]),'Spielerpunkte stimmen nicht mit dem Endergebnis überein.');
   const periods=(packet.periodScores||[]).map((p,i)=>{requireValue(p.period===i+1&&Number.isInteger(p.home)&&p.home>=0&&Number.isInteger(p.away)&&p.away>=0,'Ungültiger Viertelstand.');return {period:p.period,home:p.home,away:p.away};});
   if(periods.length)requireValue(periods.reduce((sum,p)=>sum+p.home,0)===Number(score[1])&&periods.reduce((sum,p)=>sum+p.away,0)===Number(score[2]),'Viertelstände stimmen nicht mit dem Endergebnis überein.');
-  const staff=packet.staff||[];validateStaff(staff);
+  const staff=(packet.staff||[]).map(member=>{
+    if(!member?.alsoPlayer||member.playerId)return member;
+    const matches=players.filter(p=>normalize(p.name)===normalize(member.name));
+    requireValue(matches.length===1,`Spielertrainer nicht eindeutig zugeordnet: ${member.name||'Ohne Namen'}.`);
+    return {...member,playerId:matches[0].playerId};
+  });validateStaff(staff);
   const opponentTotals={};for(const key of ['points','twoMade','threeMade','freeThrowsMade','freeThrowsAttempted','fouls']){const value=packet.opponentTotals?.[key]??null;requireValue(value===null||Number.isInteger(value)&&value>=0&&value<=1000,'Ungültige Gegnerstatistik.');opponentTotals[key]=value;}
   const opponentScore=Number(score[ownSide==='home'?2:1]);requireValue(opponentTotals.points===null||opponentTotals.points===opponentScore,'Gegnerpunkte stimmen nicht mit dem Endergebnis überein.');opponentTotals.points=opponentScore;
   if(['twoMade','threeMade','freeThrowsMade'].every(key=>opponentTotals[key]!==null))requireValue(2*opponentTotals.twoMade+3*opponentTotals.threeMade+opponentTotals.freeThrowsMade===opponentScore,'Gegnerwürfe stimmen nicht mit dem Endergebnis überein.');

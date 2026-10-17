@@ -16,6 +16,23 @@ export default async function handler(req, res) {
     if (auth.role === 'player') return res.status(403).json({ error: 'Spielerkonten haben keinen Zugriff auf den Team-Workspace.' });
 
     if (req.method === 'GET') {
+      const { knownVersion, knownRole } = req.query || {};
+      if ((knownVersion !== undefined && (typeof knownVersion !== 'string' || !/^\d+$/.test(knownVersion) || !Number.isSafeInteger(Number(knownVersion)))) ||
+          (knownRole !== undefined && !['admin', 'coach', 'assistant', 'viewer'].includes(knownRole))) {
+        return res.status(400).json({ error: 'Ungültiger Versionsvergleich.' });
+      }
+      // Read only metadata from PostgreSQL on unchanged polls. Omitting data from
+      // the HTTP response alone would still consume the database transfer quota.
+      if (knownVersion !== undefined && knownRole === auth.role) {
+        const { rows } = await query(
+          'SELECT version, updated_at FROM workspaces WHERE organization_id = $1',
+          [auth.organization_id]
+        );
+        const workspace = rows[0] || { version: 0, updated_at: null };
+        if (Number(workspace.version) === Number(knownVersion)) return res.status(200).json({
+          unchanged: true, version: Number(workspace.version), updatedAt: workspace.updated_at, role: auth.role
+        });
+      }
       const { rows } = await query(
         `SELECT data, version, updated_at
            FROM workspaces

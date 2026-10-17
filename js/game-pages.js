@@ -70,6 +70,11 @@ BT.gamePages = (() => {
     }
     if(page==='report') {
       const card=detail.querySelector('.game-preparation-card');card.hidden=false;for(const child of card.children)child.hidden=true;card.querySelector('[data-role="live-game-host"]').hidden=false;BT.games.showLiveReport(game.id,detail,true);
+      if(canWrite()){
+        const actions=node('div','gp-actions');actions.dataset.gpUi='';
+        const importReport=root.querySelector('[data-action="import-published-report"]');
+        importReport.disabled=!BT.games.canEdit(game);importReport.classList.remove('mobile-extra-action');actions.append(importReport);detail.querySelector('[data-role="game-archive"]').after(actions);
+      }
       const exports=detail.querySelector('[data-role="video-stats-export-host"]');exports.hidden=false;return;
     }
     if(page==='boxscore'||page==='player') {

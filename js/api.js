@@ -89,7 +89,9 @@ BT.api = (function() {
       method: 'POST', auth: false, body: { email, password }
     }),
     me: () => request('/auth/me'),
-    getWorkspace: () => request('/workspace'),
+    getWorkspace: (knownVersion, knownRole) => request('/workspace' +
+      (Number.isSafeInteger(knownVersion) && knownVersion >= 0 && knownRole
+        ? '?knownVersion=' + knownVersion + '&knownRole=' + encodeURIComponent(knownRole) : '')),
     getMembers: () => request('/members'),
     updateMemberRole: (userId, role) => request('/members', {
       method: 'PATCH', body: { userId, role }

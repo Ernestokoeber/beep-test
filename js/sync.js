@@ -42,6 +42,8 @@ BT.sync = (function() {
   let reconcileWorker = null;
   let pushRequested = false;
   let sessionEpoch = 0;
+  let hasRemoteSnapshot = false;
+  let remoteDataTimestamp = 0;
   let applying = false;
   let status = 'guest';
   let lastSyncAt = null;
@@ -52,6 +54,7 @@ BT.sync = (function() {
     catch {return false;}
   }
   function invalidateOtherTab() {
+    hasRemoteSnapshot = false;
     sessionEpoch++;clearTimeout(timer);timer=null;pushRequested=false;user=null;version=0;
     status='guest';lastError='Konto wurde in einem anderen Tab geändert. Bitte diese Ansicht neu laden.';emit();
   }
@@ -113,6 +116,7 @@ BT.sync = (function() {
     try {
       await BT.storage.save(protectedData, { fromSync: true, preserveTimestamp: true });
       storeVersion(nextVersion);
+      remoteDataTimestamp = timestamp(data);
     } finally {
       applying = false;
     }
@@ -146,6 +150,7 @@ BT.sync = (function() {
         if (bridge) await bridge.ack(prepared.receipt, scope);
         if (!current(epoch)) return;
         storeVersion(result.version);
+        remoteDataTimestamp = timestamp(result.data || cleaned);
         lastSyncAt = result.updatedAt || new Date().toISOString();
         const pending = pushRequested || (bridge && await bridge.hasPending(scope));
         if (!current(epoch)) return;
@@ -251,13 +256,36 @@ BT.sync = (function() {
       setStatus('synced');
       return;
     }
-    const remote = await BT.api.getWorkspace();
+    const requestedVersion = hasRemoteSnapshot ? version : undefined;
+    const requestedRole = user?.role;
+    const remote = await BT.api.getWorkspace(requestedVersion, hasRemoteSnapshot ? requestedRole : undefined);
     if (!current(epoch)) return;
     lastCheckedAt = new Date().toISOString();
+    // A concurrent PUT may already have accepted a newer local version.
+    if (Number(remote.version) < version && hasRemoteSnapshot) return;
+    if (remote.unchanged) {
+      if (!hasRemoteSnapshot || remote.version !== requestedVersion || remote.role !== requestedRole) throw new Error('Ungültige Antwort beim Versionsabgleich.');
+      const bridge = await liveBridge();
+      if (!current(epoch)) return;
+      const pending = bridge && await bridge.hasPending(liveScope());
+      if (!current(epoch)) return;
+      if (user?.role !== 'viewer' && (timestamp(BT.storage.load()) > remoteDataTimestamp || pending)) { await push(); return; }
+      lastSyncAt = remote.updatedAt || new Date().toISOString();
+      setStatus('synced');
+      return;
+    }
+    hasRemoteSnapshot = true;
+    remoteDataTimestamp = timestamp(remote.data);
+    if (remote.role && remote.role !== user?.role) {
+      user = { ...user, role: remote.role };
+      await rememberIdentity();
+      if (!current(epoch)) return;
+      emit();
+    }
     let local = BT.storage.load();
     storeVersion(remote.version);
 
-    if (user?.role === 'viewer') {
+    if (user?.role === 'viewer' || requestedRole === 'viewer') {
       await applyRemote(remote.data, remote.version);
       if (!current(epoch)) return;
       lastSyncAt = remote.updatedAt || new Date().toISOString();
@@ -302,6 +330,8 @@ BT.sync = (function() {
 
   async function setSession(result) {
     sessionEpoch += 1;
+    hasRemoteSnapshot = false;
+    remoteDataTimestamp = 0;
     clearTimeout(timer);
     timer = null;
     pushRequested = false;
@@ -329,6 +359,8 @@ BT.sync = (function() {
 
   function logout() {
     sessionEpoch += 1;
+    hasRemoteSnapshot = false;
+    remoteDataTimestamp = 0;
     clearTimeout(timer);
     timer = null;
     pushRequested = false;
@@ -352,6 +384,7 @@ BT.sync = (function() {
   }
 
   async function init() {
+    hasRemoteSnapshot = false;
     const epoch=sessionEpoch, token=BT.api.getToken();sessionToken=token;
     if (!BT.api.getToken()) {
       setStatus('guest');

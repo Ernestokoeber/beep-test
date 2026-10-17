@@ -439,10 +439,14 @@ BT.games = (function() {
       if(!packet)return;
       try{const current=BT.storage.getGame(game.id);if(!canEdit(current))throw Error('Spiel geschlossen. Bearbeitung zuerst ausdrücklich freigeben.');const patch=publishedGamePatch(packet,current,BT.storage.getPlayers());if(!saveGame(patch))return;drawList();drawDetail();$('[data-role="games-status"]',root).textContent='Veröffentlichter Spielbericht mit Endergebnis und Spielerstatistik gespeichert.';}catch(error){status.textContent=error.message;}
     });
-    if(game.date==='2026-10-04'&&game.home==='TSV Lindau'&&game.away==='TSV Ottobeuren'){
+    const template=[
+      {date:'2026-10-04',home:'TSV Lindau',away:'TSV Ottobeuren',file:'2026-10-04-lindau-ottobeuren.json'},
+      {date:'2026-10-17',home:'TSV Wasserburg/Günzburg',away:'TSV Lindau',file:'2026-10-17-wasserburg-lindau.json'}
+    ].find(entry=>entry.date===game.date&&entry.home===game.home&&entry.away===game.away);
+    if(template){
       status.textContent='Veröffentlichten Bericht für dieses Spiel laden …';
       try{
-        const response=await fetch('./data/published-game-reports/2026-10-04-lindau-ottobeuren.json');
+        const response=await fetch('./data/published-game-reports/'+template.file);
         if(!response.ok)throw Error('Spielbericht konnte nicht geladen werden.');
         const candidate=await response.json();if(!section.isConnected)return;
         input.value=JSON.stringify(candidate);section.querySelector('[data-action="preview-published-report"]').click();
