@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { AIError, buildAIRequest } from './ai-contracts.js';
 
 export function limitForAction(action) {
-  if(action==='researchOpponent')return 30;
+  if(action==='researchOpponent')return 6;
   return action === 'planSeason' ? 60 : 30;
 }
 
