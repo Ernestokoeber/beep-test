@@ -5,9 +5,11 @@ BT.individualTraining = (function() {
   const CACHE_PREFIX = 'courthub_individual_cache:';
   const LIVE_PREFIX = 'courthub_individual_live:';
   let activeRequest = 0;
+  const syncWorkers = new Map();
 
   function user() { return BT.sync?.getState?.().user || null; }
-  function userKey(prefix) { return prefix + (user()?.id || 'guest'); }
+  function contextKey() { const u = user(); return `${u?.id || 'guest'}:${u?.organization?.id || 'none'}:${u?.role || 'guest'}`; }
+  function userKey(prefix) { return prefix + contextKey(); }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function loadLocal(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
@@ -37,7 +39,9 @@ BT.individualTraining = (function() {
     const queue = loadLocal(key, []);
     queue.push(item);
     saveLocal(key, queue);
-    if (navigator.onLine) await syncPending();
+    if (navigator.onLine) {
+      try { await syncPending(); } catch (error) { item.syncError = error.message; }
+    }
     return item;
   }
 
@@ -45,27 +49,87 @@ BT.individualTraining = (function() {
     const current = user();
     if (!current || current.role !== 'player' || !navigator.onLine) return { pending: loadLocal(userKey(QUEUE_PREFIX), []).length };
     const key = userKey(QUEUE_PREFIX);
-    const queue = loadLocal(key, []);
-    if (!queue.length) return { pending: 0 };
-    const result = await BT.api.syncIndividualMutations(queue);
-    const acknowledged = new Set((result.results || []).filter(item => item.applied || item.duplicate).map(item => item.mutation_id));
-    const remaining = queue.filter(item => !acknowledged.has(item.mutationId));
-    saveLocal(key, remaining);
-    return { pending: remaining.length, results: result.results || [] };
+    if (syncWorkers.has(key)) return syncWorkers.get(key);
+    const work = (async () => {
+      const attempted = new Set(), results = [];
+      while (key === userKey(QUEUE_PREFIX) && user()?.role === 'player') {
+        const queue = loadLocal(key, []).filter(item=>!attempted.has(item.mutationId)).slice(0,50);
+        if (!queue.length) break;
+        queue.forEach(item=>attempted.add(item.mutationId));
+        const result = await BT.api.syncIndividualMutations(queue);
+        if (key !== userKey(QUEUE_PREFIX)) return {pending:0};
+        results.push(...(result.results || []));
+        const acknowledged = new Set((result.results || []).filter(item=>item.applied || item.duplicate).map(item=>item.mutation_id));
+        saveLocal(key, loadLocal(key, []).filter(item=>!acknowledged.has(item.mutationId)));
+      }
+      return {pending:loadLocal(key, []).length,results};
+    })();
+    syncWorkers.set(key,work);
+    try { return await work; } finally { if (syncWorkers.get(key) === work) syncWorkers.delete(key); }
   }
 
   async function loadOverview(profileId) {
     const key = userKey(CACHE_PREFIX);
     try {
-      const data = await BT.api.getIndividualOverview(profileId);
-      saveLocal(key, data);
-      return data;
+      let data = await BT.api.getIndividualOverview(profileId);
+      if (key !== userKey(CACHE_PREFIX)) throw new Error('Das Konto wurde zwischenzeitlich gewechselt.');
+      try { saveLocal(key, data); } catch { data._cacheUnavailable = true; }
+      if (migrateLegacyQueue(data)) {
+        try {
+          const result = await syncPending();
+          if (!result.pending && key === userKey(CACHE_PREFIX)) {
+            data = await BT.api.getIndividualOverview(profileId);
+            if (key !== userKey(CACHE_PREFIX)) throw new Error('Das Konto wurde zwischenzeitlich gewechselt.');
+            try { saveLocal(key,data); } catch { data._cacheUnavailable = true; }
+          }
+        } catch { /* Safely migrated entries stay in the new queue for retry. */ }
+      }
+      return withPending(data);
     } catch (error) {
-      if (error.status !== 0) throw error;
+      if (key !== userKey(CACHE_PREFIX)) throw error;
+      if (error.status !== 0 && !(error.status === 503 && error.code === 'DATABASE_QUOTA_EXCEEDED')) throw error;
       const cached = loadLocal(key, null);
       if (!cached) throw error;
-      return cached;
+      return withPending({...cached,_offline:true});
     }
+  }
+
+  function migrateLegacyQueue(data) {
+    const current = user();
+    if (current?.role !== 'player' || BT.sync.getState().identitySource !== 'server' || data.role !== 'player') return false;
+    const profile = (data.profiles || []).find(p=>p.id === current.individualProfileId && p.user_id === current.id);
+    if (!profile) return false;
+    const legacyKey = QUEUE_PREFIX + current.id, legacy = loadLocal(legacyKey, []);
+    if (!Array.isArray(legacy) || !legacy.length) return false;
+    const sessions = new Set((data.sessions || []).filter(s=>s.individual_profile_id === profile.id).map(s=>s.id));
+    const focuses = new Set((data.focuses || []).filter(f=>f.individual_profile_id === profile.id).map(f=>f.id));
+    const safe = item=>typeof item?.mutationId === 'string' && (
+      (['attendance','readiness'].includes(item.kind) && sessions.has(item.payload?.entityId)) ||
+      (item.kind === 'weekly_feedback' && focuses.has(item.payload?.focusId))
+    );
+    const accepted = legacy.filter(safe);
+    if (!accepted.length) return false;
+    const key = userKey(QUEUE_PREFIX), queue = loadLocal(key, []), existing = new Set(queue.map(item=>item.mutationId));
+    saveLocal(key, [...queue,...accepted.filter(item=>!existing.has(item.mutationId))]);
+    const remaining = legacy.filter(item=>!safe(item));
+    if (remaining.length) saveLocal(legacyKey,remaining); else localStorage.removeItem(legacyKey);
+    return true;
+  }
+
+  function withPending(data) {
+    if (user()?.role !== 'player') return data;
+    const copy = clone(data), queue = loadLocal(userKey(QUEUE_PREFIX), []), profileId = user()?.individualProfileId || copy.profiles?.[0]?.id;
+    copy._pending = queue.length;
+    const legacy = loadLocal(QUEUE_PREFIX + user().id, []);
+    copy._legacyPending = Array.isArray(legacy) ? legacy.length : 0;
+    for (const {kind,payload} of queue) {
+      if (kind === 'attendance') for (const s of copy.sessions || []) if (s.id === payload.entityId && s.individual_profile_id === profileId) s.attendance_status = payload.status;
+      if (kind === 'readiness') {
+        copy.readiness = (copy.readiness || []).filter(r=>r.session_id !== payload.entityId || r.individual_profile_id !== profileId);
+        copy.readiness.unshift({individual_profile_id:profileId,session_id:payload.entityId,score:payload.score});
+      }
+    }
+    return copy;
   }
 
   function fmt(value, options = {}) {
@@ -127,6 +191,10 @@ BT.individualTraining = (function() {
   }
 
   function renderIndividualNavigation(data, current, selectedProfileId = null, selectedPane = 'overview') {
+    document.querySelectorAll('[data-player-nav]').forEach(link=>{
+      if (link.getAttribute('href') === location.hash) link.setAttribute('aria-current','page');
+      else link.removeAttribute('aria-current');
+    });
     const navigation = document.querySelector('[data-role="individual-navigation"]');
     if (!navigation) return;
     const coachLinks = ['admin', 'coach'].includes(current.role)
@@ -245,63 +313,26 @@ BT.individualTraining = (function() {
   }
 
   async function playerAction(root, kind, payload, success) {
+    if (root.getAttribute('aria-busy') === 'true') return;
+    const owner = contextKey();
+    root.setAttribute('aria-busy','true');
+    root.querySelectorAll('button').forEach(b=>b.disabled=true);
     try {
-      await queueMutation(kind, payload);
-      notice(root, navigator.onLine ? success : `${success} Wird bei Verbindung synchronisiert.`);
+      const item = await queueMutation(kind, payload);
+      if (!root.isConnected || owner !== contextKey()) return;
       const data = await loadOverview();
-      renderPlayer(root.parentElement, data);
-    } catch (error) { notice(root, error.message, true); }
+      if (!root.isConnected || owner !== contextKey()) return;
+      const target = root.parentElement;
+      renderPlayer(target, data);
+      notice(target, data._pending ? 'Auf diesem Gerät gespeichert. Die Übertragung ist noch offen.' : success, !!item.syncError);
+    } catch (error) { if (root.isConnected && owner === contextKey()) notice(root, error.message, true); }
+    finally { root.removeAttribute('aria-busy'); root.querySelectorAll('button').forEach(b=>b.disabled=false); }
   }
 
-  function renderPlayer(target, data) {
-    const profile = data.profiles?.[0];
-    if (!profile) {
-      target.innerHTML = '<section class="view individual-view"><h2>Individual Training</h2><p class="empty">Das Konto ist noch keinem aktiven Spielerprofil zugeordnet.</p></section>';
-      return;
-    }
-    const session = upcomingSession(data, profile.id);
-    const focus = currentFocus(data, profile.id);
-    const notifications = (data.notifications || []).filter(item => item.individual_profile_id === profile.id && !item.read_at);
-    target.innerHTML = `<section class="view individual-view individual-player-dashboard">
-      <div class="individual-hero"><div><span class="section-kicker">Dein persönlicher Bereich</span><h2>${BT.util.escapeHTML(playerName(profile))}</h2><p>Individual Training · Pilot 2026</p></div><span class="individual-unit-chip">${session?.unit_number ? `Einheit ${session.unit_number} von 8` : '8 Einheiten'}</span></div>
-      <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
-      <div class="individual-grid">
-        <section class="card individual-session-card"><span class="section-kicker">Nächste Montagseinheit</span><h3>${session ? fmt(session.scheduled_for) : 'Noch kein Termin geplant'}</h3><p>${session ? '105 Minuten · ein Korb · maximal zwei Spieler' : 'Der Coach trägt den nächsten offenen Termin ein.'}</p>
-          ${session ? `<div class="individual-actions"><button class="btn primary" data-attendance="confirmed">Ich bin dabei</button><button class="btn" data-attendance="declined">Ich kann nicht</button></div>` : ''}
-          ${session ? `<form data-readiness><label>Tagesform vor der Einheit <strong data-readiness-value>7</strong>/10<input name="score" type="range" min="1" max="10" value="7"></label><button class="btn" type="submit">Tagesform speichern</button><small>Bei einem niedrigen Wert sprechen Sie persönlich mit Ihrem Coach. Es werden keine Diagnosen erfasst.</small></form>` : ''}
-        </section>
-        <section class="card individual-focus-card"><span class="section-kicker">Wochenfokus</span><h3>${focus ? BT.util.escapeHTML(focus.title) : 'Nach der Montagseinheit verfügbar'}</h3>${focus ? `<ol><li>${BT.util.escapeHTML(focus.cue_one)}</li>${focus.cue_two ? `<li>${BT.util.escapeHTML(focus.cue_two)}</li>` : ''}</ol><p><strong>Gelungen, wenn:</strong> ${BT.util.escapeHTML(focus.success_indicator)}</p>` : '<p>Der Fokus enthält höchstens zwei Hinweise für das Freitagstraining.</p>'}<button class="btn" type="button" data-enable-push>Web-Push aktivieren</button></section>
-      </div>
-      ${notifications.length ? `<section class="card"><h3>Offene Erinnerungen</h3><ul class="individual-notifications">${notifications.map(item => `<li><strong>${item.kind === 'attendance' ? 'Individualtraining heute' : item.kind === 'focus' ? 'Fokus beachten' : 'Rückmeldung fällig'}</strong><span>${fmt(item.due_at)}</span></li>`).join('')}</ul></section>` : ''}
-      ${focus ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Nach dem Freitagstraining</span><h3>Kurze Rückmeldung</h3></div></div><form data-weekly-feedback class="individual-feedback-form">
-        <input name="trainingDay" type="hidden" value="friday">
-        <label>Datum<input name="trainingDate" type="date" required></label>
-        <label>Wie oft kam die Situation vor?<select name="occurrence"><option value="often">Oft</option><option value="sometimes">Manchmal</option><option value="none">Keine Gelegenheit</option><option value="training_cancelled">Training ausgefallen</option><option value="not_participated">Nicht teilgenommen</option></select></label>
-        <label>Umsetzung 1–5<input name="implementationScore" type="number" min="1" max="5" value="3"></label>
-        <label>Optionale Notiz<textarea name="note" maxlength="1000"></textarea></label>
-        <button class="btn primary" type="submit">Rückmeldung speichern</button>
-      </form></section>` : ''}
-      <section class="card"><h3>Freigegebenes Coach-Feedback</h3><div class="individual-feedback-list">${(data.releasedFeedback || []).length ? data.releasedFeedback.map(item => `<article><p>${BT.util.escapeHTML(item.content)}</p><small>${fmt(item.released_at)}</small></article>`).join('') : '<p class="muted">Noch kein Feedback freigegeben.</p>'}</div></section>
-    </section>`;
-    target.querySelectorAll('[data-attendance]').forEach(button => button.addEventListener('click', () => playerAction(target.querySelector('.individual-view'), 'attendance', { entityId: session.id, status: button.dataset.attendance }, 'Teilnahme gespeichert.')));
-    target.querySelector('[data-enable-push]')?.addEventListener('click', () => enablePush(target.querySelector('.individual-view')));
-    target.querySelector('[data-readiness]')?.addEventListener('input', event => {
-      target.querySelector('[data-readiness-value]').textContent = event.target.value;
-    });
-    target.querySelector('[data-readiness]')?.addEventListener('submit', event => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      playerAction(target.querySelector('.individual-view'), 'readiness', { entityId: session.id, score: Number(form.get('score')) }, 'Tagesform gespeichert.');
-    });
-    target.querySelector('[data-weekly-feedback]')?.addEventListener('submit', event => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      const occurrence = form.get('occurrence');
-      playerAction(target.querySelector('.individual-view'), 'weekly_feedback', {
-        entityId: crypto.randomUUID(), focusId: focus.id, trainingDay: form.get('trainingDay'), trainingDate: form.get('trainingDate'), occurrence,
-        implementationScore: ['training_cancelled', 'not_participated'].includes(occurrence) ? null : Number(form.get('implementationScore')),
-        note: form.get('note')
-      }, 'Rückmeldung gespeichert.');
+  function renderPlayer(target, data, options = {}) {
+    const profile = (data.profiles || []).find(p=>p.id === options.profileId) || data.profiles?.[0];
+    return BT.individualPlayerView.render(target, data, {
+      displayName: profile ? playerName(profile) : user()?.displayName, onAction: playerAction, onPush: enablePush, ...options
     });
   }
 
@@ -321,7 +352,7 @@ BT.individualTraining = (function() {
         <div class="wide"><dt>Wochenfokus</dt><dd>${focus ? BT.util.escapeHTML(focus.title) : 'Noch nicht freigegeben'}</dd></div>
         <div class="wide"><dt>KI-Status</dt><dd>${latestDraft ? BT.util.escapeHTML(draftLabel(latestDraft.status)) : 'Noch kein Entwurf'}</dd></div>
       </dl>
-      <div class="individual-actions"><button class="btn" type="button" data-action="invite-player">Einladungslink</button><button class="btn primary" type="button" data-action="open-profile">Spieler öffnen</button></div>
+      <div class="individual-actions"><button class="btn" type="button" data-action="invite-player" ${profile.user_id ? 'disabled' : ''}>${profile.user_id ? 'Spielerkonto verbunden' : 'Einladung & QR-Code'}</button><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/preview">Spieleransicht ansehen</a><button class="btn primary" type="button" data-action="open-profile">Spieler öffnen</button></div>
     </article>`;
   }
 
@@ -647,7 +678,7 @@ BT.individualTraining = (function() {
       <section class="card"><h4>Einheiten</h4>${sessions.length ? `<ul>${sessions.map(item => `<li>${fmt(item.scheduled_for)} · ${BT.util.escapeHTML(item.status)} · Einheit ${item.unit_number || '–'} · ${BT.util.escapeHTML(item.attendance_status)}</li>`).join('')}</ul>` : '<p class="muted">Noch keine Einheit angelegt.</p>'}</section>`;
     const paneContent = { overview, training, measurements: measurementPane, focus: focusPane, feedback: feedbackPane, 'ai-history': aiHistoryPane }[pane];
     host.hidden = false;
-    host.innerHTML = `<div class="section-head individual-player-title"><div><span class="section-kicker">Coach-Ansicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-current-pane">${paneLabels[pane]}</span></div>${paneContent}`;
+    host.innerHTML = `<div class="section-head individual-player-title"><div><span class="section-kicker">Coach-Ansicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-current-pane">${paneLabels[pane]}</span></div><p><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/preview">Spieleransicht ansehen</a></p>${paneContent}`;
     const refresh = () => render(root.parentElement, profile.id, pane);
     host.querySelector('[data-plan-session]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
@@ -744,23 +775,33 @@ BT.individualTraining = (function() {
         return;
       }
       if (actionButton.dataset.action === 'invite-player') {
+        if (actionButton.disabled) return;
+        actionButton.disabled = true;
         try {
           const result = await BT.api.individualAction('createInvite', { profileId: profile.id, expiresInHours: 72 });
-          const url = result.inviteUrl || `${location.origin}${location.pathname}?individualInvite=${encodeURIComponent(result.token)}#/account`;
+          if (!root.isConnected) return;
+          const url = result.inviteUrl;
           const inviteHost = root.querySelector('[data-role="individual-invite"]');
           inviteHost.hidden = false;
-          inviteHost.innerHTML = `<h3>Einmalige Einladung für ${BT.util.escapeHTML(playerName(profile))}</h3>${result.qrDataUrl ? `<img src="${result.qrDataUrl}" width="240" height="240" alt="QR-Code für die einmalige CourtHub-Einladung">` : '<p>Für den Server-QR-Code muss PUBLIC_APP_URL gesetzt sein.</p>'}<p><a href="${BT.util.escapeHTML(url)}">Einladungslink öffnen</a></p><small>Der Link ist bis zur ersten Verwendung oder bis zum Ablauf gültig.</small>`;
-          if (navigator.share) await navigator.share({ title: 'CourtHub Individual Training', text: 'Deine persönliche CourtHub-Einladung', url });
-          else await navigator.clipboard.writeText(url);
+          inviteHost.innerHTML = `<h3>Einladung für ${BT.util.escapeHTML(playerName(profile))}</h3><img class="individual-invite-qr" src="${BT.util.escapeHTML(result.qrDataUrl)}" width="320" height="320" alt="QR-Code für die einmalige CourtHub-Einladung"><p>Scanne den Code mit der Handykamera oder sende den Link an den Spieler.</p><div class="individual-actions"><button class="btn primary" data-share-invite>Link teilen</button><button class="btn" data-copy-invite>Link kopieren</button><a class="btn" href="${BT.util.escapeHTML(url)}">Einladung öffnen</a></div><p data-invite-status role="status"></p><small>Einmal verwendbar. Ein neuer Link macht die vorherige Einladung ungültig.</small>`;
+          const inviteStatus = inviteHost.querySelector('[data-invite-status]');
+          inviteHost.querySelector('[data-share-invite]').addEventListener('click',async()=>{
+            try { if (navigator.share) await navigator.share({title:'CourtHub Individual Training',text:'Deine persönliche CourtHub-Einladung',url}); else { await navigator.clipboard.writeText(url); inviteStatus.textContent='Link kopiert.'; } }
+            catch (error) { inviteStatus.textContent=error.name === 'AbortError' ? 'Teilen abgebrochen. Deine Einladung bleibt gültig.' : 'Teilen ist hier nicht verfügbar. Du kannst die Einladung öffnen und die Adresse kopieren.'; }
+          });
+          inviteHost.querySelector('[data-copy-invite]').addEventListener('click',async()=>{try { await navigator.clipboard.writeText(url); inviteStatus.textContent='Link kopiert.'; } catch { inviteStatus.textContent='Kopieren ist hier nicht verfügbar. Öffne die Einladung und kopiere die Adresse.'; }});
+          inviteHost.scrollIntoView?.({behavior:'smooth',block:'start'});
           notice(root, 'Einladungslink wurde bereitgestellt. Er ist einmal verwendbar.');
-        } catch (error) { notice(root, error.message, true); }
+        } catch (error) { if (root.isConnected) notice(root, error.message, true); }
+        finally { actionButton.disabled = false; }
       }
     });
   }
 
-  async function render(target, selectedProfileId = null, selectedPane = 'overview') {
+  async function render(target, selectedProfileId = null, selectedPane = 'overview', previewPane = 'overview') {
     const request = ++activeRequest;
     const current = user();
+    const owner = contextKey();
     document.body.classList.remove('individual-live-mode');
     target.innerHTML = '<section class="view individual-view"><p class="muted">Individual Training wird geladen …</p></section>';
     if (!current) {
@@ -769,33 +810,50 @@ BT.individualTraining = (function() {
     }
     try {
       let data = await loadOverview();
-      if (request !== activeRequest) return;
+      if (request !== activeRequest || owner !== contextKey()) return;
       let pilotStartError = null;
       if (['admin', 'coach'].includes(current.role) && needsPilotStart(data)) {
         try {
           await BT.api.individualAction('ensurePilotStart', {});
           data = await loadOverview();
-          if (request !== activeRequest) return;
+          if (request !== activeRequest || owner !== contextKey()) return;
         } catch (error) {
           pilotStartError = error;
         }
       }
+      if (request !== activeRequest || owner !== contextKey()) return;
       renderIndividualNavigation(data, current, selectedProfileId, selectedPane);
-      if (current.role === 'player') renderPlayer(target, data);
+      if (current.role === 'player') renderPlayer(target, data, {profileId:current.individualProfileId,pane:selectedPane});
       else {
         const selectedProfile = selectedProfileId ? data.profiles.find(profile => profile.id === selectedProfileId) : null;
         if (selectedProfileId && !selectedProfile) {
           target.innerHTML = '<section class="view individual-view"><a class="btn small" href="#/individual">← Coach-Cockpit</a><p class="auth-status error">Spielerprofil nicht gefunden.</p></section>';
-        } else if (selectedProfile) renderCoachDetailPage(target, selectedProfile, data, selectedPane);
+        } else if (selectedProfile && selectedPane === 'preview') renderPlayer(target, data, {profileId:selectedProfile.id,pane:previewPane,preview:true,displayName:playerName(selectedProfile)});
+        else if (selectedProfile) renderCoachDetailPage(target, selectedProfile, data, selectedPane);
         else renderCoach(target, data);
         if (pilotStartError) notice(target.querySelector('.individual-view'), pilotStartError.message, true);
       }
     } catch (error) {
-      if (request !== activeRequest) return;
-      target.innerHTML = `<section class="view individual-view"><h2>Individual Training</h2><p class="auth-status error">${BT.util.escapeHTML(error.message)}</p><button class="btn" data-retry>Erneut laden</button></section>`;
-      target.querySelector('[data-retry]')?.addEventListener('click', () => render(target));
+      if (request !== activeRequest || owner !== contextKey()) return;
+      target.innerHTML = `<section class="view individual-view"><h2>Individual Training</h2><p class="auth-status error">${BT.util.escapeHTML(error.message)}</p><button class="btn" data-retry>Erneut laden</button>${['admin','coach'].includes(current.role) ? '<a class="btn primary" href="#/individual/preview">Spieleransicht mit Beispieldaten ansehen</a><p>Einladungen und neue Spielerkonten benötigen eine erreichbare Datenbank.</p>' : ''}</section>`;
+      target.querySelector('[data-retry]')?.addEventListener('click', () => render(target,selectedProfileId,selectedPane,previewPane));
     }
   }
+
+  async function renderDemo(target, pane = 'overview') {
+    const request = ++activeRequest, owner = contextKey();
+    if (!['admin','coach'].includes(user()?.role)) { location.hash = '#/individual'; return; }
+    target.innerHTML='<section class="view"><p>Beispielvorschau wird geladen …</p></section>';
+    try {
+      const response = await fetch('data/individual-player-preview.json');
+      if (!response.ok) throw new Error('Die Beispielvorschau konnte nicht geladen werden.');
+      const data = await response.json();
+      if (request !== activeRequest || owner !== contextKey()) return;
+      renderIndividualNavigation({profiles:[]},user());
+      renderPlayer(target,data,{preview:true,demo:true,pane});
+    } catch (error) { if (request === activeRequest && owner === contextKey()) target.innerHTML=`<section class="view"><p>${BT.util.escapeHTML(error.message)}</p><a class="btn" href="#/individual">Zurück</a></section>`; }
+  }
+  function cleanup() { activeRequest++; }
 
   function applyNavigationForRole() {
     const role = user()?.role;
@@ -816,5 +874,5 @@ BT.individualTraining = (function() {
   window.addEventListener('bt-sync-change', applyNavigationForRole);
   window.addEventListener('online', () => syncPending().catch(() => {}));
   document.addEventListener('DOMContentLoaded', applyNavigationForRole);
-  return { render, renderHub, renderAccountNavigation, queueMutation, syncPending, clearLocalData, applyNavigationForRole };
+  return { render, renderDemo, cleanup, renderHub, renderAccountNavigation, queueMutation, syncPending, clearLocalData, applyNavigationForRole };
 })();

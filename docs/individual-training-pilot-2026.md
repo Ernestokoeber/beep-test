@@ -44,6 +44,19 @@ Nach Abschluss und erfolgreicher Synchronisierung wird je anwesendem Spieler und
 
 ## Abnahme
 
+### Spielerzugang und Vorschau – Stand 18. Oktober 2026
+
+- Neue persönliche Einladungen öffnen `/#/join/TOKEN` und ein eigenes Spielerformular. Der Token steht im Fragment; QR-Bild und Link enthalten dieselbe Adresse. Bestehende Query-Einladungen werden auf diesen Einstieg umgestellt.
+- Vor dem Formular prüft `/api/individual/invite` die Gültigkeit, Verwendung, Widerruf, Frist und freie Profilzuordnung. Die eigentliche Registrierung löst die Einladung weiterhin innerhalb der Datenbanktransaktion ein und vergibt ausschließlich die Rolle `player`.
+- Spieler öffnen unter `#/individual` ihren Termin, Teilnahme, Tagesform, Wochenfokus, Erinnerungen und freigegebenes Feedback. `#/individual/training` zeigt den gespeicherten Plan mit Übungen; `#/individual/progress` zeigt ausschließlich ihre erfassten Messwerte und Einheiten. Die mobile Navigation bietet vier direkte Ziele einschließlich Konto.
+- Coaches öffnen bei einem Profil „Spieleransicht ansehen“. Diese Vorschau verwendet denselben Renderer und zeigt auch die tatsächlichen Eingabemasken; sämtliche Formulareingaben sind deaktiviert. Private Coach-Notizen, private KI-Entwürfe und andere Spielerwerte sind ausgeschlossen.
+- `#/individual/preview` ist eine ausdrücklich markierte Beispielvorschau für Coaches. Sie enthält den verbindlichen 105-Minuten-Plan der ersten Einheit und keine echten Messwerte oder freigegebenen Rückmeldungen. Sie ersetzt keine erfolgreiche Einladung.
+- Persönliche Offline-Eingaben bleiben bei Netz- und Kontingentfehlern erhalten. Ältere Warteschlangen werden erst nach bestätigter Serveridentität und passender persönlicher Sitzung/Fokuszuordnung übernommen; nicht zuordenbare Altbestände bleiben erhalten und werden angezeigt.
+
+**Produktionsfreigabe weiterhin blockiert:** Der echte Individual-Überblick liefert derzeit `503 DATABASE_QUOTA_EXCEEDED`. Deshalb sind neue Einladungen, reale Registrierungen und das geräteübergreifende Speichern gegen Produktion noch nicht abgenommen. Lokale Tests mit isoliertem Datenbank-/HTTP-Transport und mobile Browserprüfungen sind ausdrücklich kein Nachweis für eine funktionierende Produktionsdatenbank. Keine Migration oder zusätzliche kostenpflichtige Integration wurde aktiviert.
+
+Zusätzliche technische Nachweise: `scripts/individual-invite-smoke.mjs`, `scripts/individual-registration-smoke.mjs`, `scripts/individual-player-validation-smoke.mjs`, `scripts/individual-review-regression.mjs` und `scripts/individual-player-browser.mjs`. Der Browsertest decodiert das tatsächlich serverseitig erzeugte QR-Bild mit OpenCV und öffnet die enthaltene Route mit einem frischen Browserkontext. Die PostgreSQL-Produktionsverbindung und ein physisches iPhone bleiben gesonderte Abnahmeschritte.
+
 | Bereich | Automatischer Nachweis |
 | --- | --- |
 | Domäne, Kapazitäten, 105-Minuten-Vorlagen, DST | `scripts/individual-training-domain-smoke.mjs` |

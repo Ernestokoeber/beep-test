@@ -1,0 +1,310 @@
+{
+  "role": "player",
+  "profiles": [
+    {
+      "id": "demo-player",
+      "account_name": "Beispielspieler"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "scheduled_for": "2026-10-19T18:15:00Z",
+      "duration_minutes": 105,
+      "unit_number": 1,
+      "status": "planned",
+      "attendance_status": "pending"
+    }
+  ],
+  "plans": [
+    {
+      "id": "demo-plan",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "title": "Piloteinheit 1 – Ausgangsniveau",
+      "objective": "Ausgangsniveau in Ballkontrolle, beidseitigem Korbabschluss und Wurfbasis erfassen, erste technische Korrekturen setzen und Vergleichswerte für Einheit 4 und 8 erzeugen."
+    }
+  ],
+  "exercises": [
+    {
+      "id": "demo-exercise-0",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 1,
+      "title": "Check-in und Readiness",
+      "duration_minutes": 5,
+      "repetitions": {
+        "readinessScale": "1–10"
+      },
+      "measurement_method": {
+        "metrics": [
+          "Readiness 1–10"
+        ],
+        "rules": "Aktivierung ist keine Leistungsmessung."
+      },
+      "coaching_cues": [
+        "Bei Readiness 1–4 persönlich sprechen und Belastung regulär, angepasst oder nicht festlegen.",
+        "Keine Diagnosen oder ausführlichen medizinischen Angaben speichern."
+      ]
+    },
+    {
+      "id": "demo-exercise-1",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 2,
+      "title": "Dynamische Aktivierung mit Ball",
+      "duration_minutes": 10,
+      "repetitions": {
+        "readinessScale": "1–10",
+        "mobilityTrips": "je 2 × 10–12 m hin und zurück",
+        "stationaryDribbles": [
+          "30 s tief rechts",
+          "30 s tief links",
+          "30 s Speed rechts",
+          "30 s Speed links",
+          "30 s Crossover",
+          "30 s zwischen den Beinen"
+        ],
+        "controlledRuns": 2
+      },
+      "measurement_method": {
+        "metrics": [],
+        "rules": "Beobachtungen sammeln, aber erst nach der Ausgangsmessung ausführlich korrigieren. Dieser Abschnitt zählt nicht als Messung."
+      },
+      "coaching_cues": [
+        "Blick vom Ball lösen und Hüfte tief halten.",
+        "Brust stabilisieren; Ball seitlich aus Fingern und Handgelenk führen."
+      ]
+    },
+    {
+      "id": "demo-exercise-2",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 3,
+      "title": "Ausgangsmessung Ballkontrolle",
+      "duration_minutes": 8,
+      "repetitions": {
+        "practiceRuns": 1,
+        "regularMeasuredRuns": 2,
+        "weakHandMeasuredRuns": 2
+      },
+      "measurement_method": {
+        "setup": "Fünf Hütchen in gerader Linie, etwa zwei Meter Abstand; Startlinie einen Meter vor dem ersten Hütchen.",
+        "metrics": [
+          "Zeit in Sekunden",
+          "Ballverluste",
+          "ausgelassene Hütchen",
+          "Blick oben: ja/teilweise/nein",
+          "schwache Hand: sicher/wechselhaft/unsicher"
+        ],
+        "rules": "Nach Ballverlust an der Verluststelle fortsetzen. Beide Versuche speichern; bester regelkonformer Versuch zusätzlich anzeigen. Zeit und Fehler getrennt auswerten."
+      },
+      "coaching_cues": [
+        "Messserie ohne technische Korrektur durchführen.",
+        "Aufbau und Abstände für Einheit 4 und 8 unverändert lassen."
+      ]
+    },
+    {
+      "id": "demo-exercise-3",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 4,
+      "title": "Ausgangsmessung Korbabschluss",
+      "duration_minutes": 10,
+      "repetitions": {
+        "rightLayups": 10,
+        "leftLayups": 10,
+        "switchAfterAttempts": 5,
+        "totalFinishes": 20
+      },
+      "measurement_method": {
+        "metrics": [
+          "Treffer je Seite",
+          "vorgesehene Abschlusshand",
+          "korrekte Schrittfolge",
+          "Ballverlust vor Abschluss",
+          "Technik: stabil/wechselhaft/unsicher"
+        ],
+        "rules": "Treffer und Technik getrennt bewerten. Ein technisch falscher Treffer bleibt ein Treffer und erhält zusätzlich die passende Technikbewertung."
+      },
+      "coaching_cues": [
+        "Messserie ohne technische Unterbrechung beenden.",
+        "Danach Schrittfolge, Abschlusshand, Ballschutz und frühen Zielblick korrigieren."
+      ]
+    },
+    {
+      "id": "demo-exercise-4",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 5,
+      "title": "Ausgangsmessung Wurf",
+      "duration_minutes": 12,
+      "repetitions": {
+        "positions": 5,
+        "attemptsPerPosition": 5,
+        "totalAttempts": 25,
+        "switchAfterEachPosition": true
+      },
+      "measurement_method": {
+        "setup": "Fünf feste Positionen in etwa 3,5 bis 4 Metern: beide Baselines, beide Flügel und frontal. Pass aus Korbnähe, kein Verteidiger.",
+        "metrics": [
+          "Treffer und Versuche je Position",
+          "Gesamttreffer aus 25",
+          "Trefferquote",
+          "Fehlwurfrichtung",
+          "Balance",
+          "Wurflinie",
+          "Follow-through"
+        ],
+        "rules": "Während der Messserie keine zusätzlichen Übungswürfe und keine technischen Änderungen."
+      },
+      "coaching_cues": [
+        "Positionen und Bedingungen für Einheit 4 und 8 identisch halten.",
+        "Spieler nach jeder Position wechseln."
+      ]
+    },
+    {
+      "id": "demo-exercise-5",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 6,
+      "title": "Individuelle Technikkorrektur",
+      "duration_minutes": 20,
+      "repetitions": {
+        "ballhandling": [
+          "3 × 30 s schwache Hand",
+          "3 × 6 explosive erste Schritte schwache Hand",
+          "2 × 6 Crossover plus Beschleunigung",
+          "20–30 s Satzpause"
+        ],
+        "finishOption": [
+          "2 × 5 Korbleger je Seite ohne Tempo",
+          "2 × 5 je Seite mit Antritt",
+          "40 Abschlüsse gesamt"
+        ],
+        "shotOption": [
+          "10 einhändige Formwürfe",
+          "10 Würfe Position 1",
+          "10 Würfe Position 2",
+          "30 Würfe gesamt"
+        ]
+      },
+      "measurement_method": {
+        "metrics": [
+          "angeleitete Übungsversuche getrennt von Messversuchen"
+        ],
+        "rules": "Pro Spieler genau ein Ballhandling- und ein Abschluss- oder Wurfschwerpunkt."
+      },
+      "coaching_cues": [
+        "Fehler konkret benennen und genau eine verständliche Korrektur geben.",
+        "Fünf Wiederholungen ausführen lassen, erst dann erneut eingreifen."
+      ]
+    },
+    {
+      "id": "demo-exercise-6",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 7,
+      "title": "Wahrnehmung und Entscheidung",
+      "duration_minutes": 15,
+      "repetitions": {
+        "sets": 3,
+        "actionsPerSet": 6,
+        "totalActions": 18,
+        "switchAfterEachSet": true
+      },
+      "measurement_method": {
+        "metrics": [
+          "Entscheidung: richtig/verspätet/falsch",
+          "Ballverlust",
+          "Abschlussart",
+          "Treffer"
+        ],
+        "rules": "Entscheidung und Wurfergebnis getrennt bewerten."
+      },
+      "coaching_cues": [
+        "Richtungs- oder Sperrsignal erst nach Bewegungsbeginn geben.",
+        "Direkten Abschluss, kontrollierten Stopp oder Richtungswechsel passend zum Signal wählen."
+      ]
+    },
+    {
+      "id": "demo-exercise-7",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 8,
+      "title": "Kontrolliertes Eins-gegen-eins",
+      "duration_minutes": 15,
+      "repetitions": {
+        "attacksPerPlayer": 8,
+        "totalPossessions": 16,
+        "maxDribbles": 3
+      },
+      "measurement_method": {
+        "metrics": [
+          "erzeugter Vorteil",
+          "erreichter Abschluss",
+          "Treffer",
+          "Ballverlust",
+          "genutzte Seite",
+          "Coach-Entscheidungsbewertung"
+        ],
+        "rules": "Transferbeobachtung, kein standardisierter Vergleichstest."
+      },
+      "coaching_cues": [
+        "Start am Flügel; Verteidiger mit etwa einer halben Armlänge seitlichem Nachteil.",
+        "Vorteil mit höchstens drei Dribblings nutzen."
+      ]
+    },
+    {
+      "id": "demo-exercise-8",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 9,
+      "title": "Kontrollmessung nach Coaching",
+      "duration_minutes": 5,
+      "repetitions": {
+        "finishProblem": "5 Korbleger je Seite",
+        "shotProblem": "10 Würfe aus zwei Positionen",
+        "ballControlProblem": "1 gemessener Kontrollparcours"
+      },
+      "measurement_method": {
+        "metrics": [
+          "Kontrollwert nach Coaching"
+        ],
+        "rules": "Nur wichtigsten Korrekturbereich wiederholen. Kontrollwert getrennt speichern; Baseline niemals ersetzen."
+      },
+      "coaching_cues": [
+        "Identische Bedingungen des gewählten Ausgangstests verwenden."
+      ]
+    },
+    {
+      "id": "demo-exercise-9",
+      "session_id": "demo-session",
+      "individual_profile_id": "demo-player",
+      "position": 10,
+      "title": "Reflexion und Wochenaufgaben",
+      "duration_minutes": 5,
+      "repetitions": {
+        "questions": 3
+      },
+      "measurement_method": {
+        "metrics": [
+          "Was funktionierte am besten?",
+          "Was war am schwierigsten?",
+          "Welcher Hinweis soll im nächsten Training angewendet werden?"
+        ]
+      },
+      "coaching_cues": [
+        "Private Coach-Notiz, Spielerfeedback und Wochenfokus getrennt speichern.",
+        "Wochenfokus mit höchstens zwei Hinweisen erst nach Coach-Freigabe veröffentlichen."
+      ]
+    }
+  ],
+  "measurements": [],
+  "focuses": [],
+  "feedback": [],
+  "readiness": [],
+  "releasedFeedback": [],
+  "notifications": []
+}

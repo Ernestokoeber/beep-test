@@ -20,7 +20,7 @@ const scripts = [
   'js/library-pages.js', 'js/drills.js', 'js/notes.js',
   'js/training-shots.js',
   'js/station-training.js',
-  'js/util.js', 'js/storage.js', 'js/api.js', 'js/individual-training.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',
+  'js/util.js', 'js/storage.js', 'js/api.js', 'js/individual-training.js', 'js/individual-player-view.js', 'js/individual-invite.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',
   'js/schedule.js', 'js/season-ai-draft.js', 'js/seasonplanner.js', 'js/training.js', 'js/tactics.js', 'js/screen-academy.js',
   'js/play-designer/main.js', 'js/play-designer/styles.js', 'js/play-designer/rendering.js',
   'js/play-designer/court-enhancements.js', 'js/play-designer/layout-fix.js',
@@ -54,7 +54,7 @@ const scripts = [
   'api/_lib/checkin.js', 'api/checkin/manage.js', 'api/checkin/public.js', 'api/checkin/qr.js',
   'api/games/sync.js', 'api/games/atlas.js', 'api/games/atlas-webhook.js',
   'api/individual/[route].js',
-  'api/_handlers/individual/overview.js', 'api/_handlers/individual/manage.js', 'api/_handlers/individual/sync.js',
+  'api/_handlers/individual/overview.js', 'api/_handlers/individual/manage.js', 'api/_handlers/individual/invite.js', 'api/_handlers/individual/sync.js',
   'api/_handlers/individual/ai-drafts.js', 'api/_handlers/individual/push.js', 'api/_handlers/individual/reminders.js'
 ];
 

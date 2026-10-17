@@ -79,7 +79,9 @@ BT.navigation = (function() {
       const parts = hash.split('/');
       return parts.length > 4 ? parts.slice(0, 4).join('/') : '#/individual';
     }
+    if (hash.startsWith('#/individual/preview/')) return '#/individual/preview';
     if (hash.startsWith('#/individual')) return '#/individual';
+    if (hash.startsWith('#/join/')) return '#/account';
     if (hash.startsWith('#/training/')) {
       const parts = hash.split('?')[0].split('/');
       if (parts[3] === 'drill' || (parts[3] === 'plan' && parts[4])) return parts.slice(0,3).join('/') + '/plan';

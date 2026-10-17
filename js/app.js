@@ -230,12 +230,14 @@
     // Restore navigation drafts only after online or cached offline identity is known.
     if (initialSyncPending) await initialSync;
     if (request !== routeRequest) return;
+    BT.individualInvite?.legacyRoute?.();
     const hash = location.hash || '#/dashboard';
     if (BT.sync?.getState?.().user?.role === 'player' && !hash.startsWith('#/individual') && hash !== '#/account') {
       location.replace('#/individual');
       return;
     }
-    const individualWorkspace = hash.startsWith('#/individual');
+    const individualWorkspace = hash.startsWith('#/individual') || hash.startsWith('#/join/');
+    document.body.classList.toggle('individual-join-mode', hash.startsWith('#/join/'));
     document.body.classList.toggle('individual-workspace-mode', individualWorkspace);
     const brandLink = document.querySelector('.brand');
     const brandTitle = document.querySelector('.brand-text');
@@ -251,6 +253,8 @@
     const leaving=BT.games?.beforeLeave?.();
     if(leaving){const ok=await leaving;if((location.hash||'#/dashboard')!==hash)return;if(!ok){history.replaceState(null,'',renderedHash);return;}}
     BT.tactics?.cleanup?.();
+    BT.individualTraining?.cleanup?.();
+    BT.individualInvite?.cleanup?.();
     const navigationToken = BT.navigation?.begin(hash);
     renderedHash=hash;
     const isDashboard = hash === '#/dashboard' || hash === '#/' || hash === '';
@@ -267,17 +271,24 @@
 
     setActiveNav(hash);
 
-    if (hash.startsWith('#/checkin/')) {
+    if (hash.startsWith('#/join/')) {
+      let token; try { token = decodeURIComponent(hash.slice('#/join/'.length)); } catch { token = ''; }
+      await BT.individualInvite.render(app, token);
+    } else if (hash.startsWith('#/checkin/')) {
       const token = decodeURIComponent(hash.slice('#/checkin/'.length));
       BT.checkin.render(app, token);
     } else if (hash === '#/individual') {
       await BT.individualTraining.render(app);
+    } else if (hash === '#/individual/training' || hash === '#/individual/progress') {
+      await BT.individualTraining.render(app, null, hash.split('/')[2]);
+    } else if (hash === '#/individual/preview' || hash.startsWith('#/individual/preview/')) {
+      await BT.individualTraining.renderDemo(app, hash.split('/')[3] || 'overview');
     } else if (hash === '#/individual/account') {
       BT.account.render(app);
       await BT.individualTraining.renderAccountNavigation();
     } else if (hash.startsWith('#/individual/player/')) {
-      const [profileId, pane = 'overview'] = hash.slice('#/individual/player/'.length).split('/');
-      await BT.individualTraining.render(app, decodeURIComponent(profileId), pane);
+      const [profileId, pane = 'overview', previewPane = 'overview'] = hash.slice('#/individual/player/'.length).split('/');
+      await BT.individualTraining.render(app, decodeURIComponent(profileId), pane, previewPane);
     } else if (isDashboard) {
       const currentUser = BT.sync?.getState?.().user;
       if (currentUser && ['admin', 'coach'].includes(currentUser.role)) {

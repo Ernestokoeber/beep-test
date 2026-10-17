@@ -13,6 +13,15 @@ export function newIndividualInviteToken() {
   return crypto.randomBytes(32).toString('base64url');
 }
 
+export function individualInviteUrl(token) {
+  const url = new URL(process.env.PUBLIC_APP_URL || 'https://coach.tsv-lindau.de');
+  if (url.protocol !== 'https:') throw new Error('Für Einladungen muss eine HTTPS-App-Adresse konfiguriert sein.');
+  url.search = '';
+  url.pathname = url.pathname.replace(/\/$/, '') + '/';
+  url.hash = '/join/' + encodeURIComponent(token);
+  return url.href;
+}
+
 export async function findIndividualProfile(auth, requestedProfileId, execute = query) {
   let sql;
   let params;

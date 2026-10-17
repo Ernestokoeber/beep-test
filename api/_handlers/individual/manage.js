@@ -1,7 +1,7 @@
 import { transaction } from '../../_lib/db.js';
 import QRCode from 'qrcode';
 import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../../_lib/auth.js';
-import { findIndividualProfile, hashIndividualInviteToken, newIndividualInviteToken } from '../../_lib/individual-access.js';
+import { findIndividualProfile, hashIndividualInviteToken, newIndividualInviteToken, individualInviteUrl } from '../../_lib/individual-access.js';
 import { assertTemplateDuration, pilotSessionTemplate } from '../../_lib/individual-pilot.js';
 import {
   assertParticipantCapacity,
@@ -277,6 +277,7 @@ export function createIndividualManageHandler(deps = {}) {
 
         if (action === 'createInvite') {
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
+          if (profile.user_id) throw new IndividualRequestError(409, 'Dieser Spieler hat bereits ein zugeordnetes Konto. Er kann sich mit seinem bestehenden Konto anmelden.');
           const hours = Number(req.body.expiresInHours ?? 72);
           if (!Number.isInteger(hours) || hours < 1 || hours > 168) throw new TypeError('Einladungsdauer muss zwischen 1 und 168 Stunden liegen.');
           const rawToken = newIndividualInviteToken();
@@ -291,9 +292,8 @@ export function createIndividualManageHandler(deps = {}) {
              RETURNING id, expires_at`,
             [auth.organization_id, profile.id, hashIndividualInviteToken(rawToken), auth.sub, hours]
           );
-          const appUrl = String(process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
-          const inviteUrl = appUrl ? `${appUrl}/?individualInvite=${encodeURIComponent(rawToken)}#/account` : null;
-          const qrDataUrl = inviteUrl ? await QRCode.toDataURL(inviteUrl, { width: 320, margin: 2, errorCorrectionLevel: 'M' }) : null;
+          const inviteUrl = individualInviteUrl(rawToken);
+          const qrDataUrl = await QRCode.toDataURL(inviteUrl, { width: 320, margin: 4, errorCorrectionLevel: 'M' });
           return { status: 201, body: { token: rawToken, inviteUrl, qrDataUrl, invite: created.rows[0] } };
         }
 

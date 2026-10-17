@@ -4,10 +4,12 @@ import overview from '../_handlers/individual/overview.js';
 import push from '../_handlers/individual/push.js';
 import reminders from '../_handlers/individual/reminders.js';
 import sync from '../_handlers/individual/sync.js';
+import invite from '../_handlers/individual/invite.js';
 
 const handlers = Object.freeze({
   'ai-drafts': aiDrafts,
   manage,
+  invite,
   overview,
   push,
   reminders,
