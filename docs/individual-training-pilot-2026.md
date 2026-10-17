@@ -59,6 +59,8 @@ Die neue Prüfung `scripts/individual-real-db-validation.mjs` verwendet echte Po
 
 Dabei korrigierte Fehler: UUID/Text-Konflikt in Erinnerungsabfragen; Zeitzonenverschiebung bei SQL-Kalendertagen; fehlende Anzeige eingegangener Spielerrückmeldungen im Trainer-Feedbackbereich. Umsetzung und Nachweise stehen im [Wiederherstellungsplan](superpowers/plans/2026-10-18-free-database-pilot-recovery.md).
 
+**Produktive Funktionsabnahme erfolgreich:** Der vollständige Ablauf lief anschließend über die öffentliche App und ihre realen Serverfunktionen mit gesonderten synthetischen Konten: QR-Decodierung, neue Spielerregistrierung, eigene Trainingsseiten und Rückwege, Zusage, Tagesform und Rückmeldung bis in einen getrennten Trainerbrowser. Die Testkonten wurden entfernt, der wiederhergestellte Teamstand blieb erhalten. Ernesto hat sich selbst erfolgreich mit seinem neuen Trainerpasswort angemeldet; beide realen Pilotprofile zeigen Montag, 19. Oktober, 20:15 Uhr. Das physische iPhone wurde nicht ferngesteuert geprüft. Persönliche Einladungscodes der realen Pilotspieler werden nicht für Testregistrierungen verbraucht.
+
 Zusätzliche technische Nachweise: `scripts/individual-invite-smoke.mjs`, `scripts/individual-registration-smoke.mjs`, `scripts/individual-player-validation-smoke.mjs`, `scripts/individual-review-regression.mjs` und `scripts/individual-player-browser.mjs`. Der Browsertest decodiert das tatsächlich serverseitig erzeugte QR-Bild mit ZXing-C++ und öffnet die enthaltene Route mit einem frischen Browserkontext. Die PostgreSQL-Produktionsverbindung und ein physisches iPhone bleiben gesonderte Abnahmeschritte.
 
 | Bereich | Automatischer Nachweis |

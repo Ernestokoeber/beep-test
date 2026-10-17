@@ -23,11 +23,17 @@ Stand: 18. Oktober 2026. Auftrag: echte Spieleranmeldung über Link/QR und Rück
 ## Auslieferung und echte Live-Abnahme
 
 - [x] Gesamte Regression nach allen Änderungen erfolgreich (`npm test`, Exit 0).
-- [ ] Geprüften Stand mit PWA 243 veröffentlichen; neuen gepoolten Datenbankzugang als Servergeheimnis verwenden, alten Neon-Speicher erhalten.
-- [ ] Öffentliche Live-APIs, QR-Registrierung und Rückmeldung gegen produktiven Server mit getrennten synthetischen Testkonten prüfen. Persönliche Einladungen von Thomas/Adnan nicht für Tests verbrauchen.
-- [ ] Wiederhergestelltes Trainerkonto auf der öffentlichen App anmelden; Teamstand, Einheiten und Einladungsvorschau prüfen.
+- [x] Geprüften Stand veröffentlichen; neuen gepoolten Datenbankzugang als Servergeheimnis verwenden, alten Neon-Speicher erhalten. Funktionsabnahme auf PWA 243; anschließende Darstellungsberichtigung mit PWA 244.
+- [x] Öffentliche Live-APIs, QR-Registrierung und Rückmeldung gegen produktiven Server mit getrennten synthetischen Testkonten prüfen. Persönliche Einladungen von Thomas/Adnan nicht für Tests verbrauchen.
+- [x] Wiederhergestelltes Trainerkonto auf der öffentlichen App anmelden; Teamstand und beide Montagseinheiten prüfen. Nutzer hat sich selbst erfolgreich angemeldet.
 - [ ] Abnahmestatus mit genauen Grenzen aktualisieren. Physisches iPhone bleibt von einem emulierten mobilen Browser zu unterscheiden.
 
 ## Opt-in-Nachweis
 
 `COURTHUB_REAL_DB_TEST=isolated-schema` plus ausdrücklich gewählte `DATABASE_URL` führt `node scripts/individual-real-db-validation.mjs` aus. `COURTHUB_REAL_DB_BROWSER=1` ergänzt den echten mobilen Browserdurchlauf. Ohne Opt-in startet keine Datenbankprüfung. Die Skripte sind kein Teil des automatisch ausgeführten Standardtests.
+
+## Produktiver Nachweis
+
+- Öffentliche Adresse `https://coach.tsv-lindau.de`: neue Anmeldung, persönliche Einladung und QR-Decodierung, frische Spielerregistrierung, 105-Minuten-Plan und Rückweg, Zusage, Tagesform sowie Freitagsfeedback bis zur Anzeige im getrennten Trainerbrowser erfolgreich. Keine API-Fixtures. Freitagsdatum ausschließlich auf der Testbrowseruhr simuliert.
+- Wiederverwendeter Einladungslink wird mit 410 abgewiesen; anonymer Individual-Überblick mit 401. Testorganisation und synthetische Konten entfernt. Reale TSV-Daten unverändert mit 27 Spielern und 13 Spielen nachgewiesen.
+- Visuelle Live-Abnahme: dunkle Statusfelder hatten durch einen nicht definierten CSS-Token fast weiße Schrift auf hellem Hintergrund. Durch vorhandenen Farbschema-Token korrigiert, einschließlich Fahrplan/Messwertflächen. Relevante UI- und PWA-Prüfungen sowie unabhängiger Review erfolgreich.

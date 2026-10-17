@@ -56,7 +56,7 @@ body.individual-workspace-mode .individual-navigation .individual-pane-link { pa
 .individual-sync-dot { width:.72rem; height:.72rem; border-radius:50%; background:#22a06b; box-shadow:0 0 0 5px rgba(34,160,107,.12); margin:.35rem; }
 .individual-sync-dot.pending { background:#d89000; box-shadow:0 0 0 5px rgba(216,144,0,.14); }
 .individual-status-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.55rem; margin:0; }
-.individual-status-grid div { padding:.7rem; border:1px solid var(--border); border-radius:14px; background:var(--surface-soft,#f7f9f8); min-width:0; }
+.individual-status-grid div { padding:.7rem; border:1px solid var(--border); border-radius:14px; background:var(--surface-2); min-width:0; }
 .individual-status-grid .wide { grid-column:1/-1; }
 .individual-status-grid dt { color:var(--muted); font-size:.72rem; font-weight:750; letter-spacing:.04em; text-transform:uppercase; }
 .individual-status-grid dd { margin:.22rem 0 0; font-weight:750; overflow-wrap:anywhere; }
@@ -82,8 +82,8 @@ body.individual-workspace-mode .individual-navigation .individual-pane-link { pa
 .individual-roadmap .section-head { align-items:flex-start; }
 .individual-roadmap .section-head h4 { margin:.2rem 0; }
 .individual-roadmap-list { display:grid; gap:.75rem; margin-top:1rem; }
-.individual-roadmap-unit { display:grid; grid-template-columns:74px minmax(0,1fr); gap:1rem; padding:1rem; border:1px solid var(--border); border-radius:18px; background:var(--surface-soft,#f7f9f8); }
-.individual-roadmap-unit.assessment { border-color:#168453; background:linear-gradient(135deg,rgba(20,160,94,.11),rgba(255,255,255,.7)); box-shadow:inset 4px 0 0 #168453; }
+.individual-roadmap-unit { display:grid; grid-template-columns:74px minmax(0,1fr); gap:1rem; padding:1rem; border:1px solid var(--border); border-radius:18px; background:var(--surface-2); }
+.individual-roadmap-unit.assessment { border-color:#168453; background:linear-gradient(135deg,rgba(20,160,94,.11),var(--surface-2)); box-shadow:inset 4px 0 0 #168453; }
 .individual-roadmap-number { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:74px; border-radius:16px; color:#fff; background:#244b39; }
 .individual-roadmap-unit.assessment .individual-roadmap-number { background:#087443; }
 .individual-roadmap-number span { font-size:.68rem; font-weight:750; letter-spacing:.08em; text-transform:uppercase; opacity:.8; }
@@ -109,7 +109,7 @@ body.individual-workspace-mode .individual-navigation .individual-pane-link { pa
 .individual-measurement-exercise > summary b { flex:0 0 auto; color:#087443; font-size:.82rem; }
 .individual-measurement-exercise[open] > summary { border-bottom:1px solid var(--border); background:rgba(8,116,67,.04); }
 .individual-measurement-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; padding:1rem; }
-.individual-measurement-grid form { display:grid; align-content:start; gap:.65rem; padding:.8rem; border:1px solid var(--border); border-radius:14px; background:var(--surface-soft,#f7f9f8); }
+.individual-measurement-grid form { display:grid; align-content:start; gap:.65rem; padding:.8rem; border:1px solid var(--border); border-radius:14px; background:var(--surface-2); }
 .individual-measurement-grid label { display:grid; gap:.35rem; font-weight:750; }
 .individual-measurement-grid label > span { display:flex; justify-content:space-between; gap:.5rem; }
 .individual-measurement-grid label small { color:var(--muted); font-weight:600; }
