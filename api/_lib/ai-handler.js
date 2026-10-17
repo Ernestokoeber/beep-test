@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { AIError, buildAIRequest } from './ai-contracts.js';
 
 export function limitForAction(action) {
-  if(action==='researchOpponent')return 6;
+  if(action==='researchOpponent')return 30;
   return action === 'planSeason' ? 60 : 30;
 }
 
@@ -23,7 +23,7 @@ async function consumeRateLimit(query, userId, action, limit) {
      RETURNING count, $3::integer AS limit`,
     [userId, action, limit]
   );
-  return Number(rows?.[0]?.count || 0) <= limit;
+  return Number(rows?.[0]?.count || 0);
 }
 
 function sendError(res, error, requestId) {
@@ -71,9 +71,9 @@ export function createAIHandler({ requireMembership, query, generate, getApiKey,
       buildAIRequest(action, payload);
 
       const limit = limitForAction(action);
-      const allowed = await consumeRateLimit(query, auth.sub, action, limit);
-      if (!allowed) {
-        throw new AIError('AI_RATE_LIMIT', 'KI-Limit erreicht. Bitte später erneut versuchen.', { status: 429, retryable: true });
+      const used = await consumeRateLimit(query, auth.sub, action, limit);
+      if (used > limit) {
+        throw new AIError('AI_RATE_LIMIT', 'KI-Limit erreicht ('+used+'/'+limit+' Aufrufe im aktuellen Stundenfenster). Bitte später erneut versuchen.', { status: 429, retryable: true });
       }
 
       const result = await generate({ action, payload, apiKey, requestId });

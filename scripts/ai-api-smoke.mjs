@@ -89,6 +89,7 @@ const rateLimited = response();
 await handler(request('planSeason', seasonPayload), rateLimited);
 assert(rateLimited.statusCode === 429, 'Rate-Limit wird nicht als 429 ausgegeben');
 assert(rateLimited.body.code === 'AI_RATE_LIMIT' && rateLimited.body.retryable === true, 'Rate-Limit-Vertrag fehlt');
+assert(rateLimited.body.error.includes('61/60'), 'Die Limitmeldung muss die eigenen Aufrufe und die Grenze nachvollziehbar nennen.');
 nextCount = 1;
 const seasonLimit = limits.find((entry) => entry.action === 'planSeason')?.limit;
 const summaryLimit = limits.find((entry) => entry.action === 'summarizeTraining')?.limit;
