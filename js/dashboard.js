@@ -130,7 +130,7 @@ BT.dashboard = (function() {
       $('[data-role="home-notices"]', root).hidden = false;
       $('[data-role="home-notices"] summary', root).textContent = next.kind === 'game' ? 'Vor dem nächsten Spiel klären' : 'Vor dem nächsten Training klären';
       $('[data-role="home-notices-list"]', root).innerHTML = notices.slice(0, 3).map(note => '<li>' + escapeHTML(note.text) + '</li>').join('') +
-        (notices.length > 3 ? '<li><a href="'+escapeHTML(briefingHref)+'">' + (notices.length - 3) + ' weitere Hinweise im Briefing</a></li>' : '');
+        (notices.length > 3 ? '<li><a href="'+escapeHTML(briefingHref)+'">' + (notices.length - 3) + (notices.length === 4 ? ' weiterer Hinweis' : ' weitere Hinweise') + ' im Briefing</a></li>' : '');
     }
     renderAlerts(root);
   }
