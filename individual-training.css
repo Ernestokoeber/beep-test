@@ -10,6 +10,11 @@
 .individual-player-content { display:grid; gap:1rem; }
 .individual-note-consent { display:flex; align-items:flex-start; gap:.65rem; margin:1rem 0; min-height:44px; cursor:pointer; }
 .individual-note-consent input[type="checkbox"] { flex:none; width:1.2rem; min-width:1.2rem; height:1.2rem; min-height:1.2rem; margin:.15rem 0 0; padding:0; accent-color:var(--primary); }
+.individual-view [data-coach-note],.individual-view [data-release-feedback] { display:grid; gap:.8rem; padding:1rem; border:1px solid var(--border); border-radius:18px; }
+.individual-view [data-coach-note] h4,.individual-view [data-release-feedback] h4,.individual-view [data-coach-note] p,.individual-view [data-release-feedback] p { margin:0; line-height:1.5; }
+.individual-view [data-coach-note] label,.individual-view [data-release-feedback] label:not(.individual-note-consent) { display:grid; gap:.4rem; }
+.individual-view [data-coach-note] textarea,.individual-view [data-release-feedback] textarea { width:100%; min-height:120px; box-sizing:border-box; padding:.7rem; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text); font:inherit; font-size:16px; resize:vertical; }
+.individual-view [data-coach-note] button,.individual-view [data-release-feedback] button { min-height:48px; }
 .individual-player-date { font-size:1.35rem; font-weight:800; line-height:1.4; }
 .individual-player-primary { display:block; margin:1rem 0; border:1px solid var(--border); text-align:center; min-height:48px; }
 .individual-player-exercises,.individual-player-results { list-style:none; padding:0; margin:0; display:grid; gap:.7rem; }

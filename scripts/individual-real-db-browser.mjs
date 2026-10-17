@@ -97,10 +97,10 @@ export async function validateRealDatabaseBrowser({root,handlers={},invitation,p
     const releaseForm=coachPage.locator('[data-release-feedback]'),marker=releaseForm.locator('[name="shareWithPlayer"]');
     assert.equal(await marker.isChecked(),false);
     await releaseForm.locator('[name="content"]').fill(sharedNote);
+    await releaseForm.scrollIntoViewIfNeeded();
+    await coachPage.screenshot({path:join(directory,`${proofPrefix}-coach-note-consent.png`),fullPage:false});
     await releaseForm.getByRole('button',{name:'Für Spieler freigeben',exact:true}).click();
     assert.equal(await marker.evaluate(element=>element.checkValidity()),false,'Unmarkierte Notiz muss im Formular blockiert sein.');
-    await marker.scrollIntoViewIfNeeded();
-    await coachPage.screenshot({path:join(directory,`${proofPrefix}-coach-note-consent.png`),fullPage:false});
     await marker.check();await releaseForm.getByRole('button',{name:'Für Spieler freigeben',exact:true}).click();
     await coachPage.getByText(sharedNote,{exact:true}).waitFor();
     assert.equal(await coachPage.locator('[name="shareWithPlayer"]').isChecked(),false);
