@@ -52,7 +52,7 @@
 - [x] Browserprüfung für Liste → Detail → Bearbeiten → Zurück, Direktaufruf, Entwurf, mobilen Import und Gegnerspieler ergänzen und ausführen.
 - [x] `npm test` und sämtliche vorhandenen mobilen Bereichsprüfungen ausführen; echte Offline-PWA prüfen. Tatsächlich gefundene Fehler gezielt reproduzieren und beheben.
 - [x] Unabhängiger Review des gesamten Changesets, wichtige Funde beheben, Nachprüfung.
-- [ ] PWA-Version erhöhen, Tests und `git diff --check` grün. Fast-forward auf main und Bereitstellung prüfen; Ergebnis im Nutzerbrowser ohne Datenänderung kontrollieren und Screenshots sichern.
+- [x] PWA-Version erhöhen, Tests und `git diff --check` grün. Fast-forward auf main und Bereitstellung prüfen; Ergebnis im Nutzerbrowser ohne Datenänderung kontrollieren und Screenshots sichern.
 
 ## Abgrenzung der Fertigstellung
 
@@ -62,8 +62,13 @@ Die Abnahme betrifft die vorhandenen mobilen Arbeitsabläufe. GPT-Vergleich, neu
 
 - Bestehender isolierter Worktree `codex/mobile-opponents` wiederverwendet; Ausgang `a1e0c56`.
 - Bibliotheks- und Gegnerspielertests jeweils vor Implementierung mit fehlender Funktion gescheitert und danach grün.
-- Zehn Bereichs-Browsermatrizen auf 320/390/768/1440 px geprüft. Offline-PWA v234: 162 Dateien; Lesen, Entwurf nach Neuladen und dauerhaftes Speichern ohne Netzwerk erfolgreich.
+- Zehn Bereichs-Browsermatrizen auf 320/390/768/1440 px geprüft. Offline-PWA v235: 162 Dateien; Lesen, Entwurf nach Neuladen und dauerhaftes Speichern ohne Netzwerk erfolgreich.
 - Review-Funde reproduziert und korrigiert: IndexedDB-Schreibfehler nach Seitenwechsel/erneutem Editoröffnen; unzulässige KI-Wechselherkunft mit DBB-Spielbericht als einzigem Beleg. Zusätzlicher bestehender Defekt behoben: Taktiknotizen öffneten lediglich die Bibliothek.
 - Ursprung der Herkunft wird nun explizit mitgeführt; ausschließlich aus strukturierten Spielberichtskadern rekonstruierte Herkunftstexte tragen `historyOrigin: official`. Externe und ältere KI-Angaben erhalten dieses Label nicht.
 - Hauptnavigation zeigt zugeordnete Bereiche auch bei Gegnern, Notizen, Trikots, Kampfgericht, Testhistorie und terminbezogenem Briefing.
 - Unabhängiger Review und enge Nachprüfungen abgeschlossen, keine verbleibenden Funde. Neue OpenAI-Anbindung und Live-Recherche ausdrücklich nicht ausgeführt.
+
+- Produktionsabnahme: `90ee829` und abschließender Bibliotheksnachtrag `112dd8b` erfolgreich bereitgestellt. Im authentifizierten Nutzerbrowser Wasserburg-Kader → Filip Cosma → Zurück geprüft, Suchtext wiederhergestellt; Übungsdetail öffnet lesend mit eigenem Bearbeitungslink. Keine Produktivdaten geändert, keine neue KI-Anfrage ausgelöst.
+- Tatsächliche Nutzerdaten: 1.748 Übungen. Abschnittsweise Anzeige mit 40 Einträgen, Erweiterung auf 80 und Rücksetzen durch Filterwechsel live bestätigt. Kein Inhalt entfernt; Suche erfasst weiterhin alle Einträge. Testdaten mit 125 zusätzlichen Übungen prüfen außerdem Suche nach zunächst nicht dargestelltem Eintrag, Rückweg und Umfangserhalt.
+- Prüfstand: vollständiges `npm test` nach Speicher-/Herkunfts-/Taktikfix grün; nach Bibliotheksnachtrag Navigations-/Persistenz-Suites, statische Prüfung, PWA-Ladetest und Bibliotheksbrowsermatrix erneut grün. Unabhängiger Review einschließlich Nachtrag freigegeben.
+- Bewusst offen: neue OpenAI-Anbindung/GPT-Vergleich und fachliche Bewertung neuer Live-Recherchen; physischer Smartphone-Test durch den Nutzer. Bestehende gespeicherte KI-Berichte wurden nicht neu recherchiert oder inhaltlich überschrieben.
