@@ -123,14 +123,13 @@ BT.dashboard = (function() {
     upcoming.sort((a,b) => (a.date+(a.time || '99:99')).localeCompare(b.date+(b.time || '99:99')));
     $('[data-role="home-upcoming"]',root).hidden = !upcoming.length;
     $('[data-role="home-upcoming-list"]',root).innerHTML = upcoming.map(e => eventCard(e)).join('');
-    const briefing = buildCoachBriefing();
-    const notices = briefing.notes.filter(note => note.cls === 'warn');
-    const restricted = briefing.sections.find(section => section.title === 'Teilnahme und Einschränkungen')?.lines.slice(2) || [];
-    if (restricted.length) notices.unshift({text: restricted.length + ' Spieler mit Abmeldung oder Einschränkung. Im Briefing prüfen.'});
+    const briefingHref = next ? '#/briefing?'+next.kind+'='+encodeURIComponent(next.id) : '#/briefing';
+    const briefing = next && BT.coachBriefing?.build ? BT.coachBriefing.build(briefingHref) : null;
+    const notices = briefing?.event ? briefing.cautions.map(text=>({text})) : next?.kind === 'training' ? buildCoachBriefing().notes.filter(note=>note.cls === 'warn') : [];
     if (notices.length) {
       $('[data-role="home-notices"]', root).hidden = false;
       $('[data-role="home-notices-list"]', root).innerHTML = notices.slice(0, 3).map(note => '<li>' + escapeHTML(note.text) + '</li>').join('') +
-        (notices.length > 3 ? '<li><a href="#/briefing">' + (notices.length - 3) + ' weitere Hinweise im Briefing</a></li>' : '');
+        (notices.length > 3 ? '<li><a href="'+escapeHTML(briefingHref)+'">' + (notices.length - 3) + ' weitere Hinweise im Briefing</a></li>' : '');
     }
     renderAlerts(root);
   }
@@ -364,8 +363,8 @@ BT.dashboard = (function() {
             <span class="form-card-name">${escapeHTML(r.player.name)}</span>
             ${posChip}
           </div>
-          <div class="form-card-delta">${delta} %</div>
-          <div class="form-card-sub">vs. Saisonschnitt (letzte 3 vs. vorherige 5 Trainings)</div>
+          <div class="form-card-delta">${delta} Prozentpunkte</div>
+          <div class="form-card-sub">Letzte 3 gegenüber den 5 vorherigen Trainings</div>
         </a>
       `;
     }).join('');

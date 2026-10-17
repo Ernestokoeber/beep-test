@@ -10,12 +10,12 @@ BT.stats = (function() {
 
   function isEnded(t) {
     if (!t) return false;
-    if (['cancelled', 'abgesagt'].includes(t.status)) return false;
-    if (t.endedAt || t.status === 'completed') return true;
+    if (t.cancelled || ['cancelled', 'abgesagt'].includes(t.status)) return false;
+    if (t.endedAt || t.status === 'completed' || t.liveSession?.status === 'completed') return true;
     // Fallback fuer Altdaten ohne explizites endedAt:
     // Trainings deren Datum in der Vergangenheit liegt gelten als abgeschlossen.
     if (t.date) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = BT.util.todayISO();
       if (t.date < today) return true;
     }
     return false;
@@ -513,7 +513,7 @@ BT.stats = (function() {
         }
       }
 
-      // 2) FT-Form: letzte 3 FT-Trainings mind. 10% schlechter als Saisonschnitt (davor)
+      // 2) FT-Form: letzte 3 FT-Trainings mind. 10 Prozentpunkte unter dem bisherigen Saisonschnitt
       const ftSessions = trainingsChrono.filter(t => {
         const e = (t.freethrows || []).find(x => x.playerId === p.id);
         return e && (e.attempted || 0) > 0;
@@ -538,7 +538,7 @@ BT.stats = (function() {
             playerId: p.id,
             playerName: p.name,
             type: 'ft_decline',
-            message: p.name + ': Freiwurf-Form ' + (rPct - bPct) + ' % unter Saisonschnitt (' + rPct + ' % vs. ' + bPct + ' %)'
+            message: p.name + ': Freiwurf-Form ' + (bPct - rPct) + ' Prozentpunkte unter dem bisherigen Saisonschnitt (' + rPct + ' % vs. ' + bPct + ' %)'
           });
         }
       }

@@ -126,10 +126,15 @@ BT.games = (function() {
 
     $('[data-action="sync-games"]', root).addEventListener('click', async event => {
       const button = event.currentTarget;
+      const writable = () => !['viewer','player'].includes(BT.sync?.getState?.().user?.role);
+      if (!writable()) return;
       if (!BT.api.getToken()) { location.hash = '#/account'; return; }
+      const generation = liveGeneration, identity = accountKey(), token = BT.api.getToken(), view = root;
+      const active = () => generation === liveGeneration && identity === accountKey() && token === BT.api.getToken() && writable() && view.isConnected;
       button.disabled = true; status.textContent = 'Offizieller TeamSL-Spielplan wird geladen …';
       try {
         const result = await BT.api.syncWebsiteGames(BT.seasonplanner.scheduleConfig());
+        if (!active()) return;
         const imports = result.games.map(incoming => {
           const existing = (incoming.id && BT.storage.getGame(incoming.id)) || (incoming.externalId && BT.storage.getGame(incoming.externalId));
           const game = {...incoming, status: statusFor({...existing, ...incoming}).status};
@@ -138,6 +143,7 @@ BT.games = (function() {
         });
         const protectedImports = imports.filter(item => item.protected);
         const allowArchived = !protectedImports.length || confirm(`Sicherheitshinweis: Der offizielle Spielplan enthält Änderungen an ${protectedImports.length} geschlossenen Spiel(en).\n\n${protectedImports.slice(0,5).map(({existing})=>`${formatDate(existing.date)} · ${existing.home} – ${existing.away}`).join('\n')}\n\nTermine und Ergebnisse dieser abgeschlossenen Spiele ausdrücklich aktualisieren?`);
+        if (!active()) return;
         imports.filter(item => !item.protected || allowArchived).forEach(({game}) => BT.storage.upsertGame(game));
         const opponentProfiles = BT.opponents?.syncLeague
           ? BT.opponents.syncLeague(result.leagueGames || result.games, { teamName: result.team.name, teamId: result.team.id })
@@ -145,8 +151,8 @@ BT.games = (function() {
         BT.seasonplanner.saveScheduleConfig({ teamId: result.team.id, teamName: result.team.name });
         status.textContent = result.games.length + ' eigene Spiele und ' + opponentProfiles.length + ' Gegner direkt aus TeamSL synchronisiert · ' + result.league.name + '.' + (!allowArchived ? ' Änderungen an geschlossenen Spielen wurden nicht übernommen.' : '');
         drawList(); if (selectedGameId) drawDetail();
-      } catch (error) { status.textContent = error.message; }
-      finally { button.disabled = false; }
+      } catch (error) { if (active()) status.textContent = error.message; }
+      finally { if (active()) button.disabled = false; }
     });
 
     $('[data-action="import-atlas"]', root).addEventListener('click', importAtlasFile);

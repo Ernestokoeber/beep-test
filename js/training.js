@@ -193,8 +193,8 @@ BT.training = (function() {
     const d = BT.stats.trainingDelta(training.id);
     if (!d || !d.trend) return '';
     const parts = [];
-    if (d.ftDelta !== null && d.ftDelta !== undefined) parts.push('FT ' + (d.ftDelta >= 0 ? '+' : '') + d.ftDelta + '%');
-    if (d.fgDelta !== null && d.fgDelta !== undefined) parts.push('Wurf ' + (d.fgDelta >= 0 ? '+' : '') + d.fgDelta + '%');
+    if (d.ftDelta !== null && d.ftDelta !== undefined) parts.push('FT ' + (d.ftDelta >= 0 ? '+' : '') + d.ftDelta + ' Prozentpunkte');
+    if (d.fgDelta !== null && d.fgDelta !== undefined) parts.push('Wurf ' + (d.fgDelta >= 0 ? '+' : '') + d.fgDelta + ' Prozentpunkte');
     const tip = parts.length ? parts.join(' · ') + ' vs. letztes Training' : 'Trend vs. letztes Training';
     const icon = d.trend === 'up' ? '↑' : d.trend === 'down' ? '↓' : '→';
     const label = d.trend === 'up' ? 'besser' : d.trend === 'down' ? 'schlechter' : 'gleich';
@@ -1019,6 +1019,7 @@ BT.training = (function() {
   }
 
   function save() {
+    if (['viewer','player'].includes(BT.sync?.getState?.().user?.role)) return;
     BT.storage.upsertTraining(currentTraining);
   }
 
@@ -1527,12 +1528,12 @@ BT.training = (function() {
     function deltaBadge(pctDelta, prefix) {
       if (pctDelta === null || pctDelta === undefined) return '';
       const rounded = Math.round(pctDelta);
-      if (rounded === 0) return `<span class="delta-badge delta-flat" title="${prefix} gleichauf mit Saison">→ 0 %</span>`;
+      if (rounded === 0) return `<span class="delta-badge delta-flat" title="${prefix} gleichauf mit Saison">→ 0 Prozentpunkte</span>`;
       const isUp = rounded > 0;
       const cls = isUp ? 'delta-up' : 'delta-down';
       const arrow = isUp ? '↑' : '↓';
       const sign = isUp ? '+' : '';
-      return `<span class="delta-badge ${cls}" title="${prefix} ${sign}${rounded} % im Vergleich zum bisherigen Saisonschnitt">${arrow} ${sign}${rounded} % vs. Saison</span>`;
+      return `<span class="delta-badge ${cls}" title="${prefix} ${sign}${rounded} Prozentpunkte im Vergleich zum bisherigen Saisonschnitt">${arrow} ${sign}${rounded} Prozentpunkte vs. Saison</span>`;
     }
 
     // Kategorie-Chips: Best/Worst farblich hervorheben (nur wenn mind. 2 Kategorien mit Daten)
@@ -2167,7 +2168,7 @@ BT.training = (function() {
           const d = Math.round(q.deltaVsSeason.totalPct);
           const arrow = d > 0 ? '↑' : d < 0 ? '↓' : '→';
           const sign = d > 0 ? '+' : '';
-          header += ' ' + arrow + ' ' + sign + d + '% vs. Saison';
+          header += ' ' + arrow + ' ' + sign + d + ' Prozentpunkte vs. Saison';
         }
       }
       lines.push(header);
@@ -2206,8 +2207,8 @@ BT.training = (function() {
       if (td && td.trend) {
         const arrow = td.trend === 'up' ? '↑' : td.trend === 'down' ? '↓' : '→';
         const parts = [];
-        if (td.fgDelta != null) parts.push('Würfe ' + (td.fgDelta > 0 ? '+' : '') + Math.round(td.fgDelta) + '%');
-        if (td.ftDelta != null) parts.push('FT ' + (td.ftDelta > 0 ? '+' : '') + Math.round(td.ftDelta) + '%');
+        if (td.fgDelta != null) parts.push('Würfe ' + (td.fgDelta > 0 ? '+' : '') + Math.round(td.fgDelta) + ' Prozentpunkte');
+        if (td.ftDelta != null) parts.push('FT ' + (td.ftDelta > 0 ? '+' : '') + Math.round(td.ftDelta) + ' Prozentpunkte');
         if (parts.length > 0) {
           lines.push('');
           lines.push(arrow + ' vs. letztem Training: ' + parts.join(', '));
@@ -2454,12 +2455,12 @@ BT.training = (function() {
           if (q.deltaVsSeason.totalPct != null) {
             const d = Math.round(q.deltaVsSeason.totalPct);
             const sign = d > 0 ? '+' : '';
-            infoLines.push({ text: 'Feldwürfe ' + sign + d + ' % vs. Saisonschnitt', dir: Math.sign(d) });
+            infoLines.push({ text: 'Feldwürfe ' + sign + d + ' Prozentpunkte vs. Saisonschnitt', dir: Math.sign(d) });
           }
           if (q.deltaVsSeason.ftPct != null) {
             const d = Math.round(q.deltaVsSeason.ftPct);
             const sign = d > 0 ? '+' : '';
-            infoLines.push({ text: 'Freiwürfe ' + sign + d + ' % vs. Saisonschnitt', dir: Math.sign(d) });
+            infoLines.push({ text: 'Freiwürfe ' + sign + d + ' Prozentpunkte vs. Saisonschnitt', dir: Math.sign(d) });
           }
         }
       }
@@ -2467,8 +2468,8 @@ BT.training = (function() {
         const td = BT.stats.trainingDelta(training.id);
         if (td && td.trend) {
           const parts = [];
-          if (td.fgDelta != null) parts.push('Würfe ' + (td.fgDelta > 0 ? '+' : '') + Math.round(td.fgDelta) + ' %');
-          if (td.ftDelta != null) parts.push('FT ' + (td.ftDelta > 0 ? '+' : '') + Math.round(td.ftDelta) + ' %');
+          if (td.fgDelta != null) parts.push('Würfe ' + (td.fgDelta > 0 ? '+' : '') + Math.round(td.fgDelta) + ' Prozentpunkte');
+          if (td.ftDelta != null) parts.push('FT ' + (td.ftDelta > 0 ? '+' : '') + Math.round(td.ftDelta) + ' Prozentpunkte');
           if (parts.length > 0) {
             const dir = td.trend === 'up' ? 1 : td.trend === 'down' ? -1 : 0;
             infoLines.push({ text: 'vs. letztem Training: ' + parts.join(', '), dir });
@@ -3104,10 +3105,10 @@ BT.training = (function() {
 
   function deltaLabel(delta) {
     const r = Math.round(delta);
-    if (r === 0) return '<span class="delta-chip delta-flat">±0 %</span>';
+    if (r === 0) return '<span class="delta-chip delta-flat">±0 Prozentpunkte</span>';
     const cls = r > 0 ? 'delta-up' : 'delta-down';
     const sign = r > 0 ? '+' : '';
-    return `<span class="delta-chip ${cls}">${sign}${r} % vs. Saison</span>`;
+    return `<span class="delta-chip ${cls}">${sign}${r} Prozentpunkte vs. Saison</span>`;
   }
 
   async function sharePlayerReport(player, training) {
@@ -3218,7 +3219,7 @@ BT.training = (function() {
         const c = deltaColor(delta);
         doc.setTextColor(c[0], c[1], c[2]);
         doc.setFontSize(10);
-        doc.text('Differenz: ' + sign + r + ' % vs. Saisonschnitt', margin, y);
+        doc.text('Differenz: ' + sign + r + ' Prozentpunkte vs. Saisonschnitt', margin, y);
         doc.setTextColor(20);
         y += 14;
       }
@@ -3246,7 +3247,7 @@ BT.training = (function() {
           y += 12;
           const c = deltaColor(delta);
           doc.setTextColor(c[0], c[1], c[2]);
-          doc.text('Differenz: ' + sign + r + ' % vs. Saisonschnitt', margin + 20, y);
+          doc.text('Differenz: ' + sign + r + ' Prozentpunkte vs. Saisonschnitt', margin + 20, y);
           y += 14;
           doc.setTextColor(20);
           doc.setFontSize(10);

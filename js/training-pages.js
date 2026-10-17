@@ -2,6 +2,30 @@ window.BT = window.BT || {};
 
 BT.trainingPages = (() => {
   const esc = value => BT.util.escapeHTML(String(value ?? ''));
+  const writable = () => !['viewer','player'].includes(BT.sync?.getState?.().user?.role);
+  const identity = () => {const s=BT.sync?.getState?.();return JSON.stringify([s?.user?.id,s?.user?.organization?.id,s?.user?.role,s?.sessionEpoch]);};
+  function protect(root) {
+    const scope=identity();
+    const readingControl=el=>!el?.closest('.shot-tab-del') && el?.closest('.shot-tab:not(.add), [data-role="map-player"], a[href], [data-filter], [data-cancel], input[type="search"], .subnav-btn, [data-action^="export"], [data-action^="share"], [data-open-player-stats]');
+    for(const type of ['input','change','submit','click'])root.addEventListener(type,event=>{
+      if(scope===identity() && (writable() || readingControl(event.target)))return;
+      event.preventDefault();event.stopImmediatePropagation();
+    },true);
+    const lock=()=>{
+      if(writable())return;
+      root.querySelectorAll('input,select,textarea,button').forEach(el=>{if(!readingControl(el))el.disabled=true;});
+      root.querySelectorAll('.shot-tab-del').forEach(el=>el.hidden=true);
+      root.querySelectorAll('a[href$="/plan/library"],a[href$="/drill/new"]').forEach(el=>el.remove());
+    };
+    lock();
+    if(!writable()) {
+      root.querySelector('.tp-save-state')?.replaceChildren('Du hast hier Lesezugriff.');
+      root.querySelector('[data-role="saved-info"]')?.replaceChildren('Du hast hier Lesezugriff.');
+      root.querySelector('.tp-form > p.muted')?.replaceChildren('Du hast hier Lesezugriff.');
+      // Category and player filters rebuild their result controls.
+      new MutationObserver(lock).observe(root,{childList:true,subtree:true});
+    }
+  }
   const url = (id, page = '') => '#/training/' + encodeURIComponent(id) + (page ? '/' + page : '');
   const finished = t => BT.stats?.isEnded ? BT.stats.isEnded(t) : !!t.endedAt || t.status === 'completed';
   const minutes = d => Math.max(0, Number(d.minutes) || 0);
@@ -20,6 +44,7 @@ BT.trainingPages = (() => {
     root.insertAdjacentHTML('beforeend', link(id ? url(id, 'plan') : '#/training', id ? 'Zum Trainingsplan' : 'Alle Trainings'));
   }
   function update(id, change) {
+    if(!writable())return null;
     const t = BT.storage.getTraining(id);
     if (!t) { BT.util.toast('Das Training wurde inzwischen gelöscht.'); return null; }
     t.plan ||= {drills: []}; t.plan.drills ||= [];
@@ -31,6 +56,7 @@ BT.trainingPages = (() => {
   }
   // Additive identities keep drill links stable when a legacy plan is reordered.
   function identify(t) {
+    if(!writable())return {...t,plan:{...t.plan,drills:(t.plan?.drills || []).map((d,i)=>({...d,id:d.id || 'view-drill-'+i}))}};
     let changed = false; const seen = new Set();
     for (const d of t.plan?.drills || []) {
       if (!d.id || seen.has(d.id)) { d.id = uid(); changed = true; }
@@ -41,7 +67,7 @@ BT.trainingPages = (() => {
   }
   function renderList(target) {
     const root = shell(target, 'list', 'Dein Training', 'Planen. Gemeinsam besser werden.');
-    root.insertAdjacentHTML('beforeend', `<a class="btn primary tp-create" href="#/training/new">+ Training planen</a><div class="tp-friday" data-role="friday-station-suggestion"></div>
+    root.insertAdjacentHTML('beforeend', `${writable()?'<a class="btn primary tp-create" href="#/training/new">+ Training planen</a>':''}<div class="tp-friday" data-role="friday-station-suggestion"></div>
       <label class="tp-search">Training suchen<input type="search" data-training-search placeholder="Schwerpunkt oder Datum" autocomplete="off"></label>
       <div class="tp-filter" role="group" aria-label="Trainings filtern"><button type="button" data-filter="upcoming">Anstehend</button><button type="button" data-filter="completed">Abgeschlossen</button></div>
       <p class="tp-list-count" role="status"></p><div class="tp-list"></div>
@@ -64,15 +90,16 @@ BT.trainingPages = (() => {
     input.addEventListener('input',refresh);
     root.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;refresh();}));
     refresh();
-    BT.training?.renderFridayStationSuggestion(root, BT.storage.getTrainings());
+    if(writable())BT.training?.renderFridayStationSuggestion(root, BT.storage.getTrainings());
     root.addEventListener('click',async e=>{
-      const b=e.target.closest('[data-action="create-friday-stations"]');if(!b)return;
+      const b=e.target.closest('[data-action="create-friday-stations"]');if(!b||!writable())return;
       const game=BT.storage.getGame(b.dataset.gameId);
       const existing=BT.storage.getTrainings().find(t=>t.date===b.dataset.friday && !finished(t));
       if(existing && !existing.stationTraining && existing.plan?.drills?.length && !confirm('Den bestehenden Trainingsplan durch ein neues KI-Stationstraining ersetzen?'))return;
       try{const t=await BT.training.replanFridayTraining(b,b.dataset.friday,game,existing);location.hash=url(t.id);}
       catch(error){BT.util.toast('KI-Freitagstraining konnte nicht erstellt werden: '+error.message);}
     });
+    protect(root);
   }
   function bindDraft(form) {
     form.addEventListener('input',()=>remember({draft:Object.fromEntries(new FormData(form))}));
@@ -80,15 +107,17 @@ BT.trainingPages = (() => {
   function renderNew(target) {
     const draft = state().draft || {};
     const root = shell(target,'new','Training planen','Erst der Rahmen. Den Ablauf stellst du danach zusammen.');
+    if(!writable()){root.insertAdjacentHTML('beforeend','<p>Du hast hier Lesezugriff.</p>'+link('#/training','Alle Trainings'));return;}
     root.insertAdjacentHTML('beforeend',`<form class="tp-form"><label>Datum<input required name="date" type="date" value="${esc(draft.date || BT.util.todayISO())}"></label><label>Beginn<input required name="startTime" type="time" value="${esc(draft.startTime || BT.storage.getSetting('trainingStartTime','20:15'))}"></label><label>Dauer in Minuten<input required name="duration" type="number" inputmode="numeric" min="15" max="240" value="${esc(draft.duration || BT.storage.getSetting('trainingDurationMinutes',90))}"></label><label>Schwerpunkt<input name="note" maxlength="300" placeholder="Zum Beispiel: Verteidigung im Team" value="${esc(draft.note || '')}"></label><div class="tp-form-actions"><button class="btn primary" type="submit">Training anlegen</button><button class="btn" type="button" data-cancel>Zurück</button></div></form>`);
     const form = root.querySelector('form'); bindDraft(form);
     form.querySelector('[data-cancel]').onclick = ()=>goBack('#/training');
     form.onsubmit = event => {
-      event.preventDefault(); if (!form.reportValidity()) return;
+      event.preventDefault(); if (!writable() || !form.reportValidity()) return;
       const data = Object.fromEntries(new FormData(form));
       const t = BT.storage.upsertTraining({date:data.date,startTime:data.startTime,note:data.note.trim(),attendance:BT.storage.attendanceForActivePlayers(data.date),freethrows:[],shots:[],plan:{drills:[],durationMinutes:Number(data.duration),summary:''}});
       remember({draft:null}); location.hash = url(t.id);
     };
+    protect(root);
   }
   function overview(target,t) {
     const drills = t.plan?.drills || []; const count = (BT.staff?.playerAttendance(t) || t.attendance || []).filter(a=>a.status==='present').length;
@@ -117,9 +146,10 @@ BT.trainingPages = (() => {
       const saved=update(t.id,x=>{const i=x.plan.drills.findIndex(d=>d.id===b.dataset.drill),j=i+(b.dataset.move==='up'?-1:1);if(i<0 || j<0 || j>=x.plan.drills.length)return false;[x.plan.drills[i],x.plan.drills[j]]=[x.plan.drills[j],x.plan.drills[i]];});
       if(saved){const scroll=window.scrollY;root.remove();plan(target,saved);window.scrollTo(0,scroll);const button=[...target.querySelectorAll('[data-move]')].find(el=>el.dataset.drill===b.dataset.drill && el.dataset.move===b.dataset.move && !el.disabled);button?.focus({preventScroll:true});}
     });
+    protect(root);
   }
   function drill(target,t,key) {
-    identify(t); const isNew=key==='new'; const original=isNew ? {name:'',minutes:10,intensity:'medium',description:''} : t.plan?.drills?.find(d=>d.id===key);
+    t=identify(t); const isNew=key==='new'; const original=isNew ? {name:'',minutes:10,intensity:'medium',description:''} : t.plan?.drills?.find(d=>d.id===key);
     if(!original) return missing(target,t.id,'Übung nicht gefunden');
     const draft=state().draft; const d=draft?.drillKey===key ? {...original,...draft} : original;
     const root=shell(target,'drill',isNew?'Eigene Übung':original.name,'Eine Übung. Ein klarer Coaching-Auftrag.');
@@ -134,9 +164,11 @@ BT.trainingPages = (() => {
       if(!confirm('Diese Übung aus dem Trainingsplan entfernen?'))return;
       if(update(t.id,x=>{x.plan.drills=x.plan.drills.filter(d=>d.id!==key);})){remember({draft:null});goBack(url(t.id,'plan'));}
     });
+    protect(root);
   }
   function library(target,t) {
     const root=shell(target,'library','Übung hinzufügen','Wähle eine Übung für deinen Ablauf.');
+    if(!writable()){root.insertAdjacentHTML('beforeend','<p>Du hast hier Lesezugriff.</p>'+link(url(t.id,'plan'),'Trainingsplan ansehen'));return;}
     root.insertAdjacentHTML('beforeend',`<a class="btn primary" href="${url(t.id,'drill/new')}">+ Eigene Übung</a><label class="tp-search">Bibliothek durchsuchen<input type="search" data-library-search placeholder="Name oder Beschreibung"></label><p role="status" data-library-status></p><div class="tp-library"></div>`);
     const input=root.querySelector('input');input.value=state().librarySearch || '';
     function refresh(){remember({librarySearch:input.value});const q=input.value.trim().toLocaleLowerCase('de');const list=BT.storage.getDrills().filter(d=>[d.name,d.description,d.category].join(' ').toLocaleLowerCase('de').includes(q));root.querySelector('.tp-library').innerHTML=list.length ? list.map(d=>`<button class="tp-link" type="button" data-add="${esc(d.id)}"><span><strong>${esc(d.name)}</strong><small>${esc(d.category || 'Übung')} · ${minutes(d) || 10} Min.</small></span><span aria-hidden="true">+</span></button>`).join('') : '<p class="tp-empty">Keine passende Übung. Lege eine eigene an.</p>';}
@@ -144,6 +176,7 @@ BT.trainingPages = (() => {
     root.addEventListener('click',e=>{const b=e.target.closest('[data-add]');if(!b)return;const d=BT.storage.getDrills().find(x=>x.id===b.dataset.add);if(!d)return;
       if(update(t.id,x=>{x.plan.drills.push({...d,id:uid(),minutes:minutes(d)||10});})){b.textContent='✓ Hinzugefügt';b.disabled=true;root.querySelector('[data-library-status]').textContent=d.name+' hinzugefügt.';}
     });
+    protect(root);
   }
   const panes={attendance:'Anwesenheit',ft:'Freiwürfe',shots:'Feldwürfe',fitness:'Fitness',sprints:'Sprints',load:'Stationen & Belastung',map:'Wurfkarte',notes:'Spielernotizen',analysis:'Auswertung',timer:'Kurzzeit-Timer',event:'Termin & Verwaltung','plan-options':'Vorgaben & Planvarianten'};
   function legacy(target,t,page,query) {
@@ -160,6 +193,7 @@ BT.trainingPages = (() => {
       root.querySelector('.pane[data-pane="event"]').append(actions);
       root.querySelector('.head-menu-toggle').textContent='Vorlagen, Export & weitere Aktionen';
     }
+    protect(root);
   }
   function render(target,id,page='overview',detail,query) {
     const t=BT.storage.getTraining(id);if(!t)return missing(target);
@@ -167,6 +201,12 @@ BT.trainingPages = (() => {
     if(page==='plan' && detail==='library')return library(target,t);
     if(page==='plan')return plan(target,t);
     if(page==='drill')return drill(target,t,detail);
+    if(!writable() && ['live','clock'].includes(page)) {
+      const root=shell(target,page,page==='live'?'Durchführung':'Timer & Punkte',BT.util.formatDate(t.date));
+      root.insertAdjacentHTML('beforeend','<p>Du hast hier Lesezugriff. Die Durchführung steuert das Trainerteam.</p>'+link(url(t.id,'plan'),'Trainingsplan ansehen'));
+      if(page==='live')root.insertAdjacentHTML('beforeend','<ol class="tp-timeline">'+(t.liveSession?.blocks || []).map(b=>'<li><strong>'+esc(b.name)+'</strong><p>'+esc(({completed:'Abgeschlossen',active:'Aktuell',skipped:'Übersprungen',pending:'Geplant'})[b.status] || 'Geplant')+'</p></li>').join('')+'</ol>');
+      return;
+    }
     if(page==='live'){
       const root=shell(target,'live','Durchführung',BT.util.formatDate(t.date));
       if(!BT.trainingLive.open(t.id,{target:root,onBack:()=>goBack(url(id))}))root.insertAdjacentHTML('beforeend',link(url(id,'plan'),'Zuerst einen Trainingsplan erstellen','Füge mindestens eine Übung hinzu.'));

@@ -4,6 +4,9 @@ BT.trainingLive = (() => {
   const SCHEMA_VERSION = 1;
   const MAX_BACKGROUND_MS = 6 * 60 * 60 * 1000;
   let active = null;
+  const identity = () => {const s=BT.sync?.getState?.();return JSON.stringify([s?.user?.id,s?.user?.organization?.id,s?.user?.role,s?.sessionEpoch]);};
+  const writable = () => !['viewer','player'].includes(BT.sync?.getState?.().user?.role);
+  const authorized = () => active && writable() && active.identity === identity();
 
   const now = () => Date.now();
   const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
@@ -370,7 +373,7 @@ BT.trainingLive = (() => {
   }
 
   function save(timestamp = now()) {
-    if (!active) return;
+    if (!authorized()) return;
     active.session.updatedAt = iso(timestamp);
     active.training.liveSession = copy(active.session);
     BT.storage.upsertTraining(active.training);
@@ -648,6 +651,11 @@ BT.trainingLive = (() => {
 
   function tick() {
     if (!active) return;
+    if (!authorized()) {
+      active.root.querySelectorAll('button:not([data-live-action="close"]),input,textarea,select').forEach(el=>el.disabled=true);
+      BT.wake?.release?.('training-live');
+      return;
+    }
     const timestamp = now();
     const { root, session } = active;
     root.querySelector('[data-live="total-time"]').textContent = formatClock(totalElapsed(session, timestamp));
@@ -671,6 +679,10 @@ BT.trainingLive = (() => {
 
   function bind() {
     const { root } = active;
+    for (const type of ['click','input','change']) root.addEventListener(type,event=>{
+      if (authorized() || event.target.closest('[data-live-action="close"]')) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+    },true);
     root.addEventListener('click', event => {
       const rating = event.target.closest('[data-live-rating]')?.dataset.liveRating;
       if (rating) { setRating(rating); return; }
@@ -700,6 +712,7 @@ BT.trainingLive = (() => {
 
   function open(trainingId, options = {}) {
     close();
+    if (!writable()) return false;
     const training = BT.storage.getTraining(trainingId);
     if (!training) { BT.util?.toast?.('Training wurde nicht gefunden.'); return false; }
     const existing = training.liveSession;
@@ -722,6 +735,7 @@ BT.trainingLive = (() => {
       previous.textContent = '←'; previous.setAttribute('aria-label', 'Vorherige Übung');
     }
     active = {
+      identity: identity(),
       training, session, root, interval: 0, saveTimer: 0, signaled: new Set(), tactic: null,
       previousFocus: document.activeElement, persistOnHide: null, persistOnPageHide: null,
       pageMode: !!options.target, onBack: options.onBack

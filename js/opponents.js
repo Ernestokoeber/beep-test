@@ -72,7 +72,11 @@ BT.opponents = (function() {
     const ownId = Number(config?.teamId) || 0;
     const cutoff = today || (BT.util?.todayISO ? BT.util.todayISO() : new Date().toISOString().slice(0, 10));
     const upcoming = (Array.isArray(games) ? games : []).filter(game => {
-      if (!game?.date || game.cancelled || game.date < cutoff || scoreParts(game.score)) return false;
+      if (!game?.date || game.date < cutoff) return false;
+      const status = BT.games?.statusFor ? BT.games.statusFor(game, cutoff) : {
+        closed: game.cancelled || ['cancelled','abgesagt'].includes(game.status) || (game.date === cutoff && (scoreParts(game.score) || ['played','completed','finished'].includes(game.status)))
+      };
+      if (status.closed) return false;
       return Boolean(opponentFromOwnGame(game, ownName, ownId));
     }).sort((left, right) => `${left.date || ''}T${left.time || '23:59'}`.localeCompare(`${right.date || ''}T${right.time || '23:59'}`));
 
