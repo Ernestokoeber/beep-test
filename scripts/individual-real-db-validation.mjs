@@ -113,10 +113,14 @@ try {
   await call('manage',{token:player.token,body:{action:'createInvite',profileId:profiles[1].id},status:403});
   await call('manage',{token,body:{action:'addCoachNote',profileId:profiles[0].id,note:'PRIVATE TESTNOTIZ'},status:201});
   await call('manage',{token,body:{action:'saveMeasurement',profileId:profiles[0].id,sessionId:session.id,metricKey:'trainernotiz',textValue:'PRIVATE TESTNOTIZ'},status:201});
+  await call('manage',{token,body:{action:'saveReleasedFeedback',profileId:profiles[0].id,content:'NICHT GEKENNZEICHNET'},status:403});
+  await call('manage',{token,body:{action:'saveReleasedFeedback',profileId:profiles[0].id,content:'Bewusst freigegebene Spielernotiz',shareWithPlayer:true},status:201});
   const playerView=await call('overview',{token:player.token,query:{profileId:profiles[1].id}});
   assert.equal(playerView.profiles.length,1);
   assert.equal(playerView.profiles[0].id,profiles[0].id);
   assert(!JSON.stringify(playerView).includes('PRIVATE TESTNOTIZ'));
+  assert(!JSON.stringify(playerView).includes('NICHT GEKENNZEICHNET'));
+  assert(playerView.releasedFeedback.some(note=>note.content==='Bewusst freigegebene Spielernotiz'));
   assert(!('coachNotes' in playerView));
   assert(!playerView.measurements.some(m=>m.metric_key==='trainernotiz'));
   assert(!('objective' in playerView.plans[0]));

@@ -21,6 +21,7 @@ Die versionierten Vorlagen liegen in `api/_lib/individual-pilot.js`. Einheit 1 e
 - Spielerzugriffe werden serverseitig immer auf die dem Konto zugeordnete Individualprofil-ID eingeschränkt.
 - Coach und Administrator greifen nur innerhalb ihrer Organisation und Coach-Zuordnung zu.
 - Private Coach-Notizen und KI-Entwürfe werden nie an Spielerantworten ausgeliefert.
+- Eine manuell verfasste Spielernotiz benötigt zusätzlich das zunächst leere Häkchen „Diese Notiz für den Spieler freigeben“ und den Freigabebefehl. Der Server verlangt dafür ausdrücklich `shareWithPlayer: true`; fehlende oder anders typisierte Werte werden vor dem Schreiben abgewiesen. Private Notizen aus der Durchführung bleiben privat. Bereits freigegebene Datensätze behalten ihre dokumentierte Freigabe; KI-Entwürfe benötigen weiterhin die ausdrückliche Coach-Veröffentlichung.
 - Nachträgliche Messwert- und Feedbackänderungen benötigen einen Grund und erzeugen unveränderbare Audit-Einträge.
 - Offline-Konflikte werden anhand der Server-Eingangszeit entschieden; Gerätezeit bleibt nur Nachweis.
 - Abmelden entfernt lokale Individual-Caches und die persönliche Offline-Warteschlange.

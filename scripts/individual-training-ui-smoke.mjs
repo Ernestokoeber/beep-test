@@ -141,6 +141,24 @@ assert(coachWindow.document.querySelector('[data-weekly-focus]'), 'Eigener Woche
 await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'feedback');
 assert(coachWindow.document.querySelector('[data-coach-note]'), 'Eigener Notizbereich fehlt');
 assert(coachWindow.document.querySelector('[data-release-feedback]'), 'Eigener Feedbackbereich fehlt');
+let releaseForm=coachWindow.document.querySelector('[data-release-feedback]');
+const releaseMarker=releaseForm.querySelector('[name="shareWithPlayer"]');
+assert(releaseMarker,'Freigabemarkierung für Spielernotizen fehlt');
+assert(releaseMarker.required && !releaseMarker.checked,'Freigabe muss bewusst und ohne Vorauswahl erfolgen');
+const noteActions=[],originalIndividualAction=coachWindow.BT.api.individualAction;
+coachWindow.BT.api.individualAction=async(action,body)=>{noteActions.push({action,body});return {};};
+releaseForm.querySelector('[name="content"]').value='Bewusst weitergegebene Notiz';
+releaseForm.dispatchEvent(new coachWindow.Event('submit',{bubbles:true,cancelable:true}));
+await new Promise(resolve=>setTimeout(resolve,0));assert.equal(noteActions.length,0,'Unmarkierte Notiz darf nicht veröffentlicht werden');
+releaseMarker.checked=true;
+releaseForm.dispatchEvent(new coachWindow.Event('submit',{bubbles:true,cancelable:true}));
+await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(noteActions[0]?.action,'saveReleasedFeedback');assert.equal(noteActions[0]?.body.shareWithPlayer,true);
+assert(!coachWindow.document.querySelector('[name="shareWithPlayer"]').checked,'Nach Speichern muss die nächste Notiz wieder ohne Freigabe beginnen');
+const privateForm=coachWindow.document.querySelector('[data-coach-note]');privateForm.querySelector('[name="note"]').value='Nur für mich';
+privateForm.dispatchEvent(new coachWindow.Event('submit',{bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(noteActions[1]?.action,'addCoachNote');assert(!noteActions[1]?.body.shareWithPlayer);
+coachWindow.BT.api.individualAction=originalIndividualAction;
 await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'), profile.id, 'ai-history');
 assert(coachWindow.document.querySelector('.private-coach-card'), 'Eigener KI- und Verlaufsbereich fehlt');
 

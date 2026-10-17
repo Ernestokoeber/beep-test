@@ -87,6 +87,27 @@ export async function validateRealDatabaseBrowser({root,handlers={},invitation,p
     await coachPage.goto(base+`/#/individual/player/${profileId}/feedback`);
     await coachPage.getByText('Echte mobile Rückmeldung angekommen.',{exact:true}).waitFor();
     await coachPage.screenshot({path:join(directory,`${proofPrefix}-mobile-coach-feedback.png`),fullPage:true});
+    const privateNote='Private Coach-Beobachtung – nur im Test',sharedNote='Bewusst gekennzeichnete Spielernotiz aus dem Browsertest';
+    const privateForm=coachPage.locator('[data-coach-note]');
+    await privateForm.locator('[name="note"]').fill(privateNote);
+    await privateForm.getByRole('button',{name:'Privat speichern',exact:true}).click();
+    await coachPage.locator('.private-coach-card p').filter({hasText:privateNote}).waitFor();
+    await page.reload();await page.locator('.individual-player-dashboard').waitFor();
+    assert.equal(await page.getByText(privateNote).count(),0,'Private Trainernotiz wurde an den Spieler weitergegeben.');
+    const releaseForm=coachPage.locator('[data-release-feedback]'),marker=releaseForm.locator('[name="shareWithPlayer"]');
+    assert.equal(await marker.isChecked(),false);
+    await releaseForm.locator('[name="content"]').fill(sharedNote);
+    await releaseForm.getByRole('button',{name:'Für Spieler freigeben',exact:true}).click();
+    assert.equal(await marker.evaluate(element=>element.checkValidity()),false,'Unmarkierte Notiz muss im Formular blockiert sein.');
+    await marker.scrollIntoViewIfNeeded();
+    await coachPage.screenshot({path:join(directory,`${proofPrefix}-coach-note-consent.png`),fullPage:false});
+    await marker.check();await releaseForm.getByRole('button',{name:'Für Spieler freigeben',exact:true}).click();
+    await coachPage.getByText(sharedNote,{exact:true}).waitFor();
+    assert.equal(await coachPage.locator('[name="shareWithPlayer"]').isChecked(),false);
+    await page.reload();await page.getByText(sharedNote,{exact:true}).waitFor();
+    assert.equal(await page.getByText(privateNote).count(),0);
+    await page.getByText(sharedNote,{exact:true}).scrollIntoViewIfNeeded();
+    await page.screenshot({path:join(directory,`${proofPrefix}-player-shared-note.png`),fullPage:false});
     assert.equal(errors.length,0,errors.join('\n'));
   }finally{
     await browser?.close();if(server.listening)await new Promise(r=>server.close(r));

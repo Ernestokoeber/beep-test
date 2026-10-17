@@ -620,6 +620,7 @@ export function createIndividualManageHandler(deps = {}) {
 
         if (action === 'saveReleasedFeedback') {
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
+          if (req.body.shareWithPlayer !== true) throw new IndividualRequestError(403, 'Bitte die Notiz ausdrücklich als „Für Spieler freigeben“ kennzeichnen.');
           const content = text(req.body.content, 'Feedback', { min: 2, max: 5000 });
           const feedbackId = req.body.feedbackId ? uuid(req.body.feedbackId, 'Feedback-ID') : null;
           if (!feedbackId) {
