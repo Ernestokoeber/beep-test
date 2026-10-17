@@ -1,6 +1,6 @@
 // Bump this whenever any app file or the offline asset manifest changes.
 // Cached files stay fixed for a release; the new worker installs the next release.
-const CACHE = 'courthub-v239';
+const CACHE = 'courthub-v240';
 const ASSETS = [
   './js/library-pages.js',
   './library-pages.css',
@@ -41,6 +41,7 @@ const ASSETS = [
   './js/matchday/controller.mjs',
   './js/matchday/view.mjs',
   './js/published-game-report.mjs',
+  './js/published-report-delivery.mjs',
   './data/published-game-reports/2026-10-04-lindau-ottobeuren.json',
   './data/published-game-reports/2026-10-17-wasserburg-lindau.json',
   './js/matchday/roster-pdf.mjs',

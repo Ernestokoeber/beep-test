@@ -86,7 +86,7 @@ function appSession(initialController) {
   };
   const BT = {};
   runInNewContext(readFileSync('js/app.js', 'utf8'), {
-    document: { readyState: 'loading', getElementById() { return {}; } },
+    document: { readyState: 'loading', getElementById() { return {}; }, addEventListener() {} },
     window: { BT, addEventListener(type, listener) { events.set(type, listener); } }, BT,
     navigator: { serviceWorker }, location: { protocol: 'https:', reload() { reloads++; } }, console
   });

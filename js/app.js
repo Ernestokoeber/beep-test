@@ -174,6 +174,52 @@
   let storageReady = null;
   let initialSync = Promise.resolve();
   let initialSyncPending = false;
+  let publishedDelivery = null;
+  let publicRenderQueued = false;
+  function reportContext() {
+    const state = BT.sync?.getState?.();
+    let owner = null;
+    try { owner = localStorage.getItem('courthub_workspace_team'); } catch {}
+    // Compare credentials locally; never send them with the public file request.
+    return JSON.stringify([state?.sessionEpoch,state?.user?.id,state?.user?.organization?.id,state?.user?.role,owner,BT.api?.getToken?.()]);
+  }
+  function canApplyPublishedReport() {
+    const gamePage = document.querySelector('[data-game-page]')?.dataset.gamePage;
+    return (!gamePage || ['list','overview','report'].includes(gamePage)) &&
+      !document.querySelector('[data-role="published-import"]') && !BT.games?.isLiveOpen?.() &&
+      !document.activeElement?.matches('input,textarea,select,[contenteditable="true"]');
+  }
+  async function deliverPublishedReports() {
+    if (!BT.storage?.load || !BT.storage?.save) return;
+    try {
+      publishedDelivery ||= import('./published-report-delivery.mjs').then(({createPublishedReportDelivery}) =>
+        createPublishedReportDelivery({storage:BT.storage,getContext:reportContext,canApply:canApplyPublishedReport}));
+      const result = await (await publishedDelivery).run();
+      if (result.imported && !initialSyncPending && !publicRenderQueued) {
+        publicRenderQueued = true;
+        queueMicrotask(() => {
+          publicRenderQueued = false;
+          if (canApplyPublishedReport()) {
+            window.dispatchEvent(new Event('hashchange'));
+          }
+        });
+      }
+      if (result.errors.length) console.warn('Automatischer Spielbericht:', result.errors.join(' '));
+    } catch (error) {
+      publishedDelivery = null;
+      console.warn('Automatischer Spielbericht ist momentan nicht verfügbar.', error.message);
+    }
+  }
+  function refreshPublishedReports() {
+    if (!initialized || initialSyncPending || document.visibilityState === 'hidden') return;
+    deliverPublishedReports();
+  }
+  window.addEventListener('online', refreshPublishedReports);
+  window.addEventListener('focus', refreshPublishedReports);
+  document.addEventListener('visibilitychange', refreshPublishedReports);
+  window.addEventListener('bt-sync-change', event => {
+    if (['synced','error','offline','guest'].includes(event.detail?.status)) refreshPublishedReports();
+  });
   let routeRequest = 0;
   async function route() {
     const request = ++routeRequest;
@@ -320,6 +366,7 @@
     if (BT.install && BT.install.refresh) requestAnimationFrame(BT.install.refresh);
     updateContextNavigation();
     BT.navigation?.finish(navigationToken);
+    refreshPublishedReports();
   }
 
   function setActiveNav(hash) {
@@ -417,10 +464,9 @@
         menuFrame = requestAnimationFrame(() => { menuFrame = 0; updateContextNavigation(); });
       }).observe(app, {childList: true, subtree: true});
     }
-    if (BT.sync && BT.sync.init) {
-      initialSyncPending = true;
-      initialSync = Promise.resolve(BT.sync.init()).catch(() => {}).finally(() => { initialSyncPending = false; });
-    }
+    initialSyncPending = true;
+    initialSync = Promise.resolve(BT.sync?.init?.()).catch(() => {})
+      .then(deliverPublishedReports).finally(() => { initialSyncPending = false; });
     route();
   }
   if (document.readyState === 'loading') {
