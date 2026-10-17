@@ -2,6 +2,8 @@
 // Cached files stay fixed for a release; the new worker installs the next release.
 const CACHE = 'courthub-v233';
 const ASSETS = [
+  './js/library-pages.js',
+  './library-pages.css',
   './js/scouting-model.js',
   './js/scouting-pages.js',
   './scouting-pages.css',

@@ -54,6 +54,10 @@ BT.navigation = (function() {
     return { id: current.id, scope, restore: !!existing, scroll: current.scroll || 0 };
   }
   function parentRoute(hash = hashNow()) {
+    if (/^#\/(drills|notes)(\/|$)/.test(hash)) {
+      const parts = hash.split('?')[0].split('/');
+      return parts.length > 3 ? parts.slice(0,3).join('/') : parts.length > 2 ? parts.slice(0,2).join('/') : '#/training';
+    }
     if(hash.startsWith('#/opponents/')){const parts=hash.split('?')[0].split('/');return parts.length>3?parts.slice(0,3).join('/'):'#/opponents';}
     if(hash.startsWith('#/schedule/'))return hash.split('?')[0]==='#/schedule/planning' ? '#/schedule' : '#/schedule/planning';
     if (/^#\/(statistics|reports)(\/|\?|$)/.test(hash)) {
