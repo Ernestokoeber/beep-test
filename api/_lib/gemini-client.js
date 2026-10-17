@@ -50,8 +50,10 @@ export async function generateWithGemini({
   const controller = new AbortController();
   const timer = setTimer(() => controller.abort(), request.timeoutMs);
   let attempt = 0;
-  let parts = request.parts;
-  let generationConfig = request.generationConfig;
+  let searching = Boolean(request.searchParts);
+  let searchResponse;
+  let parts = request.searchParts || request.parts;
+  let generationConfig = searching ? {thinkingConfig:{thinkingLevel:'low'}} : request.generationConfig;
 
   try {
     while (attempt < 2) {
@@ -63,7 +65,7 @@ export async function generateWithGemini({
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body: JSON.stringify({
             contents: [{ parts }],
-            ...(request.tools ? {tools:request.tools} : {}),
+            ...(request.tools && (!request.searchParts || searching) ? {tools:request.tools} : {}),
             generationConfig
           }),
           signal: controller.signal
@@ -101,7 +103,21 @@ export async function generateWithGemini({
         throw new AIError('AI_INVALID_RESPONSE', 'Gemini hat eine unlesbare Antwort geliefert.', { retryable: true });
       }
       const text = readCandidate(data);
-      const value = request.parse(text, { action, payload, providerResponse:data });
+      if (searching) {
+        const metadata = data.candidates?.[0]?.groundingMetadata;
+        if (!metadata?.groundingChunks?.some(chunk => chunk.web?.uri)) {
+          throw new AIError('AI_RESEARCH_UNGROUNDED', 'Die Websuche hat keine überprüfbaren Quellen geliefert. Bitte erneut recherchieren; der bisherige Bericht bleibt erhalten.', {retryable:true});
+        }
+        // Search in ordinary text first: JSON-mode search can omit grounding.
+        // Structure only the obtained material; keep the original provider proof.
+        searchResponse = data;
+        searching = false;
+        attempt = 0;
+        generationConfig = request.generationConfig;
+        parts = [...request.parts, {text:`Strukturiere ausschließlich das folgende Recherchematerial. Führe keine neue Suche aus und ergänze keine Fakten aus Vorwissen. Verwende in sourceUrls die konkreten URLs aus den mitgelieferten Suchbelegen. Erhalte die Aussagen wortgetreu, soweit möglich. Unbelegte Angaben bleiben leer. Recherchematerial: ${JSON.stringify({report:text,sources:metadata.groundingChunks,supports:metadata.groundingSupports || []})}`}];
+        continue;
+      }
+      const value = request.parse(text, { action, payload, providerResponse:searchResponse || data });
       return {
         value,
         model: AI_MODEL_ID,
