@@ -116,7 +116,8 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await page.locator('a[href$="/analysis"]').tap();
     await page.locator('.atlas-panel').waitFor();
     await check('Videoanalyse auf eigener Seite');
-    await page.goto(baseUrl + '/#/opponents');
+    const openOpponentData=async()=>{await page.goto(baseUrl+'/#/opponents');await page.locator('[data-scouting-opponent]').filter({hasText:'Illertal'}).click();await page.locator('.scout-tasks a[href$="/data"]').click();};
+    await openOpponentData();
     await page.locator('.opponent-game-note-text').waitFor();
     assert.equal(await page.locator('.opponent-game-note-text').textContent(), data.gameplan.trim());
     await check('Vollständiger verknüpfter Gameplan');
@@ -128,7 +129,7 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await page.locator('[data-game-field="coachSummary"]').fill('GAMEPLAN – Aktualisiert');
     await page.waitForTimeout(500); // The existing game editor saves after its 350 ms debounce.
     assert.equal(await page.evaluate(id => window.BT.storage.getGame(id)?.coachSummary, data.game), 'GAMEPLAN – Aktualisiert');
-    await page.goto(baseUrl + '/#/opponents');
+    await openOpponentData();
     assert.equal(await page.locator('.opponent-game-note-text').textContent(), 'GAMEPLAN – Aktualisiert');
     await page.reload();
     await page.locator('.opponent-game-note-text').waitFor();

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { AIError, buildAIRequest } from './ai-contracts.js';
 
 export function limitForAction(action) {
+  if(action==='researchOpponent')return 6;
   return action === 'planSeason' ? 60 : 30;
 }
 
@@ -60,6 +61,7 @@ export function createAIHandler({ requireMembership, query, generate, getApiKey,
     try {
       const auth = await requireMembership(req, res);
       if (!auth) return;
+      if(req.body?.action==='researchOpponent'&&!['admin','coach','assistant'].includes(auth.role))throw new AIError('AI_FORBIDDEN','Nur das Trainerteam kann eine Webrecherche starten.',{status:403});
 
       const apiKey = String(getApiKey() || '');
       if (!apiKey) throw new AIError('AI_NOT_CONFIGURED', 'Serverseitige KI ist noch nicht konfiguriert.', { status: 503 });

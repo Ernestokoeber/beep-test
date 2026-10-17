@@ -70,6 +70,8 @@ jobs:
         run: npm run test:insights:browser
       - name: Run mobile calendar browser E2E
         run: npm run test:calendar:browser
+      - name: Run mobile opponent scouting browser E2E
+        run: npm run test:scouting:browser
       - name: Run jersey duty browser E2E
         env:
           E2E_BASE_URL: http://127.0.0.1:4173

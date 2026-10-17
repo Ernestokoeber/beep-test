@@ -705,7 +705,7 @@ BT.storage = (function() {
   function upsertOpponent(opponent) {
     const data = load();
     data.opponents = data.opponents || [];
-    const index = data.opponents.findIndex(item => item.id === opponent.id || (opponent.key && item.key === opponent.key));
+    const index = data.opponents.findIndex(item => item.id === opponent.id || (opponent.key && item.key === opponent.key && !(Number(item.teamId)&&Number(opponent.teamId)&&Number(item.teamId)!==Number(opponent.teamId))));
     const now = new Date().toISOString();
     if (index >= 0) {
       data.opponents[index] = Object.assign({}, data.opponents[index], opponent, {

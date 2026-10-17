@@ -1,0 +1,55 @@
+.scouting-page { max-width:1040px; margin:0 auto; overflow-wrap:anywhere; }
+.scouting-page [hidden] { display:none !important; }
+.scout-heading { margin-bottom:24px; }
+.scout-heading h2 { margin:0; font-size:clamp(1.7rem,4vw,2.4rem); letter-spacing:-.04em; line-height:1.2; }
+.scout-heading p,.scout-method,.scout-count { color:var(--muted); font-size:.9rem; line-height:1.5; }
+.scout-search,.scout-notes { display:grid; gap:8px; margin:20px 0; font-size:.9rem; }
+.scouting-page input:not([type=checkbox]),.scouting-page select,.scouting-page textarea { min-width:0; max-width:100%; color:var(--text); background:var(--surface); font:inherit; }
+.scout-search input,.scout-notes textarea { width:100%; border:1px solid var(--border); border-radius:10px; padding:12px; }
+.scouting-page input:not([type=checkbox]),.scouting-page select,.scouting-page .btn { min-height:44px; }
+.scout-opponents,.scout-lineups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:20px 0; }
+.scout-opponent { display:flex; flex-direction:column; gap:10px; min-width:0; padding:20px; border:1px solid var(--border); border-radius:14px; background:var(--surface); color:var(--text); text-decoration:none; }
+.scout-opponent > strong { font-size:1.25rem; line-height:1.3; }
+.scout-opponent > small { color:var(--muted); font-size:.8rem; }
+.scout-opponent > span { font-size:.9rem; line-height:1.4; }
+.scout-opponent > b { margin-top:10px; font-size:.9rem; }
+.scout-next { background:#163b2e; color:white; padding:24px; }
+.scout-next > strong { font-size:clamp(1.5rem,4vw,2rem); }
+.scout-next > small { color:#c5dace; }
+.scout-next > b { border-top:1px solid #ffffff38; padding-top:16px; }
+.scout-card-focus { display:grid; gap:8px; padding:14px 0 4px; }
+.scout-card-focus > strong { color:#ffcb82; font-size:.85rem; }
+.scout-task { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:56px; padding:16px 4px; border-bottom:1px solid var(--border); color:var(--text); text-decoration:none; }
+.scout-task > span:first-child { display:grid; gap:7px; min-width:0; }
+.scout-task small { color:var(--muted); font-size:.85rem; line-height:1.5; }
+.scout-task > span:last-child { font-size:1.4rem; }
+.scout-tasks { margin-top:24px; border-top:1px solid var(--border); }
+.scout-focus { margin:24px 0; padding-left:16px; border-left:4px solid #e89a35; }
+.scouting-page h3 { font-size:1.1rem; line-height:1.4; margin:20px 0 12px; }
+.scout-bullets { padding-left:20px; display:grid; gap:12px; line-height:1.5; }
+.scout-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:24px 0; }
+.scout-facts > div { display:grid; gap:8px; padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.scout-facts small { color:var(--muted); font-size:.78rem; }
+.scout-facts strong { font-size:1.5rem; }
+.scout-assessment,.scout-empty { line-height:1.6; color:var(--muted); }
+.scout-empty { padding:16px; border:1px dashed var(--border); border-radius:12px; }
+.scout-evidence { padding:18px; margin:16px 0; background:var(--surface); border:1px solid var(--border); border-radius:12px; line-height:1.55; }
+.scout-evidence h3 { margin-top:0; }
+.scout-evidence > small { color:var(--muted); }
+.scout-refs { display:flex; flex-wrap:wrap; gap:8px; }
+.scout-refs a { display:flex; align-items:center; min-height:44px; padding:8px; font-size:.8rem; color:var(--text); border:1px solid var(--border); border-radius:8px; }
+.scouting-page summary { min-height:44px; padding:12px 0; cursor:pointer; }
+.scout-lineups > section { min-width:0; padding:16px; background:var(--surface); border:1px solid var(--border); border-radius:12px; }
+.scouting-page iframe { display:block; width:100%; min-height:180px; border:0; margin-top:20px; border-radius:8px; background:white; }
+.scout-legacy.view { padding:0; margin:0; }
+.scout-legacy .opponents-layout { grid-template-columns:minmax(0,1fr); }
+.scout-legacy .game-detail { min-width:0; width:100%; padding:0; border:0; background:transparent; }
+.scout-legacy .table-scroll { min-width:0; max-width:100%; overflow-x:auto; }
+.scout-legacy .opponent-player-table input { width:80px; }
+.scout-legacy .opponent-player-table input[type=text] { width:160px; }
+.scout-legacy .opponent-form-grid,.scout-legacy .opponent-totals-grid { min-width:0; }
+.scout-legacy .opponent-form label { min-width:0; }
+.scout-legacy .boxscore-panel { min-width:0; padding:16px; }
+.scout-legacy .opponent-file-picker { min-height:48px; }
+.scouting-page a:focus-visible,.scouting-page button:focus-visible,.scouting-page input:focus-visible,.scouting-page textarea:focus-visible,.scouting-page select:focus-visible { outline:3px solid #e89a35; outline-offset:3px; }
+@media(max-width:650px){.scout-opponents,.scout-lineups { grid-template-columns:minmax(0,1fr); }.scout-legacy .opponent-form-grid,.scout-legacy .opponent-totals-grid { grid-template-columns:minmax(0,1fr); }.scout-legacy .opponent-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }.scout-legacy .section-head { flex-wrap:wrap; }.scout-facts { gap:6px; }.scout-facts > div { padding:10px; }}

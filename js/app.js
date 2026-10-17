@@ -140,7 +140,7 @@
     const container = document.querySelector('[data-role="context-navigation"]');
     if (!container) return;
     container.replaceChildren();
-    if (app.querySelector('[data-training-page], [data-tactics-page], [data-game-page], [data-calendar-page]')) { container.hidden = true; return; }
+    if (app.querySelector('[data-training-page], [data-tactics-page], [data-game-page], [data-calendar-page], [data-scouting-page]')) { container.hidden = true; return; }
     const training = app.querySelector('.training-detail-view');
     const sections = [...app.querySelectorAll('.mobile-extra-section[data-menu-label]')];
     const controls = [...app.querySelectorAll('.mobile-extra-action')];
@@ -211,6 +211,7 @@
     BT.dashboard?.cleanup?.();
     BT.insights?.cleanup();
     BT.calendar?.cleanup();
+    BT.scoutingPages?.cleanup();
     if (!isDashboard) app.innerHTML = '';
     if (BT.test && BT.test.cleanup) BT.test.cleanup();
     if (BT.checkin && BT.checkin.cleanup) BT.checkin.cleanup();
@@ -274,8 +275,8 @@
       BT.trainingPages.render(app, parts[0], parts[1] || 'overview', parts[2], new URLSearchParams(query));
     } else if (hash === '#/games' || hash.startsWith('#/games/')) {
       await BT.gamePages.render(app,hash);
-    } else if (hash === '#/opponents') {
-      BT.opponents.render(app);
+    } else if (hash === '#/opponents' || hash.startsWith('#/opponents/')) {
+      BT.scoutingPages.render(app);
     } else if (hash === '#/jerseys') {
       BT.jerseys.render(app);
     } else if (hash === '#/tablecrew') {

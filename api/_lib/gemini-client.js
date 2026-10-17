@@ -63,6 +63,7 @@ export async function generateWithGemini({
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body: JSON.stringify({
             contents: [{ parts }],
+            ...(request.tools ? {tools:request.tools} : {}),
             generationConfig
           }),
           signal: controller.signal
@@ -100,7 +101,7 @@ export async function generateWithGemini({
         throw new AIError('AI_INVALID_RESPONSE', 'Gemini hat eine unlesbare Antwort geliefert.', { retryable: true });
       }
       const text = readCandidate(data);
-      const value = request.parse(text, { action, payload });
+      const value = request.parse(text, { action, payload, providerResponse:data });
       return {
         value,
         model: AI_MODEL_ID,

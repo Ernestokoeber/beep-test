@@ -65,6 +65,7 @@ export function createOpponentPlan({game,context,now=Date.now()}={}){
       risk:clean(defense.risk,400),confidence:['low','medium','high'].includes(defense.confidence)?defense.confidence:'low'
     },
     aiPlan:null
+    ,publicResearch:context.publicResearch || null
   };
 }
 

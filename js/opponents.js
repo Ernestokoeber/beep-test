@@ -17,6 +17,10 @@ BT.opponents = (function() {
   let root = null;
   let selectedId = null;
   let pendingImport = null;
+  let pageOptions={},viewGeneration=0;
+  const writable=()=>!['viewer','player'].includes(BT.sync?.getState?.().user?.role);
+  const identity=()=>JSON.stringify(BT.sync?.getState?.().user || null);
+  function cleanup(){viewGeneration++;root=null;selectedId=null;pendingImport=null;pageOptions={};}
 
   function keyFor(value) {
     return String(value || '').trim().toLowerCase().normalize('NFD')
@@ -25,9 +29,10 @@ BT.opponents = (function() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
   }
+  const profileKey=(name,teamId)=>Number(teamId)?'team-'+String(teamId):keyFor(name);
 
   function sameTeam(name, id, expectedName, expectedId) {
-    if (Number(id) && Number(expectedId) && Number(id) === Number(expectedId)) return true;
+    if (Number(id) && Number(expectedId)) return Number(id) === Number(expectedId);
     const left = keyFor(name);
     const right = keyFor(expectedName);
     return Boolean(left && right && (left === right || left.includes(right) || right.includes(left)));
@@ -40,6 +45,11 @@ BT.opponents = (function() {
 
   function seasonForGame(game) {
     return game?.seasonId || (BT.util?.seasonForDate ? BT.util.seasonForDate(game?.date) : '');
+  }
+  function forSeason(profile,season) {
+    if(!profile||!season)return profile;
+    const different=profile.seasonId&&profile.seasonId!==season,history=different?profile.manualHistory?.[season]:null;
+    return {...profile,seasonId:season,games:(profile.games || []).filter(g=>seasonForGame(g)===season),screenshotPlayerStats:(profile.screenshotPlayerStats || []).filter(p=>p.gameDate&&BT.util.seasonForDate(p.gameDate)===season),manualTotals:different?history?.manualTotals || {}:profile.manualTotals,playerStats:different?history?.playerStats || []:profile.playerStats,scouting:different?history?.scouting || {}:profile.scouting};
   }
 
   function compareGamesChronologically(left, right) {
@@ -69,7 +79,7 @@ BT.opponents = (function() {
     return (Array.isArray(profiles) ? profiles : []).map(profile => {
       const nextGame = upcoming.find(game => {
         const opponent = opponentFromOwnGame(game, ownName, ownId);
-        return opponent && ((profile.teamId && opponent.teamId && Number(profile.teamId) === Number(opponent.teamId)) || keyFor(profile.name) === keyFor(opponent.name));
+        return opponent && (Number(profile.teamId)&&Number(opponent.teamId)?Number(profile.teamId)===Number(opponent.teamId):keyFor(profile.name)===keyFor(opponent.name));
       }) || null;
       return { profile, nextGame };
     }).sort((left, right) => {
@@ -417,6 +427,7 @@ BT.opponents = (function() {
         lastUpdated: profile.updatedAt || null,
         warning: quality.confidence === 'low' ? 'Zu wenig Daten für eine belastbare gegnerspezifische Anpassung.' : null
       }
+      ,publicResearch: profile.publicResearch ? {season:profile.publicResearch.season,researchedAt:profile.publicResearch.researchedAt,summary:String(profile.publicResearch.summary || '').slice(0,1200),findings:(profile.publicResearch.findings || []).slice(0,12),coachingFocus:(profile.publicResearch.coachingFocus || []).slice(0,5),gaps:(profile.publicResearch.gaps || []).slice(0,8),sources:(profile.publicResearch.sources || []).slice(0,20)} : null
     };
   }
 
@@ -426,7 +437,7 @@ BT.opponents = (function() {
 
   function recordMatchdayFeedback(feedback) {
     if (!feedback?.gameId || !feedback?.opponentId) return null;
-    const profile = BT.storage.getOpponents().find(item => item.id === feedback.opponentId || keyFor(item.name) === keyFor(feedback.opponent));
+    const profile = feedback.opponentId?BT.storage.getOpponent(feedback.opponentId):BT.storage.getOpponents().find(item=>keyFor(item.name)===keyFor(feedback.opponent));
     if (!profile) return null;
     const reports = (Array.isArray(profile.matchdayReports) ? profile.matchdayReports : []).filter(item => item.gameId !== feedback.gameId);
     const defenseSummary = (Array.isArray(feedback.defenseSummary) ? feedback.defenseSummary : []).slice(0, 4).map(item => {
@@ -463,9 +474,9 @@ BT.opponents = (function() {
     const target = opponentFromOwnGame(game, config.teamName, config.teamId);
     if (!target) return null;
     const profile = BT.storage.getOpponents().find(item =>
-      (target.teamId && item.teamId && Number(target.teamId) === Number(item.teamId)) || keyFor(item.name) === keyFor(target.name)
+      Number(target.teamId)&&Number(item.teamId)?Number(target.teamId)===Number(item.teamId):keyFor(item.name)===keyFor(target.name)
     );
-    return contextForProfile(profile);
+    return contextForProfile(forSeason(profile,seasonForGame(game)));
   }
 
   function syncLeague(leagueGames, config) {
@@ -476,7 +487,7 @@ BT.opponents = (function() {
     for (const game of games) {
       [[game.home, game.homeTeamId], [game.away, game.awayTeamId]].forEach(([name, teamId]) => {
         if (!name || sameTeam(name, teamId, ownName, ownId)) return;
-        const key = keyFor(name);
+        const key = profileKey(name,teamId);
         const current = teams.get(key) || { key, name, teamId: teamId || null, games: [] };
         current.games.push(game);
         if (!current.teamId && teamId) current.teamId = teamId;
@@ -486,20 +497,23 @@ BT.opponents = (function() {
     const saved = [];
     for (const team of teams.values()) {
       const existing = BT.storage.getOpponents().find(item =>
-        (team.teamId && item.teamId && Number(team.teamId) === Number(item.teamId)) || item.key === team.key
+        Number(team.teamId)&&Number(item.teamId)?Number(team.teamId)===Number(item.teamId):item.key===team.key || keyFor(item.name)===keyFor(team.name)
       );
+      const seasonId=seasonForGame(team.games[0]),scoped=forSeason(existing,seasonId),manualHistory={...(existing?.manualHistory || {})};
+      if(existing?.seasonId&&seasonId&&existing.seasonId!==seasonId)manualHistory[existing.seasonId]={manualTotals:existing.manualTotals || {},playerStats:existing.playerStats || [],scouting:existing.scouting || {}};
       saved.push(BT.storage.upsertOpponent({
-        id: existing?.id,
+        id: existing?.id || 'schedule-'+(team.teamId || team.key),
         key: team.key,
         name: team.name,
         teamId: team.teamId,
-        seasonId: seasonForGame(team.games[0]),
+        seasonId,
         leagueId: team.games[0]?.leagueId || existing?.leagueId || null,
         source: 'basketball-bund',
         games: mergeGames(existing?.games || [], team.games),
-        scouting: existing?.scouting || {},
-        manualTotals: existing?.manualTotals || {},
-        playerStats: existing?.playerStats || []
+        scouting: scoped?.scouting || {},
+        manualTotals: scoped?.manualTotals || {},
+        playerStats: scoped?.playerStats || [],
+        manualHistory
       }));
     }
     return saved;
@@ -511,7 +525,7 @@ BT.opponents = (function() {
     for (const game of BT.storage.getGames()) {
       const target = opponentFromOwnGame(game, config.teamName, config.teamId);
       if (!target?.name) continue;
-      const key = keyFor(target.name);
+      const key = profileKey(target.name,target.teamId);
       const entry = byTeam.get(key) || { name: target.name, teamId: target.teamId, games: [] };
       entry.games.push(game);
       byTeam.set(key, entry);
@@ -523,24 +537,28 @@ BT.opponents = (function() {
           : item.key === key || keyFor(item.name) === key
       );
       if (existing) continue;
-      BT.storage.upsertOpponent({ key, name: entry.name, teamId: entry.teamId || null, seasonId: seasonForGame(entry.games[0]), source: 'own-schedule', games: entry.games, scouting: {}, manualTotals: {}, playerStats: [] });
+      BT.storage.upsertOpponent({ id:'schedule-'+(entry.teamId || key),key, name: entry.name, teamId: entry.teamId || null, seasonId: seasonForGame(entry.games[0]), source: 'own-schedule', games: entry.games, scouting: {}, manualTotals: {}, playerStats: [] });
     }
   }
 
-  function render(target) {
-    ensureFromOwnGames();
-    selectedId = null;
+  function render(target,options={}) {
+    cleanup();pageOptions=options;
+    if(!options.readOnly)ensureFromOwnGames();
+    selectedId = options.profile?.id || null;
     root = BT.util.renderTemplate('tpl-opponents');
     target.appendChild(root);
     const syncButton = root.querySelector('[data-action="sync-opponents"]');
     const status = root.querySelector('[data-role="opponents-status"]');
     syncButton.addEventListener('click', async () => {
+      if(!writable())return;
+      const generation=viewGeneration,scope=identity();
       if (!BT.api.getToken()) { location.hash = '#/account'; return; }
       syncButton.disabled = true;
       status.textContent = 'Ligadaten werden aus TeamSL geladen …';
       try {
         const config = BT.seasonplanner.scheduleConfig();
         const result = await BT.api.syncWebsiteGames(config);
+        if(generation!==viewGeneration||scope!==identity()||!writable())return;
         result.games.forEach(game => BT.storage.upsertGame(game));
         const profiles = syncLeague(result.leagueGames || result.games, { teamName: result.team.name, teamId: result.team.id });
         BT.seasonplanner.saveScheduleConfig({ teamId: result.team.id, teamName: result.team.name });
@@ -559,7 +577,7 @@ BT.opponents = (function() {
     const list = root.querySelector('[data-role="opponent-list"]');
     const config = BT.seasonplanner?.scheduleConfig?.() || { teamName: 'TSV Lindau', teamId: 0 };
     const ordered = orderOpponentProfiles(BT.storage.getOpponents(), BT.storage.getGames(), config);
-    if ((!selectedId || !ordered.some(item => item.profile.id === selectedId)) && ordered.length) selectedId = ordered[0].profile.id;
+    if (!pageOptions.profile && (!selectedId || !ordered.some(item => item.profile.id === selectedId)) && ordered.length) selectedId = ordered[0].profile.id;
     list.innerHTML = ordered.length ? ordered.map(({ profile, nextGame }, index) => {
       const metrics = metricsFor(profile);
       const recommendation = recommendDefense(profile);
@@ -571,6 +589,7 @@ BT.opponents = (function() {
       drawList();
     }));
     drawDetail();
+    pageOptions.onChange?.(root,selectedId);
   }
 
   function qualityLabel(value) {
@@ -617,7 +636,7 @@ BT.opponents = (function() {
 
   function drawDetail() {
     const host = root.querySelector('[data-role="opponent-detail"]');
-    const profile = BT.storage.getOpponent(selectedId);
+    const profile = pageOptions.resolveProfile?.() || BT.storage.getOpponent(selectedId) || (pageOptions.profile?.id===selectedId?pageOptions.profile:null);
     if (!profile) { host.innerHTML = '<div class="empty empty--field"><p class="empty-body">Gegner auswählen.</p></div>'; return; }
     const context = contextForProfile(profile);
     const metrics = context.results;
@@ -727,6 +746,7 @@ BT.opponents = (function() {
     });
     form.addEventListener('submit', event => {
       event.preventDefault();
+      if(!writable())return;
       const formData = new FormData(form);
       const readLevel = name => LEVELS.has(String(formData.get(name))) ? String(formData.get(name)) : 'unknown';
       const manualTotals = {};
@@ -736,8 +756,14 @@ BT.opponents = (function() {
         row.querySelectorAll('[data-player-field]').forEach(input => { entry[input.dataset.playerField] = input.dataset.playerField === 'name' ? input.value.trim() : (input.value === '' ? null : normalizedNumber(input.value)); });
         return entry;
       }).filter(player => player.name);
+      const previous=BT.storage.getOpponent(profile.id) || profile;
+      const manualHistory={...(previous.manualHistory || {})};
+      if(previous.seasonId&&profile.seasonId&&previous.seasonId!==profile.seasonId)manualHistory[previous.seasonId]={manualTotals:previous.manualTotals || {},playerStats:previous.playerStats || [],scouting:previous.scouting || {}};
       BT.storage.upsertOpponent({
+        ...previous,
         id: profile.id,
+        seasonId:profile.seasonId,
+        manualHistory,
         scouting: {
           insideThreat: readLevel('insideThreat'),
           perimeterThreat: readLevel('perimeterThreat'),
@@ -953,6 +979,8 @@ BT.opponents = (function() {
   }
 
   async function analyzeScreenshots(profile, host) {
+    if(!writable())return;
+    const generation=viewGeneration,scope=identity();
     const input = host.querySelector('[data-role="opponent-screenshots"]');
     const button = host.querySelector('[data-action="analyze-screenshots"]');
     const status = host.querySelector('[data-role="screenshot-status"]');
@@ -979,7 +1007,9 @@ BT.opponents = (function() {
           else status.textContent = `Basketball-KI verarbeitet Paket ${progress.index + 1} von ${progress.total} …`;
         });
       const results = processedBatches.map(({ response, batch }) => ({ data: response.data, model: response.model, requestId: response.requestId, batch }));
+      if(generation!==viewGeneration||scope!==identity()||!writable())return;
       pendingImport = {
+        scope,
         profileId: profile.id,
         hash,
         imageCount: images.length,
@@ -1023,7 +1053,10 @@ BT.opponents = (function() {
   }
 
   function confirmScreenshotImport(profile) {
+    if(!writable())return;
     if (!pendingImport || pendingImport.profileId !== profile.id) return;
+    if(pendingImport.scope && pendingImport.scope!==identity())return;
+    profile=BT.storage.getOpponent(profile.id) || profile;
     const importedAt = new Date().toISOString();
     const data = pendingImport.data;
     const games = profileGames(profile);
@@ -1063,7 +1096,7 @@ BT.opponents = (function() {
       warnings: data.warnings
     });
     games.sort(compareGamesChronologically);
-    BT.storage.upsertOpponent({ id: profile.id, games, screenshotPlayerStats: playerRows, screenshotImports: imports });
+    BT.storage.upsertOpponent({ ...profile, id: profile.id, games, screenshotPlayerStats: playerRows, screenshotImports: imports });
     pendingImport = null;
     BT.util.toast('DBB.Scores-Daten wurden geprüft übernommen.');
     drawList();
@@ -1072,6 +1105,8 @@ BT.opponents = (function() {
   return {
     DEFENSE_LABELS,
     keyFor,
+    profileKey,
+    forSeason,
     metricsFor,
     shootingSummary,
     playerSummary,
@@ -1089,6 +1124,8 @@ BT.opponents = (function() {
     recordMatchdayFeedback,
     syncLeague,
     ensureFromOwnGames,
+    cleanup,
+    playerRow,
     render
   };
 })();

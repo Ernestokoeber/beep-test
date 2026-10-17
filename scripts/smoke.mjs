@@ -177,9 +177,14 @@ assert(window.document.querySelector('[data-player-id="' + player.id + '"] [data
 
 route('#/opponents');
 await new Promise(resolveWait => window.setTimeout(resolveWait, 20));
-assert(window.document.querySelector('.opponents-view'), 'Gegner-Scouting ist nicht erreichbar');
-assert(window.document.querySelector('[data-opponent-id]'), 'Gegnerprofil wird nicht aus dem eigenen Spielplan angelegt');
-assert(window.document.querySelector('.opponent-defense-card')?.textContent.includes('Mannverteidigung'), 'Sichere Defense-Basis bei niedriger Datenlage fehlt');
+assert(window.document.querySelector('[data-scouting-page="list"]'), 'Gegner-Scouting ist nicht erreichbar');
+const scoutingLink=window.document.querySelector('[data-scouting-opponent]');
+assert(scoutingLink, 'Gegnerprofil wird nicht aus dem eigenen Spielplan angezeigt');
+route(scoutingLink.getAttribute('href'));
+await new Promise(resolveWait => window.setTimeout(resolveWait,20));
+assert(window.document.querySelector('.scout-focus')?.textContent.includes('Mannverteidigung'), 'Sichere Defense-Basis bei niedriger Datenlage fehlt');
+route(scoutingLink.getAttribute('href')+'/import');
+await new Promise(resolveWait => window.setTimeout(resolveWait,20));
 assert(window.document.querySelector('[data-role="opponent-screenshots"][multiple]'), 'Mehrfachauswahl für DBB.Scores-Screenshots fehlt');
 
 const futureTrainingDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
