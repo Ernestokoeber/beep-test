@@ -208,6 +208,7 @@
     const navigationToken = BT.navigation?.begin(hash);
     renderedHash=hash;
     const isDashboard = hash === '#/dashboard' || hash === '#/' || hash === '';
+    BT.dashboard?.cleanup?.();
     if (!isDashboard) app.innerHTML = '';
     if (BT.test && BT.test.cleanup) BT.test.cleanup();
     if (BT.checkin && BT.checkin.cleanup) BT.checkin.cleanup();
@@ -379,6 +380,7 @@
   window.addEventListener('hashchange', route);
   window.addEventListener('bt-sync-change', () => {
     const hash = location.hash || '#/dashboard';
+    if (hash === '#/team') BT.dashboard?.refresh?.();
     if (hash === '#/dashboard' || hash === '#/' || hash === '') route();
   });
   let initialized = false;

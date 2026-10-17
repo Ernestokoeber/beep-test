@@ -2,9 +2,80 @@ window.BT = window.BT || {};
 
 BT.dashboard = (function() {
   const { $, renderTemplate, escapeHTML, downloadCSV, downloadJSON, todayISO, formatDate } = BT.util;
+  let homeRoot = null, homeTimer = null;
+
+  // One read-only calendar model shared by the daily agenda and the next card.
+  // Opening a card always enters the overview, never starts a live session.
+  function homeAgenda(trainings, games, today = todayISO()) {
+    const dated = item => /^\d{4}-\d{2}-\d{2}$/.test(item.date || '');
+    const trainingEvents = trainings.filter(dated).map(t => {
+      const cancelled = t.cancelled || ['cancelled', 'abgesagt'].includes(t.status);
+      const completed = !cancelled && (!!t.endedAt || t.status === 'completed' || t.liveSession?.status === 'completed' || t.date < today);
+      const active = !cancelled && !completed && t.date === today && t.liveSession?.status === 'active';
+      return {id:t.id, kind:'training', date:t.date, time:t.startTime || '',
+        title:t.note || 'Teamtraining', detail:t.plan?.summary || 'Schwerpunkt noch offen',
+        place:t.location || t.place || '', team:t.team || '', href:'#/training/'+encodeURIComponent(t.id),
+        status:cancelled ? 'cancelled' : completed ? 'completed' : active ? 'active' : 'planned',
+        label:cancelled ? 'Abgesagt' : completed ? 'Abgeschlossen' : active ? 'Durchführung geöffnet' : 'Geplant'};
+    });
+    const gameEvents = games.filter(dated).map(g => {
+      const state = BT.games.statusFor(g, today);
+      return {id:g.id, kind:'game', date:g.date, time:g.time || '', title:(g.home || 'Heimteam')+' – '+(g.away || 'Gastteam'),
+        detail:state.completed && g.score ? 'Ergebnis '+g.score : 'Vorbereitung und Spieltag',
+        place:g.location || g.venue || g.hall || '', team:g.team || '', href:'#/games/'+encodeURIComponent(g.id),
+        status:state.cancelled ? 'cancelled' : state.completed ? 'completed' : state.status === 'live' ? 'active' : 'planned', label:state.label};
+    });
+    const events = [...trainingEvents,...gameEvents].sort((a,b) =>
+      (a.date+(a.time || '99:99')).localeCompare(b.date+(b.time || '99:99')) || (a.kind+a.id).localeCompare(b.kind+b.id));
+    const todayEvents = events.filter(e => e.date === today);
+    const open = events.filter(e => e.date >= today && !['cancelled','completed'].includes(e.status));
+    return {today:todayEvents, next:open.find(e => e.status === 'active') || open[0], upcoming:open.filter(e => e.date > today)};
+  }
+
+  function eventCard(event, hero = false) {
+    const esc = escapeHTML, type = event.kind === 'training' ? 'Training' : 'Spiel';
+    const team = ({herren:'Herren',u18:'U18'})[event.team] || event.team;
+    const date = event.date === todayISO() ? 'Heute' : formatDate(event.date);
+    const action = event.status === 'active' ? type+' fortsetzen' : ['cancelled','completed'].includes(event.status) ? type+' ansehen' : type+' öffnen';
+    return `<a class="home-appointment ${hero ? 'home-next' : ''} home-${event.status}" data-home-key="${esc(event.kind+':'+event.id)}" ${hero ? 'data-role="home-next"' : ''} href="${esc(event.href)}">
+      <span class="home-appointment-top"><span>${esc(type+(team ? ' · '+team : ''))}</span><span class="home-state">${esc(event.label)}</span></span>
+      <span class="home-appointment-time">${esc(date)} · ${esc(event.time ? event.time+' Uhr' : 'Uhrzeit offen')}</span>
+      <strong class="home-appointment-title">${esc(event.title)}</strong>
+      <span class="home-appointment-detail">${esc(event.detail)}</span>
+      ${event.place ? `<span class="home-appointment-place">${esc(event.place)}</span>` : ''}
+      <span class="home-appointment-action" ${event.kind === 'training' ? 'data-role="next-training-card"' : ''}>${esc(action)} <span aria-hidden="true">→</span></span></a>`;
+  }
+
+  function cleanup() {
+    clearInterval(homeTimer); homeTimer=null; homeRoot=null;
+    document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }
+  function refreshWhenVisible() { if (!document.hidden) refresh(); }
+  function refresh() {
+    if (!homeRoot?.isConnected) return;
+    const replacement = renderTemplate('tpl-dashboard');
+    cachedRender(replacement, () => fillHome(replacement));
+    const oldChip = $('[data-role="connection-status"]',homeRoot);
+    if (oldChip) $('[data-role="connection-status"]',replacement).replaceWith(oldChip.cloneNode(true));
+    $('[data-role="home-notices"]',replacement).open = $('[data-role="home-notices"]',homeRoot).open;
+    const history = $('.home-day-history',homeRoot);
+    if (history && $('.home-day-history',replacement)) $('.home-day-history',replacement).open = history.open;
+    if (homeRoot.innerHTML === replacement.innerHTML) return;
+    const focused = homeRoot.contains(document.activeElement) ? document.activeElement : null;
+    const key = focused?.closest('[data-home-key]')?.dataset.homeKey;
+    const href = focused?.getAttribute('href');
+    const summary = focused?.matches('summary') ? focused.parentElement.className : null;
+    homeRoot.innerHTML = replacement.innerHTML;
+    const focusTarget = (key ? [...homeRoot.querySelectorAll('[data-home-key]')].find(e => e.dataset.homeKey === key)
+      : href ? [...homeRoot.querySelectorAll('a[href]')].find(e => e.getAttribute('href') === href)
+      : summary ? [...homeRoot.querySelectorAll('details')].find(e => e.className === summary)?.querySelector('summary') : null) || (focused ? $('h2',homeRoot) : null);
+    const focusDetails = focusTarget?.closest('details');
+    if (focusDetails) focusDetails.open = true;
+    focusTarget?.focus({preventScroll:true});
+  }
 
   function nextTraining(trainings, today) {
-    return trainings.filter(training => (training.date || '') >= today && !training.endedAt &&
+    return trainings.filter(training => (training.date || '') >= today && !training.endedAt && !training.cancelled && training.liveSession?.status !== 'completed' &&
       !['completed', 'cancelled', 'abgesagt'].includes(training.status))
       .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')))[0];
   }
@@ -17,17 +88,41 @@ BT.dashboard = (function() {
   }
 
   function renderDashboard(target) {
+    cleanup();
     const root = renderTemplate('tpl-dashboard');
+    root.dataset.homeRoute = location.hash || '#/dashboard';
+    fillHome(root);
+    homeRoot = root;
+    target.append(root);
+    homeTimer = setInterval(refreshWhenVisible, 60000);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+  }
+
+  function fillHome(root) {
+    const agenda = homeAgenda(BT.storage.getTrainings(), BT.storage.getGames());
+    const next = agenda.next;
+    const sameEvent = e => next && e.kind === next.kind && e.id === next.id;
+    $('[data-role="dashboard-date"]',root).textContent = new Date(todayISO()+'T12:00:00').toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
+    $('[data-role="home-day-summary"]',root).textContent = agenda.today.length ? agenda.today.length+' '+(agenda.today.length === 1 ? 'Termin heute' : 'Termine heute') : 'Dein Tag im Überblick';
+    $('[data-role="home-next-slot"]',root).innerHTML = next ? `<h3 class="home-section-label">${next.status === 'active' ? 'Dein aktueller Einsatz' : 'Als Nächstes'}</h3>`+eventCard(next,true) : '<div class="home-empty"><strong>Alles im Blick.</strong><p>Aktuell steht kein weiterer Einsatz an. Öffne Training oder Spiele, um den nächsten Termin zu planen.</p></div>';
+    const others = agenda.today.filter(e => !sameEvent(e));
+    const closed = others.filter(e => ['cancelled','completed'].includes(e.status));
+    const pending = others.filter(e => !closed.includes(e));
+    $('[data-role="home-today-title"]',root).textContent = next?.date === todayISO() ? 'Außerdem heute' : 'Heute';
+    $('[data-role="home-today-list"]',root).innerHTML = pending.map(e => eventCard(e)).join('')+
+      (closed.length ? `<details class="home-day-history"><summary>Erledigt oder abgesagt · ${closed.length}</summary><div class="home-agenda-list">${closed.map(e => eventCard(e)).join('')}</div></details>` : '')+
+      (!others.length ? `<p class="home-empty-day">${agenda.today.length ? 'Keine weiteren Termine heute.' : 'Heute ist kein Training oder Spiel geplant.'}</p>` : '');
+    const future = agenda.upcoming.filter(e => !sameEvent(e));
+    const upcoming = [];
+    // Keep the next training AND game reachable, even in a busy calendar.
+    for (const kind of ['training','game']) {
+      const nearest = future.find(e => e.kind === kind);
+      if (nearest && !upcoming.includes(nearest)) upcoming.push(nearest);
+    }
+    upcoming.sort((a,b) => (a.date+(a.time || '99:99')).localeCompare(b.date+(b.time || '99:99')));
+    $('[data-role="home-upcoming"]',root).hidden = !upcoming.length;
+    $('[data-role="home-upcoming-list"]',root).innerHTML = upcoming.map(e => eventCard(e)).join('');
     const briefing = buildCoachBriefing();
-    const next = briefing.next;
-    $('[data-role="next-training-time"]', root).textContent = next ? formatDate(next.date) + (next.startTime ? ' · ' + next.startTime + ' Uhr' : '') : 'Noch nicht geplant';
-    $('[data-role="next-training-place"]', root).textContent = next?.location || next?.place || '';
-    $('[data-role="home-training-focus"]', root).textContent = next?.plan?.summary || (next ? 'Schwerpunkt noch offen' : 'Lege deinen nächsten Trainingstermin an.');
-    $('[data-role="home-training-attendance"]', root).textContent = next ? briefing.present + ' anwesend eingetragen · ' + briefing.open + ' Status offen' : '';
-    const link = $('[data-role="next-training-card"]', root);
-    link.href = next ? '#/training/' + encodeURIComponent(next.id) : '#/schedule';
-    link.textContent = next ? 'Training öffnen' : 'Training planen';
-    $('[data-role="dashboard-date"]', root).textContent = formatDate(todayISO());
     const notices = briefing.notes.filter(note => note.cls === 'warn');
     const restricted = briefing.sections.find(section => section.title === 'Teilnahme und Einschränkungen')?.lines.slice(2) || [];
     if (restricted.length) notices.unshift({text: restricted.length + ' Spieler mit Abmeldung oder Einschränkung. Im Briefing prüfen.'});
@@ -36,9 +131,7 @@ BT.dashboard = (function() {
       $('[data-role="home-notices-list"]', root).innerHTML = notices.slice(0, 3).map(note => '<li>' + escapeHTML(note.text) + '</li>').join('') +
         (notices.length > 3 ? '<li><a href="#/briefing">' + (notices.length - 3) + ' weitere Hinweise im Briefing</a></li>' : '');
     }
-    renderNextGame(root);
     renderAlerts(root);
-    target.append(root);
   }
 
   function cachedRender(target, renderView) {
@@ -88,17 +181,6 @@ BT.dashboard = (function() {
     const parts = time.split(':').map(Number);
     const total = ((parts[0] * 60 + parts[1] + minutes) % 1440 + 1440) % 1440;
     return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
-  }
-
-  function renderNextGame(root) {
-    const today = todayISO();
-    const game = BT.storage.getGames().filter(item => (item.date || '') >= today && !item.score && !['cancelled', 'abgesagt', 'played', 'completed'].includes(item.status))
-      .sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')))[0];
-    if (!game) return;
-    $('.next-game-strip', root).href = '#/games/' + encodeURIComponent(game.id) + '/matchday';
-    const opponent = /lindau/i.test(game.home || '') ? game.away : game.home;
-    $('[data-role="next-game-opponent"]', root).textContent = opponent || 'Gegner offen';
-    $('[data-role="next-game-meta"]', root).textContent = formatDate(game.date) + (game.time ? ' · ' + game.time : '') + ' · ' + (game.team === 'u18' ? 'U18' : 'Herren') + ' →';
   }
 
   function buildCoachBriefing() {
@@ -685,5 +767,5 @@ BT.dashboard = (function() {
     downloadJSON('saison_' + activeSeasonSuffix() + '_' + todayISO() + '.json', payload);
   }
 
-  return { render, renderBriefing, renderStatistics, renderData, __test: { buildCoachBriefing, nextTraining } };
+  return { render, refresh, cleanup, renderBriefing, renderStatistics, renderData, __test: { buildCoachBriefing, nextTraining, homeAgenda } };
 })();

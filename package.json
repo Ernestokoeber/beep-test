@@ -19,11 +19,12 @@
     "smoke": "node scripts/training-instructions-smoke.mjs && node scripts/pwa-loading-smoke.mjs && node scripts/smoke.mjs && node scripts/training-timer-smoke.mjs && node scripts/coach-briefing-smoke.mjs && node scripts/attendance-ranking-smoke.mjs && node scripts/game-archive-smoke.mjs",
     "test": "npm run check && npm run test:ai && npm run test:development && npm run smoke && node scripts/workspace-smoke.mjs && node scripts/sync-smoke.mjs && node scripts/sync-refresh-smoke.mjs && node scripts/play-designer-smoke.mjs && node scripts/screen-academy-smoke.mjs && node scripts/play-editor-2-model-smoke.mjs && node scripts/play-editor-2-rendering-smoke.mjs && node scripts/play-editor-2-shell-smoke.mjs && node scripts/play-editor-2-preview-smoke.mjs && node scripts/play-editor-2-export-smoke.mjs && node scripts/play-editor-2-library-smoke.mjs && node scripts/perspective-renderer-smoke.mjs && node scripts/court-enhancements-smoke.mjs && node scripts/play-designer-history-smoke.mjs && node scripts/play-designer-timing-smoke.mjs && node scripts/defensive-reactions-smoke.mjs && node scripts/play-designer-delete-smoke.mjs && node scripts/phase-recorder-core-smoke.mjs && node scripts/phase-spacing-smoke.mjs && node scripts/play-designer-quick-smoke.mjs && node scripts/play-designer-quick-pointer-smoke.mjs && node scripts/play-designer-reorder-smoke.mjs && node scripts/play-designer-gif-smoke.mjs && node scripts/play-designer-pdf-smoke.mjs && node scripts/video-import-smoke.mjs && node scripts/video-import-alignment-smoke.mjs && node scripts/video-tracker-v2-smoke.mjs && npm run test:navigation",
     "dev": "vercel dev",
-    "test:navigation": "node scripts/navigation-smoke.mjs && node scripts/player-pages-smoke.mjs && node scripts/training-pages-smoke.mjs",
+    "test:navigation": "node scripts/navigation-smoke.mjs && node scripts/player-pages-smoke.mjs && node scripts/training-pages-smoke.mjs && node scripts/home-smoke.mjs",
     "test:navigation:browser": "node scripts/navigation-browser.mjs",
     "test:training:browser": "node scripts/training-pages-browser.mjs",
     "test:tactics:browser": "node scripts/tactics-pages-browser.mjs",
-    "test:games:browser": "node scripts/game-pages-browser.mjs"
+    "test:games:browser": "node scripts/game-pages-browser.mjs",
+    "test:home:browser": "node scripts/home-browser.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

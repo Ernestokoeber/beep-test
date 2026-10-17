@@ -69,24 +69,16 @@
 <template id="tpl-management"><section class="view management-page"><h2>Verwaltung</h2><div class="management-grid"><section><h3>Konto und App</h3><a href="#/account">Konto & Synchronisierung</a><a href="#/settings">Einstellungen</a><a href="#/data">Sicherungen & Export</a><a href="#/dashboard">Arbeitsbereich wechseln</a></section><section><h3>Training organisieren</h3><a href="#/schedule">Kalender & Saisonplanung</a><a href="#/drills">Übungsbibliothek</a><a href="#/briefing">Trainerbriefing</a><a href="#/notes">Trainernotizen</a><a href="#/history">Testhistorie</a></section><section><h3>Team begleiten</h3><a href="#/statistics">Statistik & Ranglisten</a><a href="#/reports">Auswertung</a><a href="#/schedule/team-concept">Teamkonzept</a><a href="#/test/setup">Beep-Test</a></section><section><h3>Spieltag organisieren</h3><a href="#/opponents">Gegner-Scouting</a><a href="#/jerseys">Trikots & Waschdienst</a><a href="#/tablecrew">Kampfgericht</a></section></div></section></template>
   <template id="tpl-dashboard">
     <section class="view dashboard-view mobile-home">
-      <div class="home-heading"><div><span class="section-kicker">CourtHub</span><h2>Dein nächster Einsatz</h2></div>
+      <div class="home-heading"><div><span class="section-kicker">Dein Coaching-Tag</span><h2 tabindex="-1">Heute</h2><p data-role="home-day-summary"></p></div>
         <div class="coach-status-row"><span class="connection-chip" data-role="connection-status"><i></i><span>Online</span></span><span class="today-chip" data-role="dashboard-date"></span></div>
       </div>
-      <div class="home-events">
-        <section class="home-event-card" data-role="next-training-panel">
-          <span class="section-kicker">Nächstes Training</span>
-          <h3 data-role="next-training-time">Noch nicht geplant</h3>
-          <p class="muted" data-role="next-training-place"></p>
-          <p class="home-event-focus" data-role="home-training-focus"></p>
-          <p class="home-event-meta" data-role="home-training-attendance"></p>
-          <a class="btn primary" data-role="next-training-card" href="#/schedule">Training öffnen</a>
-        </section>
-        <a class="home-event-card home-game-card next-game-strip" href="#/games">
-          <span><small>Nächstes Spiel</small><strong data-role="next-game-opponent">Spielplan öffnen</strong></span>
-          <span data-role="next-game-meta">Spiele öffnen →</span>
-        </a>
+      <div data-role="home-next-slot"></div>
+      <div class="home-agenda-columns">
+        <section class="home-agenda"><h3 data-role="home-today-title">Heute</h3><div class="home-agenda-list" data-role="home-today-list"></div></section>
+        <section class="home-agenda" data-role="home-upcoming"><h3>Die nächsten Termine</h3><div class="home-agenda-list" data-role="home-upcoming-list"></div></section>
       </div>
-      <section class="home-notices" data-role="home-notices" hidden><h3>Vor Beginn klären</h3><ul data-role="home-notices-list"></ul></section>
+      <nav class="home-quick-links" aria-label="Termine organisieren"><a href="#/training">Alle Trainings <span aria-hidden="true">→</span></a><a href="#/games">Alle Spiele <span aria-hidden="true">→</span></a></nav>
+      <details class="home-notices" data-role="home-notices" hidden><summary>Vor dem nächsten Training klären</summary><ul data-role="home-notices-list"></ul></details>
       <a class="home-briefing-link" href="#/briefing"><span><strong>Trainerbriefing</strong><small>Ziele, Coaching-Punkte und Traineraufgaben</small></span><span aria-hidden="true">→</span></a>
       <section class="alerts-card hidden" data-role="alerts"><h3 class="alerts-head">Heute beachten</h3><ul class="alerts-list" data-role="alerts-list"></ul></section>
     </section>

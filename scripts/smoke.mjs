@@ -91,7 +91,7 @@ function route(hash) {
 }
 
 assert(window.document.querySelector('.home-briefing-link[href="#/briefing"]'), 'Dashboard-Briefing-Einstieg fehlt');
-assert(window.document.querySelector('[data-role="next-training-card"][href]') && window.document.querySelector('.next-game-strip[href]'), 'Dashboard-Termine sind nicht verlinkt');
+assert(window.document.querySelector('.home-quick-links a[href="#/training"]') && window.document.querySelector('.home-quick-links a[href="#/games"]'), 'Dashboard-Terminübersichten sind nicht verlinkt');
 assert(!window.document.querySelector('[data-role="top-att"]'), 'Ranglisten gehören in die Statistik, nicht auf die Startseite');
 
 const storagePrototype = Object.getPrototypeOf(window.localStorage);

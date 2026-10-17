@@ -115,12 +115,15 @@ BT.individualTraining = (function() {
 
   function renderHub(target) {
     target.innerHTML = `<section class="view individual-start-hub">
-      <div class="individual-hub-head"><div><span class="section-kicker">CourtHub Startzentrale</span><h2>Womit möchtest du arbeiten?</h2><p>Mannschaft und Individual Training bleiben getrennte Arbeitsbereiche.</p></div><span class="individual-coach-badge">Coach · ${BT.util.escapeHTML(user()?.displayName || 'Ernesto')}</span></div>
+      <div class="individual-hub-head"><div><h3>Arbeitsbereich wechseln</h3><p>Mannschaft oder Individualtraining</p></div></div>
       <div class="individual-workspaces">
         <a class="individual-workspace-card individual-workspace-team" data-workspace="team" href="#/team"><span class="individual-workspace-icon" aria-hidden="true">M</span><span><small>Arbeitsbereich</small><strong>Mannschaft</strong><em>Teamtraining, Spiele, Kader und Auswertungen</em></span><b aria-hidden="true">→</b></a>
         <a class="individual-workspace-card individual-workspace-one" data-workspace="individual" href="#/individual"><span class="individual-workspace-icon" aria-hidden="true">1</span><span><small>Arbeitsbereich</small><strong>Individual Training</strong><em>Thomas und Adnan gezielt entwickeln</em></span><b aria-hidden="true">→</b></a>
       </div>
     </section>`;
+    const todayView = document.createDocumentFragment();
+    BT.dashboard?.render(todayView);
+    target.prepend(todayView);
   }
 
   function renderIndividualNavigation(data, current, selectedProfileId = null, selectedPane = 'overview') {
