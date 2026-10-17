@@ -1,4 +1,5 @@
 import { AIError, AI_MODEL_ID, buildAIRequest } from './ai-contracts.js';
+import {collectOfficialScouting,attachOfficialResearch} from './scouting-official.js';
 
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL_ID}:generateContent`;
 const RETRYABLE_STATUS = new Set([429, 500, 503]);
@@ -56,6 +57,11 @@ export async function generateWithGemini({
   let generationConfig = searching ? {thinkingConfig:{thinkingLevel:'low'}} : request.generationConfig;
 
   try {
+    let officialEvidence;
+    if(action==='researchOpponent'&&Number(payload.opponent?.leagueId)){
+      officialEvidence=await collectOfficialScouting(payload.opponent,{fetchImpl,signal:controller.signal});
+      parts=[...parts,{text:'Direkt abgerufene aktuelle DBB-Primärdaten. Berücksichtige Teamverknüpfungen, tatsächliche Kadernennungen, Nullwert-Platzhalter und Absagen. Suche gezielt weiter nach den hier genannten Spielern und deren sportlicher Vorgeschichte; diese Daten dürfen nicht pauschal als unzugänglich bezeichnet werden. Künftige Kader sind nicht bestätigt. '+JSON.stringify(officialEvidence)}];
+    }
     while (attempt < 2) {
       attempt += 1;
       let response;
@@ -105,7 +111,7 @@ export async function generateWithGemini({
       const text = readCandidate(data);
       if (searching) {
         const metadata = data.candidates?.[0]?.groundingMetadata;
-        if (!metadata?.groundingChunks?.some(chunk => chunk.web?.uri)) {
+        if (!metadata?.groundingChunks?.some(chunk => chunk.web?.uri)&&!officialEvidence?.sources.length) {
           throw new AIError('AI_RESEARCH_UNGROUNDED', 'Die Websuche hat keine überprüfbaren Quellen geliefert. Bitte erneut recherchieren; der bisherige Bericht bleibt erhalten.', {retryable:true});
         }
         // Search in ordinary text first: JSON-mode search can omit grounding.
@@ -114,10 +120,11 @@ export async function generateWithGemini({
         searching = false;
         attempt = 0;
         generationConfig = request.generationConfig;
-        parts = [...request.parts, {text:`Strukturiere ausschließlich das folgende Recherchematerial. Führe keine neue Suche aus und ergänze keine Fakten aus Vorwissen. Verwende in sourceUrls die konkreten URLs aus den mitgelieferten Suchbelegen. Erhalte die Aussagen wortgetreu, soweit möglich. Unbelegte Angaben bleiben leer. Recherchematerial: ${JSON.stringify({report:text,sources:metadata.groundingChunks,supports:metadata.groundingSupports || []})}`}];
+        parts = [...request.parts, {text:`Strukturiere ausschließlich das folgende Recherchematerial. Führe keine neue Suche aus und ergänze keine Fakten aus Vorwissen. Verwende in sourceUrls die konkreten URLs aus den mitgelieferten Suchbelegen. Direkt abgerufene DBB-Daten sind ebenfalls zitierbare Primärbelege; beachte Absagen. Formuliere fehlende Funde als Suchgrenzen, nicht als Behauptung, dass etwas nicht öffentlich existiert. Unbelegte Angaben bleiben leer. Recherchematerial: ${JSON.stringify({report:text,sources:metadata?.groundingChunks || [],supports:metadata?.groundingSupports || [],officialEvidence})}`}];
         continue;
       }
-      const value = request.parse(text, { action, payload, providerResponse:searchResponse || data });
+      const parsed = request.parse(text, { action, payload, providerResponse:searchResponse || data,officialEvidence });
+      const value = officialEvidence?attachOfficialResearch(parsed,officialEvidence):parsed;
       return {
         value,
         model: AI_MODEL_ID,

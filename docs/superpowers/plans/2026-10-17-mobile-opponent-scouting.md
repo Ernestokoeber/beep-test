@@ -32,3 +32,13 @@ Auftrag: Mobile Übersicht mit nächstem Gegner, eigenen Gegnerseiten und echtem
 - Nachweise: `npm test`, `npm run test:scouting`, `npm run test:scouting:browser`, `npm run test:navigation:browser`, statische Prüfungen und `git diff --check` erfolgreich. Browsermatrix 320/390/768/1440 px mit Spiel-Direktlink, echten Rückwegen/Scroll, Suche, Entwürfen/Reload, Importseite, Kader, Aufstellungen, Rollen und API-Testantworten. Separate Tests für Identitätswechsel und Ausschluss von TNA-/Gesundheitsdaten.
 - Echte Offline-PWA v232 mit 160 Dateien geprüft: Liste, gespeicherter Bericht, Kaderhistorie, Reload und Zurück funktionieren ohne Netzwerk.
 - Keine echte Gemini-Anfrage ausgeführt: im lokalen Prozess kein Schlüssel, ausschließlich .env.example vorhanden. Die bestehende serverseitige GEMINI_API_KEY-Konfiguration bleibt zuständig; der reale KI-Lauf muss nach separater Veröffentlichung geprüft werden. Keine neue Schlüsselprovisionierung und keine externe Veröffentlichung in diesem Auftrag.
+
+## Korrektur nach echtem Coaching-Beispiel: Herren/U20
+
+Die Websuche allein hat erreichbare DBB-Spielberichte übersehen. Die Recherche lädt nun vor der KI-Suche die Ziel-Liga direkt aus dem bekannten öffentlichen TeamSL-Endpunkt, ermittelt den Verein über clubId und entdeckt U20-/U18-Ligen über die öffentliche regionale Ligenübersicht. Maximal sechs Vergleichsligen und drei vergangene Spielberichte je Team, begrenztes Abrufbudget und feste DBB-Origin.
+
+Namentliche Überschneidungen werden deterministisch berechnet. Reine Jugend-Kaderbelege werden nicht in den Zielkader verschoben. Maskierte Namen bleiben unbekannt. Spielberichtskader und ausschließlich mit Nullwerten gefüllte Statistiken belegen weder Starter noch individuelle Leistungen. Der Spielplanstatus einschließlich Absagen wird separat dargestellt. Die KI erhält diese Primärdaten und sucht anschließend nach den belegten Spielern und ihrer sportlichen Historie. Mobile Übersicht zeigt die wichtigsten Verknüpfungen; Recherche-, Kader- und Vergleichsseiten enthalten die vollständigen direkten Belege.
+
+Echter öffentlicher Abruf am 17.10.2026: TSV Wasserburg/Günzburg Herren (165627), U20 (210403) und U18 (163568) teilen Vereins-ID 764. Verfügbare vergangene Berichte ergeben sieben Herren/U20-Namensüberschneidungen und zwei Herren/U18-Überschneidungen. Das für 18.10., 10:00 Uhr geführte U20-Spiel in Schrobenhausen ist im API-Status abgesagt. Daraus folgt keine gesicherte künftige Kaderidentität.
+
+Unabhängiger Review: zwei Funde zu Jugend-only-Spielern und unzulässigen Starterbelegen mit roten Tests reproduziert, korrigiert und vom Reviewer nachgeprüft.
