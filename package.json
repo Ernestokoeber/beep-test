@@ -29,6 +29,7 @@
     "test:insights:browser": "node scripts/insights-browser.mjs",
     "test:calendar:browser": "node scripts/calendar-browser.mjs",
     "test:scouting": "node scripts/scouting-official-smoke.mjs && node scripts/opponent-research-smoke.mjs && node scripts/scouting-pages-smoke.mjs && node scripts/scouting-player-pages-smoke.mjs",
+    "test:library:browser": "node scripts/library-pages-browser.mjs",
     "test:scouting:browser": "node scripts/scouting-pages-browser.mjs"
   },
   "dependencies": {
