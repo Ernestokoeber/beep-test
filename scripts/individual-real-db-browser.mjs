@@ -60,7 +60,11 @@ export async function validateRealDatabaseBrowser({root,handlers={},invitation,p
     await page.getByText('Tagesform gespeichert.',{exact:true}).waitFor();
     await page.locator('a[href="#/individual/training"]').first().click();await page.locator('.individual-player-exercises > li').first().waitFor();
     assert.equal(await page.locator('.individual-player-exercises > li .individual-exercise-heading > strong').evaluateAll(es=>es.reduce((n,e)=>n+parseInt(e.textContent),0)),105);
+    assert.equal(await page.locator('.individual-player-exercises details').count(),0,'Spielerplan enthält technische Trainerdetails.');
+    assert(!(await page.locator('.individual-player-content').innerText()).includes('Ausgangsniveau in Ballkontrolle'),'Interne Trainingsziele gehören nicht in den Spielerplan.');
+    await page.locator('#app').evaluate(element=>Promise.all(element.getAnimations({subtree:true}).map(animation=>animation.finished)));
     await page.screenshot({path:join(directory,`${proofPrefix}-mobile-plan.png`),fullPage:true});
+    await page.screenshot({path:join(directory,`${proofPrefix}-mobile-plan-viewport.png`),fullPage:false});
     // The feedback form correctly appears only in its released week. Simulate
     // that Friday without changing any API responses or PostgreSQL data.
     await page.clock.install({time:new Date('2026-10-23T18:00:00+02:00')});

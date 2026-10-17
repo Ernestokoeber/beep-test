@@ -25,6 +25,8 @@
 .individual-join > .btn { margin-bottom:1rem; }
 .individual-invite-qr { display:block; max-width:100%; height:auto; padding:12px; box-sizing:border-box; background:#fff; border-radius:12px; margin:1rem auto; }
 @media(max-width:420px) { .individual-player-tabs { font-size:.82rem; } .individual-exercise-heading { display:block; } }
+.individual-player-exercises .individual-exercise-heading { display:flex; align-items:center; }
+.individual-player-exercises .individual-exercise-heading h3 { margin:0; min-width:0; font-size:1rem; line-height:1.35; }
 .individual-player-content > .card,.individual-player-exercises > .card,.individual-join form { padding:clamp(1rem,4vw,1.5rem); border:1px solid var(--border); border-radius:18px; }
 .individual-player-dock { display:none; }
 body.individual-join-mode .mobile-dock { display:none!important; }

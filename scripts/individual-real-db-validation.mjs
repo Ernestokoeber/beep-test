@@ -119,6 +119,14 @@ try {
   assert(!JSON.stringify(playerView).includes('PRIVATE TESTNOTIZ'));
   assert(!('coachNotes' in playerView));
   assert(!playerView.measurements.some(m=>m.metric_key==='trainernotiz'));
+  assert(!('objective' in playerView.plans[0]));
+  assert(!('repetitions' in playerView.exercises[0]));
+  assert(!('measurement_method' in playerView.exercises[0]));
+  assert(!('coaching_cues' in playerView.exercises[0]));
+  assert(!('template' in playerView.pilotRoadmap[0]));
+  assert(coachView.plans[0].objective);
+  assert(coachView.exercises[0].measurement_method);
+  assert(coachView.exercises[0].coaching_cues);
   record('Spielerrolle, eigenes Profil und Schutz privater Trainernotizen');
   const focus=await call('manage',{token,body:{action:'setFocus',profileId:profiles[0].id,sessionId:session.id,title:'Linke Hand einsetzen',cueOne:'Blick nach vorne',successIndicator:'Drei bewusste Abschlüsse',validFrom:'2026-10-20',validUntil:'2026-10-25'},status:201});
   assert.equal(focus.focus.valid_from,'2026-10-20','Kalendertage müssen ohne Uhrzeit und Zeitzonenverschiebung ankommen.');
