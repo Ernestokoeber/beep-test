@@ -128,6 +128,7 @@ BT.dashboard = (function() {
     const notices = briefing?.event ? briefing.cautions.map(text=>({text})) : next?.kind === 'training' ? buildCoachBriefing().notes.filter(note=>note.cls === 'warn') : [];
     if (notices.length) {
       $('[data-role="home-notices"]', root).hidden = false;
+      $('[data-role="home-notices"] summary', root).textContent = next.kind === 'game' ? 'Vor dem nächsten Spiel klären' : 'Vor dem nächsten Training klären';
       $('[data-role="home-notices-list"]', root).innerHTML = notices.slice(0, 3).map(note => '<li>' + escapeHTML(note.text) + '</li>').join('') +
         (notices.length > 3 ? '<li><a href="'+escapeHTML(briefingHref)+'">' + (notices.length - 3) + ' weitere Hinweise im Briefing</a></li>' : '');
     }

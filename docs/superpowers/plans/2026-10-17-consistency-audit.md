@@ -29,6 +29,8 @@ Alle fünf Befundgruppen umgesetzt. Die Nachprüfung fand zusätzlich eine berei
 - Unabhängige Nachprüfung der korrigierten Live-Guards und Quoteneinheiten: keine verbleibenden Befunde im geprüften Umfang.
 - Vollständiges `npm test` nach den ersten Fixes erfolgreich; abschließender Lauf mit sämtlichen Nachbesserungen ebenfalls erfolgreich (`courthub-consistency-audit-v236-tests.log`, Exit 0).
 
-Testlogs und Bildschirmbelege: `%TEMP%/courthub-consistency-audit*`, `%TEMP%/courthub-training-preview`, `%TEMP%/courthub-home-preview`. Offline-Cache auf `courthub-v236` erhöht.
+Testlogs und Bildschirmbelege: `%TEMP%/courthub-consistency-audit*`, `%TEMP%/courthub-training-preview`, `%TEMP%/courthub-home-preview`. Offline-Cache zuletzt auf `courthub-v237` erhöht.
+
+Produktionskontrolle des ersten Fixstands erfolgreich. Dabei zusätzlich die feste Überschrift „Vor dem nächsten Training“ als unpassend für Spielhinweise erkannt, rot reproduziert und an den Termintyp gebunden. Erneut gezielt mit Home- und Konsistenzprüfungen abgesichert.
 
 Keine neuen Anbieter angebunden, keine kostenpflichtige KI-Recherche gestartet und keine produktiven Trainings- oder Spielinhalte geändert. Physisches Smartphone und Qualität neuer Live-KI-Antworten bleiben außerhalb dieser Prüfung.

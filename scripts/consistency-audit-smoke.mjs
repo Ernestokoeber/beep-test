@@ -63,6 +63,7 @@ const cases={
   const g=B.storage.upsertGame({date:'2099-10-20',home:'TSV Lindau',away:'Testgegner'});
   B.dashboard.render(host);
   const notices=host.querySelector('[data-role="home-notices-list"]');
+  assert.equal(host.querySelector('[data-role="home-notices"] summary').textContent,'Vor dem nächsten Spiel klären','Die Überschrift muss zum nächsten Termin passen.');
   assert.match(notices.textContent,/Spielkader|Starting Five|Spielziele/,'Heute muss die offenen Punkte des nächsten Spiels zeigen.');
   assert.doesNotMatch(notices.textContent,/Trainingsablauf|nicht verplant|dieses Trainings/);
   assert.equal(notices.querySelector('a')?.getAttribute('href'),'#/briefing?game='+g.id,'Weitere Hinweise müssen beim selben Termin bleiben.');
