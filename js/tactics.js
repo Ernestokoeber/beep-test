@@ -327,9 +327,10 @@ BT.tactics = (function() {
   let pageCleanup = null;
   async function openDraft(board) {
     if (!canEdit()) return;
-    const userId = currentUser()?.id;
+    const identity = () => { const user=currentUser();return JSON.stringify([user?.id,user?.organization?.id || user?.organizationId,user?.role]); };
+    const scope=identity(),hash=location.hash;
     const pages = await import('./play-designer/pages.js');
-    if (currentUser()?.id === userId && canEdit()) pages.openDraft(board);
+    if (identity() === scope && location.hash === hash && canEdit()) pages.openDraft(board);
   }
   function cleanup() { pageCleanup?.(); pageCleanup = null; }
   async function renderPage(target, hash) {

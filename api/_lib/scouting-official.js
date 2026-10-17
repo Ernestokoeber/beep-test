@@ -24,10 +24,10 @@ export function attachOfficialResearch(report,evidence){
  const sources=[...(report.sources || []),...evidence.sources],first=evidence.teams[0];
  const names=new Set((first?.reports || []).flatMap(r=>r.players));
  const targetNames=new Set([...names].map(key)),youthNames=new Set(evidence.teams.slice(1).flatMap(t=>t.reports.flatMap(r=>r.players)).map(key));
- const players=(report.players || []).filter(p=>!youthNames.has(key(p.name))||targetNames.has(key(p.name))||(p.sourceIds || []).some(id=>!id.startsWith('dbb'))).map(p=>({...p}));
+ const players=(report.players || []).filter(p=>(p.sourceIds || []).some(id=>!id.startsWith('dbb'))).filter(p=>!youthNames.has(key(p.name))||targetNames.has(key(p.name))||(p.sourceIds || []).some(id=>!id.startsWith('dbb'))).map(p=>({...p,historyOrigin:'ai'}));
  for(const name of names){const rows=evidence.teams.flatMap(t=>t.reports.filter(r=>r.players.some(p=>key(p)===key(name))).map(r=>({team:t,report:r})));const old=players.find(p=>key(p.name)===key(name));const observation=rows.map(r=>r.team.age+' · '+r.report.date).join('; '),sourceIds=[...new Set(rows.flatMap(r=>r.report.sourceIds))];
   if(old){old.history+=' Direkt im Spielbericht genannt: '+observation;old.sourceIds=[...new Set([...old.sourceIds,...sourceIds])];}
-  else players.push({name,history:'Namentlich im öffentlichen Spielbericht: '+observation+'. Dies belegt eine Kadernennung, keine Startposition und keinen Vereinswechsel.',previousClub:'',joinedSeason:'',status:'first_seen',season:first?.season || '',sourceIds});
+  else players.push({name,historyOrigin:'official',history:'Namentlich im öffentlichen Spielbericht: '+observation+'. Dies belegt eine Kadernennung, keine Startposition und keinen Vereinswechsel.',previousClub:'',joinedSeason:'',status:'first_seen',season:first?.season || '',sourceIds});
  }
  // The provider may attach a roster URL to an unsupported inference. Facts
  // based solely on direct data are rebuilt from that data instead of prose.

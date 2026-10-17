@@ -368,9 +368,17 @@
       active = 'history';
     } else if (hash.startsWith('#/account')) {
       active = 'account';
+    } else if (hash === '#/management') {
+      active = 'management';
     }
-    const desktopActive = document.querySelector('[data-nav="' + active + '"]');
-    const mobileActive = document.querySelector('[data-mobile-nav="' + active + '"]');
+    const parentArea = { opponents: 'games', jerseys: 'games', tablecrew: 'games', notes: 'training', history: 'players', account: 'management', settings: 'management', data: 'management' };
+    let mainActive = parentArea[active] || active;
+    if (active === 'briefing') {
+      const params = new URLSearchParams(hash.split('?')[1] || '');
+      mainActive = params.get('game') ? 'games' : params.get('training') ? 'training' : 'dashboard';
+    }
+    const desktopActive = document.querySelector('[data-nav="' + mainActive + '"]');
+    const mobileActive = document.querySelector('[data-mobile-nav="' + mainActive + '"]');
     if (desktopActive) desktopActive.classList.add('active');
     if (mobileActive) mobileActive.classList.add('active');
     for (const link of [...links, ...mobileLinks]) {

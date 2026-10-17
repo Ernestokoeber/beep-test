@@ -15,7 +15,7 @@ BT.libraryPages = (() => {
     title: 'Trainernotizen', singular: 'Notiz', fields: ['title', 'body'],
     getAll: () => BT.storage.getNotes(), get: id => BT.storage.getNote(id), put: data => BT.storage.upsertNote(data), remove: id => BT.storage.deleteNote(id), restore: row => BT.storage.restoreNote(row), name: row => row.title?.trim() || row.body?.split('\n').find(x => x.trim())?.slice(0, 80) || 'Notiz ohne Titel'
   };
-  const fingerprint = (c, row) => JSON.stringify(c.fields.map(key => row?.[key] ?? ''));
+  const fingerprint = (c, row) => JSON.stringify(c.fields.map(key => key === 'minutes' ? Number(row?.[key] || 0) : row?.[key] ?? ''));
   const tacticNote = row => typeof row?.body === 'string' && row.body.startsWith('[TACTIC]');
   function heading(node, title, detail = '') {
     node.innerHTML = '<header class="library-heading"><h2 tabindex="-1">' + esc(title) + '</h2>' + (detail ? '<p>' + esc(detail) + '</p>' : '') + '</header>';
@@ -45,12 +45,23 @@ BT.libraryPages = (() => {
     if (kind === 'drills') {
       node.innerHTML += '<dl class="library-facts"><div><dt>Kategorie</dt><dd>' + esc(row.category || 'Nicht zugeordnet') + '</dd></div><div><dt>Dauer</dt><dd>' + esc(row.minutes ? row.minutes + ' Minuten' : 'Noch offen') + '</dd></div></dl><section><h3>Ablauf & Coaching</h3><p class="library-prose">' + esc(row.description || 'Noch kein Ablauf hinterlegt.') + '</p></section>';
     } else if (tacticNote(row)) {
-      node.innerHTML += '<p>Diese Notiz enthält ein gespeichertes Taktikboard.</p><button class="btn primary" type="button" data-library-tactic>Im Taktikboard öffnen</button>';
-      node.querySelector('[data-library-tactic]').addEventListener('click', () => { BT.storage.setSetting('tacticsLoadFromNote', row.id); location.hash = '#/tactics'; });
+      node.innerHTML += '<p>Diese Notiz enthält ein gespeichertes Taktikboard.</p>'+(writable()?'<button class="btn primary" type="button" data-library-tactic>Als Taktikentwurf öffnen</button><p role="status" data-tactic-note-status></p>':'<p class="muted">Zum Bearbeiten des Boards ist ein Trainerkonto erforderlich.</p>');
+      const scope=identity(),route=location.hash;
+      node.querySelector('[data-library-tactic]')?.addEventListener('click', async e => {
+        if(!writable()||scope!==identity())return;
+        const button=e.currentTarget;button.disabled=true;
+        try {
+          const board=JSON.parse(row.body.slice('[TACTIC]'.length));
+          if(!board||typeof board!=='object'||Array.isArray(board))throw Error('Ungültiges Board');
+          if(!node.isConnected||scope!==identity()||route!==location.hash)return;
+          await BT.tactics.openDraft({...board,title:row.title || board.title || 'Taktik aus Notiz',published:false});
+        } catch { if(node.isConnected&&scope===identity())node.querySelector('[data-tactic-note-status]').textContent='Das gespeicherte Board konnte nicht geöffnet werden. Die ursprüngliche Notiz bleibt erhalten.'; }
+        finally { if(node.isConnected&&scope===identity())button.disabled=false; }
+      });
     } else node.innerHTML += '<p class="library-prose">' + esc(row.body || 'Noch kein Inhalt hinterlegt.') + '</p>';
-    if (row.updatedAt) node.innerHTML += '<p class="muted">Zuletzt gespeichert: ' + esc(BT.util.formatDate(String(row.updatedAt).slice(0, 10))) + '</p>';
+    if (row.updatedAt) node.insertAdjacentHTML('beforeend','<p class="muted">Zuletzt gespeichert: ' + esc(BT.util.formatDate(String(row.updatedAt).slice(0, 10))) + '</p>');
     if (kind === 'notes') {
-      node.innerHTML += '<button type="button" class="btn" data-library-export>Als Text exportieren</button>';
+      node.insertAdjacentHTML('beforeend','<button type="button" class="btn" data-library-export>Als Text exportieren</button>');
       node.querySelector('[data-library-export]').addEventListener('click', () => {
         const url = URL.createObjectURL(new Blob([(row.title ? row.title + '\n\n' : '') + (row.body || '')], { type: 'text/plain;charset=utf-8' }));
         const a = document.createElement('a'); a.href = url; a.download = 'trainernotiz.txt'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -61,15 +72,21 @@ BT.libraryPages = (() => {
     const isNew = !row, original = row || {}, scope = identity(), route = location.hash;
     heading(node, (isNew ? 'Neue ' : '') + c.singular + (isNew ? '' : ' bearbeiten'), 'Deine Änderungen bleiben als Entwurf auf diesem Gerät, bis du sie speicherst.');
     if (!writable()) { node.innerHTML += '<p class="library-empty">Du hast hier Lesezugriff.</p>' + link(href(kind, row?.id), 'Zurück zu ' + (row ? c.singular : c.title)); return; }
-    const draft = state().draft, base = draft?.base ?? fingerprint(c, original), fields = draft?.fields || original;
+    const draft = state().draft, originalFingerprint = fingerprint(c, original);
+    // A read snapshot may still be optimistic while IndexedDB is writing.
+    // Never discard a draft merely because that snapshot has equal fields.
+    const base = draft?.fields && fingerprint(c,draft.fields) === originalFingerprint ? originalFingerprint : draft?.base ?? originalFingerprint;
+    const fields = draft?.fields || original;
     const field = (key, label, options = {}) => '<label>' + label + (options.area ? '<textarea rows="' + (kind === 'notes' ? 14 : 8) + '" name="' + key + '">' + esc(fields[key] || '') + '</textarea>' : '<input name="' + key + '" type="' + (options.type || 'text') + '" ' + (options.attrs || '') + ' value="' + esc(fields[key] ?? '') + '">') + '</label>';
     node.innerHTML += '<form class="library-editor">' + (kind === 'drills' ? field('name', 'Name', { attrs: 'required maxlength="80"' }) + '<div class="library-form-pair">' + field('category', 'Kategorie', { attrs: 'maxlength="40" placeholder="Zum Beispiel: Defense"' }) + field('minutes', 'Dauer in Minuten', { type: 'number', attrs: 'min="0" max="120" step="1" inputmode="numeric"' }) + '</div>' + field('description', 'Aufbau, Ablauf & Coaching-Punkte', { area: true }) : field('title', 'Titel', { attrs: 'maxlength="160"' }) + (tacticNote(original) ? '<p>Das Taktikboard bleibt erhalten. Seine Zeichnung bearbeitest du im Taktikbereich.</p>' : field('body', 'Deine Notiz', { area: true }))) + '<p role="status" data-library-status>Entwurf · noch nicht gespeichert</p><div class="library-editor-actions"><button class="btn primary" type="submit">' + c.singular + ' speichern</button><button class="btn" type="button" data-library-discard>Änderungen verwerfen</button></div></form>' + (!isNew ? '<details class="library-delete"><summary>Weitere Aktionen</summary><button class="btn danger" type="button" data-library-delete>' + c.singular + ' löschen</button></details>' : '');
     const form = node.querySelector('form'), status = node.querySelector('[data-library-status]');
+    let busy = false;
+    const lock = value => { busy = value; form.querySelectorAll('input,textarea,button').forEach(el => el.disabled = value); };
     const active = () => node.isConnected && scope === identity() && route === location.hash && writable();
     const values = () => Object.fromEntries(new FormData(form));
     form.addEventListener('input', () => { if (active()) { remember({ draft: { fields: values(), base } }); status.textContent = 'Entwurf auf diesem Gerät gesichert · noch nicht gespeichert'; } });
-    form.addEventListener('submit', e => {
-      e.preventDefault(); if (!active()) { status.textContent = 'Der Arbeitsbereich hat sich geändert. Öffne die Seite erneut.'; return; }
+    form.addEventListener('submit', async e => {
+      e.preventDefault(); if (busy) return; if (!active()) { status.textContent = 'Der Arbeitsbereich hat sich geändert. Öffne die Seite erneut.'; return; }
       const current = isNew ? null : c.get(original.id);
       if (!isNew && (!current || fingerprint(c, current) !== base)) { status.textContent = 'Der gespeicherte Eintrag wurde inzwischen geändert oder gelöscht. Dein Entwurf bleibt erhalten. Prüfe den aktuellen Stand vor dem Speichern.'; return; }
       const data = values();
@@ -77,22 +94,31 @@ BT.libraryPages = (() => {
         data.name = data.name.trim(); data.category = data.category.trim(); data.minutes = Number(data.minutes || 0);
         if (!data.name || !Number.isInteger(data.minutes) || data.minutes < 0 || data.minutes > 120) { status.textContent = 'Bitte einen Namen und eine ganze Dauer von 0 bis 120 Minuten eingeben.'; return; }
       } else if (tacticNote(original)) data.body = original.body;
+      remember({draft:{fields:data,base}}); lock(true); status.textContent = 'Wird auf diesem Gerät gespeichert …';
       try {
         const saved = c.put({ ...current, ...data, ...(isNew ? {} : { id: original.id }) });
+        await BT.storage.flush();
+        if (!active()) return;
         remember({ draft: null });
         if (isNew) BT.navigation.replace(href(kind, saved.id)); else BT.navigation.back(href(kind, saved.id));
-      } catch { status.textContent = 'Speichern fehlgeschlagen. Dein Entwurf bleibt erhalten.'; }
+      } catch { if(active()) status.textContent = 'Speichern fehlgeschlagen. Dein Entwurf bleibt erhalten.'; }
+      finally { if(scope === identity()) lock(false); }
     });
     node.querySelector('[data-library-discard]').addEventListener('click', () => {
-      if (!active()) return;
+      if (!active() || busy) return;
       remember({ draft: null }); BT.navigation.back(href(kind, row?.id));
     });
-    node.querySelector('[data-library-delete]')?.addEventListener('click', () => {
-      if (!active()) return;
+    node.querySelector('[data-library-delete]')?.addEventListener('click', async () => {
+      if (!active() || busy) return;
       const snapshot = c.get(row.id); if (!snapshot) return;
       if (!window.confirm('„' + c.name(snapshot) + '“ löschen?')) return;
-      c.remove(row.id); remember({ draft: null }); BT.navigation.replace(href(kind));
-      BT.util.toastUndo?.('„' + c.name(snapshot) + '“ gelöscht', () => { if (scope !== identity() || !writable() || c.get(snapshot.id)) return; c.restore(snapshot); location.hash = href(kind, snapshot.id); });
+      lock(true);
+      try {
+        c.remove(row.id); await BT.storage.flush(); if(!active())return;
+        remember({ draft: null }); BT.navigation.replace(href(kind));
+        BT.util.toastUndo?.('„' + c.name(snapshot) + '“ gelöscht', async () => { if (scope !== identity() || !writable() || c.get(snapshot.id)) return; try { c.restore(snapshot); await BT.storage.flush(); if(scope===identity()&&writable())location.hash = href(kind, snapshot.id); } catch { BT.util.toast?.('Wiederherstellen fehlgeschlagen. Bitte erneut versuchen.'); } });
+      } catch { if(active())status.textContent='Löschen fehlgeschlagen. Der Eintrag und dein Entwurf bleiben erhalten.'; }
+      finally { if(scope === identity())lock(false); }
     });
   }
   function renderImport(node) {
@@ -110,15 +136,21 @@ BT.libraryPages = (() => {
     choices.forEach(cb => cb.addEventListener('change', keepSelection));
     node.querySelector('[data-select-all]').addEventListener('click', () => { choices.forEach(cb => cb.checked = true); keepSelection(); });
     node.querySelector('[data-select-none]').addEventListener('click', () => { choices.forEach(cb => cb.checked = false); keepSelection(); });
-    node.querySelector('[data-library-import]').addEventListener('click', e => {
-      if (!node.isConnected || scope !== identity() || route !== location.hash || !writable()) return;
+    let busy = false;
+    const active=()=>node.isConnected && scope===identity() && route===location.hash && writable();
+    node.querySelector('[data-library-import]').addEventListener('click', async e => {
+      if (!active() || busy) return;
+      keepSelection(); busy=true;
+      const controls=[...node.querySelectorAll('input,button')]; controls.forEach(el=>el.disabled=true);
       let count = 0;
       try {
         const seen = new Set(BT.storage.getDrills().map(d => d.name.trim().toLocaleLowerCase('de')));
-        for (const cb of choices.filter(cb => cb.checked)) { const d = candidates[Number(cb.value)], key = d.name.toLocaleLowerCase('de'); if (seen.has(key)) continue; BT.storage.upsertDrill({name:d.name,minutes:d.minutes,description:d.description,category:''}); seen.add(key); count++; }
+        for (const cb of choices.filter(cb => cb.checked)) { if(!active())return; const d = candidates[Number(cb.value)], key = d.name.toLocaleLowerCase('de'); if (seen.has(key)) continue; BT.storage.upsertDrill({name:d.name,minutes:d.minutes,description:d.description,category:''}); await BT.storage.flush(); seen.add(key); count++; }
+        if(!active())return;
         node.querySelector('[data-library-status]').textContent = count ? count + ' Übungen übernommen.' : 'Bitte mindestens eine noch nicht übernommene Übung auswählen.';
-        if(count) { e.currentTarget.disabled = true; remember({draft:null}); node.insertAdjacentHTML('beforeend',link(href('drills'),'Übungsbibliothek öffnen')); }
-      } catch { node.querySelector('[data-library-status]').textContent = count + ' Übungen übernommen. Weitere konnten nicht gespeichert werden. Du kannst erneut versuchen.'; }
+        if(count) { remember({draft:null}); node.insertAdjacentHTML('beforeend',link(href('drills'),'Übungsbibliothek öffnen')); }
+      } catch { if(active())node.querySelector('[data-library-status]').textContent = 'Speichern fehlgeschlagen. '+count+' Übungen wurden bereits übernommen. Deine Auswahl bleibt für einen erneuten Versuch erhalten.'; }
+      finally { busy=false; if(active())controls.forEach(el=>el.disabled=false); }
     });
   }
   function render(target, kind, path = '') {

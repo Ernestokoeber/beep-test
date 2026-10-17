@@ -29,31 +29,41 @@
 **Files:** `js/library-pages.js`, `js/drills.js`, `js/notes.js`, `js/app.js`, `js/navigation.js`, `index.html`, `library-pages.css`, `scripts/library-pages-smoke.mjs`.
 **Interfaces:** `BT.libraryPages.render(target, kind, path)` mit kind `drills`/`notes`; vorhandener `BT.drills.openPicker` bleibt erhalten. CRUD über vorhandenen Storage.
 
-- [ ] Verhaltenstest schreiben: alle Kategorien sichtbar, Suchzustand erhalten, lesendes Detail, separate Bearbeitung, neuer Entwurf ohne Datensatz, explizites Speichern, Entwurf nach Neuladen, Rollenprüfung, kein verspätetes Speichern nach Nutzerwechsel/Löschen.
-- [ ] `node scripts/library-pages-smoke.mjs` rot beobachten.
-- [ ] Gemeinsame Seitenliste/Detail/Bearbeitung und Übungsimport als eigene Seite implementieren. Taktiknotizen samt Taktikboard-Zugang erhalten. Filter auch im Trainingspicker mit „Alle Kategorien“ beginnen lassen.
-- [ ] Test grün; `npm run test:navigation`; commit.
+- [x] Verhaltenstest schreiben: alle Kategorien sichtbar, Suchzustand erhalten, lesendes Detail, separate Bearbeitung, neuer Entwurf ohne Datensatz, explizites Speichern, Entwurf nach Neuladen, Rollenprüfung, kein verspätetes Speichern nach Nutzerwechsel/Löschen.
+- [x] `node scripts/library-pages-smoke.mjs` rot beobachten.
+- [x] Gemeinsame Seitenliste/Detail/Bearbeitung und Übungsimport als eigene Seite implementieren. Taktiknotizen samt Taktikboard-Zugang erhalten. Filter auch im Trainingspicker mit „Alle Kategorien“ beginnen lassen.
+- [x] Test grün; `npm run test:navigation`; commit.
 
 ### Task 2: Scouting verdichten und Gegnerspieler öffnen
 
 **Files:** `js/scouting-model.js`, `js/scouting-pages.js`, `js/navigation.js`, `scouting-pages.css`, `scripts/scouting-pages-smoke.mjs`.
 **Interfaces:** `BT.scoutingModel.players(row)` liefert nur vorhandene Namen mit getrennten Verbandsbelegen, manuellen Werten und KI-Historie; keine neue Recherche. Route `/opponents/:id/player/:name`.
 
-- [ ] Tests schreiben: Name aus direktem Bericht ohne KI-Historie öffnet eigene Seite; Jugend-only-Spieler nicht zum Herren erklären; saisonfremde Berichte kennzeichnen; Teilbericht klar benennen; neue Anfrage übernimmt Hinweise genau einmal und ignoriert Ergebnis nach Kontextwechsel.
-- [ ] Tests rot beobachten.
-- [ ] Kaderübersicht mit Suche und einzelnen Spielerprofilen; kompakter Teambezug, datierte Spielberichte auf Spielerprofil, getrennte Herkunft/Statistik/Offenfragen. KI mit Quellenverknüpfung als KI-Angabe statt direkt geprüft kennzeichnen. Generischer Hinweis, dass Quelle nicht gleich inhaltliche Bestätigung ist; keine Sonderregel für Wasserburg.
-- [ ] `npm run test:scouting` grün; commit.
+- [x] Tests schreiben: Name aus direktem Bericht ohne KI-Historie öffnet eigene Seite; Jugend-only-Spieler nicht zum Herren erklären; saisonfremde Berichte kennzeichnen; Teilbericht klar benennen; neue Anfrage übernimmt Hinweise genau einmal und ignoriert Ergebnis nach Kontextwechsel.
+- [x] Tests rot beobachten.
+- [x] Kaderübersicht mit Suche und einzelnen Spielerprofilen; kompakter Teambezug, datierte Spielberichte auf Spielerprofil, getrennte Herkunft/Statistik/Offenfragen. KI mit Quellenverknüpfung als KI-Angabe statt direkt geprüft kennzeichnen. Generischer Hinweis, dass Quelle nicht gleich inhaltliche Bestätigung ist; keine Sonderregel für Wasserburg.
+- [x] `npm run test:scouting` grün; commit.
 
 ### Task 3: Gesamtabnahme und Bereitstellung
 
 **Files:** `scripts/library-pages-browser.mjs`, vorhandene Browserprüfungen, `package.json`, `scripts/check.mjs`, `sw.js`, dieser Plan.
 **Interfaces:** bestehende Browsermatrizen 320/390/768/1440 px; Offline-Cache mit allen neuen Assets.
 
-- [ ] Browserprüfung für Liste → Detail → Bearbeiten → Zurück, Direktaufruf, Entwurf, mobilen Import und Gegnerspieler ergänzen und ausführen.
-- [ ] `npm test` und sämtliche vorhandenen mobilen Bereichsprüfungen ausführen; echte Offline-PWA prüfen. Tatsächlich gefundene Fehler gezielt reproduzieren und beheben.
-- [ ] Unabhängiger Review des gesamten Changesets, wichtige Funde beheben, Nachprüfung.
+- [x] Browserprüfung für Liste → Detail → Bearbeiten → Zurück, Direktaufruf, Entwurf, mobilen Import und Gegnerspieler ergänzen und ausführen.
+- [x] `npm test` und sämtliche vorhandenen mobilen Bereichsprüfungen ausführen; echte Offline-PWA prüfen. Tatsächlich gefundene Fehler gezielt reproduzieren und beheben.
+- [x] Unabhängiger Review des gesamten Changesets, wichtige Funde beheben, Nachprüfung.
 - [ ] PWA-Version erhöhen, Tests und `git diff --check` grün. Fast-forward auf main und Bereitstellung prüfen; Ergebnis im Nutzerbrowser ohne Datenänderung kontrollieren und Screenshots sichern.
 
 ## Abgrenzung der Fertigstellung
 
 Die Abnahme betrifft die vorhandenen mobilen Arbeitsabläufe. GPT-Vergleich, neue Recherchequalität durch einen anderen Anbieter und eine Prüfung auf dem physischen Nutzerhandy bleiben ausdrücklich offen. Ein vollständig automatisches Durchsuchen sämtlicher öffentlicher Datenbanken wird nicht versprochen.
+
+## Prüfprotokoll
+
+- Bestehender isolierter Worktree `codex/mobile-opponents` wiederverwendet; Ausgang `a1e0c56`.
+- Bibliotheks- und Gegnerspielertests jeweils vor Implementierung mit fehlender Funktion gescheitert und danach grün.
+- Zehn Bereichs-Browsermatrizen auf 320/390/768/1440 px geprüft. Offline-PWA v234: 162 Dateien; Lesen, Entwurf nach Neuladen und dauerhaftes Speichern ohne Netzwerk erfolgreich.
+- Review-Funde reproduziert und korrigiert: IndexedDB-Schreibfehler nach Seitenwechsel/erneutem Editoröffnen; unzulässige KI-Wechselherkunft mit DBB-Spielbericht als einzigem Beleg. Zusätzlicher bestehender Defekt behoben: Taktiknotizen öffneten lediglich die Bibliothek.
+- Ursprung der Herkunft wird nun explizit mitgeführt; ausschließlich aus strukturierten Spielberichtskadern rekonstruierte Herkunftstexte tragen `historyOrigin: official`. Externe und ältere KI-Angaben erhalten dieses Label nicht.
+- Hauptnavigation zeigt zugeordnete Bereiche auch bei Gegnern, Notizen, Trikots, Kampfgericht, Testhistorie und terminbezogenem Briefing.
+- Unabhängiger Review und enge Nachprüfungen abgeschlossen, keine verbleibenden Funde. Neue OpenAI-Anbindung und Live-Recherche ausdrücklich nicht ausgeführt.
