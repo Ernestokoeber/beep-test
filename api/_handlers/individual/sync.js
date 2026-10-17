@@ -89,7 +89,7 @@ async function applyMutation(client, auth, profile, mutation) {
     if (trainingDay !== 'friday') throw new TypeError('Rückmeldungen werden im Pilot nur für das Freitagstraining erfasst.');
     const trainingDate = isoDate(payload.trainingDate);
     const focus = await client.query(
-      `SELECT valid_from, valid_until FROM individual_weekly_focus
+      `SELECT valid_from::text, valid_until::text FROM individual_weekly_focus
         WHERE id = $1 AND individual_profile_id = $2`,
       [uuid(payload.focusId, 'Wochenfokus-ID'), profile.id]
     );

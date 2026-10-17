@@ -134,7 +134,7 @@ async function addSessionNotification(client, session, profile) {
   await client.query(
     `INSERT INTO individual_notifications
       (individual_profile_id, notification_key, kind, due_at, payload)
-     VALUES ($1, $1::text || ':attendance:' || ($3::timestamptz - interval '2 hours')::text,
+     VALUES ($1::uuid, $1::text || ':attendance:' || ($3::timestamptz - interval '2 hours')::text,
              'attendance', $3::timestamptz - interval '2 hours',
              jsonb_build_object('sessionId', $2::text, 'scheduledFor', $3::text))
      ON CONFLICT (individual_profile_id, notification_key) DO NOTHING`,
@@ -469,7 +469,7 @@ export function createIndividualManageHandler(deps = {}) {
           const feedback = validateWeeklyFeedback(req.body);
           const focusId = uuid(req.body.focusId, 'Wochenfokus-ID');
           const focus = await client.query(
-            'SELECT valid_from, valid_until FROM individual_weekly_focus WHERE id = $1 AND individual_profile_id = $2', [focusId, profile.id]
+            'SELECT valid_from::text, valid_until::text FROM individual_weekly_focus WHERE id = $1 AND individual_profile_id = $2', [focusId, profile.id]
           );
           if (!focus.rows[0]) throw new IndividualRequestError(404, 'Wochenfokus nicht gefunden.');
           const trainingDay = String(req.body.trainingDay || '');
@@ -494,7 +494,7 @@ export function createIndividualManageHandler(deps = {}) {
                    note = EXCLUDED.note,
                    device_recorded_at = EXCLUDED.device_recorded_at,
                    server_received_at = clock_timestamp()
-             RETURNING *`,
+             RETURNING *, training_date::text AS training_date`,
             [profile.id, focusId, trainingDay, trainingDate, feedback.occurrence,
               feedback.implementationScore, feedback.note, req.body.deviceRecordedAt ? isoInstant(req.body.deviceRecordedAt, 'Gerätezeit') : null]
           );
@@ -529,7 +529,7 @@ export function createIndividualManageHandler(deps = {}) {
             `INSERT INTO individual_weekly_focus
               (individual_profile_id, source_session_id, title, cue_one, cue_two, success_indicator, valid_from, valid_until, released_by)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             RETURNING *`,
+             RETURNING *, valid_from::text AS valid_from, valid_until::text AS valid_until`,
             [profile.id, session.id, text(req.body.title, 'Wochenfokus', { min: 2, max: 120 }),
               text(req.body.cueOne, 'Erster Hinweis', { min: 2, max: 240 }),
               optionalText(req.body.cueTwo, 'Zweiter Hinweis', { min: 2, max: 240 }),
@@ -552,7 +552,7 @@ export function createIndividualManageHandler(deps = {}) {
              )
              INSERT INTO individual_notifications
                (individual_profile_id, notification_key, kind, due_at, payload)
-             SELECT $1,
+             SELECT $1::uuid,
                     $1::text || ':' || kind || ':' || due_at::text,
                     kind,
                     due_at,

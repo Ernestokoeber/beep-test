@@ -644,6 +644,9 @@ BT.individualTraining = (function() {
     const measurements = (data.measurements || []).filter(item => item.individual_profile_id === profile.id && item.session_id === activeSession?.id);
     const notes = (data.coachNotes || []).filter(item => item.individual_profile_id === profile.id);
     const feedback = (data.releasedFeedback || []).filter(item => item.individual_profile_id === profile.id);
+    const playerFeedback = (data.feedback || []).filter(item => item.individual_profile_id === profile.id);
+    const occurrenceLabels = { often: 'Oft angewendet', sometimes: 'Manchmal angewendet', none: 'Keine Gelegenheit', training_cancelled: 'Training ausgefallen', not_participated: 'Nicht teilgenommen' };
+    const incomingFeedback = `<section class="card"><h4>Rückmeldungen vom Spieler</h4>${playerFeedback.length ? playerFeedback.map(item => `<article><p><strong>${BT.util.escapeHTML(String(item.training_date || '').slice(0, 10))}</strong> · ${BT.util.escapeHTML(occurrenceLabels[item.occurrence] || 'Rückmeldung')}${item.implementation_score != null ? ` · Umsetzung ${Number(item.implementation_score)}/5` : ''}</p>${item.note ? `<p>${BT.util.escapeHTML(item.note)}</p>` : '<p class="muted">Keine zusätzliche Notiz.</p>'}</article>`).join('') : '<p class="muted">Noch keine Rückmeldung eingegangen. Sobald der Spieler seine Rückmeldung speichert, erscheint sie hier.</p>'}</section>`;
     const drafts = (data.aiDrafts || []).filter(item => item.individual_profile_id === profile.id);
     const latestDraft = drafts[0] || null;
     const paneLabels = {
@@ -668,7 +671,7 @@ BT.individualTraining = (function() {
       </section>` : emptySession;
     const measurementPane = activeSession ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Einheit ${activeSession.unit_number || '–'}</span><h4>Ergebnisse erfassen</h4></div><strong>${measurements.length} gespeichert</strong></div></section>${renderMeasurementPane(activeSession, displayExercises, measurements)}` : emptySession;
     const focusPane = activeSession ? `<form class="card individual-feedback-form" data-weekly-focus><h4>Persönlichen Wochenfokus freigeben</h4><label>Zielhandlung<input name="title" required maxlength="120"></label><label>Hinweis 1<input name="cueOne" required maxlength="240"></label><label>Hinweis 2, optional<input name="cueTwo" maxlength="240"></label><label>Gelungen, wenn …<input name="successIndicator" required maxlength="300"></label><label>Gültig ab<input name="validFrom" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 1)}" readonly required></label><label>Gültig bis<input name="validUntil" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 6)}" readonly required></label><button class="btn primary" type="submit">Wochenfokus veröffentlichen</button></form>` : emptySession;
-    const feedbackPane = `<div class="individual-detail-grid">
+    const feedbackPane = `${incomingFeedback}<div class="individual-detail-grid">
         <form class="card" data-coach-note><h4>Private Coach-Notiz</h4><textarea name="note" maxlength="5000" required></textarea><button class="btn" type="submit">Privat speichern</button></form>
         <form class="card" data-release-feedback><h4>Feedback freigeben</h4><textarea name="content" maxlength="5000" required></textarea><button class="btn primary" type="submit">Für Spieler freigeben</button></form>
       </div>

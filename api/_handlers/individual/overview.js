@@ -76,14 +76,14 @@ export function createIndividualOverviewHandler(deps = {}) {
             ORDER BY server_received_at DESC`, [profileIds]
         ),
         execute(
-          `SELECT * FROM individual_weekly_focus
+          `SELECT *, valid_from::text AS valid_from, valid_until::text AS valid_until FROM individual_weekly_focus
             WHERE individual_profile_id = ANY($1::uuid[])
-            ORDER BY valid_from DESC`, [profileIds]
+            ORDER BY individual_weekly_focus.valid_from DESC`, [profileIds]
         ),
         execute(
-          `SELECT * FROM individual_weekly_feedback
+          `SELECT *, training_date::text AS training_date FROM individual_weekly_feedback
             WHERE individual_profile_id = ANY($1::uuid[])
-            ORDER BY training_date DESC`, [profileIds]
+            ORDER BY individual_weekly_feedback.training_date DESC`, [profileIds]
         ),
         execute(
           `SELECT * FROM individual_released_feedback
