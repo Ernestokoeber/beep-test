@@ -1397,9 +1397,10 @@
               <input name="email" type="email" autocomplete="email" required>
             </label>
             <label class="block-label">Passwort
-              <input name="password" type="password" autocomplete="current-password" minlength="10" required>
+              <input name="password" type="password" autocomplete="current-password" required>
             </label>
             <button class="btn primary" type="submit">Anmelden</button>
+            <p class="auth-status" data-role="auth-status" role="status" aria-live="polite" tabindex="-1"></p>
           </form>
 
           <form class="auth-card" data-role="register-form">
@@ -1419,12 +1420,13 @@
               <input name="inviteCode" type="password" autocomplete="off">
             </label>
             <button class="btn primary" type="submit">Konto erstellen</button>
+            <p class="auth-status" data-role="register-status" role="status" aria-live="polite" tabindex="-1"></p>
           </form>
         </div>
-        <p class="auth-status" data-role="auth-status" aria-live="polite"></p>
       </div>
 
       <section class="account-session hidden" data-role="account-session">
+        <p class="gp-callout" data-role="cached-session-note" hidden>Gespeicherte Kontositzung auf diesem Gerät. Die aktuelle Kontoprüfung und der Cloud-Abgleich sind vorübergehend nicht verfügbar. Deine lokalen Daten bleiben nutzbar.</p>
         <div class="account-profile-card">
           <div class="account-avatar" data-role="account-avatar">TS</div>
           <div>

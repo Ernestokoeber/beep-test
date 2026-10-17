@@ -50,8 +50,10 @@ async function request(path, options = {}) {
 await lifecycle('install');
 const installedCache = currentCache;
 const assets = [...buckets.get(installedCache).keys()];
+const reportIndex=absolute('/data/published-game-reports/index.json');
+assert.ok(assets.includes(reportIndex),'Berichtsverzeichnis muss offline verfügbar sein.');
 assert.ok(assets.includes(absolute('/assets/TSVLogotransparent.png')), 'The visible app logo must be available in the installed offline cache');
-for (const asset of assets) assert.ok(await request(asset));
+for (const asset of assets.filter(asset=>asset!==reportIndex)) assert.ok(await request(asset));
 assert.equal(networkRequests, 0, 'Opening a cached app must not download its assets again');
 await lifecycle('activate');
 assert.ok(claimed);
@@ -75,6 +77,13 @@ assert.equal(await request('https://other.example/app.js'), undefined);
 // Cached files from another release must never be used for the active release.
 bucket('courthub-v1').put('/old-only.js', new Response('old'));
 await assert.rejects(request('/old-only.js'), /offline/);
+
+offline=false;
+const beforeIndexChecks=networkRequests;
+await request(reportIndex);await request(reportIndex);
+assert.equal(networkRequests,beforeIndexChecks+2,'Das Verzeichnis muss neue Berichte aus dem Netz entdecken.');
+offline=true;
+assert.equal(await (await request(reportIndex)).text(),'network:'+reportIndex,'Offline das zuletzt geladene Verzeichnis verwenden.');
 
 function appSession(initialController) {
   const events = new Map(), workerEvents = new Map();

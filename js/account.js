@@ -41,6 +41,7 @@ BT.account = (function() {
 
     guest.classList.toggle('hidden', !!state.user);
     session.classList.toggle('hidden', !state.user);
+    root.querySelector('[data-role="cached-session-note"]').hidden = state.identitySource !== 'cache';
     if (!state.user) return;
 
     root.querySelector('[data-role="account-avatar"]').textContent = initials(state.user.displayName);
@@ -59,6 +60,7 @@ BT.account = (function() {
     if (!state.user || state.user.role === 'player') return;
     const list = root.querySelector('[data-role="team-members"]');
     const status = root.querySelector('[data-role="members-status"]');
+    if (state.identitySource === 'cache') { status.textContent = 'Das Trainerteam kann erst nach erfolgreicher Serverprüfung geladen werden.'; return; }
     status.textContent = 'Trainerteam wird geladen …';
     try {
       const result = await BT.api.getMembers();
@@ -120,6 +122,7 @@ BT.account = (function() {
     const root = BT.util.renderTemplate('tpl-account');
     target.appendChild(root);
     const authStatus = root.querySelector('[data-role="auth-status"]');
+    const registerStatus = root.querySelector('[data-role="register-status"]');
     const sessionStatus = root.querySelector('[data-role="session-status"]');
 
     const drawThemeChoice = () => {
@@ -140,30 +143,40 @@ BT.account = (function() {
 
     root.querySelector('[data-role="login-form"]').addEventListener('submit', async (event) => {
       event.preventDefault();
+      const loginForm = event.currentTarget, button = loginForm.querySelector('button[type="submit"]');
+      if (button.disabled) return;
+      button.disabled = true; loginForm.setAttribute('aria-busy','true');
       const form = new FormData(event.currentTarget);
       authStatus.textContent = 'Anmeldung läuft …';
       try {
         const loggedIn = await BT.sync.login(form.get('email'), form.get('password'));
         authStatus.textContent = '';
-        BT.util.toast('Anmeldung erfolgreich. Teamdaten sind synchronisiert.');
+        BT.util.toast(BT.sync.getState().status === 'synced' ? 'Anmeldung erfolgreich. Serverstand geprüft.' : 'Angemeldet. Der Cloud-Abgleich ist noch nicht möglich.');
         location.hash = loggedIn.role === 'player' ? '#/individual' : '#/dashboard';
       } catch (error) {
         authStatus.textContent = 'Fehler: ' + error.message;
+        authStatus.focus();
+      } finally {
+        button.disabled = false; loginForm.removeAttribute('aria-busy');
       }
     });
+    root.querySelector('[data-role="login-form"]').addEventListener('invalid', () => {
+      authStatus.textContent = 'Bitte E-Mail-Adresse und Passwort vollständig eingeben.';
+    }, true);
 
     root.querySelector('[data-role="register-form"]').addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      authStatus.textContent = 'Konto wird erstellt …';
+      registerStatus.textContent = 'Konto wird erstellt …';
       try {
         const individualInviteToken = new URLSearchParams(location.search).get('individualInvite');
         const registered = await BT.sync.register(form.get('displayName'), form.get('email'), form.get('password'), form.get('inviteCode'), individualInviteToken);
-        authStatus.textContent = '';
+        registerStatus.textContent = '';
         BT.util.toast(individualInviteToken ? 'Spielerkonto erstellt.' : 'Trainerkonto erstellt. Lokale Daten wurden übernommen.');
         location.hash = registered.role === 'player' ? '#/individual' : '#/dashboard';
       } catch (error) {
-        authStatus.textContent = 'Fehler: ' + error.message;
+        registerStatus.textContent = 'Fehler: ' + error.message;
+        registerStatus.focus();
       }
     });
 
@@ -171,7 +184,8 @@ BT.account = (function() {
       sessionStatus.textContent = 'Serverstand wird abgeglichen …';
       try {
         await BT.sync.syncNow();
-        sessionStatus.textContent = 'Serverstand wurde geprüft.';
+        const state = BT.sync.getState();
+        sessionStatus.textContent = state.status === 'synced' ? 'Serverstand wurde geprüft.' : (state.lastError || 'Der Cloud-Abgleich ist noch nicht möglich.');
         update(root);
       } catch (error) {
         sessionStatus.textContent = 'Fehler: ' + error.message;
@@ -184,6 +198,7 @@ BT.account = (function() {
       update(root);
     });
 
+    let previousIdentity = BT.sync.getState().identitySource;
     const onChange = () => {
       if (!root.isConnected) {
         window.removeEventListener('bt-sync-change', onChange);
@@ -191,6 +206,9 @@ BT.account = (function() {
         return;
       }
       update(root);
+      const nextIdentity = BT.sync.getState().identitySource;
+      if (previousIdentity !== 'server' && nextIdentity === 'server') loadMembers(root);
+      previousIdentity = nextIdentity;
     };
     window.addEventListener('bt-sync-change', onChange, { signal });
     update(root);

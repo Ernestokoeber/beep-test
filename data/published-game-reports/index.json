@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "courthub.published-report-index.v1",
+  "reports": [
+    {
+      "target": {"date": "2026-10-04", "home": "TSV Lindau", "away": "TSV Ottobeuren"},
+      "file": "2026-10-04-lindau-ottobeuren.json"
+    },
+    {
+      "target": {"date": "2026-10-17", "home": "TSV Wasserburg/Günzburg", "away": "TSV Lindau"},
+      "file": "2026-10-17-wasserburg-lindau.json"
+    }
+  ]
+}

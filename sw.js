@@ -1,6 +1,6 @@
 // Bump this whenever any app file or the offline asset manifest changes.
 // Cached files stay fixed for a release; the new worker installs the next release.
-const CACHE = 'courthub-v240';
+const CACHE = 'courthub-v241';
 const ASSETS = [
   './js/library-pages.js',
   './library-pages.css',
@@ -42,6 +42,7 @@ const ASSETS = [
   './js/matchday/view.mjs',
   './js/published-game-report.mjs',
   './js/published-report-delivery.mjs',
+  './data/published-game-reports/index.json',
   './data/published-game-reports/2026-10-04-lindau-ottobeuren.json',
   './data/published-game-reports/2026-10-17-wasserburg-lindau.json',
   './js/matchday/roster-pdf.mjs',
@@ -190,6 +191,19 @@ self.addEventListener('fetch', (event) => {
   // Leave native video byte ranges to the browser/CDN. Cache API cannot store
   // partial (206) responses or synthesize the ranges required for seeking.
   if (req.headers.has('Range') || url.pathname.startsWith('/assets/pnr/films/')) return;
+
+  // New reports must be discoverable without a new installed app release.
+  if (url.pathname === '/data/published-game-reports/index.json') {
+    event.respondWith(caches.open(CACHE).then(async cache => {
+      const cached = await cache.match(req);
+      try {
+        const fresh = await fetch(req);
+        if (fresh?.ok) { await cache.put(req, fresh.clone()).catch(() => {}); return fresh; }
+        return cached || fresh;
+      } catch (error) { if (cached) return cached; throw error; }
+    }));
+    return;
+  }
 
   // App files belong to this release. Download them once; a new worker/cache
   // supplies updates atomically instead of refreshing every file on every visit.

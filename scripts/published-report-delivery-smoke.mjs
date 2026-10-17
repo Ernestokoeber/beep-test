@@ -4,12 +4,13 @@ const moduleUrl=new URL('../js/published-report-delivery.mjs',import.meta.url);
 assert(existsSync(moduleUrl),'Die automatische Berichtsübernahme fehlt.');
 const {createPublishedReportDelivery}=await import(moduleUrl);
 const packet=JSON.parse(readFileSync(new URL('../data/published-game-reports/2026-10-17-wasserburg-lindau.json',import.meta.url)));
+const catalog={schemaVersion:'courthub.published-report-index.v1',reports:[{target:packet.target,file:'2026-10-17-wasserburg-lindau.json'}]};
 const fixture=()=>({meta:{updatedAt:'2026-10-01T12:00:00Z'},players:packet.players.map((p,i)=>({id:'phone-'+i,name:p.name,jerseyNumber:String(i+30)})),games:[{id:'game-phone',...packet.target,score:'',coachSummary:'Manuelle Notiz',playerStats:[{playerId:'phone-0',points:2,rebounds:7,assists:3,note:'Videobeobachtung'}],liveStats:{sessions:[]},matchday:{revisions:[]}}]});
 function setup(initial=fixture()){
- let data=structuredClone(initial),context='team-a',downloads=0,writes=0,failSave=false,blocked=false,fetchImpl=async()=>structuredClone(packet);const options=[];
+ let data=structuredClone(initial),context='team-a',downloads=0,writes=0,failSave=false,blocked=false,clock=0,index=structuredClone(catalog),indexReads=0,fetchImpl=async()=>structuredClone(packet);const options=[];
  const storage={load:()=>structuredClone(data),flush:async()=>{},save:async(next,config)=>{if(failSave)throw Error('Speicher voll');writes++;options.push(config);data=structuredClone(next);}};
- const delivery=createPublishedReportDelivery({storage,getContext:()=>context,canApply:()=>!blocked,fetchReport:async()=>{downloads++;return fetchImpl();}});
- return {delivery,options,get data(){return data;},get downloads(){return downloads;},get writes(){return writes;},set data(v){data=v;},set context(v){context=v;},set fetch(v){fetchImpl=v;},set failSave(v){failSave=v;},set blocked(v){blocked=v;}};
+ const delivery=createPublishedReportDelivery({storage,getContext:()=>context,canApply:()=>!blocked,now:()=>clock,fetchIndex:async()=>{indexReads++;return structuredClone(index);},fetchReport:async url=>{downloads++;return fetchImpl(url);}});
+ return {delivery,options,get data(){return data;},get downloads(){return downloads;},get writes(){return writes;},get indexReads(){return indexReads;},set data(v){data=v;},set context(v){context=v;},set fetch(v){fetchImpl=v;},set failSave(v){failSave=v;},set blocked(v){blocked=v;},set index(v){index=v;},set clock(v){clock=v;}};
 }
 const a=setup(),before=structuredClone(a.data);const first=await a.delivery.run();
 assert.equal(first.imported,1);assert.equal(a.data.games[0].score,'64:55');assert.equal(a.data.games[0].publishedReport.players.length,6);
@@ -33,4 +34,11 @@ const switched=setup();switched.fetch=()=>new Promise(r=>release=()=>r(packet));
 const editing=setup();editing.blocked=true;await editing.delivery.run();assert.equal(editing.downloads,0,'Bei offenem Editor nicht automatisch eingreifen.');
 editing.blocked=false;editing.fetch=()=>new Promise(r=>release=()=>r(packet));const entering=editing.delivery.run();await new Promise(r=>setTimeout(r,0));editing.blocked=true;release();await entering;assert.equal(editing.writes,0,'Während der Anfrage geöffnete Editoren schützen.');
 editing.blocked=false;assert.equal((await editing.delivery.run()).imported,1);assert.equal(editing.downloads,1);
+const future=setup();await future.delivery.run();const next=structuredClone(packet);next.target.date='2026-10-10';
+future.data.games.push({id:'next-game',...next.target});future.index={...catalog,reports:[...catalog.reports,{target:next.target,file:'2026-10-10-lindau-gast.json'}]};future.fetch=async()=>next;
+await future.delivery.run();assert.equal(future.data.games[1].publishedReport,undefined,'Verzeichnis innerhalb von fünf Minuten wiederverwenden.');
+future.clock=300001;assert.equal((await future.delivery.run()).imported,1,'Neue veröffentlichte Berichte nachladen, ohne App-Code zu ändern.');assert.equal(future.data.games[1].publishedReport.players.length,6);assert.equal(future.indexReads,2);
+for(const reports of [[{target:packet.target,file:'https://other.invalid/leak.json'}],[catalog.reports[0],{target:packet.target,file:'2026-10-17-other.json'}]]){
+ const hostile=setup();hostile.index={...catalog,reports};assert.equal((await hostile.delivery.run()).imported,0);assert.equal(hostile.downloads,0,'Ungültige oder mehrdeutige Dateiquellen nicht abrufen.');
+}
 console.log('Automatische Berichtsauslieferung: sechs Spieler, Bestandsschutz, Idempotenz, Offline-/Schreibfehler und Teamwechsel geprüft.');

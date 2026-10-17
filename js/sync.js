@@ -32,6 +32,7 @@ BT.sync = (function() {
     localStorage.setItem(OWNER_KEY, next);
   }
   let user = null;
+  let cachedIdentity = false;
   let sessionToken = BT.api.getToken();
   let version = (() => {
     try { return Number.parseInt(localStorage.getItem(VERSION_KEY) || '0', 10) || 0; }
@@ -54,6 +55,7 @@ BT.sync = (function() {
     catch {return false;}
   }
   function invalidateOtherTab() {
+    cachedIdentity = false;
     hasRemoteSnapshot = false;
     sessionEpoch++;clearTimeout(timer);timer=null;pushRequested=false;user=null;version=0;
     status='guest';lastError='Konto wurde in einem anderen Tab geändert. Bitte diese Ansicht neu laden.';emit();
@@ -76,7 +78,7 @@ BT.sync = (function() {
 
   function getState() {
     if(user&&!accountCurrent())invalidateOtherTab();
-    return { user, version, status, lastSyncAt, lastCheckedAt, lastError, sessionEpoch };
+    return { user, identitySource: user ? (cachedIdentity ? 'cache' : 'server') : null, version, status, lastSyncAt, lastCheckedAt, lastError, sessionEpoch };
   }
 
   function liveScope() { return { organizationId: user?.organization?.id, actorId: user?.id, sessionEpoch }; }
@@ -228,6 +230,7 @@ BT.sync = (function() {
   }
 
   function push() {
+    if (cachedIdentity) return Promise.resolve();
     if (!user || !current(sessionEpoch) || user.role === 'viewer' || user.role === 'player') return Promise.resolve();
     pushRequested = true;
     if (!pushWorker) pushWorker = drainPushes(sessionEpoch);
@@ -236,6 +239,10 @@ BT.sync = (function() {
 
   function queueSave(data) {
     if (!user || !current(sessionEpoch) || user.role === 'viewer' || user.role === 'player' || applying) return;
+    if (cachedIdentity) {
+      setStatus(navigator.onLine ? 'error' : 'offline', lastError || 'Lokal gespeichert. Die Trainersitzung muss vor dem Cloud-Abgleich erneut geprüft werden.');
+      return;
+    }
     clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
@@ -339,10 +346,16 @@ BT.sync = (function() {
     sessionToken=BT.api.getToken();
     await activateTeam(result.user);
     user = result.user;
+    cachedIdentity = false;
     lastCheckedAt = null;
     const epoch=sessionEpoch;await rememberIdentity();if(!current(epoch))return;
     emit();
-    await reconcile();
+    try { await reconcile(); }
+    catch (error) {
+      if (!current(epoch)) return;
+      if (error.status === 401 || error.status === 403) { logout(); throw error; }
+      setStatus(error.status === 0 ? 'offline' : 'error', error.message);
+    }
   }
 
   async function login(email, password) {
@@ -370,6 +383,7 @@ BT.sync = (function() {
     try { localStorage.removeItem(VERSION_KEY); } catch { /* Offline-Speicher blockiert. */ }
     BT.individualTraining?.clearLocalData?.();
     user = null;
+    cachedIdentity = false;
     version = 0;
     lastSyncAt = null;
     lastCheckedAt = null;
@@ -378,6 +392,7 @@ BT.sync = (function() {
 
   async function syncNow() {
     if (!user) throw new Error('Bitte zuerst anmelden.');
+    if (cachedIdentity) return init();
     clearTimeout(timer);
     timer = null;
     await reconcile();
@@ -387,7 +402,8 @@ BT.sync = (function() {
     hasRemoteSnapshot = false;
     const epoch=sessionEpoch, token=BT.api.getToken();sessionToken=token;
     if (!BT.api.getToken()) {
-      setStatus('guest');
+      if (user) logout();
+      else setStatus('guest');
       return;
     }
     try {
@@ -395,6 +411,7 @@ BT.sync = (function() {
       if(epoch!==sessionEpoch||BT.api.getToken()!==token)return;
       await activateTeam(result.user);
       user = result.user;
+      cachedIdentity = false;
       await rememberIdentity();if(!current(epoch))return;
       emit();
       await reconcile();
@@ -402,25 +419,30 @@ BT.sync = (function() {
       if(epoch!==sessionEpoch||BT.api.getToken()!==token)return;
       if (error.status === 401 || error.status === 403) logout();
       else {
-        if (error.status === 0 && !user) {
+        const cacheAllowed = error.status === 0 || (error.status === 503 && error.code === 'DATABASE_QUOTA_EXCEEDED');
+        if (cacheAllowed && !user) {
           try {
             const saved=JSON.parse(localStorage.getItem(IDENTITY_KEY)||'null');
             const fingerprint=await tokenFingerprint(token);
             if(epoch!==sessionEpoch||BT.api.getToken()!==token)return;
-            if(saved?.fingerprint===fingerprint&&fingerprint!==undefined)user=saved.user;
+            const owner=localStorage.getItem(OWNER_KEY),savedUser=saved?.user;
+            if(saved?.fingerprint===fingerprint&&fingerprint!==undefined&&token&&typeof savedUser?.id==='string'&&typeof savedUser.organization?.id==='string'&&
+                ['admin','coach','assistant','viewer','player'].includes(savedUser.role)&&
+                owner===savedUser.organization.id)user=savedUser;
           } catch {}
         }
+        if (cacheAllowed && user) cachedIdentity = true;
         setStatus(error.status === 0 ? 'offline' : 'error', error.message);
       }
     }
   }
 
   window.addEventListener('online', () => {
-    if (user) reconcile().catch((error) => setStatus('error', error.message));
+    if (user) (cachedIdentity ? init() : reconcile()).catch((error) => setStatus('error', error.message));
   });
   function refreshWhenActive() {
     if (!user || !navigator.onLine || document.visibilityState === 'hidden') return;
-    reconcile().catch((error) => setStatus('error', error.message));
+    (cachedIdentity ? init() : reconcile()).catch((error) => setStatus('error', error.message));
   }
   window.addEventListener('focus', refreshWhenActive);
   document.addEventListener('visibilitychange', refreshWhenActive);
