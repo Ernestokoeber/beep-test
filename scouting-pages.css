@@ -39,6 +39,11 @@
 .scout-refs { display:flex; flex-wrap:wrap; gap:8px; }
 .scout-refs a { display:flex; align-items:center; min-height:44px; padding:8px; font-size:.8rem; color:var(--text); border:1px solid var(--border); border-radius:8px; }
 .scouting-page summary { min-height:44px; padding:12px 0; cursor:pointer; }
+.scout-quality { margin:20px 0; padding:16px; border-left:4px solid #e89a35; background:var(--surface); line-height:1.6; }
+.scout-quality p { margin:8px 0; color:var(--muted); }
+.scout-player-facts { display:flex; flex-wrap:wrap; gap:24px; padding-block:16px; border-block:1px solid var(--border); }
+.scout-player-facts dt { color:var(--muted); font-size:.85rem; }
+.scout-player-facts dd { margin:8px 0 0; font-size:1.4rem; font-weight:700; }
 .scout-lineups > section { min-width:0; padding:16px; background:var(--surface); border:1px solid var(--border); border-radius:12px; }
 .scouting-page iframe { display:block; width:100%; min-height:180px; border:0; margin-top:20px; border-radius:8px; background:white; }
 .scout-legacy.view { padding:0; margin:0; }

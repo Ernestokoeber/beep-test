@@ -15,5 +15,16 @@ BT.scoutingModel=(()=>{
  function compareLineups(report){const all=(report?.lineups || []).filter(l=>l.kind==='confirmed'&&l.date&&l.players?.length===5).sort((a,b)=>a.date.localeCompare(b.date)),latest=all.at(-1),previous=all.at(-2),left=new Set((previous?.players || []).map(key)),right=new Set((latest?.players || []).map(key));return {confirmedCount:all.length,latest,previous,added:previous?latest.players.filter(p=>!left.has(key(p))):[],removed:previous?previous.players.filter(p=>!right.has(key(p))):[]};}
  function ownLineup(game){if(!game)return[];const prep=BT.games.preparationState(game);return (prep.startingFive || []).map(id=>prep.roster.find(p=>p.id===id)).filter(Boolean).map(p=>({name:p.name,position:p.gamePosition || p.position || ''}));}
  function researchPayload(row){const {profile,nextGame}=row;return{opponent:{name:profile.name,teamId:profile.teamId,seasonId:nextGame?.seasonId || profile.seasonId || BT.util.seasonForDate(BT.util.todayISO()),leagueId:nextGame?.leagueId || profile.leagueId || BT.seasonplanner.scheduleConfig().leagueId,league:nextGame?.leagueName || profile.leagueName || '',region:profile.region || '',nextGameDate:nextGame?.date || ''},ownTeam:{name:BT.seasonplanner.scheduleConfig().teamName,lineup:ownLineup(nextGame)},knownPlayers:BT.opponents.playerSummary(profile).map(p=>p.name).slice(0,25),context:JSON.stringify({results:BT.opponents.metricsFor(profile),teamStatistics:BT.opponents.shootingSummary(profile)}).slice(0,4000)};}
- return{list,find,compareLineups,ownLineup,researchPayload};
+ const reportFor=row=>{const report=row.profile.publicResearch,season=row.nextGame?.seasonId || row.profile.seasonId || BT.util.seasonForDate(BT.util.todayISO());return report?.season===season&&(!report.teamId||!row.profile.teamId||Number(report.teamId)===Number(row.profile.teamId))?report:null;};
+ const playerKey=name=>String(name || '').normalize('NFKC').toLocaleLowerCase('de').replace(/\s+/g,' ').trim();
+ function players(row){
+  const report=reportFor(row),teams=report?.officialEvidence?.teams || [],target=row.profile.teamId?teams.find(t=>Number(t.teamId)===Number(row.profile.teamId)):teams[0],found=new Map();
+  const add=name=>{name=String(name || '').trim();if(!name||name.includes('*'))return null;const id=playerKey(name);if(!found.has(id))found.set(id,{name,key:id,appearances:[],history:null,manual:null,targetEvidence:false});return found.get(id);};
+  for(const r of target?.reports || [])for(const name of r.players || []){const p=add(name);if(p)p.targetEvidence=true;}
+  for(const history of report?.players || []){const p=add(history.name);if(p)p.history=history;}
+  for(const manual of BT.opponents.playerSummary(row.profile)){const p=add(manual.name);if(p)p.manual=manual;}
+  for(const p of found.values())for(const team of teams)for(const r of team.reports || [])if(r.players?.some(n=>playerKey(n)===p.key))p.appearances.push({age:team.age,league:team.league,date:r.date,sourceIds:r.sourceIds || [],target:team===target,statisticsUsable:!!r.statisticsUsable,statistics:r.statisticsUsable?r.statistics?.find(s=>playerKey(s.name)===p.key):null});
+  return [...found.values()].sort((a,b)=>a.name.localeCompare(b.name,'de'));
+ }
+ return{list,find,compareLineups,ownLineup,researchPayload,players,reportFor,playerKey};
 })();
