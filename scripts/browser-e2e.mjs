@@ -18,6 +18,11 @@ async function waitForApp(page) {
       user: { id: 'e2e-coach', displayName: 'E2E Coach', role: 'admin', teamId: 'e2e' },
       status: 'synced'
     });
+    // Existing component regressions keep the legacy games renderer. The new
+    // routed game flows are exercised by game-pages-browser.mjs.
+    window.BT.gamePages.render=(target,hash)=>hash.includes('/matchday')
+      ? window.BT.games.renderMatchday(target,decodeURIComponent(hash.split('/')[2]),hash.endsWith('?training'))
+      : window.BT.games.render(target,hash.split('/')[2]&&decodeURIComponent(hash.split('/')[2]));
     navigator.serviceWorker?.getRegistrations?.().then(items => items.forEach(item => item.unregister()));
   });
 }
@@ -807,8 +812,9 @@ async function testTrainingLive(browser, name, options) {
 }
 
 async function testMatchday(browser, name, options) {
-  // Fresh storage per viewport; only identity is synthetic. Routes, UI,
-  // controllers, localStorage and IndexedDB use the production app.
+  // Fresh storage per viewport with synthetic identity. This regression uses
+  // the legacy games component and the production matchday controllers/journals;
+  // game-pages-browser.mjs covers the new routed mobile shell.
   const context = await browser.newContext({ ...options, locale: 'de-DE', serviceWorkers: 'block' });
   const page = await context.newPage();
   const errors = [];
@@ -821,6 +827,8 @@ async function testMatchday(browser, name, options) {
   await context.addInitScript(() => {
     // Install identity before app.js initializes a deep link, including reloads.
     window.BT = {};
+    let gamePages;
+    Object.defineProperty(window.BT,'gamePages',{configurable:true,get:()=>gamePages,set(value){gamePages=value;value.render=(target,hash)=>hash.includes('/matchday')?window.BT.games.renderMatchday(target,decodeURIComponent(hash.split('/')[2]),hash.endsWith('?training')):window.BT.games.render(target,hash.split('/')[2]&&decodeURIComponent(hash.split('/')[2]));}});
     let sync;
     Object.defineProperty(window.BT, 'sync', {
       configurable: true,
@@ -1098,6 +1106,8 @@ async function testCoachingStaff(browser, name, options) {
   page.on('pageerror',error=>errors.push(error.message));
   await context.addInitScript(()=>{
     window.BT={};let sync;
+    let gamePages;
+    Object.defineProperty(window.BT,'gamePages',{configurable:true,get:()=>gamePages,set(value){gamePages=value;value.render=(target,hash)=>hash.includes('/matchday')?window.BT.games.renderMatchday(target,decodeURIComponent(hash.split('/')[2])):window.BT.games.render(target,hash.split('/')[2]&&decodeURIComponent(hash.split('/')[2]));}});
     Object.defineProperty(window.BT,'sync',{configurable:true,get:()=>sync,set(value){sync=value;const original=value.getState.bind(value);value.getState=()=>({...original(),user:{id:'staff-coach',role:'coach',organization:{id:'staff-e2e'}}});}});
   });
   const noOverflow=async()=>{const sizes=await page.evaluate(()=>[document.documentElement.scrollWidth,document.body.scrollWidth,document.documentElement.clientWidth]);assert(Math.max(sizes[0],sizes[1])<=sizes[2]+1,`${name}: Trainerteam läuft horizontal über`);assert(errors.length===0,`${name}: ${errors.join(' | ')}`);};

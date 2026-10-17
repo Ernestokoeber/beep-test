@@ -117,6 +117,9 @@ route('#/player/' + player.id + '/development');
 assert(window.document.querySelector('[data-role="development-panel"]'), 'Spielerziele fehlen');
 
 const game = window.BT.storage.upsertGame({ team: 'herren', date: '2026-08-01', home: 'TSV Lindau', away: 'Testverein', score: '72:65', playerStats: [] });
+// The broad shell test exercises the legacy component; routed game flows have
+// their own real-browser regression in game-pages-browser.mjs.
+window.BT.gamePages.render=(target,hash)=>window.BT.games.render(target,hash.split('/')[2]);
 route('#/games');
 await new Promise(resolveWait => window.setTimeout(resolveWait, 20));
 const gameButton = window.document.querySelector('[data-game-id="' + game.id + '"]');

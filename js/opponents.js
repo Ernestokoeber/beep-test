@@ -635,7 +635,7 @@ BT.opponents = (function() {
         ${context.gameNotes.map((note, index) => `<details${index === 0 ? ' open' : ''}>
           <summary>${BT.util.escapeHTML(note.title)} · ${BT.util.escapeHTML(note.date || 'Datum offen')}${note.seasonId ? ` · ${BT.util.escapeHTML(note.seasonId)}` : ''}</summary>
           <p class="opponent-game-note-text">${BT.util.escapeHTML(note.text)}</p>
-          <a class="btn small" href="#/games/${BT.util.escapeHTML(encodeURIComponent(note.gameId))}">Spiel öffnen &amp; Notiz bearbeiten</a>
+          <a class="btn small" href="#/games/${BT.util.escapeHTML(encodeURIComponent(note.gameId))}/notes">Spielnotiz öffnen</a>
         </details>`).join('')}
       </section>` : ''}
       <section class="boxscore-panel opponent-screenshot-panel">

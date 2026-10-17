@@ -124,7 +124,7 @@ window.BT.opponents.render(target);
 target.querySelector(`[data-opponent-id="${illertal.id}"]`).click();
 assert(target.querySelector('.opponent-game-note-text')?.textContent === planText, 'Vollständiger Gameplan wird im Gegnerprofil nicht angezeigt');
 assert(!target.querySelector('.opponent-game-notes script'), 'Spielnotiz wird als ausführbares HTML angezeigt');
-assert(target.querySelector('.opponent-game-notes a').getAttribute('href') === '#/games/illertal-game', 'Link führt nicht zur ursprünglichen Spielnotiz');
+assert(target.querySelector('.opponent-game-notes a').getAttribute('href') === '#/games/illertal-game/notes', 'Link führt nicht zur eigenen Seite der ursprünglichen Spielnotiz');
 ownGames[0].coachSummary = 'GAMEPLAN – Überarbeitet';
 assert(window.BT.opponents.gameNotesFor(illertal)[0].text === ownGames[0].coachSummary, 'Änderungen am Spiel werden im Gegnerprofil nicht übernommen');
 ownGames = [];

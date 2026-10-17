@@ -110,12 +110,11 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await check('Spielerstatistik als eigene Seite');
     await page.goto(baseUrl + '/#/games');
     await page.locator('[data-role="game-list"] [data-game-id]').first().tap();
-    await page.locator('[data-action="open-matchday"]').waitFor();
+    await page.locator('[data-game-page="overview"]').waitFor();
     assert(!(await page.locator('.atlas-panel').isVisible()));
-    await page.locator('[data-role="hamburger"]').tap();
-    await page.locator('[data-context-action="Geprüfte Videoanalyse"]').tap();
+    await page.locator('a[href$="/analysis"]').tap();
     await page.locator('.atlas-panel').waitFor();
-    await check('Videoanalyse im Menü');
+    await check('Videoanalyse auf eigener Seite');
     await page.goto(baseUrl + '/#/opponents');
     await page.locator('.opponent-game-note-text').waitFor();
     assert.equal(await page.locator('.opponent-game-note-text').textContent(), data.gameplan.trim());

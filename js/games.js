@@ -9,7 +9,14 @@ BT.games = (function() {
   let matchdayView = null;
   let editAccess = null;
   let detailFlush = null;
-  function cleanup(keepEditing = false) { detailFlush?.(); detailFlush=null; if(!keepEditing)editAccess=null; liveGeneration++; matchdayView=null; if(liveCleanup){liveCleanup();liveCleanup=null;} }
+  let pageOptions = {};
+  function cleanup(keepEditing = false) {
+    detailFlush?.(); detailFlush=null;
+    let withinGame=false;
+    try { withinGame=Boolean(pageOptions.routed&&editAccess&&decodeURIComponent(location.hash.split('?')[0].split('/')[2]||'')===editAccess.gameId); } catch { /* Invalid routes must not retain edit access. */ }
+    if(!keepEditing&&!withinGame)editAccess=null;
+    liveGeneration++; matchdayView=null;if(liveCleanup){liveCleanup();liveCleanup=null;}
+  }
   function beforeLeave(){return matchdayView?.flush?.() ?? detailFlush?.() ?? null;}
 
   function statusFor(game, today = todayISO()) {
@@ -34,6 +41,7 @@ BT.games = (function() {
     return JSON.stringify([state?.user?.id, state?.user?.organization?.id, state?.user?.role, state?.sessionEpoch]);
   }
   function canEdit(game) {
+    if (['viewer','player'].includes(BT.sync?.getState?.().user?.role)) return false;
     return Boolean(game && (!statusFor(game).closed || (editAccess?.gameId === game.id && editAccess.account === accountKey())));
   }
   function requestEdit(game) {
@@ -51,7 +59,7 @@ BT.games = (function() {
       const current = getCurrent(), status = statusFor(current), editable = canEdit(current);
       section.hidden = !status.closed;
       title.textContent = `${status.label} · ${editable ? 'Bearbeitung freigegeben' : 'geschlossen'}`;
-      note.textContent = editable ? 'Nachträgliche Bearbeitung ist für dieses Spiel freigegeben. Beim Verlassen oder Neuladen wird es wieder gesperrt.' : 'Dieses Spiel ist nur lesbar. Nachträgliche Änderungen erfordern eine ausdrückliche Freigabe.';
+      note.textContent = editable ? 'Nachträgliche Bearbeitung ist für dieses Spiel freigegeben. Beim Verlassen dieses Spiels oder Neuladen wird es wieder gesperrt.' : 'Dieses Spiel ist nur lesbar. Nachträgliche Änderungen erfordern eine ausdrückliche Freigabe.';
       button.textContent = editable ? 'Bearbeitung wieder sperren' : 'Bearbeitung freigeben';
       button.dataset.action = editable ? 'lock-game' : 'unlock-game';
     };
@@ -66,8 +74,10 @@ BT.games = (function() {
     return { section, update };
   }
 
-  function render(target, gameId) {
+  function render(target, gameId, options = {}) {
     cleanup();
+    pageOptions = options;
+    if (options.routed) selectedGameId = gameId || null;
     if (gameId) selectedGameId = gameId;
     root = renderTemplate('tpl-games');
     target.appendChild(root);
@@ -80,9 +90,9 @@ BT.games = (function() {
     $('[data-role="schedule-team-id"]', root).value = source.teamId;
     $('[data-role="schedule-team-name"]', root).value = source.teamName;
 
-    $('[data-action="new-game"]', root).addEventListener('click', () => openForm());
-    $('[data-action="new-training-game"]', root)?.addEventListener('click',()=>{openForm();form.dataset.trainingGame='true';});
-    $('[data-action="cancel-game"]', root).addEventListener('click', closeForm);
+    $('[data-action="new-game"]', root).addEventListener('click', () => options.onNew ? options.onNew(false) : openForm());
+    $('[data-action="new-training-game"]', root)?.addEventListener('click',()=>{if(options.onNew){options.onNew(true);return;}openForm();form.dataset.trainingGame='true';});
+    $('[data-action="cancel-game"]', root).addEventListener('click', () => options.onCancel ? options.onCancel() : closeForm());
     teamFilter.addEventListener('change', drawList);
     search.addEventListener('input', drawList);
     form.addEventListener('submit', event => {
@@ -99,6 +109,7 @@ BT.games = (function() {
       });
       selectedGameId = game.id;
       const trainingGame=form.dataset.trainingGame==='true';
+      if (options.onSaved) { options.onSaved(game, trainingGame); return; }
       closeForm(); drawList(); drawDetail();
       if(trainingGame)location.hash='#/games/'+encodeURIComponent(game.id)+'/matchday?training';
     });
@@ -141,6 +152,7 @@ BT.games = (function() {
     $('[data-action="import-atlas"]', root).addEventListener('click', importAtlasFile);
     drawList();
     if (gameId) drawDetail();
+    return root;
   }
 
   function openForm(game) {
@@ -170,6 +182,7 @@ BT.games = (function() {
     const team = $('[data-role="games-team"]', root).value;
     const query = $('[data-role="games-search"]', root).value.trim().toLowerCase();
     const games = BT.storage.getGames().filter(game => {
+      if (pageOptions.filterGame && !pageOptions.filterGame(game)) return false;
       if (team !== 'all' && game.team !== team) return false;
       return !query || (game.home + ' ' + game.away).toLowerCase().includes(query);
     });
@@ -179,13 +192,16 @@ BT.games = (function() {
       const opponent = isHome ? game.away : game.home;
       const selected = game.id === selectedGameId;
       const status = statusFor(game);
-      return `<li><button class="game-list-card ${selected ? 'active' : ''}" type="button" data-game-id="${game.id}">
+      const tag = pageOptions.routed ? 'a' : 'button';
+      const destination = pageOptions.routed ? `href="#/games/${encodeURIComponent(game.id)}"` : 'type="button"';
+      return `<li><${tag} class="game-list-card ${selected ? 'active' : ''}" ${destination} data-game-id="${escapeHTML(game.id)}">
         <span class="game-team">${game.team === 'u18' ? 'U18' : 'Herren'} · ${formatDate(game.date)}</span>
         <strong>${isHome ? 'vs.' : '@'} ${escapeHTML(opponent || 'Gegner offen')}</strong>
         <span class="game-list-meta">${escapeHTML(game.time || '')} · ${status.label}${status.hasScore ? ' · ' + escapeHTML(game.score) : status.completed ? ' · Ergebnis offen' : ''}${game.atlas ? ' · Atlas ✓' : ''}</span>
-      </button></li>`;
+      </${tag}></li>`;
     }).join('');
     list.querySelectorAll('[data-game-id]').forEach(button => button.addEventListener('click', () => {
+      if (pageOptions.routed) return;
       detailFlush?.(); editAccess = null; closeForm(); selectedGameId = button.dataset.gameId; drawList(); drawDetail();
     }));
   }
@@ -374,13 +390,15 @@ BT.games = (function() {
           if(!confirm('Auch die gesamte Spieltagsvorbereitung und Live-Erfassung löschen? Vorher alle Erfassungsgeräte synchronisieren und schließen.'))return;
           cleanup();await BT.sync.deleteLiveGame(game.id);
         }else BT.storage.deleteGame(game.id);
+        if (pageOptions.onDeleted) { pageOptions.onDeleted(); return; }
         selectedGameId = null; drawList(); drawDetail();
       }catch(error){BT.util.toast(error.message);}
     });
+    pageOptions.onDetail?.(root, game);
   }
 
-  async function showLiveReport(gameId, wrap){
-    cleanup(true);const generation=liveGeneration,host=$('[data-role="live-game-host"]',wrap);
+  async function showLiveReport(gameId, wrap, preserveDetail=false){
+    if(!preserveDetail)cleanup(true);const generation=liveGeneration,host=$('[data-role="live-game-host"]',wrap);
     try{
       const {buildLiveReport,renderLiveReport}=await import('./live-game/report.mjs');
       if(generation!==liveGeneration)return;
@@ -616,8 +634,9 @@ BT.games = (function() {
     catch { BT.util.downloadBlob('spielauswertung-' + game.date + '.txt', new Blob([text], { type: 'text/plain;charset=utf-8' })); }
   }
 
-  async function renderMatchday(target,gameId,training=false){
+  async function renderMatchday(target,gameId,training=false,options={}){
     cleanup();const generation=liveGeneration;
+    pageOptions={routed:!!options.navigation};
     const host=document.createElement('section');host.textContent='Spieltag wird geöffnet …';target.append(host);
     try{
       const game=BT.storage.getGame(gameId),state=BT.sync.getState(),user=state.user;
@@ -637,12 +656,13 @@ BT.games = (function() {
       const notice=archiveNotice(game,()=>{c.refresh().catch(error=>BT.util.toast(error.message));},()=>({...BT.storage.getGame(game.id)||game,liveStats:c.live.getState().live||game.liveStats}));host.append(notice.section);
       const unarchive=c.subscribe(()=>notice.update());
       const content=document.createElement('div');host.append(content);
-      matchdayView=mountMatchdayView(content,c,{game,players:()=>BT.storage.getPlayers(),tactics:()=>BT.teamStrategy?.activeTactics?.()||[],getOpponentPlan:currentOpponentPlan,onPlayerInjury:(player,match)=>{
+      matchdayView=mountMatchdayView(content,c,{game,navigation:options.navigation,players:()=>BT.storage.getPlayers(),tactics:()=>BT.teamStrategy?.activeTactics?.()||[],getOpponentPlan:currentOpponentPlan,onPlayerInjury:(player,match)=>{
         if(!BT.storage.getPlayer(player.id))return;
         BT.storage.upsertPlayer({id:player.id,availability:'injured',availabilityUntil:null,availabilityNote:`Am Spieltag ${BT.util.formatDate(match?.date||BT.util.todayISO())} verletzt / beim Aufwärmen`});
       }});
       const view=matchdayView;liveCleanup=()=>{unarchive();view();c.close().catch(()=>{});};
+      options.onReady?.(host,c);
     }catch(e){if(generation===liveGeneration)host.textContent=e.message;}
   }
-  return { render, renderMatchday, beforeLeave, cleanup, statusFor, canEdit, isLiveOpen: () => !!liveCleanup };
+  return { render, renderMatchday, beforeLeave, cleanup, statusFor, canEdit, preparationState, refreshList:drawList, showLiveReport, isLiveOpen: () => !!liveCleanup };
 })();

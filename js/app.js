@@ -140,7 +140,7 @@
     const container = document.querySelector('[data-role="context-navigation"]');
     if (!container) return;
     container.replaceChildren();
-    if (app.querySelector('[data-training-page], [data-tactics-page]')) { container.hidden = true; return; }
+    if (app.querySelector('[data-training-page], [data-tactics-page], [data-game-page]')) { container.hidden = true; return; }
     const training = app.querySelector('.training-detail-view');
     const sections = [...app.querySelectorAll('.mobile-extra-section[data-menu-label]')];
     const controls = [...app.querySelectorAll('.mobile-extra-action')];
@@ -269,10 +269,8 @@
       let parts;
       try { parts = path.split('/').map(decodeURIComponent); } catch { parts = ['']; }
       BT.trainingPages.render(app, parts[0], parts[1] || 'overview', parts[2], new URLSearchParams(query));
-    } else if (/^#\/games\/[^/]+\/matchday(?:\?training)?$/.test(hash)) {
-      BT.games.renderMatchday(app,decodeURIComponent(hash.split('/')[2]),hash.endsWith('?training'));
-    } else if (hash === '#/games' || /^#\/games\/[^/]+$/.test(hash)) {
-      BT.games.render(app, hash === '#/games' ? undefined : decodeURIComponent(hash.split('/')[2]));
+    } else if (hash === '#/games' || hash.startsWith('#/games/')) {
+      await BT.gamePages.render(app,hash);
     } else if (hash === '#/opponents') {
       BT.opponents.render(app);
     } else if (hash === '#/jerseys') {

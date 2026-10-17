@@ -12,6 +12,7 @@ const dom=()=>{const d=new JSDOM('<main id="app"></main>',{url:'https://test.loc
 cases.offline=async()=>{
   const d=dom(),w=d.window;let done,ready=false,opened=[];
   w.BT={sync:{init:()=>new Promise(r=>{done=()=>{ready=true;r();};})},games:{renderMatchday:()=>opened.push(ready)}};
+  w.BT.gamePages={render:()=>w.BT.games.renderMatchday()};
   try{w.eval(readFileSync(new URL('../js/app.js',import.meta.url),'utf8'));w.dispatchEvent(new w.Event('DOMContentLoaded'));assert.equal(typeof done,'function');done();await new Promise(r=>setTimeout(r,20));assert.deepEqual(opened,[true],'Deep link must open only after offline identity restoration');}finally{d.window.close();}
 };
 cases.focus=async()=>{

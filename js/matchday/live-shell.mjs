@@ -21,7 +21,7 @@ function renderOpponentAnalysis(live,title='Defense-Vergleich'){
   if(live.playerScoring.length){section.append(el('h5','Zugeordnete gegnerische Werfer'));const list=el('ul');for(const player of live.playerScoring)list.append(el('li',`${player.name}: ${player.points} Punkte · 1er ${player.one} · 2er ${player.two} · 3er ${player.three}`));section.append(list);}
   const note=el('small','P/10 basiert auf manuell erfassten Punkten und Spielzeit, nicht auf Ballbesitzen. Nicht zugeordnete Treffer bleiben in der Team- und Defense-Auswertung enthalten.');note.className='matchday-analysis-note';section.append(note);return section;
 }
-export function mountMatchdayLive(container,controller,{tactics=()=>[],players=()=>[],game=null,onPlayerInjury=()=>{},onOpponentFeedback=()=>{}}={}){
+export function mountMatchdayLive(container,controller,{tactics=()=>[],players=()=>[],game=null,onPlayerInjury=()=>{},onOpponentFeedback=()=>{},compact=false}={}){
   let dirty=false,revision=0,parents=controller.getState().heads,base=clone(controller.getState().draft),saving=false,pending=Promise.resolve(true),dead=false,reportKey='',conflictKey='';
   let scoutingKey='',feedbackKey='',rosterEditorKey='',resetKey='',staffKey='';
   const staffOverview=el('div');staffOverview.dataset.role='live-staff';
@@ -35,7 +35,10 @@ export function mountMatchdayLive(container,controller,{tactics=()=>[],players=(
   const save=el('button','Abschlussnotiz speichern');save.type='submit';form.append(save);
   const discard=el('button','Ungespeicherte Eingaben verwerfen');discard.type='button';discard.dataset.action='discard-unsaved';discard.hidden=true;details.append(discard);
   discard.addEventListener('click',()=>{dirty=false;update(controller.getState());});
-  container.append(hint,staffOverview,pregameRoster,resetLive,scouting,pause,report,liveTools,details,conflicts);
+  if(compact){
+    const support=el('details');support.className='gp-live-support';support.append(el('summary','Gameplan, Kader & Spielnotizen'),staffOverview,pregameRoster,resetLive,scouting,details,conflicts);
+    container.append(hint,pause,report,liveTools,support);
+  }else container.append(hint,staffOverview,pregameRoster,resetLive,scouting,pause,report,liveTools,details,conflicts);
   // Base and parents belong to the displayed fields, including a focused field
   // whose remote update was deliberately held back.
   function mark(){dirty=true;revision++;status.textContent='Abschlussnotiz ungespeichert';}

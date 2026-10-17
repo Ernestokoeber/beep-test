@@ -67,7 +67,13 @@ BT.navigation = (function() {
       return parts.length > 3 ? parts.slice(0,3).join('/') : '#/training';
     }
     if (hash.startsWith('#/schedule') || hash.startsWith('#/drills')) return '#/training';
-    if (hash.startsWith('#/games/') || hash === '#/opponents') return '#/games';
+    if (hash.startsWith('#/games/')) {
+      const parts=hash.split('?')[0].split('/');
+      if(parts[3]==='player')return parts.slice(0,3).join('/')+'/boxscore';
+      if(parts[3]==='prepare'&&parts[4]&&parts[4]!=='roster'&&parts[4]!=='setup')return parts.slice(0,3).join('/')+'/prepare/roster';
+      return parts.length>3?parts.slice(0,3).join('/'):'#/games';
+    }
+    if (hash === '#/opponents') return '#/games';
     if (hash.startsWith('#/tactics/')) {
       const parts = hash.split('?')[0].split('/');
       return parts.length > 3 ? parts.slice(0, 3).join('/') : '#/tactics';

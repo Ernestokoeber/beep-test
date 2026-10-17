@@ -4,6 +4,9 @@ export async function verifyGameArchive(browser, options, name, baseUrl) {
   const context=await browser.newContext({...options,locale:'de-DE',timezoneId:'Europe/Berlin',serviceWorkers:'block'});
   await context.addInitScript(()=>{
     window.BT={};let sync;
+    // Legacy archive component coverage; routed archive pages have a separate test.
+    let pages;
+    Object.defineProperty(window.BT,'gamePages',{configurable:true,get:()=>pages,set(value){pages=value;value.render=(target,hash)=>hash.includes('/matchday')?window.BT.games.renderMatchday(target,decodeURIComponent(hash.split('/')[2])):window.BT.games.render(target,hash.split('/')[2]&&decodeURIComponent(hash.split('/')[2]));}});
     Object.defineProperty(window.BT,'sync',{configurable:true,get:()=>sync,set(value){
       sync=value;const original=value.getState.bind(value);
       value.getState=()=>({...original(),user:{id:'archive-coach',role:'coach',organization:{id:'archive-e2e'}}});
