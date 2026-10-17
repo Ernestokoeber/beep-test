@@ -90,8 +90,8 @@ BT.seasonplanner = (function() {
   }
 
   function buildSlots(games, options) {
-    if (BT.opponents?.ensureFromOwnGames) BT.opponents.ensureFromOwnGames();
     const config = options || {};
+    if (!config.readOnly && BT.opponents?.ensureFromOwnGames) BT.opponents.ensureFromOwnGames();
     const allGames = (games || [])
       .filter(game => game && game.date && !game.cancelled)
       .slice()

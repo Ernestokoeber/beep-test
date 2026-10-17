@@ -97,10 +97,10 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     assert.equal(await page.locator('[data-role="hamburger"]').getAttribute('aria-expanded'), 'false');
     assert.equal(await page.locator('#app').evaluate(node => node.inert), false);
     await page.goto(baseUrl + '/#/schedule');
-    await page.locator('[data-role="upcoming"]').waitFor();
+    await page.locator('[data-calendar-page="agenda"]').waitFor();
     assert(!(await page.locator('.season-ai-panel').isVisible()));
-    await page.locator('[data-role="hamburger"]').tap();
-    await page.locator('[data-context-action="Saisonplanung und Teamkonzept"]').tap();
+    await page.locator('.calendar-tabs a[href="#/schedule/planning"]').tap();
+    await page.locator('.calendar-tasks a[href="#/schedule/season"]').tap();
     await page.locator('.season-ai-panel').waitFor();
     await check('Saisonplanung im Menü');
     await page.goto(baseUrl + '/#/player/' + data.regular);

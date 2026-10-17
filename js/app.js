@@ -140,7 +140,7 @@
     const container = document.querySelector('[data-role="context-navigation"]');
     if (!container) return;
     container.replaceChildren();
-    if (app.querySelector('[data-training-page], [data-tactics-page], [data-game-page]')) { container.hidden = true; return; }
+    if (app.querySelector('[data-training-page], [data-tactics-page], [data-game-page], [data-calendar-page]')) { container.hidden = true; return; }
     const training = app.querySelector('.training-detail-view');
     const sections = [...app.querySelectorAll('.mobile-extra-section[data-menu-label]')];
     const controls = [...app.querySelectorAll('.mobile-extra-action')];
@@ -210,6 +210,7 @@
     const isDashboard = hash === '#/dashboard' || hash === '#/' || hash === '';
     BT.dashboard?.cleanup?.();
     BT.insights?.cleanup();
+    BT.calendar?.cleanup();
     if (!isDashboard) app.innerHTML = '';
     if (BT.test && BT.test.cleanup) BT.test.cleanup();
     if (BT.checkin && BT.checkin.cleanup) BT.checkin.cleanup();
@@ -287,9 +288,8 @@
       BT.insights.render(app);
     } else if (hash === '#/data') {
       BT.dashboard.renderData(app);
-    } else if (hash === '#/schedule' || hash === '#/schedule/team-concept') {
-      BT.schedule.render(app);
-      if (hash === '#/schedule/team-concept') app.querySelector('[data-menu-label="Saisonplanung und Teamkonzept"]')?.classList.add('mobile-extra-open');
+    } else if (hash === '#/schedule' || hash.startsWith('#/schedule/') || hash.startsWith('#/schedule?')) {
+      BT.calendar.render(app);
     } else if (hash === '#/notes') {
       BT.notes.renderList(app);
     } else if (hash.startsWith('#/notes/')) {

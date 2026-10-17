@@ -501,7 +501,7 @@ try {
 }
 assert(rejectedBatch, 'Ein Trainingsfehler bricht die Saisonplanung nicht zuverlässig ab');
 
-route('#/schedule');
+route('#/schedule/season');
 assert(window.document.querySelector('[data-action="generate-season"]'), 'KI-Saisonplanung fehlt im Trainingsplan');
 assert(window.document.querySelector('[data-role="season-plan-summary"]'), 'Saisonübersicht fehlt');
 assert(window.document.querySelector('[data-role="team-strategy-card"]'), 'Das verbindliche Teamkonzept fehlt in der Saisonplanung');

@@ -140,6 +140,63 @@
   .insight-row { padding:14px 4px; }
 }
 
+/* Calendar: a month agenda with one-tap appointment cards. */
+.calendar-page { max-width:1000px; margin:0 auto; overflow-wrap:anywhere; }
+.calendar-page [hidden] { display:none !important; }
+.calendar-heading h2 { font-size:clamp(1.7rem,4vw,2.4rem); letter-spacing:-.04em; line-height:1.2; margin:0; }
+.calendar-heading p { margin:8px 0 20px; color:var(--muted); font-size:.9rem; line-height:1.5; }
+.calendar-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:20px 0; }
+.calendar-tabs a { display:grid; place-items:center; min-height:44px; padding:10px 16px; border:1px solid var(--border); border-radius:9px; color:var(--text); background:var(--surface); text-decoration:none; }
+.calendar-tabs a[aria-current="page"] { color:#fff; background:#163b2e; border-color:#163b2e; }
+.calendar-month { display:grid; grid-template-columns:44px minmax(0,1fr) 44px; align-items:end; gap:12px; }
+.calendar-month button { min-height:46px; width:44px; font-size:1.6rem; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:9px; cursor:pointer; }
+.calendar-month label, .calendar-tools label { display:grid; gap:8px; min-width:0; font-size:.85rem; }
+.calendar-page input:not([type="checkbox"]), .calendar-page select, .calendar-page textarea { min-width:0; max-width:100%; width:100%; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:9px; }
+.calendar-page input:not([type="checkbox"]), .calendar-page select { min-height:46px; }
+.calendar-page .calendar-current { min-height:44px; margin:10px 0; }
+.calendar-tools { display:grid; grid-template-columns:minmax(160px,1fr) minmax(0,2fr); gap:12px; margin:12px 0 20px; }
+.calendar-count { color:var(--muted); font-size:.85rem; margin:20px 0; }
+.calendar-day { margin:24px 0; min-width:0; }
+.calendar-day h3 { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0 0 12px; font-size:1rem; }
+.calendar-day h3 > span { padding:4px 8px; border-radius:6px; font-size:.75rem; color:#163b2e; background:#ffe1b0; }
+.calendar-day-events { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.calendar-event { display:flex; flex-direction:column; gap:10px; min-width:0; padding:18px; border:1px solid var(--border); border-radius:14px; background:var(--surface); color:var(--text); text-decoration:none; }
+.calendar-event-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; font-size:.8rem; color:var(--muted); }
+.calendar-event-head small { border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:.7rem; }
+.calendar-event > strong { font-size:1.1rem; line-height:1.4; letter-spacing:-.015em; }
+.calendar-event-meta { font-size:.85rem; color:var(--muted); line-height:1.5; }
+.calendar-event-open { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:auto; padding-top:6px; font-size:.85rem; font-weight:650; }
+.calendar-completed, .calendar-cancelled { border-style:dashed; }
+.calendar-active { border-color:#e89a35; }
+.calendar-empty { padding:20px; border:1px dashed var(--border); border-radius:14px; background:var(--surface); margin:20px 0; }
+.calendar-empty h3 { margin-top:0; font-size:1.1rem; }
+.calendar-empty p { color:var(--muted); line-height:1.5; }
+.calendar-tasks, .calendar-actions { display:grid; border-top:1px solid var(--border); margin-top:28px; }
+.calendar-task { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:64px; padding:16px 8px; border-bottom:1px solid var(--border); color:var(--text); text-decoration:none; }
+.calendar-task > span:first-child { display:grid; gap:6px; min-width:0; }
+.calendar-task small { font-size:.85rem; color:var(--muted); line-height:1.5; }
+.calendar-task > span:last-child { color:var(--muted); font-size:1.5rem; }
+.calendar-page a:focus-visible, .calendar-page button:focus-visible, .calendar-page input:focus-visible, .calendar-page select:focus-visible, .calendar-page textarea:focus-visible { outline:3px solid #e89a35; outline-offset:3px; }
+.calendar-planner-frame > .view { margin:0; padding:0; }
+.calendar-planner-frame .player-form, .calendar-planner-frame .team-strategy-card { margin:0; padding:18px; min-width:0; max-width:100%; }
+.calendar-planning .form-row { flex-wrap:wrap; }
+.calendar-planning .form-row > label { min-width:0; }
+.calendar-planning .btn, .calendar-planning .wd-btn { min-height:44px; white-space:normal; }
+.calendar-planning .weekday-row { display:flex; flex-wrap:wrap; gap:6px; }
+.calendar-planning .wd-btn { min-width:44px; }
+.calendar-planning .muted a { display:inline-flex; align-items:center; min-height:44px; }
+.calendar-planning .session-list > li { min-width:0; flex-wrap:wrap; }
+.calendar-planning .session-list .actions { flex-wrap:wrap; }
+.calendar-planning .season-plan-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+@media(max-width:650px) {
+  .calendar-tools, .calendar-day-events { grid-template-columns:minmax(0,1fr); }
+  .calendar-month { gap:8px; }
+  .calendar-planning .form-row, .calendar-planning .season-coach-inputs { display:flex; flex-direction:column; gap:16px; }
+  .calendar-planning .form-row > label { width:100%; }
+  .calendar-planning .strategy-tactic-grid { grid-template-columns:minmax(0,1fr); }
+  .calendar-planning .section-head { flex-wrap:wrap; }
+}
+
 /* Shared page navigation. Domain-specific live modes retain their own shells. */
 .page-back { display:inline-flex; align-items:center; gap:7px; min-height:44px; padding:8px 10px; border:0; border-radius:8px; background:transparent; color:#fff; font:inherit; font-weight:600; cursor:pointer; }
 .page-back[hidden] { display:none; }

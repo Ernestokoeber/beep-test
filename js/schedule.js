@@ -2,6 +2,7 @@ window.BT = window.BT || {};
 
 BT.schedule = (function() {
   const { $, $$, renderTemplate, todayISO, escapeHTML, formatDate } = BT.util;
+  const writable=()=>!['viewer','player'].includes(BT.sync?.getState?.().user?.role);
 
   const DAYS = [
     { key: 'mon', label: 'Mo', num: 1 },
@@ -57,11 +58,11 @@ BT.schedule = (function() {
     return String(config.teamName || 'team').trim().toLowerCase().replace(/[^a-z0-9äöüß]+/g, '-').replace(/^-|-$/g, '') || 'team';
   }
 
-  function render(target) {
+  function render(target, options = {}) {
     const root = renderTemplate('tpl-schedule');
     target.appendChild(root);
 
-    const selectedDays = new Set(BT.storage.getSetting('regularDays', ['tue', 'fri']));
+    const selectedDays = new Set(options.draft?.regularDays || BT.storage.getSetting('regularDays', ['tue', 'fri']));
     const time = BT.storage.getSetting('regularTime', '20:15');
     const lookahead = BT.storage.getSetting('regularLookahead', 6);
 
@@ -85,17 +86,19 @@ BT.schedule = (function() {
     $('[data-role="lookahead"]', root).value = lookahead;
 
     $('[data-action="save-schedule"]', root).addEventListener('click', () => {
+      if(!writable())return;
       BT.storage.setSetting('regularDays', Array.from(selectedDays));
       BT.storage.setSetting('regularTime', $('[data-role="time"]', root).value || '20:15');
       BT.storage.setSetting('regularLookahead', parseInt($('[data-role="lookahead"]', root).value, 10) || 6);
       renderUpcoming(root);
       renderSeasonSummary(root);
+      BT.util.toast('Trainingszeiten gespeichert.');
     });
     $('[data-action="export-calendar"]', root).addEventListener('click', exportCalendar);
 
-    renderUpcoming(root);
-    setupSeasonPlanner(root);
-    setupAIImport(root);
+    if(!options.pane || options.pane==='upcoming')renderUpcoming(root);
+    if(!options.pane || ['season','team-concept'].includes(options.pane))setupSeasonPlanner(root,options);
+    if(!options.pane || options.pane==='import')setupAIImport(root);
   }
 
   function seasonCoachInput(root) {
@@ -143,7 +146,7 @@ BT.schedule = (function() {
   }
 
   function renderTeamStrategy(root) {
-    const strategy = BT.teamStrategy.ensure();
+    const strategy = BT.teamStrategy.current();
     $('[data-role="strategy-offense"]', root).value = strategy.offensePrinciples;
     $('[data-role="strategy-defense"]', root).value = strategy.defensePrinciples;
     $('[data-role="strategy-replaces-previous"]', root).checked = strategy.replacesPrevious;
@@ -180,17 +183,18 @@ BT.schedule = (function() {
     );
   }
 
-  function plannerSlots() {
+  function plannerSlots(options = {}) {
     return BT.seasonplanner.buildSlots(seasonGames(), {
       days: BT.storage.getSetting('regularDays', ['tue', 'fri']),
       time: BT.storage.getSetting('regularTime', '20:15'),
-      startDate: todayISO()
+      startDate: todayISO(),
+      readOnly: Boolean(options.readOnly)
     });
   }
 
   function renderSeasonSummary(root) {
     const games = seasonGames().filter(game => !game.cancelled).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const slots = plannerSlots();
+    const slots = plannerSlots({readOnly:true});
     const state = $('[data-role="season-plan-state"]', root);
     const summary = $('[data-role="season-plan-summary"]', root);
     if (!games.length) {
@@ -211,7 +215,7 @@ BT.schedule = (function() {
       <div><span>Geschützte Einheiten</span><strong>${protectedCount}</strong></div>`;
   }
 
-  function setupSeasonPlanner(root) {
+  function setupSeasonPlanner(root,options = {}) {
     renderTeamStrategy(root);
     const saved = BT.storage.getSetting('seasonCoachInput', {
       goal: '',
@@ -225,6 +229,7 @@ BT.schedule = (function() {
     renderSeasonSummary(root);
 
     $('[data-action="save-team-strategy"]', root).addEventListener('click', () => {
+      if(!writable())return;
       const previousRevision = BT.teamStrategy.current().revision;
       const savedStrategy = persistTeamStrategy(root);
       $('[data-role="team-strategy-version"]', root).textContent = savedStrategy.name + ' · V' + savedStrategy.revision;
@@ -236,6 +241,7 @@ BT.schedule = (function() {
     });
 
     $('[data-action="preview-season"]', root).addEventListener('click', async event => {
+      if(!writable())return;
       const button = event.currentTarget;
       const status = $('[data-role="season-ai-status"]', root);
       button.disabled = true;
@@ -258,6 +264,7 @@ BT.schedule = (function() {
     });
 
     $('[data-action="generate-season"]', root).addEventListener('click', async event => {
+      if(!writable())return;
       const button = event.currentTarget;
       const status = $('[data-role="season-ai-status"]', root);
       if (!BT.api.getToken()) {
@@ -269,7 +276,7 @@ BT.schedule = (function() {
       try {
         delete status.dataset.status;
         status.removeAttribute('role');
-        persistTeamStrategy(root);
+        if(options.pane!=='season')persistTeamStrategy(root);
         const preferences = seasonCoachInput(root);
         BT.storage.setSetting('seasonCoachInput', preferences);
         status.textContent = 'Offizieller Herren-Spielplan wird synchronisiert …';
@@ -323,6 +330,7 @@ BT.schedule = (function() {
     if (!BT.api.getToken()) status.textContent = 'Für den KI-Import bitte zuerst unter „Konto & Sync“ anmelden.';
 
     $('[data-action="upload-pdf"]', root).addEventListener('click', async () => {
+      if(!writable())return;
       if (!BT.api.getToken()) {
         if (confirm('Für den geschützten KI-Import ist eine Anmeldung nötig. Jetzt Konto & Sync öffnen?')) location.hash = '#/account';
         return;
@@ -422,6 +430,7 @@ BT.schedule = (function() {
       const createBtn = li.querySelector('[data-create]');
       if (createBtn) {
         createBtn.addEventListener('click', () => {
+          if(!writable())return;
           const t = BT.storage.upsertTraining({
             date: iso,
             startTime: time,
@@ -436,6 +445,7 @@ BT.schedule = (function() {
       const deleteBtn = li.querySelector('[data-delete]');
       if (deleteBtn) {
         deleteBtn.addEventListener('click', () => {
+          if(!writable())return;
           const id = deleteBtn.dataset.delete;
           const dateStr = deleteBtn.dataset.date;
           const snapshot = BT.storage.getTraining(id);
@@ -460,7 +470,7 @@ BT.schedule = (function() {
     for (let i = 0; i < 180 && result.length < lookahead; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
-      d.setHours(hh || 20, mm || 15, 0, 0);
+      d.setHours(Number.isFinite(hh) ? hh : 20, Number.isFinite(mm) ? mm : 15, 0, 0);
       if (dayNums.includes(d.getDay()) && d > start) result.push(d);
     }
     return result;

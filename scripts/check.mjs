@@ -15,6 +15,7 @@ const scripts = [
   'js/training-pages.js',
   'js/coach-briefing.js',
   'js/insight-model.js', 'js/insights.js',
+  'js/calendar.js',
   'js/training-shots.js',
   'js/station-training.js',
   'js/util.js', 'js/storage.js', 'js/api.js', 'js/individual-training.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',

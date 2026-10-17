@@ -54,6 +54,7 @@ BT.navigation = (function() {
     return { id: current.id, scope, restore: !!existing, scroll: current.scroll || 0 };
   }
   function parentRoute(hash = hashNow()) {
+    if(hash.startsWith('#/schedule/'))return hash.split('?')[0]==='#/schedule/planning' ? '#/schedule' : '#/schedule/planning';
     if (/^#\/(statistics|reports)(\/|\?|$)/.test(hash)) {
       const [path,query='']=hash.split('?'),params=new URLSearchParams(query),season=params.get('season');
       const suffix=season ? '?'+new URLSearchParams({season}) : '';
