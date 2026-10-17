@@ -209,6 +209,7 @@
     renderedHash=hash;
     const isDashboard = hash === '#/dashboard' || hash === '#/' || hash === '';
     BT.dashboard?.cleanup?.();
+    BT.insights?.cleanup();
     if (!isDashboard) app.innerHTML = '';
     if (BT.test && BT.test.cleanup) BT.test.cleanup();
     if (BT.checkin && BT.checkin.cleanup) BT.checkin.cleanup();
@@ -278,12 +279,12 @@
       BT.jerseys.render(app);
     } else if (hash === '#/tablecrew') {
       BT.tablecrew.render(app);
-    } else if (hash === '#/reports') {
-      BT.reports.render(app);
+    } else if (hash === '#/reports' || hash.startsWith('#/reports/') || hash.startsWith('#/reports?')) {
+      BT.insights.render(app);
     } else if (hash === '#/briefing' || hash.startsWith('#/briefing?')) {
       BT.dashboard.renderBriefing(app);
-    } else if (hash === '#/statistics') {
-      BT.dashboard.renderStatistics(app);
+    } else if (hash === '#/statistics' || hash.startsWith('#/statistics/') || hash.startsWith('#/statistics?')) {
+      BT.insights.render(app);
     } else if (hash === '#/data') {
       BT.dashboard.renderData(app);
     } else if (hash === '#/schedule' || hash === '#/schedule/team-concept') {

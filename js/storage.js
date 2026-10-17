@@ -598,8 +598,10 @@ BT.storage = (function() {
   function getSeasons() {
     const data = load();
     const set = new Set();
-    for (const t of data.trainings) if (t.seasonId) set.add(t.seasonId);
-    for (const s of data.sessions) if (s.seasonId) set.add(s.seasonId);
+    for (const item of [...data.trainings,...data.sessions,...(data.games || [])]) {
+      const season=item.seasonId || (item.date ? BT.util.seasonForDate(item.date) : null);
+      if(season)set.add(season);
+    }
     set.add(BT.util.seasonForDate(BT.util.todayISO()));
     return Array.from(set).sort().reverse();
   }

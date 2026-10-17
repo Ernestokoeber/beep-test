@@ -1,6 +1,11 @@
 window.BT = window.BT || {};
 
 BT.stats = (function() {
+  let scopedSeason;
+  function withSeason(season,callback) {
+    const previous=scopedSeason;scopedSeason=season;
+    try{return callback();}finally{scopedSeason=previous;}
+  }
   function pct(made, att) { return att ? Math.round((made / att) * 100) : 0; }
 
   function isEnded(t) {
@@ -17,7 +22,7 @@ BT.stats = (function() {
   }
 
   function endedTrainings() {
-    const activeSeason = BT.storage.getActiveSeason();
+    const activeSeason = scopedSeason ?? BT.storage.getActiveSeason();
     return BT.storage.getTrainings().filter(function(training) {
       if (!isEnded(training)) return false;
       return !activeSeason || activeSeason === 'all' || training.seasonId === activeSeason;
@@ -768,7 +773,7 @@ BT.stats = (function() {
   }
 
   return {
-    pct, countTrainings, isEnded, endedTrainings, allEndedTrainings,
+    pct, countTrainings, isEnded, endedTrainings, allEndedTrainings, withSeason,
     playerAttendance, playerFreethrows, playerShotsByCategory,
     playerAttendanceTimeline, playerFreethrowsTimeline, playerShotsTimelineByCategory,
     rollingAttendancePct,

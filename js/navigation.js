@@ -54,6 +54,14 @@ BT.navigation = (function() {
     return { id: current.id, scope, restore: !!existing, scroll: current.scroll || 0 };
   }
   function parentRoute(hash = hashNow()) {
+    if (/^#\/(statistics|reports)(\/|\?|$)/.test(hash)) {
+      const [path,query='']=hash.split('?'),params=new URLSearchParams(query),season=params.get('season');
+      const suffix=season ? '?'+new URLSearchParams({season}) : '';
+      const parts=path.slice(2).split('/');
+      if(parts[0]==='reports')return parts.length>1 ? '#/reports'+suffix : '#/statistics'+suffix;
+      if(parts[1]==='player')return parts.length>3 ? parts.slice(0,3).join('/').replace(/^/,'#/')+suffix : '#/statistics'+suffix;
+      return parts.length>2 ? '#/statistics/team'+suffix : parts.length>1 ? '#/statistics'+suffix : '#/players';
+    }
     if (hash === '#/briefing' || hash.startsWith('#/briefing?')) {
       const params = new URLSearchParams(hash.split('?')[1] || '');
       for (const [kind,page] of [['training','training'],['game','games']]) if (params.get(kind)) return '#/'+page+'/'+encodeURIComponent(params.get(kind));

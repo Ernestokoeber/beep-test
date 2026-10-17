@@ -143,10 +143,10 @@ BT.dashboard = (function() {
     return BT.coachBriefing.render(target);
   }
 
-  function renderStatistics(target) {
-    return cachedRender(target, host => {
+  function renderStatistics(target, season) {
+    const draw=()=>cachedRender(target, host => {
       const root = renderTemplate('tpl-statistics');
-      renderSeasonSelect(root, renderStatistics);
+      renderSeasonSelect(root, renderStatistics, season);
       const attendance = BT.stats.teamAttendance();
       $('[data-role="team-att-pct"]', root).textContent = attendance.pct;
       $('[data-role="team-att-sub"]', root).textContent = attendance.present + ' von ' + attendance.slots + ' erfassten Terminen';
@@ -161,6 +161,7 @@ BT.dashboard = (function() {
       renderTeamHeatmap(root);
       host.append(root);
     });
+    return BT.stats.withSeason ? BT.stats.withSeason(season,draw) : draw();
   }
 
   function renderData(target) {
@@ -472,18 +473,20 @@ BT.dashboard = (function() {
     }).join('');
   }
 
-  function renderSeasonSelect(root, renderView) {
+  function renderSeasonSelect(root, renderView, season) {
     const sel = $('[data-role="season-select"]', root);
     if (!sel) return;
-    const seasons = BT.storage.getSeasons();
-    const active = BT.storage.getActiveSeason();
+    const active = season ?? BT.storage.getActiveSeason();
+    const seasons = [...new Set([...BT.storage.getSeasons(),...(active && active!=='all' ? [active] : [])])];
     sel.innerHTML = '<option value="all">Alle Saisons</option>' +
       seasons.map(s => '<option value="' + s + '">' + 'Saison ' + s + '</option>').join('');
     sel.value = active;
     sel.addEventListener('change', () => {
       BT.storage.setActiveSeason(sel.value);
+      if(location.hash.startsWith('#/statistics/rankings') && BT.navigation){BT.navigation.replace('#/statistics/rankings?'+new URLSearchParams({season:sel.value}));return;}
       const main = document.getElementById('app');
       main.innerHTML = '';
+      if(location.hash.startsWith('#/statistics/rankings') && BT.insights){BT.insights.render(main);return;}
       renderView(main);
     });
   }

@@ -44,6 +44,7 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
 
     await page.locator('.manage-link').tap();
     await page.locator('.management-page a[href="#/statistics"]').tap();
+    await page.locator('.insight-secondary a[href^="#/statistics/rankings?"]').tap();
     await page.locator('.statistics-view').waitFor();
     await page.locator('[data-role="top-att"]').filter({hasText: 'Regelmäßiger Spieler'}).waitFor();
     assert(!(await page.locator('[data-role="top-att"]').innerText()).includes('Erstes Training'));

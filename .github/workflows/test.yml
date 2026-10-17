@@ -66,6 +66,8 @@ jobs:
         run: npm run test:home:browser
       - name: Run coach briefing browser E2E
         run: npm run test:briefing:browser
+      - name: Run mobile statistics browser E2E
+        run: npm run test:insights:browser
       - name: Run jersey duty browser E2E
         env:
           E2E_BASE_URL: http://127.0.0.1:4173

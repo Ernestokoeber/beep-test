@@ -21,6 +21,10 @@ BT.reports = (function() {
   function inSeason(item, seasonId) {
     return seasonId === 'all' || itemSeason(item) === seasonId;
   }
+  function validShots(training,entry) {
+    const made=Number(entry.made || 0),attempted=Number(entry.attempted || 0);
+    return !BT.staff?.isCoachOnly(training,entry.playerId) && Number.isFinite(made) && Number.isFinite(attempted) && attempted>0 && made>=0 && made<=attempted;
+  }
 
   function emptyTrainingStats() {
     return {
@@ -44,8 +48,9 @@ BT.reports = (function() {
 
   function buildReport(seasonId, playerId) {
     const allPlayers = BT.storage.getPlayers().slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'));
-    const trainings = BT.storage.getTrainings().filter(BT.stats.isEnded).filter(item => inSeason(item, seasonId));
-    const games = BT.storage.getGames().filter(game => inSeason(game, seasonId) && (game.status === 'played' || !!game.score));
+    const trainings = BT.storage.getTrainings().filter(item=>item.date && item.date<=todayISO() && !item.cancelled && BT.stats.isEnded(item)).filter(item => inSeason(item, seasonId));
+    const games = BT.storage.getGames().filter(game => inSeason(game, seasonId) && (BT.games?.statusFor ? BT.games.statusFor(game).completed :
+      !game.cancelled && !['cancelled','abgesagt'].includes(game.status) && game.date <= todayISO() && (game.status === 'played' || !!game.score)));
     const sessions = BT.storage.getSessions().filter(session => inSeason(session, seasonId));
     const playerRows = allPlayers.map(player => ({
       player,
@@ -77,7 +82,7 @@ BT.reports = (function() {
       });
 
       (training.freethrows || []).forEach(entry => {
-        if (!(Number(entry.attempted) > 0)) return;
+        if (!validShots(training,entry)) return;
         const made = Number(entry.made || 0);
         const attempted = Number(entry.attempted || 0);
         team.trainingFT.made += made;
@@ -91,7 +96,7 @@ BT.reports = (function() {
 
       (training.shots || []).forEach(category => {
         (category.entries || []).forEach(entry => {
-          if (!(Number(entry.attempted) > 0)) return;
+          if (!validShots(training,entry)) return;
           const made = Number(entry.made || 0);
           const attempted = Number(entry.attempted || 0);
           team.trainingFG.made += made;
@@ -188,24 +193,30 @@ BT.reports = (function() {
     stats.ppg = stats.games ? stats.points / stats.games : 0;
   }
 
-  function render(target) {
+  function render(target, options = {}) {
     root = renderTemplate('tpl-reports');
     target.appendChild(root);
     const seasonSelect = $('[data-role="report-season"]', root);
     const playerSelect = $('[data-role="report-player"]', root);
-    const seasons = BT.storage.getSeasons();
+    const seasons = [...new Set([...BT.storage.getSeasons(),...(options.seasonId && options.seasonId!=='all' ? [options.seasonId] : [])])];
     const active = BT.storage.getActiveSeason();
     seasonSelect.innerHTML = '<option value="all">Alle Saisons</option>' + seasons.map(season => '<option value="' + escapeHTML(season) + '">' + escapeHTML(BT.util.seasonLabel(season)) + '</option>').join('');
     seasonSelect.value = seasons.includes(active) || active === 'all' ? active : (seasons[0] || 'all');
     const players = BT.storage.getPlayers().slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'));
     playerSelect.innerHTML = '<option value="all">Alle Spieler</option>' + players.map(player => '<option value="' + escapeHTML(player.id) + '">' + escapeHTML(player.name) + (player.archived ? ' (Archiv)' : '') + '</option>').join('');
+    const state=BT.navigation?.getState() || {};
+    const season=state.reportSeason || options.seasonId;
+    if(season && (season==='all' || seasons.includes(season)))seasonSelect.value=season;
+    const selected=state.reportPlayer || options.playerId;
+    if(selected && (selected==='all' || players.some(p=>p.id===selected)))playerSelect.value=selected;
 
     const draw = () => {
       currentReport = buildReport(seasonSelect.value, playerSelect.value);
       drawReport(currentReport);
     };
-    seasonSelect.addEventListener('change', draw);
-    playerSelect.addEventListener('change', draw);
+    const change=()=>{BT.navigation?.setState({reportSeason:seasonSelect.value,reportPlayer:playerSelect.value});draw();};
+    seasonSelect.addEventListener('change', change);
+    playerSelect.addEventListener('change', change);
     $('[data-action="report-csv"]', root).addEventListener('click', exportCSV);
     $('[data-action="report-pdf"]', root).addEventListener('click', exportPDF);
     draw();

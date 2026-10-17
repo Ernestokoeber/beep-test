@@ -238,7 +238,7 @@ route('#/training/' + deletableFromDetail.id + '/event');
 window.document.querySelector('[data-action="delete"]').click();
 assert(!window.BT.storage.getTraining(deletableFromDetail.id), 'Training wurde im Detail nicht gelöscht');
 
-route('#/reports');
+route('#/reports/full');
 assert(window.document.querySelector('.reports-view'), 'Auswertungs-Reiter fehlt');
 assert(window.document.querySelector('[data-role="report-player-rows"] tr'), 'Spieler-Gesamtauswertung wurde nicht gerendert');
 assert(window.document.querySelector('[data-action="report-csv"]'), 'CSV-Export der Gesamtauswertung fehlt');
