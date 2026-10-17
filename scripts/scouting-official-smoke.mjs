@@ -35,4 +35,7 @@ const generated=await generateWithGemini({action:'researchOpponent',payload:{opp
  return new Response(JSON.stringify({candidates:[{finishReason:'STOP',content:{parts:[{text:value}]}}]}));
 }});
 assert.equal(providerCalls,2);assert.equal(generated.value.officialEvidence.teams.length,2);assert.equal(generated.value.players.length,2);assert.equal(generated.value.sources.length,4);assert(!generated.value.gaps.some(g=>g.includes('Keine Fakten bestätigt')));
+let abortTimer;
+const partial=await generateWithGemini({action:'researchOpponent',payload:{opponent:{name:'Testverein',leagueId:1,teamId:5,seasonId:'26/27',nextGameDate:'2026-10-17'}},apiKey:'test',requestId:'timeout',setTimer:cb=>(abortTimer=cb,1),clearTimer:()=>{},fetchImpl:async(url)=>{if(new URL(url).hostname==='www.basketball-bund.net')return fetchImpl(url);abortTimer();throw new DOMException('Zeitlimit','AbortError');}});
+assert.equal(partial.value.researchStatus,'partial');assert.equal(partial.value.officialEvidence.teams.length,2);assert(partial.value.summary.startsWith('Teilbericht'));assert(partial.value.gaps.some(g=>g.includes('zu lange')));
 console.log('Direkte Verbandsrecherche: Vereinsverknüpfung, maskierte Namen, Kadervergleich, Saisontrennung, Absagen und Statistiklücken geprüft.');

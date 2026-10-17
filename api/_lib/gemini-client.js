@@ -55,12 +55,12 @@ export async function generateWithGemini({
   let searchResponse;
   let parts = request.searchParts || request.parts;
   let generationConfig = searching ? {thinkingConfig:{thinkingLevel:'low'}} : request.generationConfig;
+  let officialEvidence;
 
   try {
-    let officialEvidence;
     if(action==='researchOpponent'&&Number(payload.opponent?.leagueId)){
       officialEvidence=await collectOfficialScouting(payload.opponent,{fetchImpl,signal:controller.signal});
-      parts=[...parts,{text:'Direkt abgerufene aktuelle DBB-Primärdaten. Berücksichtige Teamverknüpfungen, tatsächliche Kadernennungen, Nullwert-Platzhalter und Absagen. Suche gezielt weiter nach den hier genannten Spielern und deren sportlicher Vorgeschichte; diese Daten dürfen nicht pauschal als unzugänglich bezeichnet werden. Künftige Kader sind nicht bestätigt. '+JSON.stringify(officialEvidence)}];
+      parts=[...parts,{text:'Direkt abgerufene aktuelle DBB-Primärdaten. Suche jetzt ergänzend gezielt nach früheren sportlichen Zugehörigkeiten der genannten Spieler. Schreibe höchstens 800 Wörter Recherche-Stichpunkte. Wiederhole nicht die bereits geladenen Spielpläne, Kadernamen und Überschneidungen. Nullwerte sind keine Leistungsbelege. Eine Absage beweist weder fehlende Doppelbelastung noch uneingeschränkte Einsatzzeit. Künftige Besetzungen bleiben offen. '+JSON.stringify(officialEvidence)}];
     }
     while (attempt < 2) {
       attempt += 1;
@@ -120,7 +120,7 @@ export async function generateWithGemini({
         searching = false;
         attempt = 0;
         generationConfig = request.generationConfig;
-        parts = [...request.parts, {text:`Strukturiere ausschließlich das folgende Recherchematerial. Führe keine neue Suche aus und ergänze keine Fakten aus Vorwissen. Verwende in sourceUrls die konkreten URLs aus den mitgelieferten Suchbelegen. Direkt abgerufene DBB-Daten sind ebenfalls zitierbare Primärbelege; beachte Absagen. Formuliere fehlende Funde als Suchgrenzen, nicht als Behauptung, dass etwas nicht öffentlich existiert. Unbelegte Angaben bleiben leer. Recherchematerial: ${JSON.stringify({report:text,sources:metadata?.groundingChunks || [],supports:metadata?.groundingSupports || [],officialEvidence})}`}];
+        parts = [...request.parts, {text:`Strukturiere ausschließlich das folgende Recherchematerial. Keine neue Suche und kein Vorwissen. Verwende die konkreten URLs der Suchbelege. Die Anwendung blendet die direkten DBB-Primärdaten bereits vollständig ein: Wiederhole daher weder deren Spielpläne noch Kader, Überschneidungen oder Spielerstatistiken. findings und players enthalten ausschließlich zusätzliche externe Funde, höchstens sechs belegte Spielerhistorien. Ohne zusätzliche Belege bleiben die Arrays leer. summary höchstens zwei Sätze, coachingFocus höchstens zwei zusätzliche quellenbezogene Prüfaufträge. Eine Absage erlaubt keine Aussage zu Doppelbelastung, Verfügbarkeit oder maximaler Einsatzzeit. Formuliere fehlende Funde als Suchgrenzen statt Nichtexistenz. Recherchematerial: ${JSON.stringify({report:text,sources:metadata?.groundingChunks || [],supports:metadata?.groundingSupports || [],officialEvidence})}`}];
         continue;
       }
       const parsed = request.parse(text, { action, payload, providerResponse:searchResponse || data,officialEvidence });
@@ -133,6 +133,13 @@ export async function generateWithGemini({
       };
     }
     throw new AIError('AI_PROVIDER', 'Gemini ist vorübergehend nicht verfügbar.', { status: 503, retryable: true });
+  } catch(error) {
+    if(action==='researchOpponent'&&error?.code==='AI_TIMEOUT'&&officialEvidence?.teams.length){
+      const value=attachOfficialResearch({teamName:payload.opponent.name,season:payload.opponent.seasonId,researchedAt:new Date().toISOString(),sources:[],findings:[],players:[],lineups:[],coachingEvidence:[],coachingFocus:[],gaps:[error.message+' Zusätzliche KI-Webrecherche unvollständig.']},officialEvidence);
+      value.researchStatus='partial';value.summary='Teilbericht · zusätzliche KI-Webrecherche am Zeitlimit. '+value.summary;
+      return {value,model:AI_MODEL_ID,requestId,durationMs:Math.max(0,now()-startedAt)};
+    }
+    throw error;
   } finally {
     clearTimer(timer);
   }
