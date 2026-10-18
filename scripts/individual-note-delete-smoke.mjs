@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {JSDOM} from 'jsdom';
+import {createIndividualManageHandler} from '../api/_handlers/individual/manage.js';
+import {createIndividualAIDraftHandler} from '../api/_handlers/individual/ai-drafts.js';
+import {ids,user,overview} from './fixtures/individual-player.mjs';
+const noteId='44444444-4444-4444-8444-444444444444', secret='PRIVATE_DELETED: Alte Beobachtung';
+let role='coach', accessible=true, stored=secret, writes=[], calls=[];
+const query=async(sql,params=[])=>{
+ if(sql.includes('FROM individual_profiles')) return {rows:accessible?[{id:ids.profile}]:[]};
+ if(sql.includes('SELECT')&&sql.includes('FROM individual_coach_notes')) return {rows:stored?[{id:noteId,note:stored}]:[]};
+ if(sql.includes('DELETE FROM individual_coach_notes')) {assert.deepEqual(params,[noteId,ids.profile]);stored=null;}
+ if(sql.includes('SELECT s.* FROM individual_sessions')) return {rows:[{id:ids.session,status:'completed'}]};
+ if(sql.includes('count(*)')) return {rows:[{count:0}]};
+ if(sql.includes('INSERT INTO individual_ai_drafts')) return {rows:[{id:noteId,individual_profile_id:ids.profile,session_id:ids.session}]};
+ if(sql.includes("SET status = 'current'")) return {rows:[{id:noteId,content:JSON.parse(params[0])}]};
+ writes.push({sql,params});return {rows:[]};
+};
+const deps={requireMembership:async()=>({sub:ids.other,organization_id:ids.session,role}),transaction:async fn=>fn({query})};
+const manage=createIndividualManageHandler(deps);
+const response=()=>({statusCode:200,setHeader(){},status(n){this.statusCode=n;return this;},json(body){this.body=body;return this;}});
+async function remove(extra={}) {writes=[];const res=response();await manage({method:'POST',headers:{},body:{action:'deleteCoachNote',profileId:ids.profile,noteId,expectedNote:secret,...extra}},res);return res;}
+assert.equal((await remove({expectedNote:'Veraltete Fassung'})).statusCode,409);assert.equal(stored,secret);
+role='player';assert.equal((await remove()).statusCode,403);assert.equal(stored,secret);
+role='coach';accessible=false;assert.equal((await remove()).statusCode,404);assert.equal(stored,secret);
+accessible=true;assert.equal((await remove()).statusCode,200);assert.equal(stored,null);
+assert(writes.some(w=>w.sql.includes("SET status = 'stale'")));
+assert(writes.some(w=>w.sql.includes('INSERT INTO individual_audit_log')));
+assert(!writes.some(w=>w.sql.includes('individual_released_feedback')));
+assert.equal((await remove()).statusCode,404);
+const ai=createIndividualAIDraftHandler({...deps,generate:async input=>{calls.push(input);return {value:{analysis:'Aktuelle Messwerte',nextSession:{blocks:[]},playerFeedback:'Messwerte',weeklyFocus:{title:'Technik'}}};}});
+const res=response();await ai({method:'POST',headers:{},body:{action:'regenerate',profileId:ids.profile,sessionId:ids.session}},res);
+assert.equal(res.statusCode,200);assert(calls.length>0);assert(!JSON.stringify(calls).includes(secret),'Gelöschte Notiz darf nicht in der nächsten KI-Anfrage stehen');
+const dom=new JSDOM('<main></main>',{url:'https://coach.test/#/individual/player/'+ids.profile+'/feedback',runScripts:'outside-only'}),w=dom.window,data=structuredClone(overview),sent=[];
+data.role='coach';data.coachNotes=[{id:noteId,individual_profile_id:ids.profile,note:secret,created_at:'2026-10-18T10:00:00Z'}];
+let confirm=false,fail=true;w.confirm=()=>confirm;
+w.BT={util:{escapeHTML:value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;')},sync:{getState:()=>({user:{...user,role:'coach'},identitySource:'server'})},storage:{getPlayers:()=>[]},api:{getIndividualOverview:async()=>structuredClone(data),individualAction:async(action,payload)=>{if(action==='ensurePilotStart')return {};sent.push({action,payload});if(fail)throw Error('Löschen fehlgeschlagen');data.coachNotes=[];return {deleted:true};}}};
+for(const f of ['individual-copy','individual-player-view','individual-training'])w.eval(readFileSync(new URL('../js/'+f+'.js',import.meta.url),'utf8'));
+await w.BT.individualTraining.render(w.document.querySelector('main'),ids.profile,'feedback');
+const button=w.document.querySelector('[data-delete-coach-note]');assert(button,'Löschen muss verfügbar sein');
+button.click();assert.equal(sent.length,0,'Abgebrochene Bestätigung darf nichts löschen');
+confirm=true;button.click();await new Promise(r=>setTimeout(r,0));assert.equal(sent[0].action,'deleteCoachNote');assert.equal(sent[0].payload.expectedNote,secret);assert(w.document.body.textContent.includes('Löschen fehlgeschlagen'));assert(w.document.body.textContent.includes(secret));assert(!button.disabled);
+fail=false;button.click();await new Promise(r=>setTimeout(r,0));assert(!w.document.querySelector('[data-edit-coach-note]'));
+dom.window.close();console.log('Private Notizen löschen: Rechte, Konflikte, Bestätigung, Fehlererhalt, KI-Quellen und Aktualisierung geprüft.');

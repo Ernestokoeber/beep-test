@@ -652,10 +652,11 @@ export function createIndividualManageHandler(deps = {}) {
           return { status: 200, body: { feedback: updated.rows[0] } };
         }
 
-        if (action === 'editCoachNote') {
+        if (action === 'editCoachNote' || action === 'deleteCoachNote') {
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
           const noteId = uuid(req.body.noteId, 'Notiz-ID');
-          const note = text(req.body.note, 'Trainernotiz', { min: 2, max: 5000 });
+          const deleting = action === 'deleteCoachNote';
+          const note = deleting ? null : text(req.body.note, 'Trainernotiz', { min: 2, max: 5000 });
           if (typeof req.body.expectedNote !== 'string' || req.body.expectedNote.length > 5000) {
             throw new IndividualRequestError(400, 'Die ursprüngliche Notiz fehlt. Bitte die Seite neu laden.');
           }
@@ -665,7 +666,23 @@ export function createIndividualManageHandler(deps = {}) {
           );
           if (!previous.rows[0]) throw new IndividualRequestError(404, 'Private Notiz nicht gefunden.');
           if (previous.rows[0].note !== req.body.expectedNote) {
-            throw new IndividualRequestError(409, 'Diese Notiz wurde inzwischen geändert. Kopiere deine Korrektur und lade die Seite neu, bevor du sie erneut bearbeitest.');
+            throw new IndividualRequestError(409, 'Diese Notiz wurde inzwischen geändert. Kopiere bei Bedarf deine Korrektur und lade die Seite neu, bevor du die Notiz bearbeitest oder löschst.');
+          }
+          if (deleting) {
+            await client.query(
+              'DELETE FROM individual_coach_notes WHERE id = $1 AND individual_profile_id = $2', [noteId, profile.id]
+            );
+            await client.query(
+              `INSERT INTO individual_audit_log
+                (organization_id, individual_profile_id, entity_type, entity_id, field_name, old_value, new_value, change_reason, changed_by)
+               VALUES ($1, $2, 'coach_note', $3, 'note', to_jsonb($4::text), NULL, 'Private Trainernotiz gelöscht', $5)`,
+              [auth.organization_id, profile.id, noteId, previous.rows[0].note, auth.sub]
+            );
+            await client.query(
+              `UPDATE individual_ai_drafts SET status = 'stale'
+                WHERE individual_profile_id = $1 AND status = 'current'`, [profile.id]
+            );
+            return { status: 200, body: { deleted: true, noteId } };
           }
           if (previous.rows[0].note === note) return { status: 200, body: { note: previous.rows[0] } };
           const updated = await client.query(

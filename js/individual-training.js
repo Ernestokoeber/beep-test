@@ -709,7 +709,7 @@ BT.individualTraining = (function() {
         <form class="card" data-coach-note><h4>Private Trainernotiz</h4><p>Nur für das Trainerteam. Die KI berücksichtigt die zwölf zuletzt gespeicherten oder bearbeiteten privaten Notizen als Vorwissen für ihre interne Analyse und den Trainingsvorschlag. Spielerfeedback und Wochenfokus entstehen getrennt ohne diese Notizen.</p><label>Deine Notiz<textarea name="note" maxlength="5000" required></textarea></label><button class="btn" type="submit">Privat speichern</button></form>
         <form class="card" data-release-feedback><h4>Notiz für den Spieler</h4><label>Text für den Spieler<textarea name="content" maxlength="5000" required></textarea></label><label class="individual-note-consent"><input type="checkbox" name="shareWithPlayer" required><span>Diese Notiz für den Spieler freigeben</span></label><p class="muted">Nur bewusst gekennzeichnete Notizen erscheinen beim Spieler.</p><button class="btn primary" type="submit">Für Spieler freigeben</button></form>
       </div>
-      <section class="card private-coach-card"><h4>Private Notizen</h4>${notes.length ? notes.map(item => `<article class="individual-private-note"><p style="white-space:pre-wrap">${BT.util.escapeHTML(item.note)}</p><small>${fmt(item.created_at)}${item.updated_at && item.updated_at !== item.created_at ? ` · Bearbeitet ${fmt(item.updated_at)}` : ''}</small><details><summary>Bearbeiten</summary><form data-edit-coach-note="${BT.util.escapeHTML(item.id)}"><label>Private Notiz bearbeiten<textarea name="note" minlength="2" maxlength="5000" required>${BT.util.escapeHTML(item.note)}</textarea></label><p class="muted">Bleibt privat. Die nächste KI-Auswertung berücksichtigt die korrigierte Fassung.</p><div class="individual-actions"><button class="btn primary" type="submit">Änderungen speichern</button><button class="btn" type="button" data-cancel-note-edit>Abbrechen</button></div><p role="status" data-note-edit-status></p></form></details></article>`).join('') : '<p class="muted">Keine privaten Notizen.</p>'}</section>
+      <section class="card private-coach-card"><h4>Private Notizen</h4>${notes.length ? notes.map(item => `<article class="individual-private-note"><p style="white-space:pre-wrap">${BT.util.escapeHTML(item.note)}</p><small>${fmt(item.created_at)}${item.updated_at && item.updated_at !== item.created_at ? ` · Bearbeitet ${fmt(item.updated_at)}` : ''}</small><details><summary>Bearbeiten</summary><form data-edit-coach-note="${BT.util.escapeHTML(item.id)}"><label>Private Notiz bearbeiten<textarea name="note" minlength="2" maxlength="5000" required>${BT.util.escapeHTML(item.note)}</textarea></label><p class="muted">Bleibt privat. Die nächste KI-Auswertung berücksichtigt die korrigierte Fassung.</p><div class="individual-actions"><button class="btn primary" type="submit">Änderungen speichern</button><button class="btn" type="button" data-cancel-note-edit>Abbrechen</button><button class="btn" type="button" data-delete-coach-note>Notiz löschen</button></div><p role="status" data-note-edit-status></p></form></details></article>`).join('') : '<p class="muted">Keine privaten Notizen.</p>'}</section>
       <section class="card"><h4>Für den Spieler freigegeben</h4>${feedback.length ? feedback.map(item => `<p>${BT.util.escapeHTML(item.content)}</p>`).join('') : '<p class="muted">Noch nichts freigegeben.</p>'}</section>`;
     const aiHistoryPane = `<section class="card private-coach-card"><h4>Privater KI-Entwurf</h4><p>Nur für dich sichtbar. Nach deiner Prüfung kannst du die Rückmeldung für den Spieler und den Wochenfokus für den Spieler freigeben.</p>${latestDraft ? `<p>Status: <strong>${BT.util.escapeHTML(draftLabel(latestDraft.status))}</strong></p>${latestDraft.content ? `<h5>${BT.util.escapeHTML(latestDraft.content.nextSession?.title || '')}</h5><p>${BT.util.escapeHTML(latestDraft.content.analysis || '')}</p><p><b>Wochenfokus:</b> ${BT.util.escapeHTML(latestDraft.content.weeklyFocus?.title || '')}</p>` : ''}<div class="individual-actions">${['queued', 'failed'].includes(latestDraft.status) ? '<button class="btn" data-generate-draft>KI-Entwurf erstellen</button>' : ''}${['current', 'stale'].includes(latestDraft.status) ? '<button class="btn" data-regenerate-draft>Entwurf nach Änderungen neu erstellen</button>' : ''}${latestDraft.status === 'current' ? '<button class="btn primary" data-approve-draft>Rückmeldung und Wochenfokus freigeben</button>' : ''}</div>` : '<p class="muted">Der erste KI-Entwurf entsteht nach einer abgeschlossenen Einheit mit bestätigter Anwesenheit. Alle Eingaben müssen synchronisiert sein. Starte ihn beim Trainingsabschluss und prüfe ihn anschließend hier.</p>'}</section>
       <section class="card"><h4>Einheiten</h4>${sessions.length ? `<ul>${sessions.map(item => `<li>${fmt(item.scheduled_for)} · ${BT.util.escapeHTML(sessionStatusLabel(item.status))} · Einheit ${item.unit_number || '–'} · ${BT.util.escapeHTML(attendanceLabel(item.attendance_status))}</li>`).join('')}</ul>` : '<p class="muted">Noch keine Einheit angelegt.</p>'}</section>`;
@@ -741,15 +741,14 @@ BT.individualTraining = (function() {
         formElement.closest('details').open = false;
         formElement.closest('details').querySelector('summary').focus();
       });
-      formElement.addEventListener('submit', async event => {
-        event.preventDefault();
+      const persistNote = async action => {
         if (saving) return;
         saving = true;
         buttons.forEach(button => { button.disabled = true; });
         textarea.readOnly = true;
-        status.textContent = 'Wird gespeichert …';
+        status.textContent = action === 'deleteCoachNote' ? 'Wird gelöscht …' : 'Wird gespeichert …';
         try {
-          await BT.api.individualAction('editCoachNote', { profileId: profile.id, noteId: original.id, note: textarea.value, expectedNote: original.note });
+          await BT.api.individualAction(action, { profileId: profile.id, noteId: original.id, ...(action === 'editCoachNote' ? { note: textarea.value } : {}), expectedNote: original.note });
           await refresh();
         } catch (error) {
           status.textContent = error.message;
@@ -758,6 +757,15 @@ BT.individualTraining = (function() {
           buttons.forEach(button => { button.disabled = false; });
           textarea.readOnly = false;
         }
+      };
+      formElement.addEventListener('submit', event => {
+        event.preventDefault();
+        persistNote('editCoachNote');
+      });
+      formElement.querySelector('[data-delete-coach-note]').addEventListener('click', () => {
+        if (saving) return;
+        if (!window.confirm('Private Notiz wirklich löschen? Das kann nicht rückgängig gemacht werden. Die Notiz wird bei der nächsten KI-Auswertung nicht mehr als Vorwissen eingelesen.')) return;
+        persistNote('deleteCoachNote');
       });
     });
     host.querySelector('[data-release-feedback]')?.addEventListener('submit', async event => {
