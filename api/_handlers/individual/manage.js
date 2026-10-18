@@ -60,10 +60,10 @@ function assertPilotSessionInstant(value, expectedDate, localTime) {
   const instant = localTime ? zonedDateTimeToInstant(expectedDate, localTime) : isoInstant(value, 'Termin');
   const localDate = berlinDate(instant);
   const weekday = new Date(`${localDate}T12:00:00Z`).getUTCDay();
-  if (weekday !== 1) throw new TypeError('Piloteinheiten müssen montags stattfinden.');
-  if (localDate < '2026-10-19') throw new TypeError('Der Pilot beginnt am 19. Oktober 2026.');
+  if (weekday !== 1) throw new TypeError('Individualeinheiten müssen montags stattfinden.');
+  if (localDate < '2026-10-19') throw new TypeError('Der Trainingsblock beginnt am 19. Oktober 2026.');
   if (localDate === '2026-11-02') throw new TypeError('Am 2. November 2026 ist die Halle ferienbedingt geschlossen.');
-  if (localDate !== expectedDate) throw new TypeError(`Der nächste offene Pilottermin ist Montag, ${expectedDate}.`);
+  if (localDate !== expectedDate) throw new TypeError(`Der nächste offene Trainingstermin ist Montag, ${expectedDate}.`);
   if (berlinTime(instant) !== '20:15') throw new TypeError('Die Montagseinheiten beginnen verbindlich um 20:15 Uhr.');
   return instant;
 }
@@ -158,7 +158,7 @@ async function ensurePilotStartCore(client, auth) {
     [auth.organization_id, auth.role, auth.sub]
   );
   const profiles = profileResult.rows;
-  if (!profiles.length) throw new IndividualRequestError(409, 'Zuerst muss mindestens ein Pilotspieler angelegt werden.');
+  if (!profiles.length) throw new IndividualRequestError(409, 'Zuerst muss mindestens ein Spieler angelegt werden.');
   assertParticipantCapacity(profiles.map(profile => profile.id));
 
   const existing = await client.query(
@@ -242,7 +242,7 @@ export function createIndividualManageHandler(deps = {}) {
       }
 
       if (action === 'ensurePilotStart') {
-        if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen den Pilotstart planen.');
+        if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen den Trainingsstart planen.');
         const ensured = await runTransaction(client => ensurePilotStartCore(client, auth));
         let detailsComplete = true;
         try {
@@ -270,7 +270,7 @@ export function createIndividualManageHandler(deps = {}) {
             `INSERT INTO individual_profiles (organization_id, player_profile_id, coach_user_id, pilot_started_on)
              VALUES ($1, $2, $3, $4)
              RETURNING *`,
-            [auth.organization_id, playerProfileId, auth.sub, req.body.pilotStartedOn ? isoDate(req.body.pilotStartedOn, 'Pilotstart') : null]
+            [auth.organization_id, playerProfileId, auth.sub, req.body.pilotStartedOn ? isoDate(req.body.pilotStartedOn, 'Startdatum') : null]
           );
           return { status: 201, body: { profile: created.rows[0] } };
         }
@@ -309,7 +309,7 @@ export function createIndividualManageHandler(deps = {}) {
               WHERE organization_id = $1 AND coach_user_id = $2 AND status = 'completed'`,
             [auth.organization_id, auth.sub]
           );
-          if (Number(completed.rows[0].count) >= 8) throw new IndividualRequestError(409, 'Der Pilot mit acht durchgeführten Einheiten ist bereits abgeschlossen.');
+          if (Number(completed.rows[0].count) >= 8) throw new IndividualRequestError(409, 'Der Trainingsblock mit acht durchgeführten Einheiten ist bereits abgeschlossen.');
           const unitNumber = Number(completed.rows[0].count) + 1;
           const latest = await client.query(
             `SELECT max((scheduled_for AT TIME ZONE 'Europe/Berlin')::date)::text AS date
@@ -322,9 +322,9 @@ export function createIndividualManageHandler(deps = {}) {
           const requestedTime = String(req.body.scheduledTime || '');
           if (req.body.scheduledTime && !/^\d{2}:\d{2}$/.test(requestedTime)) throw new TypeError('Startzeit ist ungültig.');
           if (requestedTime && requestedTime !== '20:15') throw new TypeError('Die Montagseinheiten beginnen verbindlich um 20:15 Uhr.');
-          if (requestedDate !== expectedDate) throw new TypeError(`Der nächste offene Pilottermin ist Montag, ${expectedDate}.`);
+          if (requestedDate !== expectedDate) throw new TypeError(`Der nächste offene Trainingstermin ist Montag, ${expectedDate}.`);
           const durationMinutes = Number(req.body.durationMinutes ?? 105);
-          if (durationMinutes !== 105) throw new TypeError('Eine Piloteinheit dauert verbindlich 105 Minuten.');
+          if (durationMinutes !== 105) throw new TypeError('Eine Individualeinheit dauert verbindlich 105 Minuten.');
           const created = await client.query(
             `INSERT INTO individual_sessions
               (organization_id, coach_user_id, scheduled_for, duration_minutes, unit_number)
@@ -475,7 +475,7 @@ export function createIndividualManageHandler(deps = {}) {
           );
           if (!focus.rows[0]) throw new IndividualRequestError(404, 'Wochenfokus nicht gefunden.');
           const trainingDay = String(req.body.trainingDay || '');
-          if (trainingDay !== 'friday') throw new TypeError('Rückmeldungen werden im Pilot nur für das Freitagstraining erfasst.');
+          if (trainingDay !== 'friday') throw new TypeError('Rückmeldungen werden im Trainingsblock nur für das Freitagstraining erfasst.');
           const trainingDate = isoDate(req.body.trainingDate, 'Trainingsdatum');
           if (trainingDate < databaseDate(focus.rows[0].valid_from) || trainingDate > databaseDate(focus.rows[0].valid_until)) {
             throw new TypeError('Trainingsdatum liegt außerhalb des freigegebenen Wochenfokus.');

@@ -86,7 +86,7 @@ async function applyMutation(client, auth, profile, mutation) {
   } else if (kind === 'weekly_feedback') {
     const feedback = validateWeeklyFeedback(payload);
     const trainingDay = String(payload.trainingDay || '');
-    if (trainingDay !== 'friday') throw new TypeError('Rückmeldungen werden im Pilot nur für das Freitagstraining erfasst.');
+    if (trainingDay !== 'friday') throw new TypeError('Rückmeldungen werden im Trainingsblock nur für das Freitagstraining erfasst.');
     const trainingDate = isoDate(payload.trainingDate);
     const focus = await client.query(
       `SELECT valid_from::text, valid_until::text FROM individual_weekly_focus

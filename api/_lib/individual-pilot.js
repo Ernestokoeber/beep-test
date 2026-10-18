@@ -59,7 +59,7 @@ const testWarmup = Object.freeze({
 function unitOne() {
   return {
     templateKey: 'pilot-2026-unit-1', version: 1,
-    title: 'Piloteinheit 1 – Ausgangsniveau',
+    title: 'Einheit 1 – Ausgangsniveau',
     objective: 'Ausgangsniveau in Ballkontrolle, beidseitigem Korbabschluss und Wurfbasis erfassen, erste technische Korrekturen setzen und Vergleichswerte für Einheit 4 und 8 erzeugen.',
     exercises: [
       { ...testWarmup, title: 'Check-in und Readiness', durationMinutes: 5, repetitions: { readinessScale: '1–10' } },
@@ -112,7 +112,7 @@ function assessmentUnit(unitNumber) {
   const final = unitNumber === 8;
   return {
     templateKey: `pilot-2026-unit-${unitNumber}`, version: 1,
-    title: final ? 'Piloteinheit 8 – Abschlusstest' : 'Piloteinheit 4 – Zwischenmessung',
+    title: final ? 'Einheit 8 – Abschlusstest' : 'Einheit 4 – Zwischenmessung',
     objective: final
       ? 'Standardisierten 60-Minuten-Abschlusstest durchführen und anschließend individuell auswerten und die nächsten Schritte planen.'
       : 'Standardisierte Zwischenmessung durchführen und anschließend einen getrennten Entwicklungsblock nutzen.',
@@ -155,7 +155,7 @@ export function pilotRoadmap() {
       scheduledDate,
       durationMinutes: 105,
       kind: template ? 'assessment' : 'development',
-      title: template?.title || `Piloteinheit ${unitNumber} – individuelle Entwicklung`,
+      title: template?.title || `Einheit ${unitNumber} – individuelle Entwicklung`,
       objective: template?.objective || 'Der konkrete Schwerpunkt wird nach der vorherigen Montagseinheit aus den Messwerten, Beobachtungen und dem Wochenfeedback erstellt.',
       template
     };
@@ -164,6 +164,6 @@ export function pilotRoadmap() {
 
 export function assertTemplateDuration(template, expected = 105) {
   const total = (template?.exercises || []).reduce((sum, exercise) => sum + Number(exercise.durationMinutes || 0), 0);
-  if (total !== expected) throw new Error(`Pilotvorlage hat ${total} statt ${expected} Minuten.`);
+  if (total !== expected) throw new Error(`Trainingsvorlage hat ${total} statt ${expected} Minuten.`);
   return total;
 }

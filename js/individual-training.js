@@ -138,6 +138,8 @@ BT.individualTraining = (function() {
     return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short', ...options }).format(new Date(value));
   }
 
+  function trainingTitle(value) { return String(value || '').replace(/^Piloteinheit\b/i, 'Einheit'); }
+
   function playerName(profile) {
     if (profile.account_name) return profile.account_name;
     const player = BT.storage?.getPlayers?.().find(item => item.id === profile.player_profile_id);
@@ -298,14 +300,14 @@ BT.individualTraining = (function() {
       return `<article class="individual-roadmap-unit ${isAssessment ? 'assessment' : ''} ${actual?.status || 'upcoming'}" data-pilot-unit="${unit.unitNumber}">
         <div class="individual-roadmap-number"><span>Einheit</span><strong>${unit.unitNumber}</strong></div>
         <div class="individual-roadmap-content">
-          <div class="individual-roadmap-heading"><div><small>${isAssessment ? 'Verbindliche Testeinheit' : 'Entwicklungseinheit'}</small><h5>${BT.util.escapeHTML(unit.title)}</h5></div><span>${BT.util.escapeHTML(sessionStatusLabel(actual?.status))}</span></div>
+          <div class="individual-roadmap-heading"><div><small>${isAssessment ? 'Verbindliche Testeinheit' : 'Entwicklungseinheit'}</small><h5>${BT.util.escapeHTML(trainingTitle(unit.title))}</h5></div><span>${BT.util.escapeHTML(sessionStatusLabel(actual?.status))}</span></div>
           <p class="individual-roadmap-date">${BT.util.escapeHTML(roadmapDate(planDate))} · 20:15 Uhr · ${unit.durationMinutes} Minuten</p>
           <p>${BT.util.escapeHTML(unit.objective)}</p>
           ${exercises.length ? `<details class="individual-roadmap-details"><summary>Freigegebenen Ablauf anzeigen</summary><ol class="individual-exercise-list">${exercises.map(roadmapExercise).join('')}</ol></details>` : '<p class="muted">Der individuelle Ablauf entsteht nach Auswertung der vorherigen Einheit.</p>'}
         </div>
       </article>`;
     }).join('');
-    return `<section class="card individual-roadmap"><div class="section-head"><div><span class="section-kicker">Verbindlicher Wochenablauf</span><h4>Pilotplan 2026 · alle acht Einheiten</h4><p class="muted">Der 2. November entfällt wegen der bayerischen Allerheiligenferien. Bei einem Ausfall bleibt die Einheitsnummer offen und wird am nächsten Montag fortgeführt.</p></div></div><div class="individual-roadmap-list">${cards}</div></section>`;
+    return `<section class="card individual-roadmap"><div class="section-head"><div><span class="section-kicker">Verbindlicher Wochenablauf</span><h4>Trainingsplan · alle acht Einheiten</h4><p class="muted">Der 2. November entfällt wegen der bayerischen Allerheiligenferien. Bei einem Ausfall bleibt die Einheitsnummer offen und wird am nächsten Montag fortgeführt.</p></div></div><div class="individual-roadmap-list">${cards}</div></section>`;
   }
 
   function urlBase64ToUint8Array(value) {
@@ -372,7 +374,7 @@ BT.individualTraining = (function() {
     const focus = currentFocus(data, profile.id);
     const openFeedback = (data.notifications || []).some(item => item.individual_profile_id === profile.id && item.kind === 'feedback_request' && !item.read_at);
     return `<article class="card individual-profile-card" data-profile-id="${profile.id}">
-      <div class="individual-profile-heading"><div><span class="section-kicker">Pilotspieler</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-sync-dot ${Number(profile.pending_sync_count || 0) ? 'pending' : ''}" title="Synchronisierungsstatus"></span></div>
+      <div class="individual-profile-heading"><div><span class="section-kicker">Spieler</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-sync-dot ${Number(profile.pending_sync_count || 0) ? 'pending' : ''}" title="Synchronisierungsstatus"></span></div>
       <dl class="individual-status-grid">
         <div class="wide"><dt>Nächste Einheit</dt><dd data-coach-next-session>${session ? `${fmt(session.scheduled_for)} · Einheit ${session.unit_number || '–'}` : 'Nicht geplant'}</dd></div>
         <div><dt>Teilnahme</dt><dd data-coach-attendance aria-live="polite">${session ? attendanceLabel(session.attendance_status) : '—'}</dd></div>
@@ -696,7 +698,7 @@ BT.individualTraining = (function() {
     const training = activeSession ? `<section class="card individual-session-run-card"><div class="section-head"><div><span class="section-kicker">Durchführung</span><h4>Einheit ${activeSession.unit_number || '–'} · ${fmt(activeSession.scheduled_for)}</h4></div><span>${BT.util.escapeHTML(activeSession.status)}</span></div>
         <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${displayExercises.length ? '' : 'disabled'}>▶ Training durchführen</button>
         <div class="individual-actions"><button class="btn" data-set-attendance="attended">Als anwesend bestätigen</button><button class="btn" data-set-attendance="unexcused_no_show">Unentschuldigt gefehlt</button><button class="btn danger" data-cancel-session>Einheit absagen</button></div>
-        ${displayPlan ? `<h4>${BT.util.escapeHTML(displayPlan.title)}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Coaching</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurement_method))}</p><p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
+        ${displayPlan ? `<h4>${BT.util.escapeHTML(trainingTitle(displayPlan.title))}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Coaching</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurement_method))}</p><p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
         <div class="individual-actions"><button class="btn primary" data-complete-session>Einheit abschließen und KI-Entwurf starten</button></div>
       </section>` : emptySession;
     const measurementPane = activeSession ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Einheit ${activeSession.unit_number || '–'}</span><h4>Ergebnisse erfassen</h4></div><strong>${measurements.length} gespeichert</strong></div></section>${renderMeasurementPane(activeSession, displayExercises, measurements)}` : emptySession;
@@ -840,13 +842,13 @@ BT.individualTraining = (function() {
     const available = (BT.storage?.getPlayers?.() || []).filter(player => !player.archived && !existing.has(player.id));
     target.innerHTML = `<section class="view individual-view individual-coach-cockpit">
       <div class="individual-cockpit-nav"><a class="btn small" href="#/dashboard">← Startzentrale</a><span>Trainerübersicht</span></div>
-      <div class="section-head individual-cockpit-head"><div><span class="section-kicker">Getrennter Arbeitsbereich</span><h2>Individual Training</h2><p class="muted">Beide Pilotspieler und alle offenen Aufgaben auf einen Blick.</p></div><span class="individual-unit-chip">Pilot 2026 · 8 Einheiten</span></div>
+      <div class="section-head individual-cockpit-head"><div><span class="section-kicker">Getrennter Arbeitsbereich</span><h2>Individual Training</h2><p class="muted">Deine Spieler und alle offenen Aufgaben auf einen Blick.</p></div><span class="individual-unit-chip">Trainingsblock · 8 Einheiten</span></div>
       <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
       <p class="muted" data-coach-auto-refresh role="status"></p>
       <div class="individual-profile-grid">${(data.profiles || []).length ? data.profiles.map(profile => profileCard(profile, data)).join('') : '<div class="empty">Noch kein Individualprofil angelegt.</div>'}</div>
       <section class="card" data-role="individual-invite" hidden></section>
       <section data-role="individual-detail" hidden></section>
-      <details class="card individual-setup"><summary>Pilot verwalten</summary><form data-create-profile><label>Pilotspieler hinzufügen<select name="playerProfileId" required><option value="">Spieler wählen</option>${available.map(player => `<option value="${player.id}">${BT.util.escapeHTML(player.name)}</option>`).join('')}</select></label><label>Pilotstart<input type="date" name="pilotStartedOn" value="2026-10-19"></label><button class="btn primary" type="submit" ${available.length ? '' : 'disabled'}>Profil anlegen</button></form><p>Maximal drei aktive Spieler je Coach; eine Einheit hat höchstens zwei Teilnehmer.</p></details>
+      <details class="card individual-setup"><summary>Spieler verwalten</summary><form data-create-profile><label>Spieler hinzufügen<select name="playerProfileId" required><option value="">Spieler wählen</option>${available.map(player => `<option value="${player.id}">${BT.util.escapeHTML(player.name)}</option>`).join('')}</select></label><label>Startdatum<input type="date" name="pilotStartedOn" value="2026-10-19"></label><button class="btn primary" type="submit" ${available.length ? '' : 'disabled'}>Profil anlegen</button></form><p>Maximal drei aktive Spieler je Coach; eine Einheit hat höchstens zwei Teilnehmer.</p></details>
     </section>`;
     const root = target.querySelector('.individual-view');
     startCoachRefresh(root);

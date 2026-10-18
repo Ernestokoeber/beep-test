@@ -88,7 +88,7 @@ export function nextUnitNumber(sessions) {
 
 export function nextOpenPilotMonday(latestScheduledDate = null) {
   if (!latestScheduledDate) return PILOT_START_DATE;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(latestScheduledDate))) throw new TypeError('Letzter Pilottermin ist ungültig.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(latestScheduledDate))) throw new TypeError('Letzter Trainingstermin ist ungültig.');
   const next = new Date(`${latestScheduledDate}T12:00:00Z`);
   next.setUTCDate(next.getUTCDate() + 7);
   let date = next.toISOString().slice(0, 10);
