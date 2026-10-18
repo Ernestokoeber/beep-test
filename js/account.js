@@ -7,7 +7,7 @@ BT.account = (function() {
     coach: 'Trainer',
     assistant: 'Assistenztrainer',
     viewer: 'Lesender Zugriff',
-    player: 'Individualspieler'
+    player: 'Spieler'
   };
 
   function initials(name) {
@@ -24,7 +24,7 @@ BT.account = (function() {
       guest: 'Gastmodus · nur dieses Gerät',
       syncing: 'Synchronisierung läuft …',
       pending: 'Änderungen werden übertragen …',
-      synced: 'Serverstand geprüft',
+      synced: 'Datenstand geprüft',
       offline: 'Offline · Synchronisierung wartet',
       error: state.lastError || 'Synchronisierung gestört'
     };
@@ -42,6 +42,14 @@ BT.account = (function() {
     guest.classList.toggle('hidden', !!state.user);
     session.classList.toggle('hidden', !state.user);
     root.querySelector('[data-role="cached-session-note"]').hidden = state.identitySource !== 'cache';
+    const intro = !state.user
+      ? ['Dein Zugang zu CourtHub','Anmelden und deine Trainingsdaten abrufen.','Verwende dein Trainer- oder Spielerkonto. Für ein neues Spielerkonto brauchst du den persönlichen Einladungslink deines Trainers.']
+      : state.user.role === 'player'
+        ? ['Dein Spielerkonto','Dein Individualtraining auf deinen Geräten.','Deine Zu- und Absagen, Tagesform und Rückmeldungen werden an deinen Trainer übertragen, sobald du online bist. Du hast ausschließlich Zugriff auf deinen persönlichen Trainingsbereich.']
+        : ['Dein Trainerkonto','Deine Trainingsdaten auf deinen Geräten.','Nach der Anmeldung werden deine freigegebenen Trainingsdaten zwischen deinen Geräten abgeglichen. Ohne Internet nutzt du den zuletzt gespeicherten Stand.'];
+    for (const [index,selector] of ['.account-hero .coach-eyebrow','.account-hero h3','.account-hero p'].entries()) {
+      const field=root.querySelector(selector);if(field)field.textContent=intro[index];
+    }
     if (!state.user) return;
 
     root.querySelector('[data-role="account-avatar"]').textContent = initials(state.user.displayName);
@@ -151,7 +159,7 @@ BT.account = (function() {
       try {
         const loggedIn = await BT.sync.login(form.get('email'), form.get('password'));
         authStatus.textContent = '';
-        BT.util.toast(BT.sync.getState().status === 'synced' ? 'Anmeldung erfolgreich. Serverstand geprüft.' : 'Angemeldet. Der Cloud-Abgleich ist noch nicht möglich.');
+        BT.util.toast(BT.sync.getState().status === 'synced' ? 'Anmeldung erfolgreich. Datenstand geprüft.' : 'Angemeldet. Der Datenabgleich ist noch nicht möglich.');
         location.hash = loggedIn.role === 'player' ? '#/individual' : '#/dashboard';
       } catch (error) {
         authStatus.textContent = 'Fehler: ' + error.message;
@@ -181,11 +189,11 @@ BT.account = (function() {
     });
 
     root.querySelector('[data-action="sync-now"]').addEventListener('click', async () => {
-      sessionStatus.textContent = 'Serverstand wird abgeglichen …';
+      sessionStatus.textContent = 'Datenstand wird abgeglichen …';
       try {
         await BT.sync.syncNow();
         const state = BT.sync.getState();
-        sessionStatus.textContent = state.status === 'synced' ? 'Serverstand wurde geprüft.' : (state.lastError || 'Der Cloud-Abgleich ist noch nicht möglich.');
+        sessionStatus.textContent = state.status === 'synced' ? 'Datenstand wurde geprüft.' : (state.lastError || 'Der Datenabgleich ist noch nicht möglich.');
         update(root);
       } catch (error) {
         sessionStatus.textContent = 'Fehler: ' + error.message;

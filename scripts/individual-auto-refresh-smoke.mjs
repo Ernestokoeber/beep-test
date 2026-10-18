@@ -8,7 +8,7 @@ let rows=[{profile_id:ids.profile,session_id:ids.session,scheduled_for:'2026-10-
 const timers=new Map();w.setTimeout=(fn,delay)=>{timers.set(++sequence,{fn,delay});return sequence;};w.clearTimeout=id=>timers.delete(id);w.Date.now=()=>time;
 Object.defineProperty(w.document,'hidden',{get:()=>hidden});Object.defineProperty(w.navigator,'onLine',{get:()=>online});
 w.BT={util:{escapeHTML:s=>String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;')},sync:{getState:()=>({user:current})},storage:{getPlayers:()=>[]},api:{getIndividualOverview:async()=>structuredClone(overview),getIndividualResponses:async()=>{calls++;if(release!==null)await new Promise(r=>release=r);if(error)throw error;return {responses:structuredClone(rows)};}}};
-for(const file of ['individual-player-view','individual-training'])w.eval(readFileSync(new URL(`../js/${file}.js`,import.meta.url),'utf8'));
+for(const file of ['individual-copy','individual-player-view','individual-training'])w.eval(readFileSync(new URL(`../js/${file}.js`,import.meta.url),'utf8'));
 const target=w.document.querySelector('main');await w.BT.individualTraining.render(target);
 const card=target.querySelector(`[data-profile-id="${ids.profile}"]`),form=target.querySelector('[data-create-profile]');form.querySelector('[name="pilotStartedOn"]').value='2026-10-26';
 const flush=()=>new Promise(r=>setTimeout(r,0));

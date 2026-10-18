@@ -112,7 +112,7 @@ export function createIndividualAIDraftHandler(deps = {}) {
     try {
       const auth = await membership(req, res);
       if (!auth) return;
-      if (!isIndividualCoach(auth.role)) return res.status(403).json({ error: 'KI-Entwürfe sind nur im Coach-Bereich verfügbar.' });
+      if (!isIndividualCoach(auth.role)) return res.status(403).json({ error: 'KI-Entwürfe sind nur im Trainerbereich verfügbar.' });
       const action = String(req.body?.action || 'generate');
 
       if (action === 'approve') {

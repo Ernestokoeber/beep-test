@@ -138,7 +138,7 @@ BT.individualTraining = (function() {
     return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short', ...options }).format(new Date(value));
   }
 
-  function trainingTitle(value) { return String(value || '').replace(/^Piloteinheit\b/i, 'Einheit'); }
+  function trainingTitle(value) { return BT.individualCopy.title(value); }
 
   function playerName(profile) {
     if (profile.account_name) return profile.account_name;
@@ -173,11 +173,11 @@ BT.individualTraining = (function() {
   }
 
   function attendanceLabel(status) {
-    return ({ pending: 'Antwort offen', confirmed: 'Zugesagt', declined: 'Abgesagt', attended: 'Anwesend', unexcused_no_show: 'No-Show' })[status] || 'Offen';
+    return BT.individualCopy.attendance(status);
   }
 
   function draftLabel(status) {
-    return ({ queued: 'wartet', generating: 'wird erstellt', current: 'zur Prüfung', stale: 'veraltet', approved: 'freigegeben', failed: 'Fehler' })[status] || 'noch kein Entwurf';
+    return BT.individualCopy.draft(status);
   }
 
   function renderHub(target) {
@@ -185,7 +185,7 @@ BT.individualTraining = (function() {
       <div class="individual-hub-head"><div><h3>Arbeitsbereich wechseln</h3><p>Mannschaft oder Individualtraining</p></div></div>
       <div class="individual-workspaces">
         <a class="individual-workspace-card individual-workspace-team" data-workspace="team" href="#/team"><span class="individual-workspace-icon" aria-hidden="true">M</span><span><small>Arbeitsbereich</small><strong>Mannschaft</strong><em>Teamtraining, Spiele, Kader und Auswertungen</em></span><b aria-hidden="true">→</b></a>
-        <a class="individual-workspace-card individual-workspace-one" data-workspace="individual" href="#/individual"><span class="individual-workspace-icon" aria-hidden="true">1</span><span><small>Arbeitsbereich</small><strong>Individual Training</strong><em>Thomas und Adnan gezielt entwickeln</em></span><b aria-hidden="true">→</b></a>
+        <a class="individual-workspace-card individual-workspace-one" data-workspace="individual" href="#/individual"><span class="individual-workspace-icon" aria-hidden="true">1</span><span><small>Arbeitsbereich</small><strong>Individualtraining</strong><em>Spieler individuell fördern</em></span><b aria-hidden="true">→</b></a>
       </div>
     </section>`;
     const todayView = document.createDocumentFragment();
@@ -234,10 +234,10 @@ BT.individualTraining = (function() {
       ['training', '▶', 'Training durchführen'],
       ['measurements', '#', 'Messwerte'],
       ['focus', '◎', 'Wochenfokus'],
-      ['feedback', '✎', 'Notizen & Feedback'],
-      ['ai-history', '◆', 'KI & Verlauf']
+      ['feedback', '✎', 'Notizen & Rückmeldungen'],
+      ['ai-history', '◆', 'KI-Auswertung & Verlauf']
     ].map(([pane, icon, label]) => `<a href="#/individual/player/${encodeURIComponent(selectedProfile.id)}/${pane}" class="individual-pane-link ${pane === selectedPane ? 'active' : ''}"><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></a>`).join('') : '';
-    navigation.innerHTML = `<span class="nav-section-label">Individual Training</span>
+    navigation.innerHTML = `<span class="nav-section-label">Individualtraining</span>
       <a href="#/individual" class="${selectedProfileId ? '' : 'active'}"><span class="nav-icon" aria-hidden="true">⌂</span><span>${current.role === 'player' ? 'Mein Training' : 'Trainerübersicht'}</span></a>
       ${coachLinks}
       ${selectedProfile ? `<span class="nav-section-label individual-player-menu-label">${BT.util.escapeHTML(playerName(selectedProfile))}</span>${paneLinks}` : ''}
@@ -276,15 +276,15 @@ BT.individualTraining = (function() {
   }
 
   function sessionStatusLabel(status) {
-    return ({ planned: 'Angelegt', in_progress: 'Läuft', completed: 'Abgeschlossen', cancelled: 'Ausgefallen' })[status] || 'Vorgesehen';
+    return status ? BT.individualCopy.session(status) : 'Noch nicht geplant';
   }
 
   function roadmapExercise(exercise, index) {
-    return `<li><strong>${index + 1}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.durationMinutes} Min.</strong>
-      <details><summary>Wiederholungen, Messung und Coaching</summary>
-        <p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions || {}))}</p>
-        <p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurementMethod || {}))}</p>
-        <p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coachingCues || []).join(' · '))}</p>
+    return `<li><strong>${index + 1}. ${BT.util.escapeHTML(trainingTitle(exercise.title))} · ${exercise.durationMinutes} Min.</strong>
+      <details><summary>Wiederholungen, Messung und Trainerhinweise</summary>
+        <p><b>Wiederholungen:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.repetitions || {}))}</p>
+        <p><b>Messung:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.measurementMethod || {}))}</p>
+        <p><b>Trainerhinweise:</b> ${BT.util.escapeHTML((exercise.coachingCues || []).map(BT.individualCopy.cue).join(' · '))}</p>
       </details></li>`;
   }
 
@@ -318,18 +318,18 @@ BT.individualTraining = (function() {
 
   async function enablePush(root) {
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Web-Push ist auf diesem Gerät nicht verfügbar.');
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Benachrichtigungen sind auf diesem Gerät nicht verfügbar.');
       const permission = await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('Push wurde nicht erlaubt. Dashboard-Erinnerungen bleiben aktiv.');
+      if (permission !== 'granted') throw new Error('Benachrichtigungen wurden nicht erlaubt. Erinnerungen bleiben unter „Mein Training“ sichtbar.');
       const { publicKey } = await BT.api.getIndividualPushKey();
-      if (!publicKey) throw new Error('Web-Push ist serverseitig noch nicht konfiguriert. Dashboard-Erinnerungen bleiben aktiv.');
+      if (!publicKey) throw new Error('Benachrichtigungen sind noch nicht eingerichtet. Erinnerungen bleiben unter „Mein Training“ sichtbar.');
       const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
       const subscription = existing || await registration.pushManager.subscribe({
         userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey)
       });
       await BT.api.saveIndividualPush(subscription.toJSON());
-      notice(root, 'Web-Push ist aktiviert. Dashboard-Erinnerungen bleiben zusätzlich sichtbar.');
+      notice(root, 'Benachrichtigungen sind aktiviert. Erinnerungen bleiben zusätzlich unter „Mein Training“ sichtbar.');
     } catch (error) { notice(root, error.message, true); }
   }
 
@@ -382,7 +382,7 @@ BT.individualTraining = (function() {
         <div><dt>Synchronisierung</dt><dd>${Number(profile.pending_sync_count || 0) ? `${Number(profile.pending_sync_count)} offen` : 'Aktuell'}</dd></div>
         <div><dt>Rückmeldung</dt><dd>${openFeedback ? 'Offen' : 'Aktuell'}</dd></div>
         <div class="wide"><dt>Wochenfokus</dt><dd>${focus ? BT.util.escapeHTML(focus.title) : 'Noch nicht freigegeben'}</dd></div>
-        <div class="wide"><dt>KI-Status</dt><dd>${latestDraft ? BT.util.escapeHTML(draftLabel(latestDraft.status)) : 'Noch kein Entwurf'}</dd></div>
+        <div class="wide"><dt>KI-Auswertung</dt><dd>${latestDraft ? BT.util.escapeHTML(draftLabel(latestDraft.status)) : 'Nach der ersten abgeschlossenen Einheit'}</dd></div>
       </dl>
       <div class="individual-actions"><button class="btn" type="button" data-action="invite-player" ${profile.user_id ? 'disabled' : ''}>${profile.user_id ? 'Spielerkonto verbunden' : 'Einladung & QR-Code'}</button><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/preview">Spieleransicht ansehen</a><button class="btn primary" type="button" data-action="open-profile">Spieler öffnen</button></div>
     </article>`;
@@ -450,9 +450,9 @@ BT.individualTraining = (function() {
       const next = exercises[state.index + 1];
       const quickMeasurements = measurementDefinitions(item);
       const planned = Math.max(1, Number(item.duration_minutes) || 1) * 60 + Number(state.adjustments[item.id] || 0);
-      const repetitions = typeof item.repetitions === 'string' ? item.repetitions : JSON.stringify(item.repetitions || {});
-      const measurement = typeof item.measurement_method === 'string' ? item.measurement_method : JSON.stringify(item.measurement_method || {});
-      target.innerHTML = `<section class="individual-live-shell" aria-label="Geführte Individual-Training-Durchführung">
+      const repetitions = BT.individualCopy.details(item.repetitions || {});
+      const measurement = BT.individualCopy.details(item.measurement_method || {});
+      target.innerHTML = `<section class="individual-live-shell" aria-label="Geführtes Individualtraining">
         <header class="individual-live-header">
           <button class="individual-live-back" type="button" data-live-exit>← Trainerübersicht</button>
           <div><span>Einheit ${session.unit_number || '–'} · ${BT.util.escapeHTML(playerName(profile))}</span><strong>${fmt(session.scheduled_for)}</strong></div>
@@ -461,8 +461,8 @@ BT.individualTraining = (function() {
         <div class="individual-live-progress" aria-label="Trainingsfortschritt"><span style="width:${Math.round(((state.index + 1) / exercises.length) * 100)}%"></span></div>
         <main class="individual-live-main">
           <section class="individual-live-current">
-            <div class="individual-live-kicker"><span>Aktueller Block · ${state.index + 1} von ${exercises.length}</span><span>${Math.round(planned / 60)} Min. geplant</span></div>
-            <h1>${BT.util.escapeHTML(item.title)}</h1>
+            <div class="individual-live-kicker"><span>Aktuelle Übung · ${state.index + 1} von ${exercises.length}</span><span>${Math.round(planned / 60)} Min. geplant</span></div>
+            <h1>${BT.util.escapeHTML(trainingTitle(item.title))}</h1>
             <div class="individual-live-clock" data-live-block-clock>${secondsLabel(currentSeconds())}</div>
             <div class="individual-live-timer-actions">
               <button class="btn primary" type="button" data-live-toggle>${state.runningSince ? 'Pause' : currentSeconds() ? 'Fortsetzen' : 'Uhr starten'}</button>
@@ -474,11 +474,11 @@ BT.individualTraining = (function() {
               <div><small>Wiederholungen</small><p>${BT.util.escapeHTML(repetitions)}</p></div>
               <div><small>Messmethode</small><p>${BT.util.escapeHTML(measurement)}</p></div>
             </div>
-            <section class="individual-live-cues"><span class="section-kicker">Coaching-Points</span><ul>${(item.coaching_cues || []).map(cue => `<li>${BT.util.escapeHTML(cue)}</li>`).join('') || '<li>Technik sauber und kontrolliert ausführen.</li>'}</ul></section>
+            <section class="individual-live-cues"><span class="section-kicker">Trainerhinweise</span><ul>${(item.coaching_cues || []).map(cue => `<li>${BT.util.escapeHTML(BT.individualCopy.cue(cue))}</li>`).join('') || '<li>Technik sauber und kontrolliert ausführen.</li>'}</ul></section>
             <div class="individual-live-rating" role="group" aria-label="Schnellbewertung">
               ${['Funktioniert', 'Wiederholen', 'Problem'].map(value => `<button type="button" data-live-rating="${value}" class="${state.ratings[item.id] === value ? 'active' : ''}">${value}</button>`).join('')}
             </div>
-            <label class="individual-live-note">Trainernotiz<textarea data-live-note maxlength="500" placeholder="Beobachtung zu diesem Block …">${BT.util.escapeHTML(state.notes[item.id] || '')}</textarea></label>
+            <label class="individual-live-note">Trainernotiz<textarea data-live-note maxlength="500" placeholder="Beobachtung zu dieser Übung …">${BT.util.escapeHTML(state.notes[item.id] || '')}</textarea></label>
             <div class="individual-live-quick-actions"><button class="btn" type="button" data-live-quick-note>Schnellnotiz mit Zeit</button><button class="btn" type="button" data-live-tactics>Taktik öffnen</button></div>
             ${quickMeasurements.length ? `<form class="individual-live-measurement" data-live-measurement>
               <strong>Ergebnis direkt erfassen</strong>
@@ -488,15 +488,15 @@ BT.individualTraining = (function() {
             <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
           </section>
           <aside class="individual-live-side">
-            <section class="individual-live-next"><small>Als Nächstes</small>${next ? `<strong>${BT.util.escapeHTML(next.title)}</strong><span>${next.duration_minutes} Minuten</span>` : '<strong>Abschluss</strong><span>Einheit auswerten und speichern</span>'}</section>
-            <section class="individual-live-attendance"><small>Teilnahme</small><strong>${BT.util.escapeHTML(playerName(profile))}</strong><span>${attendanceLabel(session.attendance_status)}</span><div><button class="btn" type="button" data-live-attendance="attended">Anwesend</button><button class="btn" type="button" data-live-attendance="unexcused_no_show">No-Show</button></div></section>
-            <section class="individual-live-outline"><small>Ablauf</small>${exercises.map((entry, index) => `<button type="button" data-live-jump="${index}" class="${index === state.index ? 'active' : ''} ${state.skipped[entry.id] ? 'skipped' : ''} ${state.completed[entry.id] ? 'done' : ''}"><span>${index + 1}</span><b>${BT.util.escapeHTML(entry.title)}</b><em>${entry.duration_minutes} Min.</em></button>`).join('')}</section>
+            <section class="individual-live-next"><small>Als Nächstes</small>${next ? `<strong>${BT.util.escapeHTML(trainingTitle(next.title))}</strong><span>${next.duration_minutes} Minuten</span>` : '<strong>Abschluss</strong><span>Einheit auswerten und speichern</span>'}</section>
+            <section class="individual-live-attendance"><small>Teilnahme</small><strong>${BT.util.escapeHTML(playerName(profile))}</strong><span>${attendanceLabel(session.attendance_status)}</span><div><button class="btn" type="button" data-live-attendance="attended">Anwesend</button><button class="btn" type="button" data-live-attendance="unexcused_no_show">Unentschuldigt gefehlt</button></div></section>
+            <section class="individual-live-outline"><small>Ablauf</small>${exercises.map((entry, index) => `<button type="button" data-live-jump="${index}" class="${index === state.index ? 'active' : ''} ${state.skipped[entry.id] ? 'skipped' : ''} ${state.completed[entry.id] ? 'done' : ''}"><span>${index + 1}</span><b>${BT.util.escapeHTML(trainingTitle(entry.title))}</b><em>${entry.duration_minutes} Min.</em></button>`).join('')}</section>
           </aside>
         </main>
         <footer class="individual-live-footer">
-          <button class="btn" type="button" data-live-prev ${state.index === 0 ? 'disabled' : ''}>← Vorheriger Drill</button>
+          <button class="btn" type="button" data-live-prev ${state.index === 0 ? 'disabled' : ''}>← Vorherige Übung</button>
           <button class="btn" type="button" data-live-skip>Überspringen</button>
-          <button class="btn primary" type="button" data-live-next>${next ? 'Block beenden · Nächster Drill' : 'Block beenden'}</button>
+          <button class="btn primary" type="button" data-live-next>${next ? 'Übung beenden · Nächste Übung' : 'Übung beenden'}</button>
           <button class="btn danger" type="button" data-live-finish>Training beenden &amp; speichern</button>
         </footer>
         <div class="individual-tactics-sheet" data-live-tactics-sheet hidden><div><button type="button" data-live-tactics-close>×</button><span class="section-kicker">Schnellzugriff</span><h2>Taktik</h2><p>Öffne das CourtHub-Taktikboard direkt aus der Durchführung. Dein aktueller Ablauf bleibt gespeichert.</p><a class="btn primary" href="#/tactics">Taktikboard öffnen</a></div></div>
@@ -536,7 +536,7 @@ BT.individualTraining = (function() {
       };
       target.querySelector('[data-live-finish]').onclick = async () => {
         finalizeRunning(); stopTimer(); persist();
-        const finishButton = target.querySelector('[data-live-finish]'); finishButton.disabled = true; notice(target, 'Tatsächlichen Ablauf wird gespeichert …');
+        const finishButton = target.querySelector('[data-live-finish]'); finishButton.disabled = true; notice(target, 'Der durchgeführte Ablauf wird gespeichert …');
         try {
           const writes = exercises.flatMap(entry => {
             const values = [BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.database_id, metricKey: 'tatsaechliche_dauer', numericValue: Number(state.elapsed[entry.id] || 0), unit: 'Sekunden' })];
@@ -562,7 +562,7 @@ BT.individualTraining = (function() {
     const choice = (key, label, choices) => ({ key, label, type: 'choice', choices });
     const text = (key, label, placeholder = 'Kurz und verständlich eintragen') => ({ key, label, type: 'text', placeholder });
     if (title.includes('dynamische aktivierung')) return [];
-    if (title.includes('check-in') || title.includes('readiness')) return [number('readiness', 'Tagesform', 'von 10', 10)];
+    if (title.includes('check-in') || title.includes('readiness') || title.includes('tagesform')) return [number('readiness', 'Tagesform', 'von 10', 10)];
     if (title.includes('ballkontrolle')) return [
       number('zeit', 'Zeit', 'Sekunden', null, 2),
       number('ballverluste', 'Ballverluste', 'Anzahl', null, 2),
@@ -579,17 +579,17 @@ BT.individualTraining = (function() {
       choice('technik', 'Technik insgesamt', ['Stabil', 'Wechselhaft', 'Unsicher'])
     ];
     if (title.includes('wurf')) return [
-      number('treffer_baseline_links', 'Treffer Baseline links', 'von 5', 5),
+      number('treffer_baseline_links', 'Treffer Grundlinie links', 'von 5', 5),
       number('treffer_fluegel_links', 'Treffer Flügel links', 'von 5', 5),
       number('treffer_frontal', 'Treffer frontal', 'von 5', 5),
       number('treffer_fluegel_rechts', 'Treffer Flügel rechts', 'von 5', 5),
-      number('treffer_baseline_rechts', 'Treffer Baseline rechts', 'von 5', 5),
+      number('treffer_baseline_rechts', 'Treffer Grundlinie rechts', 'von 5', 5),
       choice('fehlwurfrichtung', 'Häufigste Fehlwurfrichtung', ['Zu kurz', 'Zu lang', 'Links', 'Rechts', 'Unterschiedlich']),
-      choice('balance', 'Balance', ['Stabil', 'Wechselhaft', 'Unsicher']),
+      choice('balance', 'Gleichgewicht', ['Stabil', 'Wechselhaft', 'Unsicher']),
       choice('wurflinie', 'Wurflinie', ['Stabil', 'Wechselhaft', 'Unsicher']),
-      choice('follow_through', 'Follow-through', ['Stabil', 'Wechselhaft', 'Unsicher'])
+      choice('follow_through', 'Wurfbewegung ausschwingen', ['Stabil', 'Wechselhaft', 'Unsicher'])
     ];
-    if (title.includes('technikkorrektur')) return [text('coach_beobachtung', 'Was wurde korrigiert?')];
+    if (title.includes('technikkorrektur') && !title.includes('kontrollmessung')) return [text('coach_beobachtung', 'Was wurde korrigiert?')];
     if (title.includes('wahrnehmung') || title.includes('entscheidung')) return [
       number('entscheidung_richtig', 'Richtige Entscheidungen', 'von 18', 18),
       number('entscheidung_verspaetet', 'Verspätete Entscheidungen', 'Anzahl', 18),
@@ -607,7 +607,7 @@ BT.individualTraining = (function() {
     ];
     if (title.includes('kontrollmessung')) return [
       choice('kontrollbereich', 'Wiederholter Bereich', ['Ballkontrolle', 'Korbabschluss', 'Wurf']),
-      text('kontrollwert', 'Ergebnis nach dem Coaching', 'Zum Beispiel: 7 Treffer aus 10 oder 13,4 Sekunden')
+      text('kontrollwert', 'Ergebnis nach der Technikkorrektur', 'Zum Beispiel: 7 Treffer aus 10 oder 13,4 Sekunden')
     ];
     if (title.includes('reflexion')) return [
       text('funktionierte_am_besten', 'Was funktionierte am besten?'),
@@ -619,7 +619,7 @@ BT.individualTraining = (function() {
       choice('vergleichbar', 'Bedingungen vergleichbar?', ['Ja', 'Nein']),
       text('abweichung', 'Abweichung oder äußerer Fehler', 'Nur ausfüllen, wenn etwas die Messung beeinflusst hat')
     ];
-    if (title.includes('auswertung') || title.includes('entwicklungsblock')) return [text('coach_beobachtung', 'Coach-Beobachtung')];
+    if (title.includes('auswertung') || title.includes('entwicklungsblock')) return [text('coach_beobachtung', 'Trainerbeobachtung')];
     return [text('beobachtung', 'Beobachtung')];
   }
 
@@ -636,7 +636,7 @@ BT.individualTraining = (function() {
     const forms = trackable.map(({ exercise, definitions }) => {
       const saved = measurements.filter(item => exercise.id && item.exercise_id === exercise.id).length;
       return `<details class="card individual-measurement-exercise">
-        <summary><span><small>Übung ${exercise.position}</small><strong>${BT.util.escapeHTML(exercise.title)}</strong></span><b>${saved ? `${saved} gespeichert` : 'Öffnen'}</b></summary>
+        <summary><span><small>Übung ${exercise.position}</small><strong>${BT.util.escapeHTML(trainingTitle(exercise.title))}</strong></span><b>${saved ? `${saved} gespeichert` : 'Öffnen'}</b></summary>
         <div class="individual-measurement-grid">${definitions.map(definition => `<form data-guided-measurement data-exercise-id="${exercise.id || ''}" data-metric-key="${definition.key}" data-value-type="${definition.type}" data-unit="${BT.util.escapeHTML(definition.unit || '')}">
           <label><span>${BT.util.escapeHTML(definition.label)}${definition.unit ? ` <small>${BT.util.escapeHTML(definition.unit)}</small>` : ''}</span>${measurementInput(definition)}</label>
           ${definition.attempts ? `<label><span>Durchgang</span><select name="attempt" required>${Array.from({ length: definition.attempts }, (_, index) => `<option value="${index + 1}">${index + 1}</option>`).join('')}</select></label>` : ''}
@@ -644,11 +644,11 @@ BT.individualTraining = (function() {
         </form>`).join('')}</div>
       </details>`;
     }).join('');
-    const exerciseNames = new Map(exercises.filter(item => item.id).map(item => [item.id, item.title]));
+    const exerciseNames = new Map(exercises.filter(item => item.id).map(item => [item.id, trainingTitle(item.title)]));
     const labels = new Map(exercises.flatMap(exercise => measurementDefinitions(exercise).map(definition => [definition.key, definition.label])));
     const history = measurements.length ? measurements.slice().reverse().map(item => {
       const value = item.numeric_value !== null && item.numeric_value !== undefined ? Number(item.numeric_value) : item.text_value;
-      return `<li><span><strong>${BT.util.escapeHTML(labels.get(item.metric_key) || String(item.metric_key).replaceAll('_', ' '))}</strong><small>${BT.util.escapeHTML(exerciseNames.get(item.exercise_id) || 'Einheit 1')}${item.attempt ? ` · Durchgang ${item.attempt}` : ''}</small></span><b>${BT.util.escapeHTML(value)}${item.unit ? ` ${BT.util.escapeHTML(item.unit)}` : ''}</b></li>`;
+      return `<li><span><strong>${BT.util.escapeHTML(labels.get(item.metric_key) || BT.individualCopy.metric(item.metric_key))}</strong><small>${BT.util.escapeHTML(exerciseNames.get(item.exercise_id) || 'Allgemeine Messung')}${item.attempt ? ` · Durchgang ${item.attempt}` : ''}</small></span><b>${BT.util.escapeHTML(value)}${item.unit ? ` ${BT.util.escapeHTML(item.unit)}` : ''}</b></li>`;
     }).join('') : '<li class="muted">Noch keine Ergebnisse gespeichert.</li>';
     return `<section class="individual-measurement-intro"><p>Wähle die Übung und trage nur das beobachtete Ergebnis ein. CourtHub ordnet es automatisch richtig zu.</p></section>
       <div class="individual-measurement-exercises">${forms || '<section class="card"><p class="muted">Für diese Einheit sind keine Messungen vorgesehen.</p></section>'}</div>
@@ -686,8 +686,8 @@ BT.individualTraining = (function() {
       training: 'Training durchführen',
       measurements: 'Messwerte',
       focus: 'Wochenfokus',
-      feedback: 'Notizen & Feedback',
-      'ai-history': 'KI & Verlauf'
+      feedback: 'Notizen & Rückmeldungen',
+      'ai-history': 'KI-Auswertung & Verlauf'
     };
     if (!paneLabels[pane]) pane = 'overview';
     const emptySession = '<section class="card"><h4>Keine aktive Einheit</h4><p class="muted">Plane zuerst in der Übersicht die nächste Montagseinheit.</p><a class="btn primary" href="#/individual/player/' + encodeURIComponent(profile.id) + '/overview">Zur Übersicht</a></section>';
@@ -695,25 +695,25 @@ BT.individualTraining = (function() {
       <div class="individual-detail-grid">
         ${activeSession && ['planned', 'in_progress'].includes(activeSession.status) ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · 105 Minuten</p><a class="btn primary" href="#/individual/player/${encodeURIComponent(profile.id)}/training">Einheit öffnen</a></section>` : `<form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>`}
       </div>`;
-    const training = activeSession ? `<section class="card individual-session-run-card"><div class="section-head"><div><span class="section-kicker">Durchführung</span><h4>Einheit ${activeSession.unit_number || '–'} · ${fmt(activeSession.scheduled_for)}</h4></div><span>${BT.util.escapeHTML(activeSession.status)}</span></div>
+    const training = activeSession ? `<section class="card individual-session-run-card"><div class="section-head"><div><span class="section-kicker">Durchführung</span><h4>Einheit ${activeSession.unit_number || '–'} · ${fmt(activeSession.scheduled_for)}</h4></div><span>${BT.util.escapeHTML(sessionStatusLabel(activeSession.status))}</span></div>
         <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${displayExercises.length ? '' : 'disabled'}>▶ Training durchführen</button>
         <div class="individual-actions"><button class="btn" data-set-attendance="attended">Als anwesend bestätigen</button><button class="btn" data-set-attendance="unexcused_no_show">Unentschuldigt gefehlt</button><button class="btn danger" data-cancel-session>Einheit absagen</button></div>
-        ${displayPlan ? `<h4>${BT.util.escapeHTML(trainingTitle(displayPlan.title))}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(exercise.title)} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Coaching</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(JSON.stringify(exercise.measurement_method))}</p><p><b>Coaching:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
+        ${displayPlan ? `<h4>${BT.util.escapeHTML(trainingTitle(displayPlan.title))}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(trainingTitle(exercise.title))} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Trainerhinweise</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.measurement_method))}</p><p><b>Trainerhinweise:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).map(BT.individualCopy.cue).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
         <div class="individual-actions"><button class="btn primary" data-complete-session>Einheit abschließen und KI-Entwurf starten</button></div>
       </section>` : emptySession;
     const measurementPane = activeSession ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Einheit ${activeSession.unit_number || '–'}</span><h4>Ergebnisse erfassen</h4></div><strong>${measurements.length} gespeichert</strong></div></section>${renderMeasurementPane(activeSession, displayExercises, measurements)}` : emptySession;
-    const focusPane = activeSession ? `<form class="card individual-feedback-form" data-weekly-focus><h4>Persönlichen Wochenfokus freigeben</h4><label>Zielhandlung<input name="title" required maxlength="120"></label><label>Hinweis 1<input name="cueOne" required maxlength="240"></label><label>Hinweis 2, optional<input name="cueTwo" maxlength="240"></label><label>Gelungen, wenn …<input name="successIndicator" required maxlength="300"></label><label>Gültig ab<input name="validFrom" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 1)}" readonly required></label><label>Gültig bis<input name="validUntil" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 6)}" readonly required></label><button class="btn primary" type="submit">Wochenfokus veröffentlichen</button></form>` : emptySession;
+    const focusPane = activeSession ? `<form class="card individual-feedback-form" data-weekly-focus><h4>Persönlichen Wochenfokus freigeben</h4><label>Persönliches Ziel<input name="title" required maxlength="120"></label><label>Hinweis 1<input name="cueOne" required maxlength="240"></label><label>Hinweis 2, optional<input name="cueTwo" maxlength="240"></label><label>Gelungen, wenn …<input name="successIndicator" required maxlength="300"></label><label>Gültig ab<input name="validFrom" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 1)}" readonly required></label><label>Gültig bis<input name="validUntil" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 6)}" readonly required></label><button class="btn primary" type="submit">Wochenfokus für Spieler freigeben</button></form>` : emptySession;
     const feedbackPane = `${incomingFeedback}<div class="individual-detail-grid">
         <form class="card" data-coach-note><h4>Private Trainernotiz</h4><p>Nur für das Trainerteam. Diese Notiz wird nicht an den Spieler weitergegeben.</p><label>Deine Notiz<textarea name="note" maxlength="5000" required></textarea></label><button class="btn" type="submit">Privat speichern</button></form>
         <form class="card" data-release-feedback><h4>Notiz für den Spieler</h4><label>Text für den Spieler<textarea name="content" maxlength="5000" required></textarea></label><label class="individual-note-consent"><input type="checkbox" name="shareWithPlayer" required><span>Diese Notiz für den Spieler freigeben</span></label><p class="muted">Nur bewusst gekennzeichnete Notizen erscheinen beim Spieler.</p><button class="btn primary" type="submit">Für Spieler freigeben</button></form>
       </div>
       <section class="card private-coach-card"><h4>Private Notizen</h4>${notes.length ? notes.map(item => `<p>${BT.util.escapeHTML(item.note)} <small>${fmt(item.created_at)}</small></p>`).join('') : '<p class="muted">Keine privaten Notizen.</p>'}</section>
       <section class="card"><h4>Für den Spieler freigegeben</h4>${feedback.length ? feedback.map(item => `<p>${BT.util.escapeHTML(item.content)}</p>`).join('') : '<p class="muted">Noch nichts freigegeben.</p>'}</section>`;
-    const aiHistoryPane = `<section class="card private-coach-card"><h4>Privater KI-Entwurf</h4>${latestDraft ? `<p>Status: <strong>${BT.util.escapeHTML(latestDraft.status)}</strong></p>${latestDraft.content ? `<h5>${BT.util.escapeHTML(latestDraft.content.nextSession?.title || '')}</h5><p>${BT.util.escapeHTML(latestDraft.content.analysis || '')}</p><p><b>Wochenfokus:</b> ${BT.util.escapeHTML(latestDraft.content.weeklyFocus?.title || '')}</p>` : ''}<div class="individual-actions">${['queued', 'failed'].includes(latestDraft.status) ? '<button class="btn" data-generate-draft>Entwurf erzeugen</button>' : ''}${latestDraft.status === 'stale' ? '<button class="btn" data-regenerate-draft>Aktuell neu erzeugen</button>' : ''}${latestDraft.status === 'current' ? '<button class="btn primary" data-approve-draft>Prüfung bestätigen und veröffentlichen</button>' : ''}</div>` : '<p class="muted">Nach Abschluss und Synchronisierung wird pro Spieler ein Entwurf angelegt.</p>'}</section>
-      <section class="card"><h4>Einheiten</h4>${sessions.length ? `<ul>${sessions.map(item => `<li>${fmt(item.scheduled_for)} · ${BT.util.escapeHTML(item.status)} · Einheit ${item.unit_number || '–'} · ${BT.util.escapeHTML(item.attendance_status)}</li>`).join('')}</ul>` : '<p class="muted">Noch keine Einheit angelegt.</p>'}</section>`;
+    const aiHistoryPane = `<section class="card private-coach-card"><h4>Privater KI-Entwurf</h4><p>Nur für dich sichtbar. Nach deiner Prüfung kannst du die Rückmeldung für den Spieler und den Wochenfokus für den Spieler freigeben.</p>${latestDraft ? `<p>Status: <strong>${BT.util.escapeHTML(draftLabel(latestDraft.status))}</strong></p>${latestDraft.content ? `<h5>${BT.util.escapeHTML(latestDraft.content.nextSession?.title || '')}</h5><p>${BT.util.escapeHTML(latestDraft.content.analysis || '')}</p><p><b>Wochenfokus:</b> ${BT.util.escapeHTML(latestDraft.content.weeklyFocus?.title || '')}</p>` : ''}<div class="individual-actions">${['queued', 'failed'].includes(latestDraft.status) ? '<button class="btn" data-generate-draft>KI-Entwurf erstellen</button>' : ''}${latestDraft.status === 'stale' ? '<button class="btn" data-regenerate-draft>Entwurf nach Änderungen neu erstellen</button>' : ''}${latestDraft.status === 'current' ? '<button class="btn primary" data-approve-draft>Rückmeldung und Wochenfokus freigeben</button>' : ''}</div>` : '<p class="muted">Der erste KI-Entwurf entsteht nach einer abgeschlossenen Einheit mit bestätigter Anwesenheit. Alle Eingaben müssen synchronisiert sein. Starte ihn beim Trainingsabschluss und prüfe ihn anschließend hier.</p>'}</section>
+      <section class="card"><h4>Einheiten</h4>${sessions.length ? `<ul>${sessions.map(item => `<li>${fmt(item.scheduled_for)} · ${BT.util.escapeHTML(sessionStatusLabel(item.status))} · Einheit ${item.unit_number || '–'} · ${BT.util.escapeHTML(attendanceLabel(item.attendance_status))}</li>`).join('')}</ul>` : '<p class="muted">Noch keine Einheit angelegt.</p>'}</section>`;
     const paneContent = { overview, training, measurements: measurementPane, focus: focusPane, feedback: feedbackPane, 'ai-history': aiHistoryPane }[pane];
     host.hidden = false;
-    host.innerHTML = `<div class="section-head individual-player-title"><div><span class="section-kicker">Coach-Ansicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-current-pane">${paneLabels[pane]}</span></div><p><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/preview">Spieleransicht ansehen</a></p>${paneContent}`;
+    host.innerHTML = `<div class="section-head individual-player-title"><div><span class="section-kicker">Traineransicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-current-pane">${paneLabels[pane]}</span></div><p><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/preview">Spieleransicht ansehen</a></p>${paneContent}`;
     const refresh = () => render(root.parentElement, profile.id, pane);
     host.querySelector('[data-plan-session]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
@@ -775,7 +775,7 @@ BT.individualTraining = (function() {
 
   function renderCoachDetailPage(target, profile, data, pane = 'overview') {
     target.innerHTML = `<section class="view individual-view individual-coach-detail-page">
-      <div class="individual-cockpit-nav"><a class="btn small" href="#/individual">← Trainerübersicht</a><span>Individual Training</span></div>
+      <div class="individual-cockpit-nav"><a class="btn small" href="#/individual">← Trainerübersicht</a><span>Individualtraining</span></div>
       <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
       <section data-role="individual-detail"></section>
     </section>`;
@@ -842,13 +842,13 @@ BT.individualTraining = (function() {
     const available = (BT.storage?.getPlayers?.() || []).filter(player => !player.archived && !existing.has(player.id));
     target.innerHTML = `<section class="view individual-view individual-coach-cockpit">
       <div class="individual-cockpit-nav"><a class="btn small" href="#/dashboard">← Startzentrale</a><span>Trainerübersicht</span></div>
-      <div class="section-head individual-cockpit-head"><div><span class="section-kicker">Getrennter Arbeitsbereich</span><h2>Individual Training</h2><p class="muted">Deine Spieler und alle offenen Aufgaben auf einen Blick.</p></div><span class="individual-unit-chip">Trainingsblock · 8 Einheiten</span></div>
+      <div class="section-head individual-cockpit-head"><div><span class="section-kicker">Persönliche Spielerentwicklung</span><h2>Individualtraining</h2><p class="muted">Deine Spieler und alle offenen Aufgaben auf einen Blick.</p></div><span class="individual-unit-chip">Trainingsblock · 8 Einheiten</span></div>
       <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
       <p class="muted" data-coach-auto-refresh role="status"></p>
-      <div class="individual-profile-grid">${(data.profiles || []).length ? data.profiles.map(profile => profileCard(profile, data)).join('') : '<div class="empty">Noch kein Individualprofil angelegt.</div>'}</div>
+      <div class="individual-profile-grid">${(data.profiles || []).length ? data.profiles.map(profile => profileCard(profile, data)).join('') : '<div class="empty">Noch kein Spieler hinzugefügt.</div>'}</div>
       <section class="card" data-role="individual-invite" hidden></section>
       <section data-role="individual-detail" hidden></section>
-      <details class="card individual-setup"><summary>Spieler verwalten</summary><form data-create-profile><label>Spieler hinzufügen<select name="playerProfileId" required><option value="">Spieler wählen</option>${available.map(player => `<option value="${player.id}">${BT.util.escapeHTML(player.name)}</option>`).join('')}</select></label><label>Startdatum<input type="date" name="pilotStartedOn" value="2026-10-19"></label><button class="btn primary" type="submit" ${available.length ? '' : 'disabled'}>Profil anlegen</button></form><p>Maximal drei aktive Spieler je Coach; eine Einheit hat höchstens zwei Teilnehmer.</p></details>
+      <details class="card individual-setup"><summary>Spieler verwalten</summary><form data-create-profile><label>Spieler hinzufügen<select name="playerProfileId" required><option value="">Spieler wählen</option>${available.map(player => `<option value="${player.id}">${BT.util.escapeHTML(player.name)}</option>`).join('')}</select></label><label>Startdatum<input type="date" name="pilotStartedOn" value="2026-10-19"></label><button class="btn primary" type="submit" ${available.length ? '' : 'disabled'}>Profil anlegen</button></form><p>Maximal drei aktive Spieler je Trainer; eine Einheit hat höchstens zwei Teilnehmer.</p></details>
     </section>`;
     const root = target.querySelector('.individual-view');
     startCoachRefresh(root);
@@ -879,7 +879,7 @@ BT.individualTraining = (function() {
           inviteHost.innerHTML = `<h3>Einladung für ${BT.util.escapeHTML(playerName(profile))}</h3><img class="individual-invite-qr" src="${BT.util.escapeHTML(result.qrDataUrl)}" width="320" height="320" alt="QR-Code für die einmalige CourtHub-Einladung"><p>Gültig bis <strong>${BT.util.escapeHTML(fmt(result.invite.expires_at, {timeZone:'Europe/Berlin'}))}</strong> (72 Stunden ab Erstellung).</p><p>Ein persönlicher Code für genau ein Spielerkonto. Bitte teile den Link ausschließlich mit diesem Spieler.</p><p>Freigeschaltet wird nur das eigene Individualtraining. Mannschaftstrainings bleiben gesperrt.</p><div class="individual-actions"><button class="btn primary" data-share-invite>Link teilen</button><button class="btn" data-copy-invite>Link kopieren</button><a class="btn" href="${BT.util.escapeHTML(url)}">Einladung öffnen</a></div><p data-invite-status role="status"></p><small>Einmal verwendbar. Ein neuer Link macht die vorherige Einladung ungültig. Nach der Registrierung meldet sich der Spieler mit E-Mail und Passwort an.</small>`;
           const inviteStatus = inviteHost.querySelector('[data-invite-status]');
           inviteHost.querySelector('[data-share-invite]').addEventListener('click',async()=>{
-            try { if (navigator.share) await navigator.share({title:'CourtHub Individual Training',text:'Deine persönliche CourtHub-Einladung',url}); else { await navigator.clipboard.writeText(url); inviteStatus.textContent='Link kopiert.'; } }
+            try { if (navigator.share) await navigator.share({title:'CourtHub Individualtraining',text:'Deine persönliche CourtHub-Einladung',url}); else { await navigator.clipboard.writeText(url); inviteStatus.textContent='Link kopiert.'; } }
             catch (error) { inviteStatus.textContent=error.name === 'AbortError' ? 'Teilen abgebrochen. Deine Einladung bleibt gültig.' : 'Teilen ist hier nicht verfügbar. Du kannst die Einladung öffnen und die Adresse kopieren.'; }
           });
           inviteHost.querySelector('[data-copy-invite]').addEventListener('click',async()=>{try { await navigator.clipboard.writeText(url); inviteStatus.textContent='Link kopiert.'; } catch { inviteStatus.textContent='Kopieren ist hier nicht verfügbar. Öffne die Einladung und kopiere die Adresse.'; }});
@@ -897,9 +897,9 @@ BT.individualTraining = (function() {
     const current = user();
     const owner = contextKey();
     document.body.classList.remove('individual-live-mode');
-    target.innerHTML = '<section class="view individual-view"><p class="muted">Individual Training wird geladen …</p></section>';
+    target.innerHTML = '<section class="view individual-view"><p class="muted">Individualtraining wird geladen …</p></section>';
     if (!current) {
-      target.innerHTML = '<section class="view individual-view"><h2>Individual Training</h2><p>Bitte zuerst anmelden.</p><a class="btn primary" href="#/account">Zur Anmeldung</a></section>';
+      target.innerHTML = '<section class="view individual-view"><h2>Individualtraining</h2><p>Bitte zuerst anmelden.</p><a class="btn primary" href="#/account">Zur Anmeldung</a></section>';
       return;
     }
     renderIndividualNavigation({profiles:[]}, current, selectedProfileId, selectedPane, previewPane);
@@ -930,7 +930,7 @@ BT.individualTraining = (function() {
       }
     } catch (error) {
       if (request !== activeRequest || owner !== contextKey()) return;
-      target.innerHTML = `<section class="view individual-view"><h2>Individual Training</h2><p class="auth-status error">${BT.util.escapeHTML(error.message)}</p><button class="btn" data-retry>Erneut laden</button>${['admin','coach'].includes(current.role) ? '<a class="btn primary" href="#/individual/preview">Spieleransicht mit Beispieldaten ansehen</a><p>Einladungen und neue Spielerkonten benötigen eine erreichbare Datenbank.</p>' : ''}</section>`;
+      target.innerHTML = `<section class="view individual-view"><h2>Individualtraining</h2><p class="auth-status error">${BT.util.escapeHTML(error.message)}</p><button class="btn" data-retry>Erneut laden</button>${['admin','coach'].includes(current.role) ? '<a class="btn primary" href="#/individual/preview">Spieleransicht mit Beispieldaten ansehen</a><p>Einladungen und neue Spielerkonten benötigen eine erreichbare Datenbank.</p>' : ''}</section>`;
       target.querySelector('[data-retry]')?.addEventListener('click', () => render(target,selectedProfileId,selectedPane,previewPane));
     }
   }

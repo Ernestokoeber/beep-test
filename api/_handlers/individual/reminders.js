@@ -28,7 +28,7 @@ function pushPayload(notification) {
   }
   return {
     title: 'Kurze Trainingsrückmeldung',
-    body: 'Bitte tragen Sie Ihre kurze Rückmeldung zum Mannschaftstraining ein.',
+    body: 'Trage bitte deine kurze Rückmeldung zum Mannschaftstraining ein.',
     tag: notification.notification_key,
     url: '/#/individual'
   };

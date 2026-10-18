@@ -8,7 +8,7 @@ function setup(){
  data.profiles[0].user_id=user.id;
  data.notifications=[{id:'notice-own',individual_profile_id:ids.profile,kind:'feedback_request',due_at:'2026-10-17T10:00:00Z'},{id:'notice-foreign',individual_profile_id:ids.other,kind:'attendance',due_at:'2026-10-17T10:00:00Z'}];
  w.BT={util:{escapeHTML:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;')},sync:{getState:()=>({user:current,identitySource:'server'})},storage:{getPlayers:()=>[]},api:{getIndividualOverview:async()=>structuredClone(data),syncIndividualMutations:async items=>{sent.push(...items);return {results:items.map(i=>({mutation_id:i.mutationId,applied:true}))};},individualAction:()=>new Promise((_r,j)=>rejectEnsure=j)}};
- for(const f of ['individual-player-view','individual-training'])w.eval(readFileSync(new URL('../js/'+f+'.js',import.meta.url),'utf8'));
+ for(const f of ['individual-copy','individual-player-view','individual-training'])w.eval(readFileSync(new URL('../js/'+f+'.js',import.meta.url),'utf8'));
  return {w,dom,target:w.document.querySelector('main'),get sent(){return sent;},setUser:u=>current=u,setData:d=>data=d,rejectEnsure:e=>rejectEnsure(e)};
 }
 const kind=process.argv[2];

@@ -37,8 +37,8 @@ const baselineMeasurements = Object.freeze([
     title: 'Ausgangsmessung Wurf', durationMinutes: 12,
     repetitions: { positions: 5, attemptsPerPosition: 5, totalAttempts: 25, switchAfterEachPosition: true },
     measurementMethod: {
-      setup: 'Fünf feste Positionen in etwa 3,5 bis 4 Metern: beide Baselines, beide Flügel und frontal. Pass aus Korbnähe, kein Verteidiger.',
-      metrics: ['Treffer und Versuche je Position', 'Gesamttreffer aus 25', 'Trefferquote', 'Fehlwurfrichtung', 'Balance', 'Wurflinie', 'Follow-through'],
+      setup: 'Fünf feste Positionen in etwa 3,5 bis 4 Metern: beide Grundlinien, beide Flügel und frontal. Pass aus Korbnähe, kein Verteidiger.',
+      metrics: ['Treffer und Versuche je Position', 'Gesamttreffer aus 25', 'Trefferquote', 'Fehlwurfrichtung', 'Balance', 'Wurflinie', 'Ausschwingen der Wurfbewegung'],
       rules: 'Während der Messserie keine zusätzlichen Übungswürfe und keine technischen Änderungen.'
     },
     coachingCues: ['Positionen und Bedingungen für Einheit 4 und 8 identisch halten.', 'Spieler nach jeder Position wechseln.']
@@ -46,14 +46,14 @@ const baselineMeasurements = Object.freeze([
 ]);
 
 const testWarmup = Object.freeze({
-  title: 'Check-in, Readiness und standardisierte Aktivierung', durationMinutes: 15,
+  title: 'Ankommen, Tagesform und standardisierte Aktivierung', durationMinutes: 15,
   repetitions: {
     readinessScale: '1–10', mobilityTrips: 'je 2 × 10–12 m hin und zurück',
-    stationaryDribbles: ['30 s tief rechts', '30 s tief links', '30 s Speed rechts', '30 s Speed links', '30 s Crossover', '30 s zwischen den Beinen'],
+    stationaryDribbles: ['30 s tief rechts', '30 s tief links', '30 s schnell rechts', '30 s schnell links', '30 s Crossover', '30 s zwischen den Beinen'],
     controlledRuns: 2
   },
-  measurementMethod: { metrics: ['Readiness 1–10'], rules: 'Aktivierung ist keine Leistungsmessung.' },
-  coachingCues: ['Bei Readiness 1–4 persönlich sprechen und Belastung regulär, angepasst oder nicht festlegen.', 'Keine Diagnosen oder ausführlichen medizinischen Angaben speichern.']
+  measurementMethod: { metrics: ['Tagesform 1–10'], rules: 'Aktivierung ist keine Leistungsmessung.' },
+  coachingCues: ['Bei Tagesform 1–4 persönlich sprechen und Belastung regulär, angepasst oder nicht festlegen.', 'Keine Diagnosen oder ausführlichen medizinischen Angaben speichern.']
 });
 
 function unitOne() {
@@ -62,7 +62,7 @@ function unitOne() {
     title: 'Einheit 1 – Ausgangsniveau',
     objective: 'Ausgangsniveau in Ballkontrolle, beidseitigem Korbabschluss und Wurfbasis erfassen, erste technische Korrekturen setzen und Vergleichswerte für Einheit 4 und 8 erzeugen.',
     exercises: [
-      { ...testWarmup, title: 'Check-in und Readiness', durationMinutes: 5, repetitions: { readinessScale: '1–10' } },
+      { ...testWarmup, title: 'Ankommen und Tagesform', durationMinutes: 5, repetitions: { readinessScale: '1–10' } },
       {
         title: 'Dynamische Aktivierung mit Ball', durationMinutes: 10,
         repetitions: testWarmup.repetitions,
@@ -89,20 +89,20 @@ function unitOne() {
       {
         title: 'Kontrolliertes Eins-gegen-eins', durationMinutes: 15,
         repetitions: { attacksPerPlayer: 8, totalPossessions: 16, maxDribbles: 3 },
-        measurementMethod: { metrics: ['erzeugter Vorteil', 'erreichter Abschluss', 'Treffer', 'Ballverlust', 'genutzte Seite', 'Coach-Entscheidungsbewertung'], rules: 'Transferbeobachtung, kein standardisierter Vergleichstest.' },
+        measurementMethod: { metrics: ['erzeugter Vorteil', 'erreichter Abschluss', 'Treffer', 'Ballverlust', 'genutzte Seite', 'Trainerbewertung der Entscheidungen'], rules: 'Transferbeobachtung, kein standardisierter Vergleichstest.' },
         coachingCues: ['Start am Flügel; Verteidiger mit etwa einer halben Armlänge seitlichem Nachteil.', 'Vorteil mit höchstens drei Dribblings nutzen.']
       },
       {
-        title: 'Kontrollmessung nach Coaching', durationMinutes: 5,
+        title: 'Kontrollmessung nach Technikkorrektur', durationMinutes: 5,
         repetitions: { finishProblem: '5 Korbleger je Seite', shotProblem: '10 Würfe aus zwei Positionen', ballControlProblem: '1 gemessener Kontrollparcours' },
-        measurementMethod: { metrics: ['Kontrollwert nach Coaching'], rules: 'Nur wichtigsten Korrekturbereich wiederholen. Kontrollwert getrennt speichern; Baseline niemals ersetzen.' },
+        measurementMethod: { metrics: ['Kontrollwert nach Technikkorrektur'], rules: 'Nur wichtigsten Korrekturbereich wiederholen. Kontrollwert getrennt speichern; Ausgangswert niemals ersetzen.' },
         coachingCues: ['Identische Bedingungen des gewählten Ausgangstests verwenden.']
       },
       {
         title: 'Reflexion und Wochenaufgaben', durationMinutes: 5,
         repetitions: { questions: 3 },
         measurementMethod: { metrics: ['Was funktionierte am besten?', 'Was war am schwierigsten?', 'Welcher Hinweis soll im nächsten Training angewendet werden?'] },
-        coachingCues: ['Private Coach-Notiz, Spielerfeedback und Wochenfokus getrennt speichern.', 'Wochenfokus mit höchstens zwei Hinweisen erst nach Coach-Freigabe veröffentlichen.']
+        coachingCues: ['Private Trainernotiz, Rückmeldung für den Spieler und Wochenfokus getrennt speichern.', 'Wochenfokus mit höchstens zwei Hinweisen erst nach Trainerfreigabe veröffentlichen.']
       }
     ]
   };

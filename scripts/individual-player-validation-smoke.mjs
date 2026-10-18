@@ -5,6 +5,7 @@ import {ids,user,overview} from './fixtures/individual-player.mjs';
 const dom=new JSDOM('<main id="app"></main>',{url:'https://coach.test/#/individual',runScripts:'outside-only'}),w=dom.window;
 let current={...user},apiError=null,mutations=[],heldResolve;
 w.BT={util:{escapeHTML:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;')},sync:{getState:()=>({user:current})},storage:{getPlayers:()=>[]},api:{getIndividualOverview:async()=>{if(apiError)throw apiError;return structuredClone(overview);},syncIndividualMutations:async items=>{mutations.push(...items);if(apiError)throw apiError;if(heldResolve!==undefined)await new Promise(r=>heldResolve=r);return {results:items.map(i=>({mutation_id:i.mutationId,applied:true}))};}}};
+w.eval(readFileSync(new URL('../js/individual-copy.js',import.meta.url),'utf8'));
 const module=new URL('../js/individual-player-view.js',import.meta.url);if(existsSync(module))w.eval(readFileSync(module,'utf8'));
 w.eval(readFileSync(new URL('../js/individual-training.js',import.meta.url),'utf8'));
 assert(w.BT.individualPlayerView,'Gemeinsame echte Spieleransicht und Coach-Vorschau fehlen');

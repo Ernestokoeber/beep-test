@@ -5,7 +5,7 @@ import {ids,user,overview} from './fixtures/individual-player.mjs';
 const dom=new JSDOM(readFileSync(new URL('../index.html',import.meta.url),'utf8'),{url:'https://coach.test/#/individual',runScripts:'outside-only'}),w=dom.window;
 let current={...user},unavailable=false;
 w.BT={util:{escapeHTML:s=>String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;')},sync:{getState:()=>({user:current})},storage:{getPlayers:()=>[]},api:{getIndividualOverview:async()=>{if(unavailable)throw Error('Offline-Test');return structuredClone(overview);}}};
-for(const file of ['individual-player-view','individual-training'])w.eval(readFileSync(new URL(`../js/${file}.js`,import.meta.url),'utf8'));
+for(const file of ['individual-copy','individual-player-view','individual-training'])w.eval(readFileSync(new URL(`../js/${file}.js`,import.meta.url),'utf8'));
 const target=w.document.querySelector('#app'),nav=w.document.querySelector('[data-role="individual-navigation"]');
 function check(base){
  assert(!/Trainerübersicht|Bereich wechseln|Training durchführen|Messwerte|KI & Verlauf|Fremder Spieler/.test(nav.textContent),'Spielermenü enthält Trainerziele');

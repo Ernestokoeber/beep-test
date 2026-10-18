@@ -244,7 +244,7 @@
     const brandTitle = document.querySelector('.brand-text');
     const individualDockLabel = document.querySelector('.individual-mobile-link small');
     if (brandLink) brandLink.href = individualWorkspace ? '#/individual' : '#/dashboard';
-    if (brandTitle) brandTitle.textContent = individualWorkspace ? 'Individual Training' : 'CourtHub';
+    if (brandTitle) brandTitle.textContent = individualWorkspace ? 'Individualtraining' : 'CourtHub';
     const manageLink = document.querySelector('.manage-link');
     if (manageLink) {
       manageLink.href = individualWorkspace ? '#/individual/account' : '#/management';

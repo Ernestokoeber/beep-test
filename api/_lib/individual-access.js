@@ -52,11 +52,11 @@ export async function requireIndividualAccess(req, res, options = {}) {
   const auth = await (options.requireMembership || requireMembership)(req, res);
   if (!auth) return null;
   if (!isIndividualCoach(auth.role) && !isIndividualPlayer(auth.role)) {
-    res.status(403).json({ error: 'Kein Zugriff auf Individual Training.' });
+    res.status(403).json({ error: 'Kein Zugriff auf Individualtraining.' });
     return null;
   }
   if (options.coachOnly && !isIndividualCoach(auth.role)) {
-    res.status(403).json({ error: 'Diese Funktion ist nur für den zugeordneten Coach verfügbar.' });
+    res.status(403).json({ error: 'Diese Funktion ist nur für den zugeordneten Trainer verfügbar.' });
     return null;
   }
   const requestedProfileId = options.profileId ?? req.query?.profileId ?? req.body?.profileId;

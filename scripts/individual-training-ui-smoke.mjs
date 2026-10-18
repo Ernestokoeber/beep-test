@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
+import { pilotSessionTemplate } from '../api/_lib/individual-pilot.js';
 
 function browser(role, overview) {
   const dom = new JSDOM(`<!doctype html><body>
@@ -30,6 +31,7 @@ function browser(role, overview) {
     ] }
   };
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
+  window.eval(readFileSync(new URL('../js/individual-copy.js', import.meta.url), 'utf8'));
   window.eval(readFileSync(new URL('../js/individual-player-view.js', import.meta.url), 'utf8'));
   window.eval(readFileSync(new URL('../js/individual-training.js', import.meta.url), 'utf8'));
   return window;
@@ -76,7 +78,7 @@ const coachWindow = browser('coach', coachData);
 coachWindow.BT.individualTraining.renderHub(coachWindow.document.querySelector('#app'));
 const hubText = coachWindow.document.querySelector('#app').textContent;
 assert(hubText.includes('Mannschaft'));
-assert(hubText.includes('Individual Training'));
+assert(hubText.includes('Individualtraining'));
 assert(coachWindow.document.querySelector('[data-workspace="team"][href="#/team"]'));
 assert(coachWindow.document.querySelector('[data-workspace="individual"][href="#/individual"]'));
 
@@ -188,6 +190,27 @@ assert(unplannedWindow.location.hash.endsWith(`/individual/player/${profile.id}`
 await unplannedWindow.BT.individualTraining.render(unplannedWindow.document.querySelector('#app'), profile.id, 'measurements');
 assert(unplannedWindow.document.querySelectorAll('[data-guided-measurement]').length > 0, 'Verbindliche Einheit 1 dient nicht als Rückfallplan bei fehlenden Übungszeilen');
 assert(unplannedWindow.document.querySelector('#app').textContent.includes('Treffer frontal'), 'Trainerfreundliche Wurferfassung fehlt im Rückfallplan');
+
+const terminologyData = {...coachData,plans:[],exercises:[],pilotRoadmap:[{...pilotRoadmap[0],template:pilotSessionTemplate(1)}]};
+const terminologyWindow = browser('coach',terminologyData);
+await terminologyWindow.BT.individualTraining.render(terminologyWindow.document.querySelector('#app'),profile.id,'measurements');
+assert(terminologyWindow.document.querySelector('[data-metric-key="readiness"] input[type="number"]'),'Umbenannte Tagesformübung verliert die numerische Erfassung');
+assert(terminologyWindow.document.querySelector('[data-metric-key="kontrollbereich"] select'),'Umbenannte Kontrollmessung verliert die Bereichsauswahl');
+assert(terminologyWindow.document.querySelector('[data-metric-key="kontrollwert"] textarea'),'Umbenannte Kontrollmessung verliert ihr eigenes Ergebnisfeld');
+await terminologyWindow.BT.individualTraining.render(terminologyWindow.document.querySelector('#app'),profile.id,'training');
+assert.match(terminologyWindow.document.querySelector('#app').textContent,/Versuche je Position: 5/);
+assert(!/readinessScale|totalAttempts|Coach-|Readiness/.test(terminologyWindow.document.querySelector('#app').textContent));
+const legacyTemplate=terminologyData.pilotRoadmap[0].template;
+legacyTemplate.exercises.find(item=>item.title==='Ankommen und Tagesform').title='Check-in und Readiness';
+legacyTemplate.exercises.find(item=>item.title==='Kontrollmessung nach Technikkorrektur').title='Kontrollmessung nach Coaching';
+legacyTemplate.exercises.at(-1).coachingCues=['Private Coach-Notiz, Spielerfeedback und Wochenfokus getrennt speichern.'];
+await terminologyWindow.BT.individualTraining.render(terminologyWindow.document.querySelector('#app'),profile.id,'measurements');
+assert(terminologyWindow.document.querySelector('[data-metric-key="readiness"] input[type="number"]'));
+assert(terminologyWindow.document.querySelector('[data-metric-key="kontrollbereich"] select'));
+assert(terminologyWindow.document.querySelector('[data-metric-key="kontrollwert"] textarea'));
+await terminologyWindow.BT.individualTraining.render(terminologyWindow.document.querySelector('#app'),profile.id,'training');
+assert(!/Coach-|Readiness|Spielerfeedback/.test(terminologyWindow.document.querySelector('#app').textContent),'Gespeicherte alte Standardtexte bleiben sichtbar');
+terminologyWindow.close();
 
 const invitationWindow = browser('coach', {...coachData,profiles:[{...profile,user_id:null}]});
 invitationWindow.BT.api.individualAction = async (action, args) => {

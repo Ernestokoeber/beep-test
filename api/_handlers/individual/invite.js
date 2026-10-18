@@ -18,7 +18,7 @@ export function createIndividualInviteHandler(deps = {}) {
           WHERE ii.token_hash = $1 AND ii.used_at IS NULL AND ii.revoked_at IS NULL
             AND ii.expires_at > clock_timestamp() AND ip.active = TRUE AND ip.user_id IS NULL
           LIMIT 1`, [hashIndividualInviteToken(token)]);
-      if (!rows.length) return res.status(410).json({error:'Diese Einladung ist abgelaufen, wurde bereits verwendet oder zurückgezogen. Bitte deinen Coach um einen neuen Link.'});
+      if (!rows.length) return res.status(410).json({error:'Diese Einladung ist abgelaufen, wurde bereits verwendet oder zurückgezogen. Bitte deinen Trainer um einen neuen Link.'});
       return res.status(200).json({valid:true, expiresAt:rows[0].expires_at});
     } catch (error) { return safeError('individual-invite', error, res, 'Die Einladung konnte nicht geprüft werden. Bitte später erneut versuchen.'); }
   };

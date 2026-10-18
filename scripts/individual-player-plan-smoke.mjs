@@ -14,7 +14,8 @@ const data={role:'coach',profiles:[{id:profileId,account_name:'Testspieler'}],
 for(const options of [{},{preview:true},{preview:true,demo:true}]){
  const dom=new JSDOM('<main></main>',{url:'https://coach.test/#/individual/training',runScripts:'outside-only'}),w=dom.window;
  w.BT={util:{escapeHTML:value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;')}};
- w.eval(readFileSync(new URL('../js/individual-player-view.js',import.meta.url),'utf8'));
+ w.eval(readFileSync(new URL('../js/individual-copy.js',import.meta.url),'utf8'));
+w.eval(readFileSync(new URL('../js/individual-player-view.js',import.meta.url),'utf8'));
  const target=w.document.querySelector('main');
  w.BT.individualPlayerView.render(target,data,{...options,profileId,pane:'training'});
  assert.match(target.textContent,/Ballkontrolle/);assert.match(target.textContent,/8 Min\./);

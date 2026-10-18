@@ -23,6 +23,7 @@ const free=buildShootingComparison({profiles:[profile],sessions,exercises:[...ex
 assert.equal(free.individual[0].pct,50,'Freiwürfe mit ausdrücklich erfassten Versuchen bleiben separat.');
 const dom=new JSDOM('<main></main>',{url:'https://coach.test/#/individual/progress',runScripts:'outside-only'}),w=dom.window;
 w.BT={util:{escapeHTML:value=>String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;')}};
+w.eval(readFileSync(new URL('../js/individual-copy.js',import.meta.url),'utf8'));
 w.eval(readFileSync(new URL('../js/individual-player-view.js',import.meta.url),'utf8'));
 w.BT.individualPlayerView.render(w.document.querySelector('main'),{profiles:[profile],sessions,measurements:[],shootingComparison:result},{profileId:profile.id,pane:'progress'});
 const comparison=w.document.querySelector('[data-shooting-comparison]');

@@ -16,7 +16,7 @@ export function createIndividualOverviewHandler(deps = {}) {
       const auth = await membership(req, res);
       if (!auth) return;
       if (!isIndividualCoach(auth.role) && !isIndividualPlayer(auth.role)) {
-        return res.status(403).json({ error: 'Kein Zugriff auf Individual Training.' });
+        return res.status(403).json({ error: 'Kein Zugriff auf Individualtraining.' });
       }
 
       if (req.query?.view === 'responses') {
@@ -161,7 +161,7 @@ export function createIndividualOverviewHandler(deps = {}) {
       }
       return res.status(200).json(isIndividualPlayer(auth.role) ? individualPlayerData(payload) : payload);
     } catch (error) {
-      return safeError('individual-overview', error, res, 'Individual Training konnte nicht geladen werden.');
+      return safeError('individual-overview', error, res, 'Individualtraining konnte nicht geladen werden.');
     }
   };
 }

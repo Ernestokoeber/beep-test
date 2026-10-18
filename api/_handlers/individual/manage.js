@@ -69,7 +69,7 @@ function assertPilotSessionInstant(value, expectedDate, localTime) {
 }
 
 async function accessibleProfile(client, auth, profileId, coachOnly = false) {
-  if (coachOnly && !isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Diese Funktion ist nur für den zugeordneten Coach verfügbar.');
+  if (coachOnly && !isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Diese Funktion ist nur für den zugeordneten Trainer verfügbar.');
   const profile = await findIndividualProfile(auth, profileId, client.query.bind(client));
   if (!profile) throw new IndividualRequestError(404, 'Individualprofil nicht gefunden.');
   return profile;
@@ -238,11 +238,11 @@ export function createIndividualManageHandler(deps = {}) {
       const auth = await membership(req, res);
       if (!auth) return;
       if (!isIndividualCoach(auth.role) && !isIndividualPlayer(auth.role)) {
-        return res.status(403).json({ error: 'Kein Zugriff auf Individual Training.' });
+        return res.status(403).json({ error: 'Kein Zugriff auf Individualtraining.' });
       }
 
       if (action === 'ensurePilotStart') {
-        if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen den Trainingsstart planen.');
+        if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Trainer dürfen den Trainingsstart planen.');
         const ensured = await runTransaction(client => ensurePilotStartCore(client, auth));
         let detailsComplete = true;
         try {
@@ -261,7 +261,7 @@ export function createIndividualManageHandler(deps = {}) {
 
       const result = await runTransaction(async client => {
         if (action === 'createProfile') {
-          if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen Individualprofile anlegen.');
+          if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Trainer dürfen Individualprofile anlegen.');
           const playerProfileId = text(req.body.playerProfileId, 'Spielerprofil-ID', { min: 1, max: 120 });
           const workspace = await client.query('SELECT data FROM workspaces WHERE organization_id = $1 FOR SHARE', [auth.organization_id]);
           const players = workspace.rows[0]?.data?.players || [];
@@ -300,7 +300,7 @@ export function createIndividualManageHandler(deps = {}) {
         }
 
         if (action === 'createSession') {
-          if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Coaches dürfen Einheiten planen.');
+          if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Trainer dürfen Einheiten planen.');
           const participantIds = assertParticipantCapacity(req.body.profileIds).map(id => uuid(id, 'Individualprofil-ID'));
           const profiles = [];
           for (const profileId of participantIds) profiles.push(await accessibleProfile(client, auth, profileId, true));
@@ -621,8 +621,8 @@ export function createIndividualManageHandler(deps = {}) {
         if (action === 'saveReleasedFeedback') {
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
           if (req.body.shareWithPlayer !== true) throw new IndividualRequestError(403, 'Bitte die Notiz ausdrücklich als „Für Spieler freigeben“ kennzeichnen.');
-          const content = text(req.body.content, 'Feedback', { min: 2, max: 5000 });
-          const feedbackId = req.body.feedbackId ? uuid(req.body.feedbackId, 'Feedback-ID') : null;
+          const content = text(req.body.content, 'Rückmeldung', { min: 2, max: 5000 });
+          const feedbackId = req.body.feedbackId ? uuid(req.body.feedbackId, 'Rückmeldungs-ID') : null;
           if (!feedbackId) {
             const created = await client.query(
               `INSERT INTO individual_released_feedback
@@ -637,7 +637,7 @@ export function createIndividualManageHandler(deps = {}) {
             'SELECT * FROM individual_released_feedback WHERE id = $1 AND individual_profile_id = $2 FOR UPDATE',
             [feedbackId, profile.id]
           );
-          if (!previous.rows[0]) throw new IndividualRequestError(404, 'Freigegebenes Feedback nicht gefunden.');
+          if (!previous.rows[0]) throw new IndividualRequestError(404, 'Freigegebene Rückmeldung nicht gefunden.');
           const updated = await client.query(
             `UPDATE individual_released_feedback SET content = $1, updated_at = clock_timestamp()
               WHERE id = $2 RETURNING *`, [content, feedbackId]
@@ -657,7 +657,7 @@ export function createIndividualManageHandler(deps = {}) {
             `INSERT INTO individual_coach_notes (individual_profile_id, session_id, note, created_by)
              VALUES ($1, $2, $3, $4) RETURNING *`,
             [profile.id, req.body.sessionId ? uuid(req.body.sessionId, 'Einheiten-ID') : null,
-              text(req.body.note, 'Coach-Notiz', { min: 2, max: 5000 }), auth.sub]
+              text(req.body.note, 'Trainernotiz', { min: 2, max: 5000 }), auth.sub]
           );
           return { status: 201, body: { note: created.rows[0] } };
         }
@@ -671,7 +671,7 @@ export function createIndividualManageHandler(deps = {}) {
       }
       if (error?.code === '23505') return res.status(409).json({ error: 'Der Datensatz existiert bereits.' });
       if (error?.code === '23514') return res.status(409).json({ error: error.message });
-      return safeError('individual-manage', error, res, 'Individual Training konnte nicht gespeichert werden.');
+      return safeError('individual-manage', error, res, 'Individualtraining konnte nicht gespeichert werden.');
     }
   };
 }

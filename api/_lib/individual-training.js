@@ -110,7 +110,7 @@ export function assertParticipantCapacity(participantIds) {
 export function assertCoachCapacity(activeProfileIds) {
   const unique = [...new Set((activeProfileIds || []).filter(Boolean))];
   if (unique.length > MAX_ACTIVE_PLAYERS_PER_COACH) {
-    throw new RangeError('Ein Coach darf höchstens drei aktive Individualspieler betreuen.');
+    throw new RangeError('Ein Trainer darf höchstens drei aktive Spieler im Individualtraining betreuen.');
   }
   return unique;
 }
