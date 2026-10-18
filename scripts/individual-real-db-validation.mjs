@@ -157,6 +157,10 @@ try {
   assert(received.sessions.some(s=>s.individual_profile_id===profiles[0].id&&s.attendance_status==='confirmed'));
   assert.equal(received.readiness[0].score,8);
   assert.equal(received.feedback[0].note,mutations[2].payload.note);
+  const responseStatus=await call('overview',{token:login.token,query:{view:'responses'}});
+  const ownResponse=responseStatus.responses.find(r=>r.profile_id===profiles[0].id);
+  assert.equal(ownResponse.session_id,session.id);assert.equal(ownResponse.attendance_status,'confirmed');assert.equal(ownResponse.score,8);
+  await call('overview',{token:player.token,query:{view:'responses'},status:403});
   record('Zusage, Tagesform und Freitagsfeedback nach COMMIT im getrennten Trainerkonto sichtbar');
   record('Wiederholung desselben Offline-Batches ohne doppelte Einträge');
   const failed=await call('sync',{token:player.token,body:{mutations:[{mutationId:`forbidden-${suffix}`,kind:'readiness',payload:{entityId:randomUUID(),score:8}}]}});
@@ -191,6 +195,11 @@ try {
   const changedComparison=(await call('overview',{token:player.token})).shootingComparison[0];
   assert.equal(changedComparison.team.find(g=>g.kind==='field').pct,90);assert.deepEqual(changedComparison.individual,compared[0].individual);
   record('Eigene Individual- und Mannschaftswurfquoten mit echter JSONB-Projektion getrennt; fremde, abgesagte, künftige und reine Trainerdaten ausgeschlossen');
+  await pool.query("UPDATE memberships SET role='coach' WHERE user_id=$1 AND organization_id=$2",[coach.user.id,org]);
+  await pool.query('UPDATE individual_profiles SET coach_user_id=$1 WHERE id=$2',[player.user.id,profiles[1].id]);
+  const ownOnly=await call('overview',{token:login.token,query:{view:'responses',profileId:profiles[1].id}});
+  assert.deepEqual(ownOnly.responses.map(r=>r.profile_id),[profiles[0].id]);assert.equal(ownOnly.responses[0].session_id,null);
+  record('Leichte Cockpit-Abfrage mit echter LATERAL-SQL-Projektion: eigene Zusage/Tagesform, keine fremde Coach-Zuordnung, Spielerzugriff abgewiesen');
   evidence.success=true;
 } catch(error) {
   failure=error;

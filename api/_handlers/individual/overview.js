@@ -19,6 +19,26 @@ export function createIndividualOverviewHandler(deps = {}) {
         return res.status(403).json({ error: 'Kein Zugriff auf Individual Training.' });
       }
 
+      if (req.query?.view === 'responses') {
+        if (!isIndividualCoach(auth.role)) return res.status(403).json({error:'Nur Trainer dürfen das Cockpit aktualisieren.'});
+        const result = await execute(
+          `SELECT ip.id AS profile_id, next.id AS session_id, next.scheduled_for, next.unit_number,
+                  next.attendance_status, r.score
+             FROM individual_profiles ip
+             LEFT JOIN LATERAL (
+               SELECT s.id, s.scheduled_for, s.unit_number, sp.attendance_status
+                 FROM individual_session_participants sp JOIN individual_sessions s ON s.id=sp.session_id
+                WHERE sp.individual_profile_id=ip.id AND s.organization_id=$1
+                  AND s.status <> 'cancelled' AND s.scheduled_for >= clock_timestamp()-interval '6 hours'
+                ORDER BY s.scheduled_for ASC, s.id ASC LIMIT 1
+             ) next ON TRUE
+             LEFT JOIN individual_readiness r ON r.individual_profile_id=ip.id AND r.session_id=next.id
+            WHERE ip.organization_id=$1 AND ip.active=TRUE AND ($2='admin' OR ip.coach_user_id=$3)
+            ORDER BY ip.created_at ASC`, [auth.organization_id,auth.role,auth.sub]
+        );
+        return res.status(200).json({responses:result.rows.map(({profile_id,session_id,scheduled_for,unit_number,attendance_status,score})=>({profile_id,session_id,scheduled_for,unit_number,attendance_status,score}))});
+      }
+
       let profiles;
       if (isIndividualPlayer(auth.role)) {
         const profile = await findIndividualProfile(auth, null, execute);

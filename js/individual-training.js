@@ -5,6 +5,7 @@ BT.individualTraining = (function() {
   const CACHE_PREFIX = 'courthub_individual_cache:';
   const LIVE_PREFIX = 'courthub_individual_live:';
   let activeRequest = 0;
+  let stopCoachRefresh = () => {};
   const syncWorkers = new Map();
 
   function user() { return BT.sync?.getState?.().user || null; }
@@ -373,9 +374,9 @@ BT.individualTraining = (function() {
     return `<article class="card individual-profile-card" data-profile-id="${profile.id}">
       <div class="individual-profile-heading"><div><span class="section-kicker">Pilotspieler</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-sync-dot ${Number(profile.pending_sync_count || 0) ? 'pending' : ''}" title="Synchronisierungsstatus"></span></div>
       <dl class="individual-status-grid">
-        <div class="wide"><dt>Nächste Einheit</dt><dd>${session ? `${fmt(session.scheduled_for)} · Einheit ${session.unit_number || '–'}` : 'Nicht geplant'}</dd></div>
-        <div><dt>Teilnahme</dt><dd data-coach-attendance>${session ? attendanceLabel(session.attendance_status) : '—'}</dd></div>
-        <div><dt>Tagesform</dt><dd data-coach-readiness>${readinessLabel}</dd></div>
+        <div class="wide"><dt>Nächste Einheit</dt><dd data-coach-next-session>${session ? `${fmt(session.scheduled_for)} · Einheit ${session.unit_number || '–'}` : 'Nicht geplant'}</dd></div>
+        <div><dt>Teilnahme</dt><dd data-coach-attendance aria-live="polite">${session ? attendanceLabel(session.attendance_status) : '—'}</dd></div>
+        <div><dt>Tagesform</dt><dd data-coach-readiness aria-live="polite">${readinessLabel}</dd></div>
         <div><dt>Synchronisierung</dt><dd>${Number(profile.pending_sync_count || 0) ? `${Number(profile.pending_sync_count)} offen` : 'Aktuell'}</dd></div>
         <div><dt>Rückmeldung</dt><dd>${openFeedback ? 'Offen' : 'Aktuell'}</dd></div>
         <div class="wide"><dt>Wochenfokus</dt><dd>${focus ? BT.util.escapeHTML(focus.title) : 'Noch nicht freigegeben'}</dd></div>
@@ -779,6 +780,61 @@ BT.individualTraining = (function() {
     renderCoachDetail(target.querySelector('.individual-view'), profile, data, pane);
   }
 
+  function startCoachRefresh(root) {
+    stopCoachRefresh();
+    if (typeof BT.api.getIndividualResponses !== 'function') return;
+    const owner=contextKey(),controller=new AbortController(),status=root.querySelector('[data-coach-auto-refresh]');
+    let stopped=false,timer=null,inFlight=false,failures=0,lastStarted=-Infinity;
+    const valid=()=>!stopped && root.isConnected && owner===contextKey() && ['admin','coach'].includes(user()?.role) && location.hash==='#/individual';
+    const available=()=>valid() && !document.hidden && navigator.onLine;
+    const message=text=>{if(status && status.textContent!==text)status.textContent=text;};
+    const cancel=()=>{if(timer!==null)window.clearTimeout(timer);timer=null;};
+    const stop=()=>{stopped=true;cancel();controller.abort();};
+    const schedule=()=>{cancel();if(available())timer=window.setTimeout(refresh,Math.min(120000,20000*2**Math.min(failures,3)));};
+    async function refresh() {
+      cancel();
+      if(!valid()){stop();return;}
+      if(!available())return;
+      if(inFlight)return;
+      if(Date.now()-lastStarted<1000){schedule();return;}
+      inFlight=true;lastStarted=Date.now();
+      try {
+        const result=await BT.api.getIndividualResponses();
+        if(!valid())return;
+        if(!Array.isArray(result.responses))throw new Error('Ungültiger Rückmeldungsstand.');
+        const byProfile=new Map(result.responses.map(row=>[row.profile_id,row]));
+        for(const card of root.querySelectorAll('[data-profile-id]')) {
+          const row=byProfile.get(card.dataset.profileId);
+          if(!row){card.remove();continue;}
+          const score=Number(row.score);
+          const values=[['[data-coach-next-session]',row.session_id ? `${fmt(row.scheduled_for)} · Einheit ${row.unit_number || '–'}` : 'Nicht geplant'],
+            ['[data-coach-attendance]',row.session_id ? attendanceLabel(row.attendance_status) : '—'],
+            ['[data-coach-readiness]',row.session_id ? row.score!==null && row.score!==undefined && Number.isInteger(score) && score>=1 && score<=10 ? `${score}/10` : 'Noch nicht gemeldet' : '—']];
+          for(const [selector,value] of values){const field=card.querySelector(selector);if(field && field.textContent!==value)field.textContent=value;}
+        }
+        failures=0;message('Automatische Aktualisierung aktiv · alle 20 Sekunden.');
+      }catch(error){
+        if(!valid())return;
+        failures++;
+        message('Letzte Werte bleiben sichtbar. Verbindung gestört – Aktualisierung wird erneut versucht.');
+        if(error.status===401 || error.status===403){message('Automatische Aktualisierung angehalten. Bitte erneut anmelden.');stop();}
+      }finally{inFlight=false;schedule();}
+    }
+    function resume() {
+      cancel();
+      if(!valid()){stop();return;}
+      if(!navigator.onLine){message('Offline – letzte Werte bleiben sichtbar.');return;}
+      if(document.hidden)return;
+      refresh();
+    }
+    for(const event of ['focus','online','offline','bt-sync-change'])window.addEventListener(event,resume,{signal:controller.signal});
+    window.addEventListener('hashchange',stop,{signal:controller.signal});
+    document.addEventListener('visibilitychange',resume,{signal:controller.signal});
+    stopCoachRefresh=stop;
+    message(navigator.onLine ? 'Automatische Aktualisierung aktiv · alle 20 Sekunden.' : 'Offline – letzte Werte bleiben sichtbar.');
+    schedule();
+  }
+
   function renderCoach(target, data) {
     const existing = new Set((data.profiles || []).map(profile => profile.player_profile_id));
     const available = (BT.storage?.getPlayers?.() || []).filter(player => !player.archived && !existing.has(player.id));
@@ -786,12 +842,14 @@ BT.individualTraining = (function() {
       <div class="individual-cockpit-nav"><a class="btn small" href="#/dashboard">← Startzentrale</a><span>Coach-Cockpit</span></div>
       <div class="section-head individual-cockpit-head"><div><span class="section-kicker">Getrennter Arbeitsbereich</span><h2>Individual Training</h2><p class="muted">Beide Pilotspieler und alle offenen Aufgaben auf einen Blick.</p></div><span class="individual-unit-chip">Pilot 2026 · 8 Einheiten</span></div>
       <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
+      <p class="muted" data-coach-auto-refresh role="status"></p>
       <div class="individual-profile-grid">${(data.profiles || []).length ? data.profiles.map(profile => profileCard(profile, data)).join('') : '<div class="empty">Noch kein Individualprofil angelegt.</div>'}</div>
       <section class="card" data-role="individual-invite" hidden></section>
       <section data-role="individual-detail" hidden></section>
       <details class="card individual-setup"><summary>Pilot verwalten</summary><form data-create-profile><label>Pilotspieler hinzufügen<select name="playerProfileId" required><option value="">Spieler wählen</option>${available.map(player => `<option value="${player.id}">${BT.util.escapeHTML(player.name)}</option>`).join('')}</select></label><label>Pilotstart<input type="date" name="pilotStartedOn" value="2026-10-19"></label><button class="btn primary" type="submit" ${available.length ? '' : 'disabled'}>Profil anlegen</button></form><p>Maximal drei aktive Spieler je Coach; eine Einheit hat höchstens zwei Teilnehmer.</p></details>
     </section>`;
     const root = target.querySelector('.individual-view');
+    startCoachRefresh(root);
     root.querySelector('[data-create-profile]').addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
       try { await BT.api.individualAction('createProfile', { playerProfileId: form.get('playerProfileId'), pilotStartedOn: form.get('pilotStartedOn') }); await render(target); }
@@ -832,6 +890,7 @@ BT.individualTraining = (function() {
   }
 
   async function render(target, selectedProfileId = null, selectedPane = 'overview', previewPane = 'overview') {
+    stopCoachRefresh();
     const request = ++activeRequest;
     const current = user();
     const owner = contextKey();
@@ -875,6 +934,7 @@ BT.individualTraining = (function() {
   }
 
   async function renderDemo(target, pane = 'overview') {
+    stopCoachRefresh();
     const request = ++activeRequest, owner = contextKey();
     if (!['admin','coach'].includes(user()?.role)) { location.hash = '#/individual'; return; }
     renderIndividualNavigation({profiles:[]},user(),null,'preview',pane);
@@ -888,7 +948,7 @@ BT.individualTraining = (function() {
       renderPlayer(target,data,{preview:true,demo:true,pane});
     } catch (error) { if (request === activeRequest && owner === contextKey()) target.innerHTML=`<section class="view"><p>${BT.util.escapeHTML(error.message)}</p><a class="btn" href="#/individual">Zurück</a></section>`; }
   }
-  function cleanup() { activeRequest++; }
+  function cleanup() { activeRequest++; stopCoachRefresh(); }
 
   function applyNavigationForRole() {
     const role = user()?.role;

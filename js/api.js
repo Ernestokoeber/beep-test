@@ -124,6 +124,7 @@ BT.api = (function() {
     },
     getAtlasAnalysis: (atlasGameId) => request('/games/atlas?gameId=' + encodeURIComponent(atlasGameId)),
     getIndividualOverview: (profileId) => request('/individual/overview' + (profileId ? '?profileId=' + encodeURIComponent(profileId) : '')),
+    getIndividualResponses: () => request('/individual/overview?view=responses', {timeoutMs:10000}),
     getIndividualInvite: token => request('/individual/invite?token=' + encodeURIComponent(token), {auth:false}),
     individualAction: (action, payload = {}) => request('/individual/manage', { method: 'POST', body: { action, ...payload } }),
     individualAIDraft: (action, payload = {}) => request('/individual/ai-drafts', { method: 'POST', body: { action, ...payload }, timeoutMs: 55_000 }),
