@@ -117,7 +117,7 @@ async function publishApprovedContent(client, auth, draft) {
               (training_date + 1 + time '12:00') AT TIME ZONE 'Europe/Berlin' FROM friday
      )
      INSERT INTO individual_notifications (individual_profile_id, notification_key, kind, due_at, payload)
-     SELECT $1, $1::text || ':' || kind || ':' || due_at::text, kind, due_at,
+     SELECT $1::uuid, $1::text || ':' || kind || ':' || due_at::text, kind, due_at,
             jsonb_build_object('focusId', $2::text, 'trainingDate', training_date::text, 'trainingDay', training_day,
               'title', $5::text, 'cueOne', $6::text, 'cueTwo', $7::text)
        FROM reminders
