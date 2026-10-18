@@ -172,7 +172,7 @@ uiWindow.document.body.appendChild(target);
 uiWindow.BT.account.render(target);
 
 assert(target.querySelector('[data-action="sync-now"]').textContent.trim() === 'Jetzt abgleichen', 'Der manuelle Abgleich ist weiterhin missverständlich beschriftet');
-assert(target.querySelector('[data-role="sync-label"]').textContent === 'Serverstand geprüft', 'Der Status behauptet weiterhin pauschal eine vollständige Synchronisierung');
+assert(target.querySelector('[data-role="sync-label"]').textContent === 'Datenstand geprüft', 'Der Status behauptet weiterhin pauschal eine vollständige Synchronisierung');
 assert(target.querySelector('[data-role="last-sync"]').textContent.includes('15.10.26'), 'Die Oberfläche zeigt nicht den Zeitpunkt der letzten Serverprüfung');
 
 uiDom.window.close();

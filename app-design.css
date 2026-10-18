@@ -1,0 +1,197 @@
+/* CourtHub: one visual language for coaching, planning and player training.
+   Court drawings and sport-specific colour markings deliberately keep their own palette. */
+:root {
+  --bg:#f3f5f6; --surface:#fff; --surface-2:#edf1f2; --text:#182522; --muted:#5b6865;
+  --primary:#006344; --primary-hover:#004d35; --primary-light:#00634412;
+  --cta:#f3a24b; --cta-dark:#dc8a34; --accent:#006344;
+  --border:#dce3e1; --border-input:#aab8b3; --danger:#b32632;
+  --shadow-sm:0 2px 6px #18252205; --shadow:0 6px 24px #18252208; --shadow-lg:0 18px 60px #18252220;
+  --radius-xs:.5rem; --radius-sm:.75rem; --radius-md:1rem; --radius-lg:1.25rem;
+  --font-display:var(--font-body); --rail-width:15.5rem;
+  color-scheme:light;
+}
+html[data-theme=dark] {
+  --bg:#161a1d; --surface:#20262a; --surface-2:#293136; --text:#f3f6f5; --muted:#b3c0bb;
+  --primary:#8cd8b7; --primary-hover:#b4ebd4; --primary-light:#8cd8b714;
+  --cta:#f3a24b; --cta-dark:#ffb96f; --accent:#8cd8b7;
+  --border:#3b464a; --border-input:#64736e; --danger:#ff9ba4;
+  --shadow-sm:0 2px 6px #00000010; --shadow:0 6px 24px #00000016; --shadow-lg:0 18px 60px #00000040;
+  color-scheme:dark;
+}
+html:root body, html:root body:has(.view) {background:var(--bg);color:var(--text);font-family:var(--font-body);}
+body::before,.topbar::after {display:none;}
+html:root .view {animation:none;}
+html:root :is(h1,h2,h3,h4) {font-family:var(--font-body);color:var(--text);letter-spacing:-.025em;line-height:1.2;}
+html:root h2 {font-size:clamp(1.55rem,3.5vw,2.1rem);}
+html:root h3 {font-size:1.1rem;}
+html:root p {line-height:1.6;}
+html:root :is(.section-kicker,.dash-label,.home-section-label,.individual-status-grid dt) {text-transform:none;letter-spacing:0;font-size:.8rem;font-weight:600;color:var(--muted);}
+html:root :is(a,button,input,select,textarea,summary):focus-visible {outline:3px solid var(--primary);outline-offset:3px;}
+html:root :is(.btn,.tp-link,.gp-link,.tk-button,.library-link) {border-radius:.75rem;min-height:44px;font-weight:650;box-shadow:none;transition:background .15s,color .15s,border-color .15s;}
+html:root :is(.btn,.tp-link,.gp-link,.tk-button,.library-link):hover {transform:none;box-shadow:none;}
+html:root .btn {background:var(--surface);border:1px solid var(--border-input);color:var(--text);}
+html:root :is(.btn.primary,.btn.cta,.gp-link.primary,.tk-button.primary,.library-link.primary,.tp-link.primary) {background:var(--cta);color:#231b12;border-color:transparent;}
+html:root :is(.btn.primary,.btn.cta,.gp-link.primary,.tk-button.primary):hover {background:var(--cta-dark);}
+html:root .btn.danger {color:var(--danger);border-color:var(--danger);background:var(--surface);}
+html:root button:disabled {opacity:.5;cursor:not-allowed;transform:none;}
+html:root :is(input:not([type=range]):not([type=checkbox]):not([type=radio]),select,textarea) {background:var(--surface);color:var(--text);border-color:var(--border-input);font:inherit;min-height:44px;}
+html:root :is(input,textarea)::placeholder {color:var(--muted);opacity:1;}
+html:root input[type=range] {accent-color:var(--primary);min-height:44px;}
+html:root input:is([type=checkbox],[type=radio]) {accent-color:var(--primary);}
+html:root :is(.card,.dash-card,.auth-card,.session-card,.appearance-card,.team-members-card) {background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:1rem;box-shadow:none;}
+html:root .dash-card {border-top:1px solid var(--border);}
+html:root .dash-card:hover {transform:none;box-shadow:none;border-color:var(--border-input);}
+html:root :is(.modal,.install-dialog,dialog) {background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:1.25rem;box-shadow:var(--shadow-lg);}
+html:root :is(.modal-head,.modal-foot) {background:var(--surface);border-color:var(--border);}
+html:root :is(th,td) {border-color:var(--border);}
+html:root th {background:var(--surface-2);color:var(--muted);text-transform:none;letter-spacing:0;}
+html:root .auth-status.error {color:var(--danger);}
+html:root [data-role=individual-status]:empty {display:none;}
+
+/* Persistent navigation: calm frame, recognisable active destination. */
+html:root .topbar {background:var(--surface);color:var(--text);border-right:1px solid var(--border);box-shadow:none;}
+html:root .brand-mark {background:transparent;box-shadow:none;transform:none;border-radius:0;}
+html:root .brand :is(.brand-text,.brand-kicker) {color:var(--text);}
+html:root .brand-kicker {letter-spacing:.04em;color:var(--muted);}
+html:root .topbar :is(.manage-link,.install-btn,.theme-toggle,.settings-btn,.hamburger,.page-back) {color:var(--text);background:var(--surface-2);border-color:var(--border);border-radius:.65rem;}
+html:root .topbar nav a {color:var(--muted);border:1px solid transparent;border-radius:.65rem;background:transparent;box-shadow:none;}
+html:root .topbar nav a:hover {background:var(--surface-2);color:var(--text);}
+html:root .topbar nav a:is(.active,[aria-current=page]) {background:var(--primary-light);color:var(--primary);border-color:transparent;box-shadow:inset 3px 0 var(--primary);}
+html:root .topbar nav :is(.workspace-navigation,.context-navigation) {border-color:var(--border);}
+html:root :is(.mobile-dock,.individual-player-dock),html:root body.individual-workspace-mode .mobile-dock {background:var(--surface);color:var(--text);border-top:1px solid var(--border);box-shadow:0 -4px 20px #00000006;}
+html:root :is(.mobile-dock,.individual-player-dock) :is(a,button) {color:var(--muted);border-radius:.65rem;background:transparent;}
+html:root :is(.mobile-dock,.individual-player-dock) :is(a,button):is(.active,[aria-current=page]) {background:var(--primary-light);color:var(--primary);box-shadow:none;}
+
+/* Lists, appointments, reports and planning share the same surface hierarchy. */
+html:root :is(.games-page,.tactics-page) {--gp-ink:var(--text);--gp-muted:var(--muted);--gp-paper:var(--surface);--gp-line:var(--border);--gp-soft:var(--surface-2);--tk-ink:var(--text);--tk-muted:var(--muted);--tk-surface:var(--surface);--tk-line:var(--border);--tk-tint:var(--surface-2);}
+html:root .training-page {--tp-green:var(--primary);--tp-ink:var(--text);}
+html:root :is(.home-appointment,.briefing-event,.scout-opponent,.scout-next,.tp-session-hero,.profile-identity,.account-hero) {background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:1rem;box-shadow:none;}
+html:root :is(.home-next,.briefing-event,.scout-next) {border-top:3px solid var(--primary);}
+html:root :is(.home-next,.briefing-event,.scout-next,.tp-session-hero) :is(h2,h3,strong,time,p,small) {color:inherit;}
+html:root :is(.home-next,.briefing-event,.scout-next) :is(.home-appointment-time,.home-appointment-meta,.home-appointment-label) {color:var(--muted);}
+html:root :is(.home-appointment-action,.scout-card-focus>strong) {color:var(--primary);}
+html:root :is(.home-quicklinks a,.home-notice,.briefing-focus,.insight-metric,.calendar-event,.calendar-day,.calendar-month,.profile-focus,.profile-links a,.management-grid section,.scout-task,.tp-empty,.tp-training-row,.tp-drill-link,.tk-card,.game-list-card,.library-empty) {background:var(--surface);color:var(--text);border-color:var(--border);box-shadow:none;}
+html:root :is(.insight-tabs,.tp-filter,.calendar-tabs) :is(a,button)[aria-current=page] {background:var(--primary-light);color:var(--primary);}
+html:root :is(.player-list>li,.tp-date,.tp-status,.tp-facts>div,.tp-plan-settings,.tp-friday,.tp-form,.tp-search,.tp-filter,.tp-secondary,.team-tools,.section-tools) {background:var(--surface);color:var(--text);border-color:var(--border);}
+html:root .player-number,html:root .profile-jersey {background:var(--primary-light);color:var(--primary);box-shadow:none;}
+html:root :is(.tp-link,.tp-header,.tp-training-info,.tp-training-info h3,.tp-training-info strong) {color:var(--text);}
+html:root .tp-date {background:var(--surface-2);}
+html:root :is(.tp-facts,.gp-summary,.library-facts) :is(dt,small) {color:var(--muted);}
+html:root :is(.tactics-page .chq-actions>.tk-save) {background:var(--cta);color:#231b12;border-color:transparent;}
+
+/* Individual training: next appointment and player responses first. */
+html:root .individual-hero {background:transparent;color:var(--text);border:0;border-radius:0;padding:1rem 0;box-shadow:none;}
+html:root .individual-hero :is(h2,p) {color:var(--text);}
+html:root .individual-profile-grid {gap:1rem;align-items:start;}
+html:root .individual-profile-card {padding:1.2rem;gap:1rem;}
+html:root .individual-profile-heading h3 {font-size:1.2rem;margin:.3rem 0;}
+html:root .individual-profile-heading h3 a {color:var(--text);text-decoration:none;}
+html:root .individual-profile-heading h3 a:hover {color:var(--primary);text-decoration:underline;text-underline-offset:4px;}
+html:root .individual-status-grid {gap:.8rem;margin:0;}
+html:root .individual-status-grid>div {background:transparent;border:0;border-radius:0;padding:0;}
+html:root .individual-status-grid>div.wide:first-child {padding-bottom:.8rem;border-bottom:1px solid var(--border);}
+html:root .individual-status-grid dd {font-weight:650;font-size:.95rem;margin-top:.25rem;}
+html:root .individual-status-grid [data-coach-next-session] {font-size:1rem;}
+html:root .individual-profile-details {border-top:1px solid var(--border);padding-top:.25rem;}
+html:root .individual-profile-details summary {cursor:pointer;min-height:44px;align-content:center;color:var(--muted);font-size:.875rem;font-weight:600;}
+html:root .individual-profile-details[open] .individual-status-grid {padding:.5rem 0;}
+html:root .individual-actions {gap:.6rem;}
+html:root .individual-profile-card>.individual-actions {display:grid;grid-template-columns:1fr 1fr;}
+html:root .individual-profile-card>.individual-actions>.primary {grid-column:1/-1;grid-row:1;}
+html:root .individual-profile-card>.individual-actions>.btn {font-size:.85rem;padding:.7rem;white-space:normal;text-align:center;}
+html:root .individual-unit-chip {background:var(--primary-light);color:var(--primary);border:0;}
+html:root [data-coach-auto-refresh] {font-size:.8rem;color:var(--muted);margin:.5rem 0 1.2rem;}
+html:root .individual-preview-banner {background:var(--surface-2);color:var(--muted);padding:.7rem .9rem;border:0;border-left:3px solid var(--primary);border-radius:.5rem;font-size:.8rem;margin:.75rem 0 0;}
+html:root .individual-preview-banner p {margin:.2rem 0 0;line-height:1.45;}
+html:root .individual-player-content {gap:1rem;}
+html:root .individual-player-content>.card {border-radius:1rem;}
+html:root .individual-session-card {border-top:3px solid var(--primary);}
+html:root .individual-player-date {font-size:1.3rem;font-weight:700;letter-spacing:-.02em;}
+html:root .individual-player-primary {background:var(--surface-2);color:var(--text);border-color:var(--border);}
+html:root .individual-player-exercises {gap:0;border:1px solid var(--border);border-radius:1rem;overflow:hidden;background:var(--surface);}
+html:root .individual-player-exercises>.card {border:0;border-bottom:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;margin:0;padding:1.1rem;}
+html:root .individual-player-exercises>.card:last-child {border-bottom:0;}
+html:root .individual-exercise-heading strong {color:var(--muted);font-size:.85rem;white-space:nowrap;}
+html:root .individual-current-pane {background:var(--primary-light);color:var(--text);border-color:var(--border);}
+html:root .individual-player-tabs a[aria-current=page] {background:var(--primary-light);color:var(--primary);border-color:var(--border);}
+html:root .individual-player-results>li {border-color:var(--border);}
+html:root .individual-shooting-comparison {border-color:var(--border);}
+@media(max-width:1023px) {
+  html:root body.individual-player-mode .individual-player-tabs {display:none;}
+  html:root .individual-player-dock a {min-height:52px;font-size:.8rem;}
+}
+@media(max-width:900px) {
+  html:root .topbar {border-right:0;border-bottom:1px solid var(--border);}
+  html:root .topbar nav {background:var(--surface);border-color:var(--border);box-shadow:var(--shadow-lg);}
+  html:root .topbar-head {padding:.6rem .85rem;}
+  html:root .topbar :is(.brand-text,.brand-kicker) {color:var(--text);}
+  html:root .page-back {min-height:44px;}
+  html:root :is(.mobile-dock,.individual-player-dock) {padding-top:.4rem;}
+  html:root .view {padding-top:.5rem;}
+  html:root .section-head {gap:.75rem;}
+  html:root .individual-cockpit-head {align-items:flex-start;}
+  html:root .individual-profile-card {padding:1rem;}
+  html:root .individual-preview-banner {font-size:.75rem;}
+  html:root .individual-hero {padding:.85rem 0;}
+  html:root .individual-hero h2 {margin:.2rem 0;}
+  html:root .individual-hero p {margin:.4rem 0 0;color:var(--muted);}
+}
+@media(prefers-reduced-motion:reduce) {
+  html:root {scroll-behavior:auto;}
+  html:root :is(.btn,.tp-link,.gp-link,.tk-button,.library-link) {transition:none;}
+}
+
+/* Resolve legacy page-specific colour rules in both appearances. */
+html:root :is(.view,.section-head) :is(h1,h2,h3,h4) {color:var(--text);}
+html:root .home-next :is(.home-appointment-top,.home-appointment-detail,.home-appointment-place) {color:var(--muted);}
+html:root .home-next .home-appointment-action {border-color:var(--border);}
+html:root .topbar .hamburger span {background:var(--text);}
+html:root .individual-workspace-card {background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:none;}
+html:root .individual-workspace-card:hover {transform:none;border-color:var(--primary);box-shadow:none;}
+html:root .individual-workspace-card :is(small,em) {color:var(--muted);}
+html:root .individual-workspace-icon {background:var(--primary-light);color:var(--primary);border:0;}
+html:root .individual-cockpit-head {display:flex;flex-wrap:wrap;gap:.6rem;padding-bottom:.8rem;margin-bottom:.5rem;}
+html:root .individual-cockpit-head h2 {margin:.4rem 0;font-size:clamp(1.55rem,3vw,2rem);}
+html:root .individual-cockpit-head p {margin:.5rem 0;}
+html:root .individual-cockpit-head .individual-unit-chip {font-size:.75rem;padding:.4rem .65rem;}
+html:root .individual-setup {padding:.8rem 1rem;}
+html:root .individual-setup summary {min-height:44px;align-content:center;}
+html:root .individual-profile-heading h3 a {color:var(--text);text-decoration:none;}
+html:root .games-page .gp-link.primary {background:var(--cta);color:#231b12;border-color:transparent;}
+html:root .individual-profile-card .btn.primary {background:var(--cta);color:#231b12;border-color:transparent;}
+html:root body:has(.team-page),html:root body:has(.player-profile),html:root body:has(.player-editor) {background:var(--bg);}
+
+html:root .account-hero p {color:var(--muted);}
+html:root .sync-indicator {color:var(--text);background:var(--surface-2);border-color:var(--border);backdrop-filter:none;}
+html:root .section-head>div:has(>h2,>h3) {display:block;min-width:0;overflow:visible;}
+html:root .section-head :is(h2,h3) {white-space:normal;overflow-wrap:anywhere;}
+html:root .btn,html:root .individual-profile-heading a {text-decoration:none;}
+html:root .tp-filter button[aria-pressed=true] {background:var(--primary-light);color:var(--primary);}
+html:root .tp-search {background:transparent;}
+html:root .tp-training-row {border-radius:.9rem;border:1px solid var(--border);}
+html:root .account-hero {gap:1rem;padding:1.25rem;}
+html:root .individual-cockpit-nav {margin-bottom:.75rem;font-size:.85rem;}
+html:root .individual-cockpit-head .section-kicker {display:none;}
+html:root :is(.tablecrew-view,.tablecrew-roster-panel,.tablecrew-plan-panel,.tablecrew-workload-panel,.tablecrew-roster-row,.tablecrew-player) {min-width:0;}
+html:root .tablecrew-player strong {overflow-wrap:anywhere;}
+html:root .tablecrew-view .table-scroll {max-width:100%;overflow-x:auto;}
+html:root .tablecrew-head .head-actions {min-width:0;max-width:100%;}
+html:root .tablecrew-head .head-actions .btn {white-space:normal;max-width:100%;}
+@media(max-width:650px) {
+  html:root .tablecrew-roster-row {grid-template-columns:repeat(2,minmax(0,1fr));}
+  html:root .tablecrew-head .head-actions .btn {flex:1 1 100%;}
+}
+/* Native hidden state must win over component display declarations. */
+html:root [hidden] {display:none!important;}
+html:root .auth-status:empty {display:none;}
+html:root :is(input:not([type=range]):not([type=checkbox]):not([type=radio]),select,textarea) {border:1px solid var(--border-input);}
+html:root :is(input,select,textarea):focus {box-shadow:none;}
+html:root .management-grid {gap:1rem;}
+html:root .management-grid>section {padding:1rem;border:1px solid var(--border);border-radius:1rem;}
+html:root .management-grid h3 {margin:.25rem 0 .65rem;}
+html:root .management-grid a {padding-inline:0;}
+html:root .library-empty {padding:1rem;border:1px solid var(--border);border-radius:1rem;}
+html:root .spot-cat-tab {min-height:44px;border-radius:.75rem;}
+html:root .spot-cat-tab.active {background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);}
+html:root .tablecrew-kpis span {text-transform:none;letter-spacing:0;}
+@media(max-width:650px) {html:root .tablecrew-kpis {grid-template-columns:repeat(2,minmax(0,1fr));}}

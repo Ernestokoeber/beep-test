@@ -374,16 +374,18 @@ BT.individualTraining = (function() {
     const focus = currentFocus(data, profile.id);
     const openFeedback = (data.notifications || []).some(item => item.individual_profile_id === profile.id && item.kind === 'feedback_request' && !item.read_at);
     return `<article class="card individual-profile-card" data-profile-id="${profile.id}">
-      <div class="individual-profile-heading"><div><span class="section-kicker">Spieler</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-sync-dot ${Number(profile.pending_sync_count || 0) ? 'pending' : ''}" title="Synchronisierungsstatus"></span></div>
+      <div class="individual-profile-heading"><div><span class="section-kicker">Spieler</span><h3><a href="#/individual/player/${encodeURIComponent(profile.id)}/overview">${BT.util.escapeHTML(playerName(profile))}</a></h3></div><span class="individual-sync-dot ${Number(profile.pending_sync_count || 0) ? 'pending' : ''}" title="Synchronisierungsstatus"></span></div>
       <dl class="individual-status-grid">
         <div class="wide"><dt>Nächste Einheit</dt><dd data-coach-next-session>${session ? `${fmt(session.scheduled_for)} · Einheit ${session.unit_number || '–'}` : 'Nicht geplant'}</dd></div>
         <div><dt>Teilnahme</dt><dd data-coach-attendance aria-live="polite">${session ? attendanceLabel(session.attendance_status) : '—'}</dd></div>
         <div><dt>Tagesform</dt><dd data-coach-readiness aria-live="polite">${readinessLabel}</dd></div>
+      </dl>
+      <details class="individual-profile-details"><summary>Fokus und Auswertung${openFeedback ? ' · Rückmeldung offen' : ''}</summary><dl class="individual-status-grid">
         <div><dt>Synchronisierung</dt><dd>${Number(profile.pending_sync_count || 0) ? `${Number(profile.pending_sync_count)} offen` : 'Aktuell'}</dd></div>
         <div><dt>Rückmeldung</dt><dd>${openFeedback ? 'Offen' : 'Aktuell'}</dd></div>
         <div class="wide"><dt>Wochenfokus</dt><dd>${focus ? BT.util.escapeHTML(focus.title) : 'Noch nicht freigegeben'}</dd></div>
         <div class="wide"><dt>KI-Auswertung</dt><dd>${latestDraft ? BT.util.escapeHTML(draftLabel(latestDraft.status)) : 'Nach der ersten abgeschlossenen Einheit'}</dd></div>
-      </dl>
+      </dl></details>
       <div class="individual-actions"><button class="btn" type="button" data-action="invite-player" ${profile.user_id ? 'disabled' : ''}>${profile.user_id ? 'Spielerkonto verbunden' : 'Einladung & QR-Code'}</button><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/preview">Spieleransicht ansehen</a><button class="btn primary" type="button" data-action="open-profile">Spieler öffnen</button></div>
     </article>`;
   }

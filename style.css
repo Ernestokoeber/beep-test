@@ -2298,8 +2298,8 @@ table.results tr:last-child td { border-bottom: none; }
   .topbar nav a:hover,
   .topbar nav a.active {
     border: 0 !important;
-    background: rgba(255, 255, 255, 0.14) !important;
-    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
     box-shadow: none !important;
     transform: none !important;
   }
@@ -8072,8 +8072,8 @@ textarea:focus,
   .topbar nav a:hover,
   .topbar nav a.active {
     border: 0 !important;
-    background: rgba(255, 255, 255, 0.14) !important;
-    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
     box-shadow: none !important;
     transform: none !important;
   }
