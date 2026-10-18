@@ -142,7 +142,7 @@ export function createIndividualOverviewHandler(deps = {}) {
           execute(
             `SELECT * FROM individual_coach_notes
               WHERE individual_profile_id = ANY($1::uuid[])
-              ORDER BY created_at DESC`, [profileIds]
+              ORDER BY updated_at DESC, id DESC`, [profileIds]
           ),
           execute(
             `SELECT * FROM individual_ai_drafts

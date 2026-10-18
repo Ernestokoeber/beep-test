@@ -45,8 +45,8 @@ async function sourceData(client, auth, profileId, sessionId) {
                     FROM individual_weekly_feedback WHERE individual_profile_id = $1 ORDER BY training_date DESC LIMIT 16`, [profile.id]),
     client.query(`SELECT content, released_at FROM individual_released_feedback
                    WHERE individual_profile_id = $1 ORDER BY released_at DESC LIMIT 8`, [profile.id]),
-    client.query(`SELECT id, session_id, note, created_at FROM individual_coach_notes
-                   WHERE individual_profile_id = $1 ORDER BY created_at DESC, id DESC LIMIT 12`, [profile.id])
+    client.query(`SELECT id, session_id, note, created_at, updated_at FROM individual_coach_notes
+                   WHERE individual_profile_id = $1 ORDER BY updated_at DESC, id DESC LIMIT 12`, [profile.id])
   ]);
   return {
     profile: { id: profile.id, playerProfileId: profile.player_profile_id },
