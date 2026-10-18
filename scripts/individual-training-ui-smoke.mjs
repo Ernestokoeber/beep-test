@@ -93,6 +93,18 @@ const cardText = coachWindow.document.querySelector('[data-profile-id]').textCon
 assert(cardText.includes('Teilnahme'));
 assert(cardText.includes('Wochenfokus'));
 assert(cardText.includes('Rückmeldung'));
+assert.equal(coachWindow.document.querySelector('[data-coach-readiness]')?.textContent,'Noch nicht gemeldet','Fehlende Tagesform muss im Cockpit ausdrücklich erkennbar sein');
+coachData.readiness=[
+  {individual_profile_id:profile.id,session_id:'older-session',score:3},
+  {individual_profile_id:'other-profile',session_id:session.id,score:10},
+  {individual_profile_id:profile.id,session_id:session.id,score:8}
+];
+for(const [status,label] of [['confirmed','Zugesagt'],['declined','Abgesagt'],['pending','Antwort offen']]){
+  coachData.sessions[0].attendance_status=status;
+  await coachWindow.BT.individualTraining.render(coachWindow.document.querySelector('#app'));
+  assert.equal(coachWindow.document.querySelector('[data-coach-attendance]')?.textContent,label);
+  assert.equal(coachWindow.document.querySelector('[data-coach-readiness]')?.textContent,'8/10','Nur die persönliche Tagesform der nächsten Einheit gehört auf die Spielerkarte');
+}
 coachWindow.document.querySelector('[data-action="open-profile"]').click();
 assert.equal(coachWindow.document.querySelector('[data-action="open-profile"]').type, 'button');
 assert(coachWindow.location.hash.endsWith(`/individual/player/${profile.id}`), 'Spieler öffnen führt nicht auf eine eigene Detailseite');

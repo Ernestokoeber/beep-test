@@ -363,6 +363,9 @@ BT.individualTraining = (function() {
 
   function profileCard(profile, data) {
     const session = upcomingSession(data, profile.id);
+    const readiness = session && (data.readiness || []).find(item => item.individual_profile_id === profile.id && item.session_id === session.id);
+    const readinessScore = readiness && Number(readiness.score);
+    const readinessLabel = Number.isInteger(readinessScore) && readinessScore >= 1 && readinessScore <= 10 ? `${readinessScore}/10` : session ? 'Noch nicht gemeldet' : '—';
     const drafts = (data.aiDrafts || []).filter(item => item.individual_profile_id === profile.id);
     const latestDraft = drafts[0];
     const focus = currentFocus(data, profile.id);
@@ -370,8 +373,9 @@ BT.individualTraining = (function() {
     return `<article class="card individual-profile-card" data-profile-id="${profile.id}">
       <div class="individual-profile-heading"><div><span class="section-kicker">Pilotspieler</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-sync-dot ${Number(profile.pending_sync_count || 0) ? 'pending' : ''}" title="Synchronisierungsstatus"></span></div>
       <dl class="individual-status-grid">
-        <div><dt>Nächste Einheit</dt><dd>${session ? `${fmt(session.scheduled_for)} · Einheit ${session.unit_number || '–'}` : 'Nicht geplant'}</dd></div>
-        <div><dt>Teilnahme</dt><dd>${session ? attendanceLabel(session.attendance_status) : '—'}</dd></div>
+        <div class="wide"><dt>Nächste Einheit</dt><dd>${session ? `${fmt(session.scheduled_for)} · Einheit ${session.unit_number || '–'}` : 'Nicht geplant'}</dd></div>
+        <div><dt>Teilnahme</dt><dd data-coach-attendance>${session ? attendanceLabel(session.attendance_status) : '—'}</dd></div>
+        <div><dt>Tagesform</dt><dd data-coach-readiness>${readinessLabel}</dd></div>
         <div><dt>Synchronisierung</dt><dd>${Number(profile.pending_sync_count || 0) ? `${Number(profile.pending_sync_count)} offen` : 'Aktuell'}</dd></div>
         <div><dt>Rückmeldung</dt><dd>${openFeedback ? 'Offen' : 'Aktuell'}</dd></div>
         <div class="wide"><dt>Wochenfokus</dt><dd>${focus ? BT.util.escapeHTML(focus.title) : 'Noch nicht freigegeben'}</dd></div>
