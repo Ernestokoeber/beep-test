@@ -13,7 +13,12 @@ await w.BT.individualTraining.render(target);assert(target.textContent.includes(
 await w.BT.individualTraining.render(target,null,'training');assert(target.textContent.includes('Korbleger links'));assert(target.querySelector('[href="#/individual"]'));assert(!target.textContent.includes('FREMDE ÜBUNG'));assert(!target.textContent.includes('"attempts"'));
 await w.BT.individualTraining.render(target,null,'progress');assert(target.textContent.includes('7'));assert(!target.textContent.includes('999'));
 current={...user,role:'coach'};await w.BT.individualTraining.render(target,ids.profile,'preview','overview');assert.match(target.textContent,/Vorschau/);assert(target.querySelector('[data-readiness]'),'Vorschau muss auch die echte Tagesform-Eingabe zeigen');assert(target.querySelector('[data-weekly-feedback]'),'Vorschau muss die echte Rückmeldungsmaske zeigen');assert.equal(target.querySelectorAll('form input:enabled,form select:enabled,form textarea:enabled,button:not([disabled])').length,0);assert(target.querySelector(`[href="#/individual/player/${ids.profile}/overview"]`));assert(!/FREMD|PRIVATE/.test(target.textContent));
+assert.match(target.querySelector('[data-preview-input-hint]')?.textContent || '',/Zu-\/Absage.*Tagesform.*Spielerkonto/,'Direkt bei den Eingaben muss die Vorschau-Sperre erklärt sein');
 current={...user};await w.BT.individualTraining.render(target);
+assert(!target.querySelector('[data-preview-input-hint]'),'Echte Spieler dürfen keinen Vorschau-Sperrhinweis erhalten');
+assert(target.querySelector('[data-attendance="confirmed"]:enabled'));
+assert(target.querySelector('[data-attendance="declined"]:enabled'));
+assert(target.querySelector('[data-readiness] button:enabled'));
 apiError=Object.assign(Error('Datenbank-Kontingent erschöpft'),{status:503,code:'DATABASE_QUOTA_EXCEEDED'});
 await w.BT.individualTraining.queueMutation('readiness',{entityId:ids.session,score:8}).catch(()=>{});
 await w.BT.individualTraining.render(target);assert(target.querySelector('[data-individual-sync]'),'Gespeicherter Stand muss bei 503 sichtbar markiert sein');assert(target.textContent.includes('Testspieler'));assert(target.textContent.includes('8'));assert(!/FREMD|PRIVATE/.test(target.textContent));
