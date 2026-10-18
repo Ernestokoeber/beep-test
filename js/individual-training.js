@@ -236,7 +236,7 @@ BT.individualTraining = (function() {
       ['ai-history', '◆', 'KI & Verlauf']
     ].map(([pane, icon, label]) => `<a href="#/individual/player/${encodeURIComponent(selectedProfile.id)}/${pane}" class="individual-pane-link ${pane === selectedPane ? 'active' : ''}"><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></a>`).join('') : '';
     navigation.innerHTML = `<span class="nav-section-label">Individual Training</span>
-      <a href="#/individual" class="${selectedProfileId ? '' : 'active'}"><span class="nav-icon" aria-hidden="true">⌂</span><span>${current.role === 'player' ? 'Mein Training' : 'Coach-Cockpit'}</span></a>
+      <a href="#/individual" class="${selectedProfileId ? '' : 'active'}"><span class="nav-icon" aria-hidden="true">⌂</span><span>${current.role === 'player' ? 'Mein Training' : 'Trainerübersicht'}</span></a>
       ${coachLinks}
       ${selectedProfile ? `<span class="nav-section-label individual-player-menu-label">${BT.util.escapeHTML(playerName(selectedProfile))}</span>${paneLinks}` : ''}
       <span class="nav-section-label">Verwaltung</span>
@@ -452,7 +452,7 @@ BT.individualTraining = (function() {
       const measurement = typeof item.measurement_method === 'string' ? item.measurement_method : JSON.stringify(item.measurement_method || {});
       target.innerHTML = `<section class="individual-live-shell" aria-label="Geführte Individual-Training-Durchführung">
         <header class="individual-live-header">
-          <button class="individual-live-back" type="button" data-live-exit>← Cockpit</button>
+          <button class="individual-live-back" type="button" data-live-exit>← Trainerübersicht</button>
           <div><span>Einheit ${session.unit_number || '–'} · ${BT.util.escapeHTML(playerName(profile))}</span><strong>${fmt(session.scheduled_for)}</strong></div>
           <div class="individual-live-total"><small>Trainingszeit</small><strong data-live-total-clock>${secondsLabel(totalSeconds())}</strong></div>
         </header>
@@ -773,7 +773,7 @@ BT.individualTraining = (function() {
 
   function renderCoachDetailPage(target, profile, data, pane = 'overview') {
     target.innerHTML = `<section class="view individual-view individual-coach-detail-page">
-      <div class="individual-cockpit-nav"><a class="btn small" href="#/individual">← Coach-Cockpit</a><span>Individual Training</span></div>
+      <div class="individual-cockpit-nav"><a class="btn small" href="#/individual">← Trainerübersicht</a><span>Individual Training</span></div>
       <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
       <section data-role="individual-detail"></section>
     </section>`;
@@ -839,7 +839,7 @@ BT.individualTraining = (function() {
     const existing = new Set((data.profiles || []).map(profile => profile.player_profile_id));
     const available = (BT.storage?.getPlayers?.() || []).filter(player => !player.archived && !existing.has(player.id));
     target.innerHTML = `<section class="view individual-view individual-coach-cockpit">
-      <div class="individual-cockpit-nav"><a class="btn small" href="#/dashboard">← Startzentrale</a><span>Coach-Cockpit</span></div>
+      <div class="individual-cockpit-nav"><a class="btn small" href="#/dashboard">← Startzentrale</a><span>Trainerübersicht</span></div>
       <div class="section-head individual-cockpit-head"><div><span class="section-kicker">Getrennter Arbeitsbereich</span><h2>Individual Training</h2><p class="muted">Beide Pilotspieler und alle offenen Aufgaben auf einen Blick.</p></div><span class="individual-unit-chip">Pilot 2026 · 8 Einheiten</span></div>
       <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
       <p class="muted" data-coach-auto-refresh role="status"></p>
@@ -920,7 +920,7 @@ BT.individualTraining = (function() {
       else {
         const selectedProfile = selectedProfileId ? data.profiles.find(profile => profile.id === selectedProfileId) : null;
         if (selectedProfileId && !selectedProfile) {
-          target.innerHTML = '<section class="view individual-view"><a class="btn small" href="#/individual">← Coach-Cockpit</a><p class="auth-status error">Spielerprofil nicht gefunden.</p></section>';
+          target.innerHTML = '<section class="view individual-view"><a class="btn small" href="#/individual">← Trainerübersicht</a><p class="auth-status error">Spielerprofil nicht gefunden.</p></section>';
         } else if (selectedProfile && selectedPane === 'preview') renderPlayer(target, data, {profileId:selectedProfile.id,pane:previewPane,preview:true,displayName:playerName(selectedProfile)});
         else if (selectedProfile) renderCoachDetailPage(target, selectedProfile, data, selectedPane);
         else renderCoach(target, data);

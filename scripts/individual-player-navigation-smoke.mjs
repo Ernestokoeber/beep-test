@@ -8,10 +8,10 @@ w.BT={util:{escapeHTML:s=>String(s ?? '').replaceAll('&','&amp;').replaceAll('<'
 for(const file of ['individual-player-view','individual-training'])w.eval(readFileSync(new URL(`../js/${file}.js`,import.meta.url),'utf8'));
 const target=w.document.querySelector('#app'),nav=w.document.querySelector('[data-role="individual-navigation"]');
 function check(base){
- assert(!/Coach-Cockpit|Bereich wechseln|Training durchführen|Messwerte|KI & Verlauf|Fremder Spieler/.test(nav.textContent),'Spielermenü enthält Trainerziele');
+ assert(!/Trainerübersicht|Bereich wechseln|Training durchführen|Messwerte|KI & Verlauf|Fremder Spieler/.test(nav.textContent),'Spielermenü enthält Trainerziele');
  assert.deepEqual([...nav.querySelectorAll('a')].map(a=>a.getAttribute('href')),[base,base+'/training',base+'/progress',base==='#/individual'?'#/individual/account':base+'/account']);
  assert.match(nav.textContent,/Mein Training/);assert.match(nav.textContent,/Entwicklung/);
- assert(w.document.body.classList.contains('individual-player-mode'),'Auch die Vorschau braucht die Spielerleiste statt Cockpit/Menü');
+ assert(w.document.body.classList.contains('individual-player-mode'),'Auch die Vorschau braucht die Spielerleiste statt Trainermenü');
  assert.deepEqual([...w.document.querySelectorAll('[data-player-nav]')].map(a=>a.getAttribute('href')),[base,base+'/training',base+'/progress',base==='#/individual'?'#/individual/account':base+'/account']);
 }
 current={...user,role:'coach'};const base=`#/individual/player/${ids.profile}/preview`;
@@ -23,7 +23,7 @@ for(const pane of ['training','progress','account']){
 }
 w.BT.individualTraining.clearLocalData();unavailable=true;w.location.hash=base;await w.BT.individualTraining.render(target,ids.profile,'preview');check(base);
 unavailable=false;w.location.hash='#/individual';w.BT.individualTraining.applyNavigationForRole();await w.BT.individualTraining.render(target);
-assert(!w.document.body.classList.contains('individual-player-mode'));assert.match(nav.textContent,/Coach-Cockpit/);assert.match(nav.textContent,/Bereich wechseln/);
+assert(!w.document.body.classList.contains('individual-player-mode'));assert.match(nav.textContent,/Trainerübersicht/);assert.match(nav.textContent,/Bereich wechseln/);
 current={...user};w.BT.individualTraining.applyNavigationForRole();await w.BT.individualTraining.render(target);check('#/individual');
 w.location.hash='#/individual/account';w.BT.individualTraining.applyNavigationForRole();await w.BT.individualTraining.renderAccountNavigation();
 assert.equal(nav.querySelector('[aria-current="page"]')?.textContent,'Konto','Die aktive Kontomarkierung darf beim Laden nicht auf Mein Training zurückspringen');

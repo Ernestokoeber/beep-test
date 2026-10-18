@@ -20,7 +20,7 @@ export function createIndividualOverviewHandler(deps = {}) {
       }
 
       if (req.query?.view === 'responses') {
-        if (!isIndividualCoach(auth.role)) return res.status(403).json({error:'Nur Trainer dürfen das Cockpit aktualisieren.'});
+        if (!isIndividualCoach(auth.role)) return res.status(403).json({error:'Nur Trainer dürfen die Trainerübersicht aktualisieren.'});
         const result = await execute(
           `SELECT ip.id AS profile_id, next.id AS session_id, next.scheduled_for, next.unit_number,
                   next.attendance_status, r.score

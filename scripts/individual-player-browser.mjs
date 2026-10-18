@@ -23,7 +23,7 @@ const quota={error:'Das Datenbank-Kontingent ist erschöpft.',code:'DATABASE_QUO
 async function checkPlayerMenu(page,routeBase,proof){
  await page.locator('[data-role="hamburger"]').click();
  const nav=page.locator('[data-role="individual-navigation"]');await nav.getByRole('link',{name:'Entwicklung',exact:true}).waitFor();
- assert(!/Coach-Cockpit|Bereich wechseln|Training durchführen|Messwerte|KI & Verlauf/.test(await nav.innerText()));
+ assert(!/Coach-Cockpit|Trainerübersicht|Bereich wechseln|Training durchführen|Messwerte|KI & Verlauf/.test(await nav.innerText()));
  assert.deepEqual(await nav.locator('a').evaluateAll(es=>es.map(e=>e.getAttribute('href'))),[routeBase,routeBase+'/training',routeBase+'/progress',routeBase==='#/individual'?'#/individual/account':routeBase+'/account']);
  assert.equal(await page.locator('.mobile-dock').isVisible(),false);assert(await page.locator('.individual-player-dock').isVisible());
  await page.screenshot({path:join(shots,proof),fullPage:false});await page.keyboard.press('Escape');
