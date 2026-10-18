@@ -251,6 +251,7 @@
       manageLink.setAttribute('aria-label', individualWorkspace ? 'Konto und Synchronisierung' : 'Verwaltung öffnen');
     }
     if (individualDockLabel) individualDockLabel.textContent = individualWorkspace ? 'Cockpit' : 'Individual';
+    BT.individualTraining?.applyNavigationForRole?.();
     const leaving=BT.games?.beforeLeave?.();
     if(leaving){const ok=await leaving;if((location.hash||'#/dashboard')!==hash)return;if(!ok){history.replaceState(null,'',renderedHash);return;}}
     BT.tactics?.cleanup?.();

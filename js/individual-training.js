@@ -190,13 +190,38 @@ BT.individualTraining = (function() {
     target.prepend(todayView);
   }
 
-  function renderIndividualNavigation(data, current, selectedProfileId = null, selectedPane = 'overview') {
-    document.querySelectorAll('[data-player-nav]').forEach(link=>{
-      if (link.getAttribute('href') === location.hash) link.setAttribute('aria-current','page');
+  function setPlayerNavigation(base, pane, playerView) {
+    document.body.classList.toggle('individual-player-mode', playerView);
+    const account = base === '#/individual' ? '#/individual/account' : `${base}/account`;
+    const links = [base, `${base}/training`, `${base}/progress`, account];
+    document.querySelectorAll('[data-player-nav]').forEach((link,index)=>{
+      link.setAttribute('href', links[index]);
+      if (index === ['overview','training','progress','account'].indexOf(pane)) link.setAttribute('aria-current','page');
       else link.removeAttribute('aria-current');
     });
+    if (playerView) {
+      document.querySelector('.brand')?.setAttribute('href', base);
+      const manage = document.querySelector('.manage-link');
+      manage?.setAttribute('href', account);
+      manage?.setAttribute('aria-label', 'Dein Konto');
+    }
+  }
+
+  function renderIndividualNavigation(data, current, selectedProfileId = null, selectedPane = 'overview', previewPane = 'overview') {
+    const preview = ['admin','coach'].includes(current.role) && selectedPane === 'preview';
+    const playerView = current.role === 'player' || preview;
+    const base = preview ? selectedProfileId ? `#/individual/player/${encodeURIComponent(selectedProfileId)}/preview` : '#/individual/preview' : '#/individual';
+    const pane = preview ? previewPane : selectedPane;
+    setPlayerNavigation(base, pane, playerView);
     const navigation = document.querySelector('[data-role="individual-navigation"]');
     if (!navigation) return;
+    if (playerView) {
+      navigation.innerHTML = `<span class="nav-section-label">Dein Individualtraining</span>${[
+        ['overview','Mein Training',base],['training','Ablauf',`${base}/training`],['progress','Entwicklung',`${base}/progress`],
+        ['account','Konto',base === '#/individual' ? '#/individual/account' : `${base}/account`]
+      ].map(([key,label,href])=>`<a href="${href}" ${key === pane ? 'class="active" aria-current="page"' : ''}>${label}</a>`).join('')}`;
+      return;
+    }
     const coachLinks = ['admin', 'coach'].includes(current.role)
       ? (data.profiles || []).map(profile => `<a href="#/individual/player/${encodeURIComponent(profile.id)}/overview" class="${profile.id === selectedProfileId ? 'individual-selected-player' : ''}"><span class="nav-icon" aria-hidden="true">◉</span><span>${BT.util.escapeHTML(playerName(profile))}</span></a>`).join('')
       : '';
@@ -812,6 +837,7 @@ BT.individualTraining = (function() {
       target.innerHTML = '<section class="view individual-view"><h2>Individual Training</h2><p>Bitte zuerst anmelden.</p><a class="btn primary" href="#/account">Zur Anmeldung</a></section>';
       return;
     }
+    renderIndividualNavigation({profiles:[]}, current, selectedProfileId, selectedPane, previewPane);
     try {
       let data = await loadOverview();
       if (request !== activeRequest || owner !== contextKey()) return;
@@ -826,7 +852,7 @@ BT.individualTraining = (function() {
         }
       }
       if (request !== activeRequest || owner !== contextKey()) return;
-      renderIndividualNavigation(data, current, selectedProfileId, selectedPane);
+      renderIndividualNavigation(data, current, selectedProfileId, selectedPane, previewPane);
       if (current.role === 'player') renderPlayer(target, data, {profileId:current.individualProfileId,pane:selectedPane});
       else {
         const selectedProfile = selectedProfileId ? data.profiles.find(profile => profile.id === selectedProfileId) : null;
@@ -847,13 +873,14 @@ BT.individualTraining = (function() {
   async function renderDemo(target, pane = 'overview') {
     const request = ++activeRequest, owner = contextKey();
     if (!['admin','coach'].includes(user()?.role)) { location.hash = '#/individual'; return; }
+    renderIndividualNavigation({profiles:[]},user(),null,'preview',pane);
     target.innerHTML='<section class="view"><p>Beispielvorschau wird geladen …</p></section>';
     try {
       const response = await fetch('data/individual-player-preview.json');
       if (!response.ok) throw new Error('Die Beispielvorschau konnte nicht geladen werden.');
       const data = await response.json();
       if (request !== activeRequest || owner !== contextKey()) return;
-      renderIndividualNavigation({profiles:[]},user());
+      renderIndividualNavigation({profiles:[]},user(),null,'preview',pane);
       renderPlayer(target,data,{preview:true,demo:true,pane});
     } catch (error) { if (request === activeRequest && owner === contextKey()) target.innerHTML=`<section class="view"><p>${BT.util.escapeHTML(error.message)}</p><a class="btn" href="#/individual">Zurück</a></section>`; }
   }
@@ -863,7 +890,10 @@ BT.individualTraining = (function() {
     const role = user()?.role;
     const individual = document.querySelector('[data-nav="individual"]');
     if (individual) individual.hidden = !!role && !['admin', 'coach', 'player'].includes(role);
-    document.body.classList.toggle('individual-player-mode', role === 'player');
+    const preview = ['admin','coach'].includes(role) && location.hash.match(/^#\/individual\/(?:player\/([^/]+)\/)?preview(?:\/([^/]+))?$/);
+    if (preview) renderIndividualNavigation({profiles:[]},user(),preview[1] || null,'preview',preview[2] || 'overview');
+    else if (role === 'player') renderIndividualNavigation({profiles:[]},user(),null,location.hash === '#/account' ? 'account' : location.hash.split('/')[2] || 'overview');
+    else setPlayerNavigation('#/individual','overview',false);
     if (role === 'player' && !location.hash.startsWith('#/individual') && !location.hash.startsWith('#/account')) location.hash = '#/individual';
   }
 
@@ -872,7 +902,7 @@ BT.individualTraining = (function() {
     if (!current) return renderIndividualNavigation({ profiles: [] }, { role: 'guest' });
     let data = { profiles: [] };
     try { data = await loadOverview(); } catch { /* Account stays usable offline without a cached overview. */ }
-    if (location.hash === '#/individual/account' && user()?.id === current.id) renderIndividualNavigation(data, current);
+    if (location.hash === '#/individual/account' && user()?.id === current.id) renderIndividualNavigation(data, current, null, 'account');
   }
 
   window.addEventListener('bt-sync-change', applyNavigationForRole);

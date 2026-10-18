@@ -58,7 +58,7 @@ export async function validateRealDatabaseBrowser({root,handlers={},invitation,p
     await page.getByRole('button',{name:'Ich bin dabei',exact:true}).click();await page.getByText('Du hast zugesagt',{exact:true}).waitFor();
     await page.locator('[name="score"]').fill('8');await page.getByRole('button',{name:'Tagesform speichern',exact:true}).click();
     await page.getByText('Tagesform gespeichert.',{exact:true}).waitFor();
-    await page.locator('a[href="#/individual/training"]').first().click();await page.locator('.individual-player-exercises > li').first().waitFor();
+    await page.locator('#app a[href="#/individual/training"]').first().click();await page.locator('.individual-player-exercises > li').first().waitFor();
     assert.equal(await page.locator('.individual-player-exercises > li .individual-exercise-heading > strong').evaluateAll(es=>es.reduce((n,e)=>n+parseInt(e.textContent),0)),105);
     assert.equal(await page.locator('.individual-player-exercises details').count(),0,'Spielerplan enthält technische Trainerdetails.');
     assert(!(await page.locator('.individual-player-content').innerText()).includes('Ausgangsniveau in Ballkontrolle'),'Interne Trainingsziele gehören nicht in den Spielerplan.');

@@ -20,6 +20,14 @@ const decoded=spawnSync(process.env.COURTHUB_QR_PYTHON||(existsSync(bundledPytho
 assert.equal(decoded.status,0,decoded.stderr);assert.equal(decoded.stdout.trim(),invitation.inviteUrl,'Das tatsächlich erzeugte QR-Bild muss exakt den Einladungslink enthalten.');
 const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||(existsSync(chromium.executablePath())?undefined:'msedge')});
 const quota={error:'Das Datenbank-Kontingent ist erschöpft.',code:'DATABASE_QUOTA_EXCEEDED'};
+async function checkPlayerMenu(page,routeBase,proof){
+ await page.locator('[data-role="hamburger"]').click();
+ const nav=page.locator('[data-role="individual-navigation"]');await nav.getByRole('link',{name:'Entwicklung',exact:true}).waitFor();
+ assert(!/Coach-Cockpit|Bereich wechseln|Training durchführen|Messwerte|KI & Verlauf/.test(await nav.innerText()));
+ assert.deepEqual(await nav.locator('a').evaluateAll(es=>es.map(e=>e.getAttribute('href'))),[routeBase,routeBase+'/training',routeBase+'/progress',routeBase==='#/individual'?'#/individual/account':routeBase+'/account']);
+ assert.equal(await page.locator('.mobile-dock').isVisible(),false);assert(await page.locator('.individual-player-dock').isVisible());
+ await page.screenshot({path:join(shots,proof),fullPage:false});await page.keyboard.press('Escape');
+}
 try{
  for(const width of [320,390]){
   const context=await browser.newContext({viewport:{width,height:844},isMobile:true,hasTouch:true,locale:'de-DE',serviceWorkers:'block'});
@@ -47,14 +55,15 @@ try{
   await page.locator('#app').evaluate(e=>Promise.all(e.getAnimations({subtree:true}).map(a=>a.finished)));await page.screenshot({path:join(shots,`einladung-${width}.png`),fullPage:true});await form.getByRole('button',{name:'Spielerkonto erstellen',exact:true}).click();
   await page.locator('.individual-player-dashboard').waitFor();assert.equal(registrations,1);assert(!requests.includes('/api/workspace'),'Spieler dürfen den Team-Workspace nicht laden');
   assert(!/FREMD|PRIVATE/.test(await page.locator('#app').innerText()));
+  await checkPlayerMenu(page,'#/individual',`spieler-menue-${width}.png`);
   await page.getByRole('button',{name:'Ich bin dabei',exact:true}).click();await page.getByText('Du hast zugesagt',{exact:true}).waitFor();assert.equal(data.sessions[0].attendance_status,'confirmed');
-  await page.locator('a[href="#/individual/training"]').first().click();await page.getByText('1. Korbleger links',{exact:true}).waitFor();assert(!/FREMDE ÜBUNG|"attempts"/.test(await page.locator('#app').innerText()));await page.locator('#app').evaluate(e=>Promise.all(e.getAnimations({subtree:true}).map(a=>a.finished)));await page.screenshot({path:join(shots,`trainingsplan-${width}.png`),fullPage:true});
+  await page.locator('#app a[href="#/individual/training"]').first().click();await page.getByText('1. Korbleger links',{exact:true}).waitFor();assert(!/FREMDE ÜBUNG|"attempts"/.test(await page.locator('#app').innerText()));await page.locator('#app').evaluate(e=>Promise.all(e.getAnimations({subtree:true}).map(a=>a.finished)));await page.screenshot({path:join(shots,`trainingsplan-${width}.png`),fullPage:true});
   await page.getByRole('link',{name:'← Mein Training',exact:true}).click();await page.locator('[data-readiness]').waitFor();
   quotaMode=true;await page.locator('[name="score"]').fill('8');await page.getByRole('button',{name:'Tagesform speichern',exact:true}).click();await page.locator('[data-individual-sync]').waitFor();assert.equal(await page.locator('[data-readiness-value]').textContent(),'8');
   await page.reload();await page.locator('[data-individual-sync]').waitFor();assert.equal(await page.locator('[data-readiness-value]').textContent(),'8');
   quotaMode=false;await page.evaluate(()=>BT.individualTraining.syncPending());await page.reload();await page.locator('.individual-player-dashboard').waitFor();assert.equal(data.readiness[0].score,8);
   await page.locator('[name="trainingDate"]').fill('2026-10-16');await page.locator('[name="note"]').fill('Mit links sicherer.');await page.getByRole('button',{name:'Rückmeldung speichern',exact:true}).click();await page.getByText('Rückmeldung gespeichert.',{exact:true}).waitFor();assert.equal(data.feedback[0].note,'Mit links sicherer.');
-  await page.locator('a[href="#/individual/progress"]').first().click();await page.getByText('Treffer links',{exact:true}).waitFor();assert(!/FREMD|PRIVATE|999/.test(await page.locator('#app').innerText()));
+  await page.locator('#app a[href="#/individual/progress"]').first().click();await page.getByText('Treffer links',{exact:true}).waitFor();assert(!/FREMD|PRIVATE|999/.test(await page.locator('#app').innerText()));
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontaler Überlauf');await page.locator('#app').evaluate(e=>Promise.all(e.getAnimations({subtree:true}).map(a=>a.finished)));await page.screenshot({path:join(shots,`entwicklung-${width}.png`),fullPage:true});
   await page.goto(base+'/#/games');await page.locator('.individual-player-dashboard').waitFor();assert.equal(new URL(page.url()).hash,'#/individual');assert.equal(errors.length,0,errors.join('\n'));assert(syncCalls>=3);
   // Repeat use on a second fresh device must not show a registration form.
@@ -77,7 +86,15 @@ try{
  const coachPage=await coachContext.newPage();await coachPage.goto(base+'/#/individual');await coachPage.locator('.individual-profile-card').first().waitFor();
  await coachPage.locator('[data-action="invite-player"]').first().click();const inviteBox=coachPage.locator('[data-role="individual-invite"]');await inviteBox.getByRole('button',{name:'Link teilen',exact:true}).waitFor();await inviteBox.getByRole('button',{name:'Link teilen',exact:true}).click();await inviteBox.getByText('Teilen abgebrochen. Deine Einladung bleibt gültig.',{exact:true}).waitFor();assert.equal(inviteCalls,1);assert.equal(await inviteBox.getByRole('link',{name:'Einladung öffnen'}).getAttribute('href'),invitation.inviteUrl);assert(await inviteBox.locator('img').isVisible());
  await coachPage.goto(base+`/#/individual/player/${ids.profile}/preview`);await coachPage.getByText('Spieleransicht · Vorschau',{exact:true}).waitFor();assert.equal(await coachPage.locator('#app form :enabled').count(),0);assert.equal(await coachPage.locator('#app button:enabled').count(),0);assert(!/FREMD|PRIVATE/.test(await coachPage.locator('#app').innerText()));await coachPage.locator('#app').evaluate(e=>Promise.all(e.getAnimations({subtree:true}).map(a=>a.finished)));await coachPage.screenshot({path:join(shots,'coach-vorschau-390.png'),fullPage:true});
- coachUnavailable=true;await coachPage.goto(base+'/#/individual/preview');await coachPage.getByText('Beispielvorschau',{exact:true}).waitFor();await coachPage.getByRole('link',{name:'Trainingsplan öffnen',exact:true}).click();await coachPage.getByText('Piloteinheit 1 – Ausgangsniveau',{exact:true}).waitFor();assert.equal(await coachPage.locator('.individual-player-exercises > li').count(),10);assert.equal(await coachPage.locator('.individual-player-exercises > li .individual-exercise-heading > strong').evaluateAll(es=>es.reduce((sum,e)=>sum+parseInt(e.textContent),0)),105);await coachPage.locator('#app').evaluate(e=>Promise.all(e.getAnimations({subtree:true}).map(a=>a.finished)));await coachPage.screenshot({path:join(shots,'beispiel-vorschau-390.png'),fullPage:true});assert(await coachPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await coachContext.close();
+ const previewBase=`#/individual/player/${ids.profile}/preview`;
+ await checkPlayerMenu(coachPage,previewBase,'vorschau-menue-390.png');
+ for(const [label,pane] of [['Ablauf','training'],['Entwicklung','progress'],['Konto','account']]){
+  await coachPage.locator('.individual-player-dock').getByRole('link',{name:label,exact:true}).click();await coachPage.waitForURL(base+'/'+previewBase+'/'+pane);await coachPage.getByText('Spieleransicht · Vorschau',{exact:true}).waitFor();
+  await coachPage.locator('.individual-player-dock [aria-current="page"]').filter({hasText:label}).waitFor();
+ }
+ await coachPage.getByRole('heading',{name:'Kontovorschau',exact:true}).waitFor();assert.equal(await coachPage.locator('#app form').count(),0);
+ await coachPage.getByRole('link',{name:'← Zur Coach-Ansicht',exact:true}).click();await coachPage.locator('.individual-coach-detail-page').waitFor();assert.equal(await coachPage.locator('.individual-player-dock').isVisible(),false);
+ coachUnavailable=true;await coachPage.goto(base+'/#/individual/preview');await coachPage.getByText('Beispielvorschau',{exact:true}).waitFor();await checkPlayerMenu(coachPage,'#/individual/preview','beispiel-menue-390.png');await coachPage.getByRole('link',{name:'Trainingsplan öffnen',exact:true}).click();await coachPage.getByText('Piloteinheit 1 – Ausgangsniveau',{exact:true}).waitFor();assert.equal(await coachPage.locator('.individual-player-exercises > li').count(),10);assert.equal(await coachPage.locator('.individual-player-exercises > li .individual-exercise-heading > strong').evaluateAll(es=>es.reduce((sum,e)=>sum+parseInt(e.textContent),0)),105);await coachPage.locator('#app').evaluate(e=>Promise.all(e.getAnimations({subtree:true}).map(a=>a.finished)));await coachPage.screenshot({path:join(shots,'beispiel-vorschau-390.png'),fullPage:true});assert(await coachPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await coachContext.close();
  console.log('Coach: echte Spieleransicht schreibgeschützt und ohne private Daten, Teilen-Abbruch ohne Linkverlust, klar markierte Beispielvorschau mit 105 Minuten geprüft.');
  console.log('Browserprüfungen verwenden isolierte API-Testdaten; keine Produktionsregistrierung oder Produktionsschreibzugriffe. Screenshots: '+shots);
 }finally{await browser.close();server?.kill();}
