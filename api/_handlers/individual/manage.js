@@ -1,5 +1,6 @@
 import { transaction } from '../../_lib/db.js';
 import QRCode from 'qrcode';
+import { individualExerciseLabel } from '../../_lib/individual-plan-labels.js';
 import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../../_lib/auth.js';
 import { findIndividualProfile, hashIndividualInviteToken, newIndividualInviteToken, individualInviteUrl } from '../../_lib/individual-access.js';
 import { assertTemplateDuration, pilotSessionTemplate } from '../../_lib/individual-pilot.js';
@@ -209,11 +210,11 @@ async function insertApprovedDraftPlans(client, session, profiles, createdBy) {
     const nextSession = approved.rows[0]?.content?.nextSession;
     if (!nextSession || !Array.isArray(nextSession.blocks)) continue;
     const template = {
-      title: nextSession.title,
+      title: `Individualtraining · Einheit ${session.unit_number}`,
       objective: nextSession.objective,
       version: 1,
       exercises: nextSession.blocks.map(block => ({
-        title: block.title, durationMinutes: block.minutes,
+        title: individualExerciseLabel(block.playerExerciseType), durationMinutes: block.minutes,
         repetitions: { instruction: block.repetitions },
         measurementMethod: { instruction: block.measurementMethod },
         coachingCues: block.coachingCues
@@ -658,6 +659,10 @@ export function createIndividualManageHandler(deps = {}) {
              VALUES ($1, $2, $3, $4) RETURNING *`,
             [profile.id, req.body.sessionId ? uuid(req.body.sessionId, 'Einheiten-ID') : null,
               text(req.body.note, 'Trainernotiz', { min: 2, max: 5000 }), auth.sub]
+          );
+          await client.query(
+            `UPDATE individual_ai_drafts SET status = 'stale'
+              WHERE individual_profile_id = $1 AND status = 'current'`, [profile.id]
           );
           return { status: 201, body: { note: created.rows[0] } };
         }

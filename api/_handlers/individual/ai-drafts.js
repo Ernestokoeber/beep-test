@@ -29,7 +29,7 @@ async function sourceData(client, auth, profileId, sessionId) {
     'SELECT count(*)::int AS count FROM individual_sync_mutations WHERE individual_profile_id = $1 AND applied = FALSE', [profile.id]
   );
   if (Number(pending.rows[0].count) > 0) throw new DraftRequestError(409, 'Zugehörige Offline-Eingaben sind noch nicht vollständig synchronisiert.');
-  const [plan, exercises, measurements, readiness, focuses, weeklyFeedback, releasedFeedback] = await Promise.all([
+  const [plan, exercises, measurements, readiness, focuses, weeklyFeedback, releasedFeedback, coachNotes] = await Promise.all([
     client.query('SELECT title, objective, version FROM individual_session_plans WHERE session_id = $1 AND individual_profile_id = $2', [session.rows[0].id, profile.id]),
     client.query(`SELECT e.position, e.title, e.duration_minutes, e.repetitions, e.measurement_method, e.coaching_cues
                     FROM individual_exercises e JOIN individual_session_plans p ON p.id = e.plan_id
@@ -44,19 +44,44 @@ async function sourceData(client, auth, profileId, sessionId) {
     client.query(`SELECT training_day, training_date, occurrence, implementation_score, note
                     FROM individual_weekly_feedback WHERE individual_profile_id = $1 ORDER BY training_date DESC LIMIT 16`, [profile.id]),
     client.query(`SELECT content, released_at FROM individual_released_feedback
-                   WHERE individual_profile_id = $1 ORDER BY released_at DESC LIMIT 8`, [profile.id])
+                   WHERE individual_profile_id = $1 ORDER BY released_at DESC LIMIT 8`, [profile.id]),
+    client.query(`SELECT id, session_id, note, created_at FROM individual_coach_notes
+                   WHERE individual_profile_id = $1 ORDER BY created_at DESC, id DESC LIMIT 12`, [profile.id])
   ]);
   return {
     profile: { id: profile.id, playerProfileId: profile.player_profile_id },
     session: session.rows[0],
     plan: plan.rows[0] || null,
     exercises: exercises.rows,
-    measurements: measurements.rows,
+    measurements: measurements.rows.filter(row => row.metric_key !== 'trainernotiz'),
+    privatePriorKnowledge: {
+      kind: 'coach_observations_not_test_results',
+      notes: coachNotes.rows,
+      sessionNotes: measurements.rows.filter(row => row.metric_key === 'trainernotiz')
+    },
     readiness: readiness.rows[0] || null,
     previousFocuses: focuses.rows,
     weeklyFeedback: weeklyFeedback.rows,
     releasedFeedback: releasedFeedback.rows,
     constraints: { durationMinutes: 105, availableBaskets: 1, maximumParticipants: 2, medicalInferencesForbidden: true }
+  };
+}
+
+// Separate request, no conversation/history shared with the private generation.
+// Never use outputs of the private request as input for player-facing content.
+function playerDraftData(data) {
+  return {
+    profile: data.profile,
+    session: { id: data.session.id, status: data.session.status, unit_number: data.session.unit_number,
+      scheduled_for: data.session.scheduled_for, duration_minutes: data.session.duration_minutes },
+    plan: data.plan ? { title: data.plan.title, version: data.plan.version } : null,
+    exercises: data.exercises.map(({ position, title, duration_minutes }) => ({ position, title, duration_minutes })),
+    measurements: data.measurements,
+    readiness: data.readiness,
+    previousFocuses: data.previousFocuses,
+    weeklyFeedback: data.weeklyFeedback,
+    releasedFeedback: data.releasedFeedback,
+    constraints: data.constraints
   };
 }
 
@@ -128,6 +153,8 @@ export function createIndividualAIDraftHandler(deps = {}) {
           const draft = selected.rows[0];
           if (!draft) throw new DraftRequestError(404, 'KI-Entwurf nicht gefunden.');
           if (!canApproveDraft(draft)) throw new DraftRequestError(409, 'Nur ein aktueller, vollständiger KI-Entwurf kann freigegeben werden. Veraltete Entwürfe müssen neu erzeugt werden.');
+          const latestData = await sourceData(client, auth, draft.individual_profile_id, draft.session_id);
+          if (revisionOf(latestData) !== draft.source_revision) throw new DraftRequestError(409, 'Messwerte oder Trainernotizen wurden geändert. Bitte den Entwurf neu erzeugen.');
           const approved = await client.query(
             `UPDATE individual_ai_drafts
                 SET status = 'approved', approved_by = $1, approved_at = clock_timestamp()
@@ -191,15 +218,32 @@ export function createIndividualAIDraftHandler(deps = {}) {
         } else if (draft.status === 'generating') {
           throw new DraftRequestError(409, 'Der KI-Entwurf wird bereits erzeugt.');
         }
-        return { data, draft };
+        return { data, draft, sourceRevision };
       });
 
       try {
-        const generated = await generate({
-          action: 'individualTrainingDraft', payload: { data: prepared.data },
+        const request = data => generate({
+          action: 'individualTrainingDraft', payload: { data },
           apiKey: process.env.GEMINI_API_KEY, requestId: `individual_${randomUUID()}`
         });
+        const knowledge = prepared.data.privatePriorKnowledge;
+        const hasPrivateNotes = knowledge.notes.length > 0 || knowledge.sessionNotes.length > 0;
+        const publicRequest = request(playerDraftData(prepared.data));
+        const [publicResult, privateResult] = await Promise.all([
+          publicRequest,
+          hasPrivateNotes ? request(prepared.data) : publicRequest
+        ]);
+        // Explicit allowlist: ignore playerFeedback/weeklyFocus from the private model,
+        // even if it repeats or paraphrases confidential notes despite the prompt.
+        const content = {
+          analysis: privateResult.value.analysis,
+          nextSession: privateResult.value.nextSession,
+          playerFeedback: publicResult.value.playerFeedback,
+          weeklyFocus: publicResult.value.weeklyFocus
+        };
         const current = await runTransaction(async client => {
+          const latestData = await sourceData(client, auth, prepared.data.profile.id, prepared.data.session.id);
+          if (revisionOf(latestData) !== prepared.sourceRevision) throw new DraftRequestError(409, 'Messwerte oder Trainernotizen wurden während der Auswertung geändert. Bitte erneut erzeugen.');
           await client.query(
             `UPDATE individual_ai_drafts SET status = 'stale'
               WHERE individual_profile_id = $1 AND session_id = $2 AND status = 'current' AND id <> $3`,
@@ -209,7 +253,7 @@ export function createIndividualAIDraftHandler(deps = {}) {
             `UPDATE individual_ai_drafts
                 SET status = 'current', content = $1::jsonb, error_code = NULL, generated_at = clock_timestamp()
               WHERE id = $2 AND status = 'generating'
-              RETURNING *`, [JSON.stringify(generated.value), prepared.draft.id]
+              RETURNING *`, [JSON.stringify(content), prepared.draft.id]
           );
           if (!updated.rows[0]) throw new DraftRequestError(409, 'Der KI-Entwurfsstatus hat sich geändert.');
           return updated.rows[0];
