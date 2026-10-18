@@ -4,6 +4,7 @@ import { findIndividualProfile } from '../../_lib/individual-access.js';
 import { method, noStore, safeError } from '../../_lib/http.js';
 import { pilotRoadmap } from '../../_lib/individual-pilot.js';
 import { individualPlayerData } from '../../_lib/individual-player-data.js';
+import {buildShootingComparison,loadTeamShootingRows} from '../../_lib/individual-shooting.js';
 
 export function createIndividualOverviewHandler(deps = {}) {
   const execute = deps.query || query;
@@ -45,7 +46,7 @@ export function createIndividualOverviewHandler(deps = {}) {
       const profileIds = profiles.map(profile => profile.id);
       if (profileIds.length === 0) return res.status(200).json({ role: auth.role, profiles: [], pilotRoadmap: pilotRoadmap(), sessions: [], plans: [], exercises: [], measurements: [], readiness: [], focuses: [], feedback: [], releasedFeedback: [], notifications: [] });
 
-      const [sessions, plans, exercises, measurements, readiness, focuses, feedback, releasedFeedback, notifications] = await Promise.all([
+      const [sessions, plans, exercises, measurements, readiness, focuses, feedback, releasedFeedback, notifications, teamShooting] = await Promise.all([
         execute(
           `SELECT s.*, sp.individual_profile_id, sp.attendance_status
              FROM individual_sessions s
@@ -97,7 +98,8 @@ export function createIndividualOverviewHandler(deps = {}) {
               AND stopped_at IS NULL
               AND due_at <= clock_timestamp()
             ORDER BY due_at ASC`, [profileIds]
-        )
+        ),
+        loadTeamShootingRows(execute,auth.organization_id,profiles)
       ]);
 
       const payload = {
@@ -114,6 +116,7 @@ export function createIndividualOverviewHandler(deps = {}) {
         releasedFeedback: releasedFeedback.rows,
         notifications: notifications.rows
       };
+      payload.shootingComparison=buildShootingComparison({profiles,sessions:sessions.rows,exercises:exercises.rows,measurements:measurements.rows,teamRows:teamShooting});
       if (isIndividualCoach(auth.role)) {
         const [coachNotes, aiDrafts, auditLog] = await Promise.all([
           execute(

@@ -18,6 +18,12 @@ function pick(row, names) {
 
 export function individualPlayerData(payload) {
   const result = { role: 'player', pilotRoadmap: (payload.pilotRoadmap || []).map(unit => pick(unit, 'unitNumber scheduledDate durationMinutes kind title')) };
+  const ownIds=new Set((payload.profiles || []).map(profile=>profile.id));
+  result.shootingComparison=(payload.shootingComparison || []).filter(item=>ownIds.has(item.individual_profile_id)).map(item=>({
+    individual_profile_id:item.individual_profile_id,
+    individual:(item.individual || []).map(group=>pick(group,'key kind label made attempted pct sessions from until')),
+    team:(item.team || []).map(group=>pick(group,'key kind label made attempted pct sessions from until'))
+  }));
   for (const [collection, names] of Object.entries(fields)) {
     const rows = (payload[collection] || []).filter(row => collection !== 'measurements' || row.metric_key !== 'trainernotiz');
     result[collection] = rows.map(row => {

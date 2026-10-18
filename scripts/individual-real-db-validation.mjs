@@ -171,6 +171,26 @@ try {
     assert(mobileReceived.feedback.some(f=>f.individual_profile_id===profiles[1].id&&f.note==='Echte mobile Rückmeldung angekommen.'));
     record('Mobiler Browser ohne API-Fixtures: QR → Registrierung → eigene Seiten → Rückmeldung im Trainerkonto');
   }
+  const teamTraining={id:'comparison-team',date:'2026-10-10',status:'completed',note:'PRIVATE_TEAM_NOTE',shots:[{category:'Positionswurf',entries:[{playerId:'test-player-one',made:2,attempted:10},{playerId:'test-player-two',made:99,attempted:100}]},{category:'PRIVATE_OTHER_CATEGORY',entries:[{playerId:'test-player-two',made:100,attempted:100}]}],freethrows:[{playerId:'test-player-one',made:0,attempted:4}]};
+  const excluded={...teamTraining,id:'cancelled-team',cancelled:true,shots:[{category:'Must not count',entries:[{playerId:'test-player-one',made:100,attempted:100}]}]};
+  const staffOnly={...teamTraining,id:'coach-only-team',staff:[{playerId:'test-player-one',alsoPlayer:false}]};
+  const future={...teamTraining,id:'future-team',date:'2099-01-01'};
+  await pool.query("UPDATE workspaces SET data=jsonb_set(data,'{trainings}',$1::jsonb) WHERE organization_id=$2",[JSON.stringify([teamTraining,excluded,staffOnly,future]),org]);
+  const shootingExercise=coachView.exercises.find(e=>e.individual_profile_id===profiles[0].id && e.title==='Ausgangsmessung Wurf');
+  await pool.query("UPDATE individual_sessions SET scheduled_for='2026-10-12T18:15:00Z' WHERE id=$1",[session.id]);
+  for(const [metricKey,value] of [['treffer_frontal',2],['treffer_baseline_links',0]])await call('manage',{token,body:{action:'saveMeasurement',profileId:profiles[0].id,sessionId:session.id,exerciseId:shootingExercise.id,metricKey,numericValue:value,unit:'von 5'},status:201});
+  await call('manage',{token,body:{action:'setAttendance',profileId:profiles[0].id,sessionId:session.id,status:'attended'}});
+  await call('manage',{token,body:{action:'completeSession',profileId:profiles[0].id,sessionId:session.id}});
+  const compared=(await call('overview',{token:player.token,query:{profileId:profiles[1].id}})).shootingComparison;
+  assert.equal(compared.length,1);assert.equal(compared[0].individual[0].pct,20);
+  assert.equal(compared[0].team.find(g=>g.kind==='field').pct,20);assert.equal(compared[0].team.find(g=>g.kind==='freethrow').pct,0);
+  assert(!JSON.stringify(compared).includes('PRIVATE'));assert(!JSON.stringify(compared).includes('Must not count'));
+  assert.equal(compared[0].team.find(g=>g.kind==='field').attempted,10);
+  teamTraining.shots[0].entries[0].made=9;
+  await pool.query("UPDATE workspaces SET data=jsonb_set(data,'{trainings}',$1::jsonb) WHERE organization_id=$2",[JSON.stringify([teamTraining]),org]);
+  const changedComparison=(await call('overview',{token:player.token})).shootingComparison[0];
+  assert.equal(changedComparison.team.find(g=>g.kind==='field').pct,90);assert.deepEqual(changedComparison.individual,compared[0].individual);
+  record('Eigene Individual- und Mannschaftswurfquoten mit echter JSONB-Projektion getrennt; fremde, abgesagte, künftige und reine Trainerdaten ausgeschlossen');
   evidence.success=true;
 } catch(error) {
   failure=error;
