@@ -494,6 +494,7 @@ BT.individualTraining = (function() {
       choice('schwache_hand', 'Schwache Hand', ['Sicher', 'Wechselhaft', 'Unsicher'])
     ];
     if (title.includes('freiwürfe') || title.includes('freiwurf')) return [number('treffer','Freiwürfe getroffen','von 10',10)];
+    if (title.includes('bodenpass')) return [number('treffer','Spot-up-Treffer','von 10',10),text('passqualitaet','Passqualität')];
     if (title.includes('spot-up') || title.includes('spotup') || title.includes('pick-and-roll') || title.includes('box-out')) return [text('coach_beobachtung','Beobachtung')];
     if (title.includes('korbleger')) return [number('treffer_rechts','Treffer rechts','von 10',10),number('treffer_links','Treffer links','von 10',10),text('coach_beobachtung','Technik und linke Hand')];
     if (title.includes('korbabschluss')) return [
