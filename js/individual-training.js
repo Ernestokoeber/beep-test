@@ -575,7 +575,7 @@ BT.individualTraining = (function() {
     const labels = new Map(exercises.flatMap(exercise => measurementDefinitions(exercise).map(definition => [definition.key, definition.label])));
     const history = measurements.length ? measurements.slice().reverse().map(item => {
       const value = item.numeric_value !== null && item.numeric_value !== undefined ? Number(item.numeric_value) : item.text_value;
-      return `<li><span><strong>${BT.util.escapeHTML(labels.get(item.metric_key) || BT.individualCopy.metric(item.metric_key))}</strong><small>${BT.util.escapeHTML(exerciseNames.get(item.exercise_id) || 'Allgemeine Messung')}${item.attempt ? ` · Durchgang ${item.attempt}` : ''}</small></span><b>${BT.util.escapeHTML(value)}${item.unit ? ` ${BT.util.escapeHTML(item.unit)}` : ''}</b></li>`;
+      return `<li><span><strong>${BT.util.escapeHTML(labels.get(item.metric_key) || BT.individualCopy.metric(item.metric_key))}</strong><small>${BT.util.escapeHTML(exerciseNames.get(item.exercise_id) || 'Allgemeine Messung')}${item.attempt ? ` · Durchgang ${item.attempt}` : ''}</small></span><b>${BT.util.escapeHTML(item.metric_key === 'tatsaechliches_ende' ? fmt(value,{timeZone:'Europe/Berlin'}) : value)}${item.unit ? ` ${BT.util.escapeHTML(item.unit)}` : ''}</b></li>`;
     }).join('') : '<li class="muted">Noch keine Ergebnisse gespeichert.</li>';
     return `<section class="individual-measurement-intro"><p>Wähle die Übung und trage nur das beobachtete Ergebnis ein. CourtHub ordnet es automatisch richtig zu.</p></section>
       <div class="individual-measurement-exercises">${forms || '<section class="card"><p class="muted">Für diese Einheit sind keine Messungen vorgesehen.</p></section>'}</div>
