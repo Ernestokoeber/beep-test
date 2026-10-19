@@ -28,6 +28,7 @@ export function individualPlayerData(payload) {
     const rows = (payload[collection] || []).filter(row => collection !== 'measurements' || row.metric_key !== 'trainernotiz');
     result[collection] = rows.map(row => {
       const released = pick(row, names);
+      if (collection === 'exercises' && row.measurement_method?.durationNotRecorded === true) released.duration_minutes = null;
       if (collection === 'notifications' && released.payload) {
         released.payload = pick(released.payload, 'sessionId scheduledFor focusId trainingDate trainingDay title cueOne cueTwo');
       }

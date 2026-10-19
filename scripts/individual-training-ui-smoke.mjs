@@ -9,6 +9,7 @@ function browser(role, overview) {
     <nav class="mobile-dock"><a data-mobile-nav="dashboard"></a><a data-mobile-nav="individual"></a><button data-role="mobile-more"></button></nav>
     <main id="app"></main></body>`, { url: 'https://coach.tsv-lindau.de/#/individual', runScripts: 'outside-only' });
   const window = dom.window;
+  window.Date.now = () => Date.parse("2026-10-19T20:00:00Z");
   window.BT = {
     util: { escapeHTML: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;') },
     sync: { getState: () => ({ user: { id: role === 'player' ? 'u-player' : 'u-coach', role, displayName: role === 'player' ? 'Thomas' : 'Ernesto' } }) },

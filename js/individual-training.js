@@ -3,8 +3,11 @@ window.BT = window.BT || {};
 BT.individualTraining = (function() {
   const QUEUE_PREFIX = 'courthub_individual_queue:';
   const CACHE_PREFIX = 'courthub_individual_cache:';
+  const COACH_QUEUE_PREFIX = 'courthub_individual_coach_queue:';
   const LIVE_PREFIX = 'courthub_individual_live:';
+  const measurementSessions = new Map();
   let activeRequest = 0;
+  let coachEpoch = 0;
   let stopCoachRefresh = () => {};
   const syncWorkers = new Map();
 
@@ -19,12 +22,14 @@ BT.individualTraining = (function() {
   function saveLocal(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 
   function clearLocalData() {
+    coachEpoch++;
+    measurementSessions.clear();
     BT.individualLive?.clearLocalData();
     try {
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key?.startsWith(QUEUE_PREFIX) || key?.startsWith(CACHE_PREFIX) || key?.startsWith(LIVE_PREFIX)) keys.push(key);
+        if (key?.startsWith(COACH_QUEUE_PREFIX) || key?.startsWith(QUEUE_PREFIX) || key?.startsWith(CACHE_PREFIX) || key?.startsWith(LIVE_PREFIX)) keys.push(key);
       }
       keys.forEach(key => localStorage.removeItem(key));
     } catch {}
@@ -70,6 +75,66 @@ BT.individualTraining = (function() {
     try { return await work; } finally { if (syncWorkers.get(key) === work) syncWorkers.delete(key); }
   }
 
+  function coachQueueKey() { return userKey(COACH_QUEUE_PREFIX); }
+  const coachSyncWorkers = new Map();
+  const coachActions = new Set(['startSession','setAttendance','saveMeasurement','addCoachNote','completeSession','completeLiveSession']);
+  function retryable(error) { return error.status === 0 || error.status === 503 || error.status === 504; }
+
+  async function syncCoachPending() {
+    const key = coachQueueKey(), epoch = coachEpoch;
+    if (!['admin','coach'].includes(user()?.role) || !navigator.onLine || BT.sync.getState().identitySource === 'cache') return;
+    if (coachSyncWorkers.has(key)) return coachSyncWorkers.get(key);
+    const work = (async () => {
+      const responses = [];
+      while (key === coachQueueKey() && epoch === coachEpoch) {
+        const item = loadLocal(key, [])[0];
+        if (!item) return responses;
+        const result = await BT.api.individualAction(item.action, item.payload);
+        if (key !== coachQueueKey() || epoch !== coachEpoch) return;
+        responses.push({mutationId:item.payload.mutationId,result});
+        // Read again: other inputs may have been added while the request was in flight.
+        saveLocal(key, loadLocal(key, []).filter(entry => entry.payload.mutationId !== item.payload.mutationId));
+        if (item.action === 'completeLiveSession' || item.action === 'completeSession') {
+          for (const draft of result.queuedDrafts || []) BT.api.individualAIDraft('generate', {profileId:draft.individual_profile_id,sessionId:draft.session_id}).catch(() => {});
+        }
+      }
+    })();
+    coachSyncWorkers.set(key, work);
+    try { return await work; } finally { if (coachSyncWorkers.get(key) === work) coachSyncWorkers.delete(key); }
+  }
+
+  async function coachAction(action, payload) {
+    if (!coachActions.has(action)) return BT.api.individualAction(action, payload);
+    if (!['admin','coach'].includes(user()?.role)) throw new Error('Nur Trainer dürfen diese Eingabe speichern.');
+    const item = mutation(action, payload), key = coachQueueKey();
+    const entry = {action,payload:{...clone(payload),mutationId:item.mutationId,deviceRecordedAt:item.deviceRecordedAt}};
+    saveLocal(key, [...loadLocal(key, []),entry]);
+    let responses;
+    try { responses = await syncCoachPending(); }
+    catch (error) {
+      if (!retryable(error)) {
+        // A rejected input must not be reported as saved. Existing queued inputs remain for review.
+        saveLocal(key, loadLocal(key, []).filter(value => value.payload.mutationId !== entry.payload.mutationId));
+        throw error;
+      }
+    }
+    return {...(responses || []).find(r=>r.mutationId===entry.payload.mutationId)?.result,mutationId:entry.payload.mutationId,_queued:loadLocal(key, []).some(value => value.payload.mutationId === entry.payload.mutationId)};
+  }
+
+  function withCoachPending(data) {
+    const copy = clone(data), queue = loadLocal(coachQueueKey(), []);
+    copy._coachPending = queue.length;
+    for (const {action,payload:p} of queue) {
+      const sessions = (copy.sessions || []).filter(s => s.id === p.sessionId);
+      if (action === 'startSession') sessions.forEach(s => s.status = 'in_progress');
+      if (action === 'completeSession' || action === 'completeLiveSession') sessions.forEach(s => s.status = 'completed');
+      if (action === 'setAttendance') sessions.filter(s => s.individual_profile_id === p.profileId).forEach(s => s.attendance_status = p.status);
+      if (action === 'addCoachNote') (copy.coachNotes ||= []).unshift({id:p.mutationId,individual_profile_id:p.profileId,session_id:p.sessionId,note:p.note,created_at:p.deviceRecordedAt,_pending:true});
+      if (action === 'saveMeasurement') (copy.measurements ||= []).push({id:p.mutationId,individual_profile_id:p.profileId,session_id:p.sessionId,exercise_id:p.exerciseId,metric_key:p.metricKey,numeric_value:p.numericValue,text_value:p.textValue,unit:p.unit,attempt:p.attempt,_pending:true});
+    }
+    return copy;
+  }
+
   async function loadOverview(profileId) {
     const key = userKey(CACHE_PREFIX);
     try {
@@ -89,7 +154,7 @@ BT.individualTraining = (function() {
       return withPending(data);
     } catch (error) {
       if (key !== userKey(CACHE_PREFIX)) throw error;
-      if (error.status !== 0 && !(error.status === 503 && error.code === 'DATABASE_QUOTA_EXCEEDED')) throw error;
+      if (!retryable(error)) throw error;
       const cached = loadLocal(key, null);
       if (!cached) throw error;
       return withPending({...cached,_offline:true});
@@ -119,7 +184,7 @@ BT.individualTraining = (function() {
   }
 
   function withPending(data) {
-    if (user()?.role !== 'player') return data;
+    if (user()?.role !== 'player') return withCoachPending(data);
     const copy = clone(data), queue = loadLocal(userKey(QUEUE_PREFIX), []), profileId = user()?.individualProfileId || copy.profiles?.[0]?.id;
     copy._pending = queue.length;
     const legacy = loadLocal(QUEUE_PREFIX + user().id, []);
@@ -282,7 +347,7 @@ BT.individualTraining = (function() {
   }
 
   function roadmapExercise(exercise, index) {
-    return `<li><strong>${index + 1}. ${BT.util.escapeHTML(trainingTitle(exercise.title))} · ${exercise.durationMinutes} Min.</strong>
+    return `<li><strong>${index + 1}. ${BT.util.escapeHTML(trainingTitle(exercise.title))} · ${exercise.durationMinutes == null ? 'Dauer nicht notiert' : `${exercise.durationMinutes} Min.`}</strong>
       <details><summary>Wiederholungen, Messung und Trainerhinweise</summary>
         <p><b>Wiederholungen:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.repetitions || {}))}</p>
         <p><b>Messung:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.measurementMethod || {}))}</p>
@@ -290,7 +355,7 @@ BT.individualTraining = (function() {
       </details></li>`;
   }
 
-  function renderPilotRoadmap(data, sessions) {
+  function renderPilotRoadmap(data, sessions, profileId) {
     const roadmap = data.pilotRoadmap || [];
     if (!roadmap.length) return '';
     const cards = roadmap.map(unit => {
@@ -298,13 +363,15 @@ BT.individualTraining = (function() {
       const actual = [...matching].reverse().find(session => session.status !== 'cancelled') || matching.at(-1) || null;
       const isAssessment = unit.kind === 'assessment';
       const planDate = actual ? localBerlinDate(actual.scheduled_for) : unit.scheduledDate;
-      const exercises = unit.template?.exercises || [];
+      const actualPlan=(data.plans || []).find(p=>p.session_id===actual?.id && p.individual_profile_id===profileId);
+      const reviewed=actualPlan && actualPlan.version>1;
+      const exercises = reviewed ? (data.exercises || []).filter(e=>e.plan_id===actualPlan.id).map(e=>({title:e.title,durationMinutes:e.measurement_method?.durationNotRecorded ? null : e.duration_minutes,repetitions:e.repetitions,measurementMethod:e.measurement_method,coachingCues:e.coaching_cues})) : unit.template?.exercises || [];
       return `<article class="individual-roadmap-unit ${isAssessment ? 'assessment' : ''} ${actual?.status || 'upcoming'}" data-pilot-unit="${unit.unitNumber}">
         <div class="individual-roadmap-number"><span>Einheit</span><strong>${unit.unitNumber}</strong></div>
         <div class="individual-roadmap-content">
-          <div class="individual-roadmap-heading"><div><small>${isAssessment ? 'Verbindliche Testeinheit' : 'Entwicklungseinheit'}</small><h5>${BT.util.escapeHTML(trainingTitle(unit.title))}</h5></div><span>${BT.util.escapeHTML(sessionStatusLabel(actual?.status))}</span></div>
+          <div class="individual-roadmap-heading"><div><small>${isAssessment ? 'Verbindliche Testeinheit' : 'Entwicklungseinheit'}</small><h5>${BT.util.escapeHTML(trainingTitle(reviewed ? actualPlan.title : unit.title))}</h5></div><span>${BT.util.escapeHTML(sessionStatusLabel(actual?.status))}</span></div>
           <p class="individual-roadmap-date">${BT.util.escapeHTML(roadmapDate(planDate))} · 20:15 Uhr · ${unit.durationMinutes} Minuten</p>
-          <p>${BT.util.escapeHTML(unit.objective)}</p>
+          <p>${BT.util.escapeHTML(reviewed ? actualPlan.objective : unit.objective)}</p>
           ${exercises.length ? `<details class="individual-roadmap-details"><summary>Freigegebenen Ablauf anzeigen</summary><ol class="individual-exercise-list">${exercises.map(roadmapExercise).join('')}</ol></details>` : '<p class="muted">Der individuelle Ablauf entsteht nach Auswertung der vorherigen Einheit.</p>'}
         </div>
       </article>`;
@@ -425,6 +492,9 @@ BT.individualTraining = (function() {
       choice('blick_oben', 'Blick oben', ['Ja', 'Teilweise', 'Nein']),
       choice('schwache_hand', 'Schwache Hand', ['Sicher', 'Wechselhaft', 'Unsicher'])
     ];
+    if (title.includes('freiwürfe') || title.includes('freiwurf')) return [number('treffer','Freiwürfe getroffen','von 10',10)];
+    if (title.includes('spot-up') || title.includes('spotup') || title.includes('pick-and-roll') || title.includes('box-out')) return [text('coach_beobachtung','Beobachtung')];
+    if (title.includes('korbleger')) return [number('treffer_rechts','Treffer rechts','von 10',10),number('treffer_links','Treffer links','von 10',10),text('coach_beobachtung','Technik und linke Hand')];
     if (title.includes('korbabschluss')) return [
       number('treffer_rechts', 'Treffer rechts', 'von 10', 10),
       number('treffer_links', 'Treffer links', 'von 10', 10),
@@ -513,7 +583,8 @@ BT.individualTraining = (function() {
   function renderCoachDetail(root, profile, data, pane = 'overview') {
     const host = root.querySelector('[data-role="individual-detail"]');
     const sessions = (data.sessions || []).filter(item => item.individual_profile_id === profile.id);
-    const activeSession = [...sessions].reverse().find(item => ['planned', 'in_progress'].includes(item.status)) || sessions.at(-1) || null;
+    const selectedSession = pane === 'measurements' ? sessions.find(s=>s.id===measurementSessions.get(`${contextKey()}:${profile.id}`)) : null;
+    const activeSession = selectedSession || [...sessions].reverse().find(item => ['planned', 'in_progress'].includes(item.status)) || sessions.at(-1) || null;
     const plan = (data.plans || []).find(item => item.session_id === activeSession?.id && item.individual_profile_id === profile.id);
     const exercises = (data.exercises || []).filter(item => item.session_id === activeSession?.id && item.individual_profile_id === profile.id);
     const roadmapUnit = (data.pilotRoadmap || []).find(item => Number(item.unitNumber) === Number(activeSession?.unit_number));
@@ -547,7 +618,7 @@ BT.individualTraining = (function() {
     };
     if (!paneLabels[pane]) pane = 'overview';
     const emptySession = '<section class="card"><h4>Keine aktive Einheit</h4><p class="muted">Plane zuerst in der Übersicht die nächste Montagseinheit.</p><a class="btn primary" href="#/individual/player/' + encodeURIComponent(profile.id) + '/overview">Zur Übersicht</a></section>';
-    const overview = `${renderPilotRoadmap(data, sessions)}
+    const overview = `${renderPilotRoadmap(data, sessions, profile.id)}
       <div class="individual-detail-grid">
         ${activeSession && ['planned', 'in_progress'].includes(activeSession.status) ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · 105 Minuten</p><a class="btn primary" href="#/individual/player/${encodeURIComponent(profile.id)}/training">Einheit öffnen</a></section>` : `<form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>`}
       </div>`;
@@ -555,7 +626,7 @@ BT.individualTraining = (function() {
         <p><strong>Teilnehmer: ${BT.util.escapeHTML(sessionPlayers.map(playerName).join(' + '))}</strong>${sessionPlayers.length > 1 ? '<br>Eine gemeinsame Uhr und ein Ablauf, persönliche Dokumentation für jeden Spieler.' : ''}</p>
         <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${displayExercises.length && ['planned', 'in_progress'].includes(activeSession.status) ? '' : 'disabled'}>▶ ${sessionPlayers.length > 1 ? 'Gemeinsames Training durchführen' : 'Training durchführen'}</button>
         <div class="individual-actions"><button class="btn" data-set-attendance="attended">Als anwesend bestätigen</button><button class="btn" data-set-attendance="unexcused_no_show">Unentschuldigt gefehlt</button><button class="btn danger" data-cancel-session>Einheit absagen</button></div>
-        ${displayPlan ? `<h4>${BT.util.escapeHTML(trainingTitle(displayPlan.title))}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(trainingTitle(exercise.title))} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Trainerhinweise</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.measurement_method))}</p><p><b>Trainerhinweise:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).map(BT.individualCopy.cue).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
+        ${displayPlan ? `<h4>${BT.util.escapeHTML(trainingTitle(displayPlan.title))}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(trainingTitle(exercise.title))} · ${exercise.measurement_method?.durationNotRecorded ? 'Dauer nicht notiert' : `${exercise.duration_minutes} Min.`}</strong><details><summary>Wiederholungen, Messung und Trainerhinweise</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.measurement_method))}</p><p><b>Trainerhinweise:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).map(BT.individualCopy.cue).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
         <div class="individual-actions"><button class="btn primary" data-complete-session>Einheit abschließen und KI-Entwurf starten</button></div>
       </section>` : emptySession;
     const measurementPane = activeSession ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Einheit ${activeSession.unit_number || '–'}</span><h4>Ergebnisse erfassen</h4></div><strong>${measurements.length} gespeichert</strong></div></section>${renderMeasurementPane(activeSession, displayExercises, measurements)}` : emptySession;
@@ -572,6 +643,13 @@ BT.individualTraining = (function() {
     host.hidden = false;
     host.innerHTML = `<div class="section-head individual-player-title"><div><span class="section-kicker">Traineransicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-current-pane">${paneLabels[pane]}</span></div><p><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/preview">Spieleransicht ansehen</a></p>${paneContent}`;
     const refresh = () => render(root.parentElement, profile.id, pane);
+    if (pane === 'measurements' && sessions.length) {
+      const label=document.createElement('label');label.textContent='Einheit auswählen';
+      const select=document.createElement('select');select.dataset.measurementSession='';
+      for (const s of [...sessions].reverse()) {const option=document.createElement('option');option.value=s.id;option.textContent=`Einheit ${s.unit_number} · ${fmt(s.scheduled_for)} · ${sessionStatusLabel(s.status)}`;option.selected=s.id===activeSession?.id;select.append(option);}
+      select.onchange=()=>{measurementSessions.set(`${contextKey()}:${profile.id}`,select.value);refresh();};label.append(select);host.querySelector('.individual-player-title')?.after(label);
+    }
+    if (pane === 'training') BT.individualPlanEditor?.mount(host,{profile,session:activeSession,plan,exercises,measurements,refresh});
     host.querySelector('[data-plan-session]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
       const secondProfileId = form.get('secondProfileId');
@@ -580,7 +658,7 @@ BT.individualTraining = (function() {
     });
     host.querySelector('[data-coach-note]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
-      try { await BT.api.individualAction('addCoachNote', { profileId: profile.id, note: form.get('note') }); await refresh(); }
+      try { await coachAction('addCoachNote', { profileId: profile.id, sessionId: activeSession?.id || null, note: form.get('note') }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
     host.querySelectorAll('[data-edit-coach-note]').forEach(formElement => {
@@ -630,7 +708,7 @@ BT.individualTraining = (function() {
       catch (error) { notice(root, error.message, true); }
     });
     host.querySelectorAll('[data-set-attendance]').forEach(button => button.addEventListener('click', async () => {
-      try { await BT.api.individualAction('setAttendance', { profileId: profile.id, sessionId: activeSession.id, status: button.dataset.setAttendance }); await refresh(); }
+      try { await coachAction('setAttendance', { profileId: profile.id, sessionId: activeSession.id, status: button.dataset.setAttendance }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     }));
     host.querySelector('[data-action="start-live-training"]')?.addEventListener('click', () => renderCoachLive(root.parentElement, profile, data, activeSession, displayExercises));
@@ -641,12 +719,12 @@ BT.individualTraining = (function() {
     host.querySelectorAll('[data-guided-measurement]').forEach(formElement => formElement.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
       const numeric = event.currentTarget.dataset.valueType === 'number';
-      try { await BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: activeSession.id, exerciseId: event.currentTarget.dataset.exerciseId || null, metricKey: event.currentTarget.dataset.metricKey, numericValue: numeric ? Number(form.get('value')) : null, textValue: numeric ? null : form.get('value'), unit: event.currentTarget.dataset.unit || null, attempt: form.get('attempt') ? Number(form.get('attempt')) : null }); await refresh(); }
+      try { await coachAction('saveMeasurement', { profileId: profile.id, sessionId: activeSession.id, exerciseId: event.currentTarget.dataset.exerciseId || null, metricKey: event.currentTarget.dataset.metricKey, numericValue: numeric ? Number(form.get('value')) : null, textValue: numeric ? null : form.get('value'), unit: event.currentTarget.dataset.unit || null, attempt: form.get('attempt') ? Number(form.get('attempt')) : null }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     }));
     host.querySelector('[data-complete-session]')?.addEventListener('click', async () => {
       try {
-        const result = await BT.api.individualAction('completeSession', { profileId: profile.id, sessionId: activeSession.id });
+        const result = await coachAction('completeSession', { profileId: profile.id, sessionId: activeSession.id });
         await Promise.allSettled((result.queuedDrafts || []).map(draft => BT.api.individualAIDraft('generate', { profileId: draft.individual_profile_id, sessionId: draft.session_id })));
         await refresh();
       } catch (error) { notice(root, error.message, true); }
@@ -830,6 +908,11 @@ BT.individualTraining = (function() {
         } else if (selectedProfile && selectedPane === 'preview') renderPlayer(target, data, {profileId:selectedProfile.id,pane:previewPane,preview:true,displayName:playerName(selectedProfile)});
         else if (selectedProfile) renderCoachDetailPage(target, selectedProfile, data, selectedPane);
         else renderCoach(target, data);
+        if (data._offline || data._coachPending) {
+          const status = document.createElement('p'); status.className = 'individual-sync-message'; status.setAttribute('role','status'); status.dataset.individualOfflineStatus = '';
+          status.textContent = `${data._offline ? 'Offline: gespeicherter Trainingsstand. ' : ''}${data._coachPending ? `${data._coachPending} Eingaben nur auf diesem Gerät gespeichert; Übertragung erfolgt bei Verbindung. ` : ''}Für die Offline-Nutzung muss der Trainingsplan einmal online geöffnet worden sein.`;
+          target.querySelector('.individual-view')?.prepend(status);
+        }
         if (pilotStartError) notice(target.querySelector('.individual-view'), pilotStartError.message, true);
       }
     } catch (error) {
@@ -876,7 +959,8 @@ BT.individualTraining = (function() {
   }
 
   window.addEventListener('bt-sync-change', applyNavigationForRole);
-  window.addEventListener('online', () => syncPending().catch(() => {}));
+  window.addEventListener('online', () => { syncPending().catch(() => {}); syncCoachPending().catch(() => {}); });
+  window.addEventListener('bt-sync-change', () => { if (BT.sync.getState().identitySource === 'server') syncCoachPending().catch(() => {}); });
   document.addEventListener('DOMContentLoaded', applyNavigationForRole);
-  return { render, renderDemo, cleanup, renderHub, renderAccountNavigation, queueMutation, syncPending, clearLocalData, applyNavigationForRole };
+  return { render, renderDemo, cleanup, renderHub, renderAccountNavigation, queueMutation, syncPending, coachAction, syncCoachPending, clearLocalData, applyNavigationForRole };
 })();

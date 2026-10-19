@@ -4,6 +4,7 @@ BT.individualCopy = (function() {
   const attendance={pending:'Antwort offen',confirmed:'Zugesagt',declined:'Abgesagt',attended:'Anwesend',unexcused_no_show:'Unentschuldigt gefehlt'};
   const drafts={queued:'Zur Erstellung vorgemerkt',generating:'Wird erstellt',current:'Bereit zur Prüfung',stale:'Nach Änderungen neu erstellen',approved:'Für Spieler freigegeben',failed:'Erstellung fehlgeschlagen'};
   const metrics={
+    tatsaechliches_ende:"Tatsächliches Trainingsende",dauer_ab_geplantem_beginn:"Dauer ab geplantem Beginn",
     readiness:'Tagesform',zeit:'Zeit',ballverluste:'Ballverluste',ausgelassene_huetchen:'Ausgelassene Hütchen',blick_oben:'Blick oben',schwache_hand:'Schwache Hand',
     treffer_rechts:'Treffer rechts',treffer_links:'Treffer links',korrekte_abschlusshand:'Richtige Abschlusshand',korrekte_schrittfolge:'Korrekte Schrittfolge',ballverlust_vor_abschluss:'Ballverlust vor Abschluss',technik:'Technik insgesamt',
     treffer_baseline_links:'Treffer Grundlinie links',treffer_fluegel_links:'Treffer Flügel links',treffer_frontal:'Treffer frontal',treffer_fluegel_rechts:'Treffer Flügel rechts',treffer_baseline_rechts:'Treffer Grundlinie rechts',

@@ -90,6 +90,9 @@ assert.equal(saving.app.querySelector('[data-live-player="p1"] [data-live-measur
 saving.release();await turn();
 assert.equal(saving.app.querySelector('[data-live-player="p1"] [data-live-measurement]').elements.value.value,'','Erfolgsantwort muss das aktuelle Formular aktualisieren');
 assert.equal(saving.app.querySelector('[data-live-player="p2"] [data-live-note]').value,'Neue Notiz','Späte Antwort darf neuere Notizen nicht überschreiben');
+assert(saving.app.querySelector('[data-live-player="p1"] .individual-live-results').textContent.includes('5'),'Gespeicherter Wert muss nach Leeren des Formulars sichtbar bleiben');
+await saving.open('p1');
+assert(saving.app.querySelector('[data-live-player="p1"] .individual-live-results').textContent.includes('5'),'Profilwechsel darf das gespeicherte Ergebnis nicht verstecken');
 saving.app.querySelector('[data-live-next]').click();saving.app.querySelector('[data-live-toggle]').click();await turn();saving.advance(10000);
 saving.app.querySelector('[data-live-next]').click();saving.advance(10000);
 assert.equal(saving.app.querySelector('[data-live-block-clock]').textContent,'00:10','Abschließen des letzten Blocks muss dessen Uhr stoppen');
