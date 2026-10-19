@@ -3,6 +3,7 @@ window.BT = window.BT || {};
 BT.individualTraining = (function() {
   const QUEUE_PREFIX = 'courthub_individual_queue:';
   const CACHE_PREFIX = 'courthub_individual_cache:';
+  const MEASUREMENT_DRAFT_PREFIX = 'courthub_individual_measurement_draft:';
   const COACH_QUEUE_PREFIX = 'courthub_individual_coach_queue:';
   const LIVE_PREFIX = 'courthub_individual_live:';
   const measurementSessions = new Map();
@@ -29,7 +30,7 @@ BT.individualTraining = (function() {
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key?.startsWith(COACH_QUEUE_PREFIX) || key?.startsWith(QUEUE_PREFIX) || key?.startsWith(CACHE_PREFIX) || key?.startsWith(LIVE_PREFIX)) keys.push(key);
+        if (key?.startsWith(MEASUREMENT_DRAFT_PREFIX) || key?.startsWith(COACH_QUEUE_PREFIX) || key?.startsWith(QUEUE_PREFIX) || key?.startsWith(CACHE_PREFIX) || key?.startsWith(LIVE_PREFIX)) keys.push(key);
       }
       keys.forEach(key => localStorage.removeItem(key));
     } catch {}
@@ -716,12 +717,24 @@ BT.individualTraining = (function() {
       try { await BT.api.individualAction('cancelSession', { profileId: profile.id, sessionId: activeSession.id }); await refresh(); }
       catch (error) { notice(root, error.message, true); }
     });
-    host.querySelectorAll('[data-guided-measurement]').forEach(formElement => formElement.addEventListener('submit', async event => {
-      event.preventDefault(); const form = new FormData(event.currentTarget);
-      const numeric = event.currentTarget.dataset.valueType === 'number';
-      try { await coachAction('saveMeasurement', { profileId: profile.id, sessionId: activeSession.id, exerciseId: event.currentTarget.dataset.exerciseId || null, metricKey: event.currentTarget.dataset.metricKey, numericValue: numeric ? Number(form.get('value')) : null, textValue: numeric ? null : form.get('value'), unit: event.currentTarget.dataset.unit || null, attempt: form.get('attempt') ? Number(form.get('attempt')) : null }); await refresh(); }
-      catch (error) { notice(root, error.message, true); }
-    }));
+    host.querySelectorAll('[data-guided-measurement]').forEach(formElement => {
+      const key=userKey(MEASUREMENT_DRAFT_PREFIX)+`:${profile.id}:${activeSession.id}:${formElement.dataset.exerciseId}:${formElement.dataset.metricKey}`;
+      const draft=loadLocal(key,null),epoch=coachEpoch;
+      if(draft){formElement.elements.value.value=draft.value;if(formElement.elements.attempt && draft.attempt)formElement.elements.attempt.value=draft.attempt;}
+      const capture=()=>{try{saveLocal(key,{value:formElement.elements.value.value,attempt:formElement.elements.attempt?.value});}catch(error){notice(root,'Diese Eingabe kann auf diesem Gerät momentan nicht zwischengespeichert werden.',true);}};
+      formElement.addEventListener('input',capture);formElement.addEventListener('change',capture);
+      formElement.addEventListener('submit',async event=>{
+        event.preventDefault();if(formElement.dataset.saving==='true')return;
+        capture();const form=new FormData(formElement),numeric=formElement.dataset.valueType==='number';
+        if(!String(form.get('value') || '').trim())return;
+        formElement.dataset.saving='true';formElement.querySelectorAll('input,select,textarea,button').forEach(e=>e.disabled=true);
+        try {
+          await coachAction('saveMeasurement',{profileId:profile.id,sessionId:activeSession.id,exerciseId:formElement.dataset.exerciseId || null,metricKey:formElement.dataset.metricKey,numericValue:numeric?Number(form.get('value')):null,textValue:numeric?null:form.get('value'),unit:formElement.dataset.unit || null,attempt:form.get('attempt')?Number(form.get('attempt')):null});
+          if(epoch!==coachEpoch)return;localStorage.removeItem(key);await refresh();
+        }catch(error){if(epoch===coachEpoch)notice(root,error.message,true);}
+        finally{formElement.dataset.saving='false';formElement.querySelectorAll('input,select,textarea,button').forEach(e=>e.disabled=false);}
+      });
+    });
     host.querySelector('[data-complete-session]')?.addEventListener('click', async () => {
       try {
         const result = await coachAction('completeSession', { profileId: profile.id, sessionId: activeSession.id });

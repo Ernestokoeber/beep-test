@@ -24,6 +24,10 @@ assert.equal(calls.length,0,'Offline darf keine Serveraktion den Ablauf blockier
 await api.render(app,'p','measurements');assert(app.textContent.includes('6'),'Lokal gespeicherte Messung fehlt');
 await api.render(app,'p','feedback');assert(app.textContent.includes('Privat, nur auf diesem Gerät.'));
 assert(app.textContent.includes('3 Eingaben nur auf diesem Gerät'));
+await api.render(app,'p','measurements');
+const unsent=app.querySelector('[data-guided-measurement] [name="value"]');unsent.value='9';unsent.dispatchEvent(new w.Event('input',{bubbles:true}));
+await api.render(app,'p','feedback');await api.render(app,'p','measurements');
+assert.equal(app.querySelector('[data-guided-measurement] [name="value"]').value,'9','Noch nicht abgesendete Eingaben müssen den Seitenwechsel überstehen');
 const snapshot=Object.fromEntries(Array.from({length:w.localStorage.length},(_,i)=>{const key=w.localStorage.key(i);return[key,w.localStorage.getItem(key)];}));
 for(const module of ['individual-training'])w.eval(readFileSync(`js/${module}.js`,'utf8'));
 await w.BT.individualTraining.render(app,'p','feedback');assert(app.textContent.includes('Privat, nur auf diesem Gerät.'),'Neustart verliert Offline-Notiz');
