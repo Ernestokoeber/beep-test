@@ -501,6 +501,22 @@
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     let reloadingForUpdate = false;
     let hadController = !!navigator.serviceWorker.controller;
+    let workerRegistration = null;
+    let updateCheck = null;
+    let lastUpdateCheck = 0;
+    function checkForAppUpdate() {
+      if (!workerRegistration || document.visibilityState === 'hidden' || navigator.onLine === false || updateCheck) return;
+      if (Date.now() - lastUpdateCheck < 30000) return;
+      lastUpdateCheck = Date.now();
+      updateCheck = Promise.resolve().then(() => workerRegistration.update())
+        .catch(() => { lastUpdateCheck = 0; }).finally(() => { updateCheck = null; });
+    }
+    // Installed mobile apps usually resume without a new load event.
+    // Check the release when returning to the app or regaining connectivity.
+    document.addEventListener('visibilitychange', checkForAppUpdate);
+    window.addEventListener('pageshow', checkForAppUpdate);
+    window.addEventListener('focus', checkForAppUpdate);
+    window.addEventListener('online', checkForAppUpdate);
     navigator.serviceWorker.addEventListener('controllerchange', async () => {
       const isUpdate = hadController;
       hadController = !!navigator.serviceWorker.controller;
@@ -514,6 +530,7 @@
     });
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+        .then(registration => { workerRegistration = registration; })
         .catch((err) => {
           console.warn('Service Worker Registrierung fehlgeschlagen:', err.message);
         });
