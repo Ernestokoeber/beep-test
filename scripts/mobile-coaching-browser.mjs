@@ -85,7 +85,7 @@ export async function verifyMobileCoaching(browser, contextOptions, name, baseUr
     await page.locator('[data-page-back]').tap();
     await page.locator('[data-training-page="records"]').waitFor();
     await page.locator('[data-page-back]').tap();
-    await page.locator('a[href$="/plan"]').tap();
+    await page.locator('a[href^="#/training/"][href$="/plan"]').tap();
     await page.locator('[data-training-page="plan"]').waitFor();
     await check('Plan bearbeiten');
     await page.locator('[data-page-back]').tap();
