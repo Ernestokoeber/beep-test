@@ -49,3 +49,8 @@ body.personal-workspace-mode .mobile-dock,body.personal-workspace-mode .individu
   .personal-card {padding:18px;}
 }
 @media(max-width:600px) {.personal-grid {grid-template-columns:1fr;}.personal-fields {grid-template-columns:1fr;}.personal-heading>.btn {font-size:.8rem;}.personal-view fieldset {padding:12px;}}
+.personal-week-select {display:grid;gap:8px;margin:24px 0 8px;max-width:520px;font-weight:700;}
+.personal-week-help {color:var(--muted);line-height:1.6;margin:12px 0 20px;}
+.personal-phase {font-size:.8rem;border-left:3px solid #cc8c22;padding-left:10px;}
+.personal-view [data-personal-week][hidden] {display:none!important;}
+.personal-view [data-personal-week]+form {margin-top:24px;}

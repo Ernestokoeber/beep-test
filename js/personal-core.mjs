@@ -1,6 +1,7 @@
 // Shared rules; no account or health data is shipped in this module.
 export const SOURCES = [
   ['NHS: Patellar tendinopathy', 'https://www.kingstonandrichmond.nhs.uk/patients-and-families/patient-leaflets/patellar-tendinopathy'],
+  ['Leitlinie: progressiver Kraftaufbau', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC11792096/'],
   ['NHS: Belastung und 24-Stunden-Reaktion', 'https://nhsforthvalley.com/health-services/az-of-services/physiotherapy/musculoskeletal-msk/patellar-tendinopathy/']
 ];
 export function localDate(now = new Date()) {
@@ -32,6 +33,11 @@ export const WORKOUTS = {
     exercise('ft','Optionale Freiwürfe','2 × 5 Versuche','Nur ohne schmerzhaftes Nachdrücken oder Absprung. Insgesamt anfangs höchstens 40 Wurfversuche; bei Reizung früher beenden.')
   ]}
 };
+Object.assign(WORKOUTS, {
+  recovery:{title:'Erholung',location:'Zuhause',minutes:10,exercises:[exercise('rest','Erholung','10 Minuten','Nur angenehme Alltagsbewegung und Kniekontrolle.')]},
+  upper:{title:'Rumpf und Oberkörper',location:'Zuhause',minutes:25,exercises:[exercise('core','Dead Bug','2 × 6 je Seite','Rücken ruhig halten.')]},
+  optionalCourt:{title:'Leichte Einheit / Halle optional',location:'Zuhause / optional Halle',minutes:20,exercises:[exercise('choice','Leichte Bewegung','15–20 Minuten','Nur eine verträgliche Variante wählen.')] }
+});
 export function createPlan({startDate=localDate(),goal='Kontrolliert zum Basketball zurückkehren',experience='Fortgeschritten',notes=''} = {}) {
   const kinds=['strengthA','court','strengthA','court','strengthB','court','strengthB','court'];
   return {version:1,title:'Mein Aufbauplan',goal,experience,notes,startDate,
@@ -69,6 +75,16 @@ export function validateStore(input) {
       if(!Object.hasOwn(WORKOUTS,s.kind)||!Array.isArray(s.exercises)||s.exercises.length<1||s.exercises.length>30) throw new TypeError('Einheit ist ungültig.');
       return {id:id(s.id),kind:s.kind,date:validDate(s.date),title:str(s.title,120,'Titel'),minutes:num(s.minutes,5,180,'Dauer'),location:str(s.location,100,'Ort'),instruction:str(s.instruction,1500,'Hinweis'),exercises:s.exercises.map(e=>({id:id(e.id),title:str(e.title,160,'Übung'),dose:str(e.dose,500,'Dosierung'),cue:str(e.cue,1500,'Ausführung')}))};
     })};
+    if(p.type!==undefined) { if(!['starter','rehab'].includes(p.type)) throw new TypeError('Plantyp ist ungültig.'); plan.type=p.type; }
+    if(p.endDate!==undefined) plan.endDate=validDate(p.endDate);
+    if(p.guide!==undefined) {
+      if(!Array.isArray(p.guide)||p.guide.length>10)throw new TypeError('Planleitfaden ist ungültig.');
+      plan.guide=p.guide.map(g=>({title:str(g.title,150,'Leitfaden-Titel'),text:str(g.text,6000,'Leitfaden')}));
+    }
+    plan.sessions.forEach((s,i)=>{
+      if(p.sessions[i].optional!==undefined){if(typeof p.sessions[i].optional!=='boolean')throw new TypeError('Optionaler Termin ist ungültig.');s.optional=p.sessions[i].optional;}
+      if(p.sessions[i].phase!==undefined)s.phase=str(p.sessions[i].phase,120,'Stufe');
+    });
     if(new Set(plan.sessions.map(s=>s.id)).size!==plan.sessions.length) throw new TypeError('Einheiten-IDs müssen eindeutig sein.');
     for(const s of plan.sessions) if(new Set(s.exercises.map(e=>e.id)).size!==s.exercises.length) throw new TypeError('Übungs-IDs müssen eindeutig sein.');
   }
