@@ -123,6 +123,8 @@ BT.api = (function() {
       return request('/games/sync?' + query.toString());
     },
     getAtlasAnalysis: (atlasGameId) => request('/games/atlas?gameId=' + encodeURIComponent(atlasGameId)),
+    getPersonalTraining: () => request('/individual/personal'),
+    savePersonalTraining: (data, version) => request('/individual/personal', {method:'PUT',body:{data,version}}),
     getIndividualOverview: (profileId) => request('/individual/overview' + (profileId ? '?profileId=' + encodeURIComponent(profileId) : '')),
     getIndividualResponses: () => request('/individual/overview?view=responses', {timeoutMs:10000}),
     getIndividualInvite: token => request('/individual/invite?token=' + encodeURIComponent(token), {auth:false}),

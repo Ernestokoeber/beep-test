@@ -183,10 +183,11 @@ BT.individualTraining = (function() {
 
   function renderHub(target) {
     target.innerHTML = `<section class="view individual-start-hub">
-      <div class="individual-hub-head"><div><h3>Arbeitsbereich wechseln</h3><p>Mannschaft oder Individualtraining</p></div></div>
+      <div class="individual-hub-head"><div><h3>Arbeitsbereich wechseln</h3><p>Mannschaft, Individualtraining oder Personal</p></div></div>
       <div class="individual-workspaces">
         <a class="individual-workspace-card individual-workspace-team" data-workspace="team" href="#/team"><span class="individual-workspace-icon" aria-hidden="true">M</span><span><small>Arbeitsbereich</small><strong>Mannschaft</strong><em>Teamtraining, Spiele, Kader und Auswertungen</em></span><b aria-hidden="true">→</b></a>
         <a class="individual-workspace-card individual-workspace-one" data-workspace="individual" href="#/individual"><span class="individual-workspace-icon" aria-hidden="true">1</span><span><small>Arbeitsbereich</small><strong>Individualtraining</strong><em>Spieler individuell fördern</em></span><b aria-hidden="true">→</b></a>
+        <a class="individual-workspace-card" data-workspace="personal" href="#/personal"><span class="individual-workspace-icon" aria-hidden="true">P</span><span><small>Arbeitsbereich</small><strong>Personal</strong><em>Mein Aufbauplan, eigene Einheiten und Fortschritt</em></span><b aria-hidden="true">→</b></a>
       </div>
     </section>`;
     const todayView = document.createDocumentFragment();
@@ -223,7 +224,7 @@ BT.individualTraining = (function() {
       navigation.innerHTML = `<span class="nav-section-label">Dein Individualtraining</span>${[
         ['overview','Mein Training',base],['training','Ablauf',`${base}/training`],['progress','Entwicklung',`${base}/progress`],
         ['account','Konto',base === '#/individual' ? '#/individual/account' : `${base}/account`]
-      ].map(([key,label,href])=>`<a href="${href}" ${key === pane ? 'class="active" aria-current="page"' : ''}>${label}</a>`).join('')}`;
+      ].map(([key,label,href])=>`<a href="${href}" ${key === pane ? 'class="active" aria-current="page"' : ''}>${label}</a>`).join('')}${current.role === 'player' ? '<a href="#/personal">Personal</a>' : ''}`;
       return;
     }
     const coachLinks = ['admin', 'coach'].includes(current.role)
@@ -744,7 +745,7 @@ BT.individualTraining = (function() {
       <div class="individual-profile-grid">${(data.profiles || []).length ? data.profiles.map(profile => profileCard(profile, data)).join('') : '<div class="empty">Noch kein Spieler hinzugefügt.</div>'}</div>
       <section class="card" data-role="individual-invite" hidden></section>
       <section data-role="individual-detail" hidden></section>
-      <details class="card individual-setup"><summary>Spieler verwalten</summary><form data-create-profile><label>Spieler hinzufügen<select name="playerProfileId" required><option value="">Spieler wählen</option>${available.map(player => `<option value="${player.id}">${BT.util.escapeHTML(player.name)}</option>`).join('')}</select></label><label>Startdatum<input type="date" name="pilotStartedOn" value="2026-10-19"></label><button class="btn primary" type="submit" ${available.length ? '' : 'disabled'}>Profil anlegen</button></form><p>Maximal drei aktive Spieler je Trainer; eine Einheit hat höchstens zwei Teilnehmer.</p></details>
+      <details class="card individual-setup"><summary>Spieler verwalten</summary><form data-create-profile><label>Spieler hinzufügen<select name="playerProfileId" required><option value="">Spieler wählen</option>${available.map(player => `<option value="${player.id}">${BT.util.escapeHTML(player.name)}</option>`).join('')}</select></label><label>Startdatum<input type="date" name="pilotStartedOn" value="2026-10-19"></label><button class="btn primary" type="submit" ${available.length ? '' : 'disabled'}>Profil anlegen</button></form><p>Maximal drei aktive Spieler je Trainer; eine Einheit hat höchstens zwei Teilnehmer.</p>${(data.profiles || []).filter(p=>!p.user_id && !(data.sessions||[]).some(s=>s.individual_profile_id===p.id)).map(p=>`<div data-profile-id="${p.id}"><button class="btn small" type="button" data-action="archive-unused-profile">Ungeplantes Profil ausblenden: ${BT.util.escapeHTML(playerName(p))}</button></div>`).join('')}</details>
     </section>`;
     const root = target.querySelector('.individual-view');
     startCoachRefresh(root);
@@ -759,6 +760,12 @@ BT.individualTraining = (function() {
       if (!actionButton || !card) return;
       const profile = data.profiles.find(item => item.id === card.dataset.profileId);
       if (!profile) return;
+      if (actionButton.dataset.action === 'archive-unused-profile') {
+        actionButton.disabled = true;
+        try { await BT.api.individualAction('archiveUnusedProfile', {profileId:profile.id}); await render(target); }
+        catch (error) { notice(root,error.message,true); actionButton.disabled=false; }
+        return;
+      }
       if (actionButton.dataset.action === 'open-profile') {
         location.hash = `#/individual/player/${encodeURIComponent(profile.id)}`;
         return;
@@ -855,9 +862,9 @@ BT.individualTraining = (function() {
     if (individual) individual.hidden = !!role && !['admin', 'coach', 'player'].includes(role);
     const preview = ['admin','coach'].includes(role) && location.hash.match(/^#\/individual\/(?:player\/([^/]+)\/)?preview(?:\/([^/]+))?$/);
     if (preview) renderIndividualNavigation({profiles:[]},user(),preview[1] || null,'preview',preview[2] || 'overview');
-    else if (role === 'player') renderIndividualNavigation({profiles:[]},user(),null,location.hash === '#/account' ? 'account' : location.hash.split('/')[2] || 'overview');
+    else if (role === 'player' && !location.hash.startsWith('#/personal')) renderIndividualNavigation({profiles:[]},user(),null,location.hash === '#/account' ? 'account' : location.hash.split('/')[2] || 'overview');
     else setPlayerNavigation('#/individual','overview',false);
-    if (role === 'player' && !location.hash.startsWith('#/individual') && !location.hash.startsWith('#/account')) location.hash = '#/individual';
+    if (role === 'player' && !location.hash.startsWith('#/individual') && !location.hash.startsWith('#/personal') && !location.hash.startsWith('#/account')) location.hash = '#/individual';
   }
 
   async function renderAccountNavigation() {

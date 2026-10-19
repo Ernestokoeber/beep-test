@@ -9,7 +9,7 @@ for(const file of ['individual-copy','individual-player-view','individual-traini
 const target=w.document.querySelector('#app'),nav=w.document.querySelector('[data-role="individual-navigation"]');
 function check(base){
  assert(!/Trainerübersicht|Bereich wechseln|Training durchführen|Messwerte|KI & Verlauf|Fremder Spieler/.test(nav.textContent),'Spielermenü enthält Trainerziele');
- assert.deepEqual([...nav.querySelectorAll('a')].map(a=>a.getAttribute('href')),[base,base+'/training',base+'/progress',base==='#/individual'?'#/individual/account':base+'/account']);
+ assert.deepEqual([...nav.querySelectorAll('a')].map(a=>a.getAttribute('href')),[base,base+'/training',base+'/progress',base==='#/individual'?'#/individual/account':base+'/account',...(current.role==='player'?['#/personal']:[])]);
  assert.match(nav.textContent,/Mein Training/);assert.match(nav.textContent,/Entwicklung/);
  assert(w.document.body.classList.contains('individual-player-mode'),'Auch die Vorschau braucht die Spielerleiste statt Trainermenü');
  assert.deepEqual([...w.document.querySelectorAll('[data-player-nav]')].map(a=>a.getAttribute('href')),[base,base+'/training',base+'/progress',base==='#/individual'?'#/individual/account':base+'/account']);
