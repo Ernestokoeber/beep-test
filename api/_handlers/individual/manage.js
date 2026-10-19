@@ -276,6 +276,15 @@ export function createIndividualManageHandler(deps = {}) {
           return { status: 201, body: { profile: created.rows[0] } };
         }
 
+        if (action === 'archiveUnusedProfile') {
+          const profile = await accessibleProfile(client, auth, req.body.profileId, true);
+          if (profile.user_id) throw new IndividualRequestError(409, 'Ein verbundenes Spielerprofil kann hier nicht ausgeblendet werden.');
+          const sessions = await client.query('SELECT 1 FROM individual_session_participants WHERE individual_profile_id = $1 LIMIT 1', [profile.id]);
+          if (sessions.rows.length) throw new IndividualRequestError(409, 'Dieses Profil hat bereits Einheiten und bleibt erhalten.');
+          await client.query('UPDATE individual_profiles SET active = FALSE, updated_at = clock_timestamp() WHERE id = $1 AND organization_id = $2', [profile.id, auth.organization_id]);
+          return { status: 200, body: { archived: true } };
+        }
+
         if (action === 'createInvite') {
           // Share the registration lock so issuing and claiming cannot leave two active codes.
           await client.query("SELECT pg_advisory_xact_lock(hashtext('beep-test-registration'))");

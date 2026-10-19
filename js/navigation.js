@@ -75,6 +75,11 @@ BT.navigation = (function() {
     }
     if (/^#\/player\/[^/]+\/[^/]+$/.test(hash)) return hash.slice(0, hash.lastIndexOf('/'));
     if (hash.startsWith('#/player/') || hash === '#/players/new') return '#/players';
+    if (hash === '#/personal') return '#/dashboard';
+    if (hash.startsWith('#/personal/')) {
+      const section = hash.split('/')[2];
+      return section === 'edit' ? '#/personal/plan' : section === 'followup' ? '#/personal/history' : hash.split('/').length > 3 ? '#/personal/' + section : '#/personal';
+    }
     if (hash.startsWith('#/individual/player/')) {
       const parts = hash.split('/');
       return parts.length > 4 ? parts.slice(0, 4).join('/') : '#/individual';
@@ -124,7 +129,7 @@ BT.navigation = (function() {
     document.title = current.title + ' · CourtHub';
     const button = document.querySelector('[data-page-back]');
     if (button) {
-      const rootPage = ['#/team', '#/players', '#/training', '#/games', '#/tactics', '#/dashboard', '#/', '#/individual'].includes(current.hash);
+      const rootPage = ['#/team', '#/players', '#/training', '#/games', '#/tactics', '#/dashboard', '#/', '#/individual', '#/personal'].includes(current.hash);
       button.hidden = rootPage;
       const parent = current.parent?.title;
       button.setAttribute('aria-label', parent ? 'Zurück zu ' + parent : 'Zurück zur Übersicht');

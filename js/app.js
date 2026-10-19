@@ -233,22 +233,24 @@
     if (request !== routeRequest) return;
     BT.individualInvite?.legacyRoute?.();
     const hash = location.hash || '#/dashboard';
-    if (BT.sync?.getState?.().user?.role === 'player' && !hash.startsWith('#/individual') && hash !== '#/account') {
+    if (BT.sync?.getState?.().user?.role === 'player' && !hash.startsWith('#/individual') && !hash.startsWith('#/personal') && hash !== '#/account') {
       location.replace('#/individual');
       return;
     }
+    const personalWorkspace = hash === '#/personal' || hash.startsWith('#/personal/');
+    document.body.classList.toggle('personal-workspace-mode', personalWorkspace);
     const individualWorkspace = hash.startsWith('#/individual') || hash.startsWith('#/join/');
     document.body.classList.toggle('individual-join-mode', hash.startsWith('#/join/'));
     document.body.classList.toggle('individual-workspace-mode', individualWorkspace);
     const brandLink = document.querySelector('.brand');
     const brandTitle = document.querySelector('.brand-text');
     const individualDockLabel = document.querySelector('.individual-mobile-link small');
-    if (brandLink) brandLink.href = individualWorkspace ? '#/individual' : '#/dashboard';
-    if (brandTitle) brandTitle.textContent = individualWorkspace ? 'Individualtraining' : 'CourtHub';
+    if (brandLink) brandLink.href = personalWorkspace ? '#/personal' : individualWorkspace ? '#/individual' : '#/dashboard';
+    if (brandTitle) brandTitle.textContent = personalWorkspace ? 'Personal' : individualWorkspace ? 'Individualtraining' : 'CourtHub';
     const manageLink = document.querySelector('.manage-link');
     if (manageLink) {
-      manageLink.href = individualWorkspace ? '#/individual/account' : '#/management';
-      manageLink.setAttribute('aria-label', individualWorkspace ? 'Konto und Synchronisierung' : 'Verwaltung öffnen');
+      manageLink.href = personalWorkspace ? '#/personal/account' : individualWorkspace ? '#/individual/account' : '#/management';
+      manageLink.setAttribute('aria-label', personalWorkspace || individualWorkspace ? 'Konto und Synchronisierung' : 'Verwaltung öffnen');
     }
     if (individualDockLabel) individualDockLabel.textContent = individualWorkspace ? 'Übersicht' : 'Individual';
     BT.individualTraining?.applyNavigationForRole?.();
@@ -256,6 +258,7 @@
     if(leaving){const ok=await leaving;if((location.hash||'#/dashboard')!==hash)return;if(!ok){history.replaceState(null,'',renderedHash);return;}}
     BT.tactics?.cleanup?.();
     BT.individualTraining?.cleanup?.();
+    BT.personalTraining?.cleanup?.();
     BT.individualInvite?.cleanup?.();
     const navigationToken = BT.navigation?.begin(hash);
     renderedHash=hash;
@@ -273,7 +276,12 @@
 
     setActiveNav(hash);
 
-    if (hash.startsWith('#/join/')) {
+    if (hash === '#/personal/account') {
+      BT.account.render(app);
+      BT.personalTraining.navigation(hash);
+    } else if (personalWorkspace) {
+      await BT.personalTraining.render(app);
+    } else if (hash.startsWith('#/join/')) {
       let token; try { token = decodeURIComponent(hash.slice('#/join/'.length)); } catch { token = ''; }
       await BT.individualInvite.render(app, token);
     } else if (hash.startsWith('#/checkin/')) {
@@ -390,6 +398,8 @@
     let active = 'dashboard';
     if (hash.startsWith('#/dashboard') || hash === '#/team' || hash === '#/' || hash === '') {
       active = 'dashboard';
+    } else if (hash.startsWith('#/personal')) {
+      active = 'personal';
     } else if (hash.startsWith('#/individual')) {
       active = 'individual';
     } else if (hash.startsWith('#/players') || hash.startsWith('#/player/')) {

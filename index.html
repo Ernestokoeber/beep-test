@@ -33,6 +33,7 @@
   <link rel="stylesheet" href="scouting-pages.css">
   <link rel="stylesheet" href="library-pages.css">
   <link rel="stylesheet" href="app-design.css">
+  <link rel="stylesheet" href="personal-training.css">
 </head>
 <body>
   <header class="topbar">
@@ -58,15 +59,17 @@
       </div>
     </div>
     <nav id="app-navigation" data-role="nav" aria-label="App-Navigation">
+      <div class="personal-navigation" data-role="personal-navigation" aria-label="Navigation Personal"></div>
       <div class="individual-navigation" data-role="individual-navigation" aria-label="Navigation Individualtraining"></div>
       <div class="context-navigation" data-role="context-navigation" hidden></div>
       <div class="primary-navigation"><a href="#/team" data-nav="dashboard"><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/></svg><span>Heute</span></a><a href="#/training" data-nav="training"><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h3m3 0h3"/></svg><span>Training</span></a><a href="#/players" data-nav="players"><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m2-18a3 3 0 0 1 0 6m2 6a5 5 0 0 1 2 4v2"/></svg><span>Team</span></a><a href="#/tactics" data-nav="tactics"><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="16" r="2"/><path d="M9 14 16 7m-4 0h4v4m-2 6 4 4m0-4-4 4"/></svg><span>Taktik</span></a><a href="#/games" data-nav="games"><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v7a5 5 0 0 1-10 0zM7 5H3v3a4 4 0 0 0 4 4m10-7h4v3a4 4 0 0 1-4 4m-5 3v5m-4 1h8"/></svg><span>Spiele</span></a></div>
-      <div class="workspace-navigation"><a href="#/management" data-nav="management">Verwaltung</a><a href="#/dashboard">Bereich wechseln</a><a href="#/individual" data-nav="individual">Individualtraining</a></div>
+      <div class="workspace-navigation"><a href="#/management" data-nav="management">Verwaltung</a><a href="#/dashboard">Bereich wechseln</a><a href="#/individual" data-nav="individual">Individualtraining</a><a href="#/personal" data-nav="personal">Personal</a></div>
     </nav>
   </header>
 
   <nav class="individual-player-dock" aria-label="Spieler-Navigation"><a href="#/individual" data-player-nav>Mein Training</a><a href="#/individual/training" data-player-nav>Ablauf</a><a href="#/individual/progress" data-player-nav>Entwicklung</a><a href="#/individual/account" data-player-nav>Konto</a></nav>
   <main id="app"></main>
+  <nav class="personal-dock" aria-label="Personal-Navigation"><a href="#/personal" data-personal-nav="overview"><span aria-hidden="true">⌂</span>Übersicht</a><a href="#/personal/plan" data-personal-nav="plan"><span aria-hidden="true">▤</span>Mein Plan</a><a href="#/personal/training" data-personal-nav="training"><span aria-hidden="true">▷</span>Trainieren</a><a href="#/personal/history" data-personal-nav="history"><span aria-hidden="true">↗</span>Verlauf</a></nav>
 
   <nav class="mobile-dock" aria-label="Hauptnavigation"><a href="#/team" data-team-nav data-mobile-nav="dashboard"><span><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/></svg></span><small>Heute</small></a><a href="#/training" data-team-nav data-mobile-nav="training"><span><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h3m3 0h3"/></svg></span><small>Training</small></a><a href="#/players" data-team-nav data-mobile-nav="players"><span><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m2-18a3 3 0 0 1 0 6m2 6a5 5 0 0 1 2 4v2"/></svg></span><small>Team</small></a><a href="#/tactics" data-team-nav data-mobile-nav="tactics"><span><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="16" r="2"/><path d="M9 14 16 7m-4 0h4v4m-2 6 4 4m0-4-4 4"/></svg></span><small>Taktik</small></a><a href="#/games" data-team-nav data-mobile-nav="games"><span><svg class="navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v7a5 5 0 0 1-10 0zM7 5H3v3a4 4 0 0 0 4 4m10-7h4v3a4 4 0 0 1-4 4m-5 3v5m-4 1h8"/></svg></span><small>Spiele</small></a><a href="#/individual" data-mobile-nav="individual" class="individual-mobile-link"><span aria-hidden="true">◎</span><small>Übersicht</small></a><button type="button" data-role="mobile-more" aria-label="Menü öffnen" aria-controls="app-navigation" aria-expanded="false"><span aria-hidden="true">☰</span><small>Menü</small></button></nav>
 
@@ -1538,6 +1541,7 @@
   <script defer src="js/account.js"></script>
   <script defer src="js/install.js"></script>
   <script defer src="js/navigation.js"></script>
+  <script defer src="js/personal-training.js"></script>
   <script defer src="js/app.js"></script>
   <div class="toast-host" data-role="toast-host" aria-live="polite"></div>
 </body>

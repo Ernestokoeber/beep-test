@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {JSDOM} from 'jsdom';
+import * as domain from '../js/personal-core.mjs';
+import {createPersonalHandler} from '../api/_handlers/individual/personal.js';
+const plan=domain.createPlan({startDate:'2026-10-20',experience:'Ehemaliger Profispieler'});
+assert.equal(plan.sessions.length,8);
+assert.equal(plan.sessions[7].date,'2026-11-03');
+assert.equal(plan.sessions.filter(s=>s.location==='Halle').length,4);
+assert.equal(domain.validateStore({plan,records:[]}).plan.experience,'Ehemaliger Profispieler');
+assert.throws(()=>domain.validDate('2026-02-30'));
+assert.throws(()=>domain.validateStore({plan:{...plan,sessions:[{...plan.sessions[0],kind:'__proto__'}]},records:[]}));
+assert.throws(()=>domain.validateStore({plan:{...plan,sessions:[plan.sessions[0],plan.sessions[0]]},records:[]}));
+const sample={id:'record-1',sessionId:'unit-1',date:'2026-10-18',title:'Kraft A',minutes:25,prePain:2,postPain:2,nextPain:null,rpe:4,stiffness:false,swelling:false,blocking:false,givingWay:false,notes:'',exercises:[{id:'hold',title:'Wandsitz',done:true,actual:'3 x 20 s'}]};
+assert.equal(domain.reaction(sample).level,'pending');
+assert.equal(domain.reaction({...sample,nextPain:3}).level,'reduce');
+assert.equal(domain.reaction({...sample,nextPain:2,stiffness:true}).level,'reduce');
+assert.equal(domain.reaction({...sample,nextPain:2}).level,'stable');
+assert.equal(domain.reaction({...sample,swelling:true}).level,'stop');
+assert.equal(domain.reaction({...sample,postPain:5}).level,'reduce');
+assert.equal(domain.reaction({...sample,blocking:true}).level,'stop');
+const invalid={...sample,prePain:'2'};
+assert.throws(()=>domain.validateStore({plan,records:[invalid]}));
+function res(){return {statusCode:200,headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.statusCode=n;return this;},json(value){this.body=value;return this;}};}
+let owner='owner-a';const stored=new Map();const access=[];
+const api=createPersonalHandler({requireAuth:(_q,r)=>{if(!owner){r.status(401).json({error:'login'});return null;}return {sub:owner};},query:async(sql,params)=>{
+  if(sql.startsWith('CREATE'))return {rows:[]};
+  access.push(params[0]);
+  const previous=stored.get(params[0]);
+  if(sql.startsWith('SELECT'))return {rows:previous?[previous]:[]};
+  if(sql.startsWith('INSERT')&&previous||sql.startsWith('UPDATE')&&(!previous||previous.version!==params[2]))return {rows:[]};
+  const row={data:JSON.parse(params[1]),version:(previous?.version||0)+1,updated_at:'2026-10-19T17:00:00Z'};stored.set(params[0],row);return {rows:[row]};
+}});
+async function call(method,body,query={userId:'victim'}){const response=res();await api({method,body,query,headers:{}},response);return response;}
+assert.equal((await call('GET')).body.version,0);
+assert.equal((await call('PUT',{version:0,data:{plan,records:[]}})).body.version,1);
+assert.equal((await call('PUT',{version:0,data:{plan:null,records:[]}})).statusCode,409);
+assert.equal((await call('PUT',{version:1,data:{plan,records:[sample]}})).body.version,2);
+assert.equal((await call('PUT',{version:1,data:{plan:null,records:[]}})).statusCode,409);
+owner='owner-b';assert.equal((await call('GET')).body.data.plan,null);
+assert.equal((await call('PUT',{version:2,data:{plan,records:[]}})).statusCode,409);
+assert.ok(!access.includes('victim'),'Owner is determined from authentication, never request parameters');
+assert.equal((await call('PUT',{version:0,data:{plan,records:[invalid]}})).statusCode,400);
+owner=null;assert.equal((await call('GET')).statusCode,401);
+// Exercise the actual UI renderer with deterministic transport and a real DOM.
+const dom=new JSDOM('<div data-role="personal-navigation"></div><a data-personal-nav="overview"></a><main id="app"></main>',{url:'https://courthub.test/#/personal',runScripts:'outside-only'});
+const w=dom.window;w.domain=domain;w.structuredClone=structuredClone;w.BT={sync:{getState:()=>({user:{id:'ui-owner',displayName:'Test'}})},util:{escapeHTML:value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),toast(){}},api:{getPersonalTraining:async()=>({data:{plan:null,records:[]},version:0}),savePersonalTraining:async(data,version)=>{assert.equal(version,0);return {data,version:1};}}};
+w.eval(readFileSync(new URL('../js/personal-training.js',import.meta.url),'utf8').replace("import('./personal-core.mjs')",'Promise.resolve(window.domain)'));
+const target=w.document.querySelector('#app');await w.BT.personalTraining.render(target);
+assert.ok(target.querySelector('[data-form="settings"]'));
+assert.equal(target.querySelector('[name="startDate"]').value,domain.localDate());
+target.querySelector('[name="experience"]').value='Profi';target.querySelector('[name="experience"]').dispatchEvent(new w.Event('input',{bubbles:true}));
+await w.BT.personalTraining.render(target);assert.equal(target.querySelector('[name="experience"]').value,'Profi','Unsaved input survives navigation/reload');
+let savedUI=null;
+w.BT.api.savePersonalTraining=async(data,version)=>{savedUI=data;return {data,version:version+1};};
+target.querySelector('form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(savedUI.plan.experience,'Profi');assert.equal(savedUI.plan.sessions.length,8);
+assert.equal(w.location.hash,'#/personal/plan');
+w.BT.api.getPersonalTraining=async()=>({data:{plan,records:[sample]},version:2});
+w.location.hash='#/personal/training/unit-2';await w.BT.personalTraining.render(target);
+assert.equal(target.querySelectorAll('[data-form="record"] .personal-exercise').length,4);
+assert.ok(target.textContent.includes('Rückmeldung am Folgetag fehlt'));
+w.location.hash='#/personal/history';await w.BT.personalTraining.render(target);assert.ok(target.textContent.includes('3 x 20 s'));
+w.location.hash='#/personal/followup/record-1';await w.BT.personalTraining.render(target);assert.ok(target.querySelector('[name="nextPain"]'));
+w.BT.personalTraining.clearLocalData();assert.equal(w.localStorage.length,0);
+dom.window.close();
+console.log('Personal: private ownership, conflict protection, validation, symptom decisions, plan dates, UI forms and draft recovery passed.');
+const {createIndividualManageHandler}=await import('../api/_handlers/individual/manage.js');
+for (const hasSessions of [true,false]) {
+  let archived=false;
+  const profileId='11111111-1111-4111-8111-111111111111';
+  const archive=createIndividualManageHandler({requireMembership:async()=>({sub:'coach',organization_id:'org',role:'coach'}),transaction:async cb=>cb({query:async(sql)=>{
+    if(sql.includes('FROM individual_profiles'))return {rows:[{id:profileId,organization_id:'org',coach_user_id:'coach',user_id:null}]};
+    if(sql.includes('FROM individual_session_participants'))return {rows:hasSessions?[{exists:1}]:[]};
+    if(sql.startsWith('UPDATE individual_profiles'))archived=true;
+    return {rows:[]};
+  }})});
+  const response=res();await archive({method:'POST',body:{action:'archiveUnusedProfile',profileId},headers:{}},response);
+  assert.equal(response.statusCode,hasSessions?409:200);assert.equal(archived,!hasSessions,'Existing sessions must protect Individual profiles');
+}
+console.log('Unused Individual profile cleanup preserves profiles with existing sessions.');

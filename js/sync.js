@@ -388,6 +388,7 @@ BT.sync = (function() {
     try { localStorage.removeItem(IDENTITY_KEY); } catch {}
     try { localStorage.removeItem(VERSION_KEY); } catch { /* Offline-Speicher blockiert. */ }
     BT.individualTraining?.clearLocalData?.();
+    BT.personalTraining?.clearLocalData?.();
     user = null;
     cachedIdentity = false;
     version = 0;

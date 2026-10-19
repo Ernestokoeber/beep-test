@@ -45,6 +45,7 @@ const scripts = [
   'js/video-import/compatibility.js', 'js/video-import/tracker-v2.js',
   'js/video-import/tracker-install.js', 'js/video-import/screen-recognition.js',
   'js/video-import/main.js', 'js/tablecrew.js', 'js/jerseys.js', 'js/history.js', 'js/account.js', 'js/app.js',
+  'js/personal-training.js', 'js/personal-core.mjs', 'api/_handlers/individual/personal.js',
   'js/checkin.js', 'js/games.js', 'js/opponents.js',
   'api/_lib/db.js', 'api/_lib/http.js', 'api/_lib/auth.js', 'api/_lib/workspace-data.js',
   'api/_lib/individual-training.js', 'api/_lib/individual-access.js', 'api/_lib/individual-pilot.js',
