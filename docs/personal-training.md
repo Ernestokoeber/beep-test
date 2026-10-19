@@ -17,3 +17,9 @@ Mild stable symptoms only, cautious initial ceiling 3/10; symptoms should return
 ## Validation
 
 `npm run test:personal` covers template schedule, invalid dates/doses, duplicate identifiers, authentication, account isolation, stale writes, symptom-state decisions, actual DOM forms, draft recovery and saving. The existing serverless-router, Individual UI and PWA checks cover integration boundaries. No fabricated workout or symptom records are seeded.
+
+## Comprehensive rehab schedule
+
+The settings form can replace planned sessions with a 7–84 day schedule while retaining every existing training record. Monday is light individual court work; Tuesday and Friday are progressive home strength, Wednesday a light optional home/court alternative, Thursday/Sunday recovery, Saturday upper-body/core. The planner includes an explicit plan guide, equipment and exercise alternatives, proposed loading stages and criteria for repetition/regression and eventual return to sport. Stages are never unlocked by date alone. Optional/recovery days do not block the next core session or count toward the core-workout total.
+
+For longer plans, the Plan page defaults to a single selected week. All weeks remain accessible. No private diagnosis, personal dates or account data is published in source code; the template is general and personal choices are saved only in the authenticated user record.
