@@ -1,3 +1,5 @@
+import { saveSessionPlanReview } from '../../_lib/individual-plan-review.js';
+import { isDeepStrictEqual } from 'node:util';
 import { transaction } from '../../_lib/db.js';
 import QRCode from 'qrcode';
 import { individualExerciseLabel } from '../../_lib/individual-plan-labels.js';
@@ -7,6 +9,7 @@ import { assertTemplateDuration, pilotSessionTemplate } from '../../_lib/individ
 import {
   assertParticipantCapacity,
   optionalText,
+  mutationId,
   nextOpenPilotMonday,
   text,
   uuid,
@@ -261,6 +264,29 @@ export function createIndividualManageHandler(deps = {}) {
       }
 
       const result = await runTransaction(async client => {
+        const offlineActions = ['startSession','setAttendance','saveMeasurement','addCoachNote','completeSession','completeLiveSession'];
+        const requestId = req.body.mutationId ? mutationId(req.body.mutationId) : null;
+        let offlineProfile;
+        if (requestId) {
+          if (!offlineActions.includes(action)) throw new TypeError('Diese Aktion unterstützt keine Offline-Eingaben.');
+          offlineProfile = await accessibleProfile(client, auth, req.body.profileId, true);
+          await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [requestId]);
+          const prior = await client.query('SELECT * FROM individual_sync_mutations WHERE mutation_id = $1', [requestId]);
+          if (prior.rows[0]) {
+            const saved = prior.rows[0];
+            if (saved.organization_id !== auth.organization_id || saved.individual_profile_id !== offlineProfile.id ||
+                saved.payload.actorId !== auth.sub || !isDeepStrictEqual(saved.payload.request, req.body)) {
+              throw new IndividualRequestError(409, 'Die Offline-Kennung gehört zu einer anderen Eingabe.');
+            }
+            return saved.payload.result;
+          }
+        }
+        const apply = async () => {
+        if (action === 'saveSessionPlan') {
+          const profile = await accessibleProfile(client,auth,req.body.profileId,true);
+          const session = await assertSessionForProfile(client,profile,req.body.sessionId);
+          return saveSessionPlanReview(client,auth,profile,session,req.body);
+        }
         if (action === 'createProfile') {
           if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Trainer dürfen Individualprofile anlegen.');
           const playerProfileId = text(req.body.playerProfileId, 'Spielerprofil-ID', { min: 1, max: 120 });
@@ -462,11 +488,14 @@ export function createIndividualManageHandler(deps = {}) {
               WHERE session_id = $1 AND attendance_status = 'attended'`, [session.id]
           );
           if (attended.rows[0].count < 1) throw new IndividualRequestError(409, 'Mindestens ein Teilnehmer muss als anwesend bestätigt sein.');
+          const endMeasurement = await client.query("SELECT text_value FROM individual_measurements WHERE session_id=$1 AND metric_key='tatsaechliches_ende' ORDER BY server_received_at DESC LIMIT 1",[session.id]);
+          const performedEnd = endMeasurement.rows[0]?.text_value ? isoInstant(endMeasurement.rows[0].text_value,'Trainingsende') : null;
+          if (performedEnd && (Date.parse(performedEnd)<Date.parse(session.scheduled_for) || Date.parse(performedEnd)>now().getTime()+300000)) throw new TypeError('Das dokumentierte Trainingsende ist ungültig.');
           const completed = await client.query(
             `UPDATE individual_sessions
-                SET status = 'completed', completed_at = clock_timestamp(), cancellation_kind = NULL, updated_at = clock_timestamp()
+                SET status = 'completed', completed_at = COALESCE($2::timestamptz, clock_timestamp()), cancellation_kind = NULL, updated_at = clock_timestamp()
               WHERE id = $1 AND status IN ('planned', 'in_progress')
-              RETURNING *`, [session.id]
+              RETURNING *`, [session.id,performedEnd]
           );
           if (!completed.rows[0]) throw new IndividualRequestError(409, 'Die Einheit kann in diesem Status nicht abgeschlossen werden.');
           const participants = await client.query(
@@ -649,6 +678,11 @@ export function createIndividualManageHandler(deps = {}) {
           const numeric = req.body.numericValue === undefined || req.body.numericValue === null ? null : Number(req.body.numericValue);
           const textual = numeric === null ? text(req.body.textValue, 'Messwert', { min: 1, max: 500 }) : null;
           if (numeric !== null && !Number.isFinite(numeric)) throw new TypeError('Numerischer Messwert ist ungültig.');
+          if (metricKey === 'readiness') {
+            const score=validateReadiness(numeric);
+            await client.query(`INSERT INTO individual_readiness (individual_profile_id,session_id,score,created_by)
+              VALUES ($1,$2,$3,$4) ON CONFLICT (individual_profile_id,session_id) DO UPDATE SET score=EXCLUDED.score,created_by=EXCLUDED.created_by,server_received_at=clock_timestamp()`,[profile.id,session.id,score,auth.sub]);
+          }
           if (!measurementId) {
             const created = await client.query(
               `INSERT INTO individual_measurements
@@ -659,6 +693,7 @@ export function createIndividualManageHandler(deps = {}) {
                 metricKey, numeric, textual, optionalText(req.body.unit, 'Einheit', { min: 1, max: 40 }),
                 req.body.attempt || null, req.body.deviceRecordedAt ? isoInstant(req.body.deviceRecordedAt, 'Gerätezeit') : null, auth.sub]
             );
+            await client.query("UPDATE individual_ai_drafts SET status='stale' WHERE individual_profile_id=$1 AND session_id=$2 AND status='current'",[profile.id,session.id]);
             return { status: 201, body: { measurement: created.rows[0] } };
           }
           const reason = validateChangeReason(req.body.changeReason);
@@ -788,6 +823,19 @@ export function createIndividualManageHandler(deps = {}) {
         }
 
         throw new IndividualRequestError(400, 'Unbekannte Individual-Training-Aktion.');
+        };
+        const applied = await apply();
+        if (requestId) {
+          await client.query(
+            `INSERT INTO individual_sync_mutations
+              (mutation_id, organization_id, individual_profile_id, entity_type, entity_id, operation, payload, device_recorded_at, applied)
+             VALUES ($1, $2, $3, 'coach_action', $4, 'create', $5::jsonb, $6, TRUE)`,
+            [requestId, auth.organization_id, offlineProfile.id, req.body.sessionId ? uuid(req.body.sessionId, 'Einheiten-ID') : offlineProfile.id,
+              JSON.stringify({actorId:auth.sub,request:req.body,result:applied}),
+              req.body.deviceRecordedAt ? isoInstant(req.body.deviceRecordedAt, 'Gerätezeit') : null]
+          );
+        }
+        return applied;
       });
       return res.status(result.status).json(result.body);
     } catch (error) {

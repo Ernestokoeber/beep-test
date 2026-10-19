@@ -4,6 +4,7 @@ BT.individualCopy = (function() {
   const attendance={pending:'Antwort offen',confirmed:'Zugesagt',declined:'Abgesagt',attended:'Anwesend',unexcused_no_show:'Unentschuldigt gefehlt'};
   const drafts={queued:'Zur Erstellung vorgemerkt',generating:'Wird erstellt',current:'Bereit zur Prüfung',stale:'Nach Änderungen neu erstellen',approved:'Für Spieler freigegeben',failed:'Erstellung fehlgeschlagen'};
   const metrics={
+    tatsaechliches_ende:"Tatsächliches Trainingsende",dauer_ab_geplantem_beginn:"Dauer ab geplantem Beginn",
     readiness:'Tagesform',zeit:'Zeit',ballverluste:'Ballverluste',ausgelassene_huetchen:'Ausgelassene Hütchen',blick_oben:'Blick oben',schwache_hand:'Schwache Hand',
     treffer_rechts:'Treffer rechts',treffer_links:'Treffer links',korrekte_abschlusshand:'Richtige Abschlusshand',korrekte_schrittfolge:'Korrekte Schrittfolge',ballverlust_vor_abschluss:'Ballverlust vor Abschluss',technik:'Technik insgesamt',
     treffer_baseline_links:'Treffer Grundlinie links',treffer_fluegel_links:'Treffer Flügel links',treffer_frontal:'Treffer frontal',treffer_fluegel_rechts:'Treffer Flügel rechts',treffer_baseline_rechts:'Treffer Grundlinie rechts',
@@ -13,7 +14,7 @@ BT.individualCopy = (function() {
     funktionierte_am_besten:'Was funktionierte am besten?',am_schwierigsten:'Was war am schwierigsten?',hinweis_naechstes_training:'Hinweis fürs nächste Training',vollstaendig:'Alle Tests vollständig?',vergleichbar:'Bedingungen vergleichbar?',abweichung:'Abweichung bei der Messung',
     tatsaechliche_dauer:'Tatsächliche Dauer',schnellbewertung:'Schnellbewertung',beobachtung:'Beobachtung'
   };
-  const fields={
+  const fields={documentation:'Dokumentation',
     readinessScale:'Tagesformskala',mobilityTrips:'Bewegungsbahnen',stationaryDribbles:'Dribblings am Platz',controlledRuns:'Kontrollierte Läufe',practiceRuns:'Probedurchgänge',regularMeasuredRuns:'Messdurchgänge',weakHandMeasuredRuns:'Messdurchgänge mit schwacher Hand',
     rightLayups:'Korbleger rechts',leftLayups:'Korbleger links',switchAfterAttempts:'Spielerwechsel nach jeweils so vielen Versuchen',totalFinishes:'Abschlüsse insgesamt',positions:'Wurfpositionen',attemptsPerPosition:'Versuche je Position',totalAttempts:'Versuche insgesamt',switchAfterEachPosition:'Spielerwechsel nach jeder Position',
     ballhandling:'Ballkontrolle',finishOption:'Alternative Korbabschluss',shotOption:'Alternative Wurf',sets:'Serien',actionsPerSet:'Aktionen je Serie',totalActions:'Aktionen insgesamt',switchAfterEachSet:'Spielerwechsel nach jeder Serie',attacksPerPlayer:'Angriffe je Spieler',totalPossessions:'Ballbesitze insgesamt',maxDribbles:'Höchstens so viele Dribblings',
@@ -30,7 +31,7 @@ BT.individualCopy = (function() {
     if(value===true)return 'Ja';if(value===false)return 'Nein';
     if(value===null || value===undefined)return 'Keine Angabe';
     if(Array.isArray(value))return value.map(details).join('; ') || 'Keine Vorgaben';
-    if(typeof value==='object')return Object.entries(value).filter(([,item])=>item!==null && item!==undefined && !(Array.isArray(item)&&!item.length)).map(([key,item])=>`${fields[key] || readable(key)}: ${details(item)}`).join(' · ') || 'Keine Vorgaben';
+    if(typeof value==='object')return Object.entries(value).filter(([key,item])=>key!=='durationNotRecorded' && item!==null && item!==undefined && !(Array.isArray(item)&&!item.length)).map(([key,item])=>`${fields[key] || readable(key)}: ${details(item)}`).join(' · ') || 'Keine Vorgaben';
     return String(value);
   }
   function title(value) {

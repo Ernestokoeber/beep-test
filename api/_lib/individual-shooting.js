@@ -35,7 +35,7 @@ export function buildShootingComparison({profiles=[],sessions=[],exercises=[],me
       const title=String(ownExercises.get(measurement.exercise_id).title || '').toLocaleLowerCase('de-DE');
       let key,kind,label;
       if (positions.has(measurement.metric_key) && /w[üu]rf/.test(title)) { key='positions';kind='field';label='Positionswürfe'; }
-      else if (['treffer_links','treffer_rechts'].includes(measurement.metric_key) && title.includes('korbabschluss')) { key='finishes';kind='finish';label='Korbabschlüsse'; }
+      else if (['treffer_links','treffer_rechts'].includes(measurement.metric_key) && (title.includes('korbabschluss') || title.includes('korbleger'))) { key='finishes';kind='finish';label='Korbabschlüsse'; }
       else if (measurement.metric_key==='treffer' && /freiw[üu]rf/.test(title)) { key='freethrows';kind='freethrow';label='Freiwürfe'; }
       else if (measurement.metric_key==='treffer' && /w[üu]rf/.test(title)) { key='field';kind='field';label='Weitere Feldwürfe'; }
       else continue;

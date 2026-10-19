@@ -81,6 +81,10 @@ BT.individualLive = (function () {
       if (absent(t.participant.attendance_status)) return `<section class="individual-live-player is-absent" data-live-player="${esc(t.profile.id)}"><h2>${name}</h2><p>${esc(h.attendanceLabel(t.participant.attendance_status))} · Keine Trainingswerte für diesen Spieler.</p></section>`;
       if (!e) return `<section class="individual-live-player" data-live-player="${esc(t.profile.id)}"><h2>${name}</h2><p>Für diesen Block ist keine eigene Aufgabe geplant.</p></section>`;
       const ps=state.players[t.profile.id], definitions=h.measurementDefinitions(e), input=ps.inputs[e.id] || {};
+      ps.results ||= {};
+      const recorded = [...(data.measurements || []).filter(m=>m.individual_profile_id===t.profile.id && m.session_id===session.id && m.exercise_id===e.database_id),...(ps.results[e.id] || [])];
+      const uniqueResults = [...new Map(recorded.map(m=>[m.id,m])).values()];
+      const results = uniqueResults.filter(m=>m.metric_key!=='trainernotiz').map(m=>{const metric=definitions.find(d=>d.key===m.metric_key);return `<li><strong>${esc(metric?.label || BT.individualCopy.metric(m.metric_key))}</strong>: ${esc(m.numeric_value ?? m.text_value)} ${esc(m.unit || '')}${m.attempt ? ` · Durchgang ${esc(m.attempt)}` : ''}<small> · gespeichert${m._queued ? ' auf diesem Gerät' : ''}</small></li>`;}).join('');
       const definition=definitions.find(d=>d.key===input.metric) || definitions[0];
       const plan=(data.plans || []).find(p=>p.session_id===session.id && p.individual_profile_id===t.profile.id);
       return `<section class="individual-live-player" data-live-player="${esc(t.profile.id)}">
@@ -89,6 +93,7 @@ BT.individualLive = (function () {
         <div class="individual-live-instructions"><div><small>Wiederholungen</small><p>${esc(BT.individualCopy.details(e.repetitions || {}))}</p></div><div><small>Messmethode</small><p>${esc(BT.individualCopy.details(e.measurement_method || {}))}</p></div></div>
         <section class="individual-live-cues"><span class="section-kicker">Trainerhinweise</span><ul>${(e.coaching_cues || []).map(cue=>`<li>${esc(BT.individualCopy.cue(cue))}</li>`).join('') || '<li>Technik sauber und kontrolliert ausführen.</li>'}</ul></section>
         <div class="individual-live-rating" role="group" aria-label="Schnellbewertung für ${name}">${['Funktioniert','Wiederholen','Problem'].map(value=>`<button type="button" data-live-rating="${value}" aria-pressed="${ps.ratings[e.id]===value}" class="${ps.ratings[e.id]===value?'active':''}">${value}</button>`).join('')}</div>
+        ${results ? `<section class="individual-live-results"><strong>Gespeicherte Ergebnisse</strong><ul>${results}</ul></section>` : ''}
         <label class="individual-live-note">Private Trainernotiz für ${name}<textarea data-live-note maxlength="500">${esc(ps.notes[e.id] || '')}</textarea></label>
         <button class="btn" type="button" data-live-quick-note>Schnellnotiz mit Zeit</button>
         ${definition ? `<form class="individual-live-measurement" data-live-measurement><strong>Ergebnis für ${name} erfassen</strong><select name="metric" aria-label="Beobachtung für ${name}">${definitions.map(d=>`<option value="${esc(d.key)}" ${d.key===definition.key?'selected':''}>${esc(d.label)}${d.unit?` (${esc(d.unit)})`:''}</option>`).join('')}</select><label class="individual-live-value"><span>Ergebnis</span>${h.measurementInput(definition)}</label>${definition.attempts?`<label>Durchgang<select name="attempt">${Array.from({length:definition.attempts},(_,i)=>`<option value="${i+1}" ${Number(input.attempt)===i+1?'selected':''}>${i+1}</option>`).join('')}</select></label>`:''}<button class="btn" type="submit">Speichern</button></form>` : ''}
@@ -134,13 +139,14 @@ BT.individualLive = (function () {
           draft.saving.add(inputKey);form.querySelectorAll('button,input,textarea,select').forEach(node=>node.disabled=true);
           let saveError = null;
           try {
-            await BT.api.individualAction('saveMeasurement',{profileId:t.profile.id,sessionId:session.id,exerciseId:e.database_id,metricKey:definition.key,numericValue:numeric?Number(value):null,textValue:numeric?null:value,unit:definition.unit||null,attempt:form.elements.attempt?Number(form.elements.attempt.value):null});
+            const savedResult = await (BT.individualTraining?.coachAction || BT.api.individualAction)('saveMeasurement',{profileId:t.profile.id,sessionId:session.id,exerciseId:e.database_id,metricKey:definition.key,numericValue:numeric?Number(value):null,textValue:numeric?null:value,unit:definition.unit||null,attempt:form.elements.attempt?Number(form.elements.attempt.value):null});
             if(!draft.valid || h.contextKey()!==owner)return;
+            (ps.results[e.id] ||= []).push(savedResult?.measurement || {id:savedResult?.mutationId || `local-${Date.now()}-${Math.random()}`,metric_key:definition.key,numeric_value:numeric?Number(value):null,text_value:numeric?null:value,unit:definition.unit||null,attempt:form.elements.attempt?Number(form.elements.attempt.value):null,_queued:savedResult?._queued});
             ps.inputs[e.id]={metric:definition.key,value:'',attempt:form.elements.attempt?.value};persist();
           } catch(error) {saveError=error;}
           finally {
             draft.saving.delete(inputKey);
-            if(draft.valid && h.contextKey()===owner){window.dispatchEvent(new CustomEvent('bt-individual-live-saved',{detail:{key,message:saveError?saveError.message:`Ergebnis für ${h.playerName(t.profile)} gespeichert.`,error:!!saveError}}));}
+            if(draft.valid && h.contextKey()===owner){window.dispatchEvent(new CustomEvent('bt-individual-live-saved',{detail:{key,message:saveError?saveError.message:`Ergebnis für ${h.playerName(t.profile)} gespeichert; bei fehlender Verbindung zunächst auf diesem Gerät.`,error:!!saveError}}));}
           }
         };
       }
@@ -149,7 +155,7 @@ BT.individualLive = (function () {
         if(state.runningSince){pause();persist();draw();return;}
         busy=true;target.querySelector('[data-live-toggle]').disabled=true;
         try {
-          if(!state.startedAt)await BT.api.individualAction('startSession',{profileId:profile.id,sessionId:session.id});
+          if(!state.startedAt)await (BT.individualTraining?.coachAction || BT.api.individualAction)('startSession',{profileId:profile.id,sessionId:session.id});
           if(!valid())return;
           state.startedAt ||= new Date().toISOString();state.runningSince=Date.now();persist();draw();
         }catch(error){if(valid()){status(error.message,true);target.querySelector('[data-live-toggle]').disabled=false;}}
@@ -172,7 +178,7 @@ BT.individualLive = (function () {
         if(busy || draft.saving.size)return;
         const t=tracks.find(t=>t.profile.id===button.closest('[data-attendance-profile]').dataset.attendanceProfile);
         busy=true;button.disabled=true;
-        try{await BT.api.individualAction('setAttendance',{profileId:t.profile.id,sessionId:session.id,status:button.dataset.liveAttendance});if(valid()){t.participant.attendance_status=button.dataset.liveAttendance;draw();}}
+        try{await (BT.individualTraining?.coachAction || BT.api.individualAction)('setAttendance',{profileId:t.profile.id,sessionId:session.id,status:button.dataset.liveAttendance});if(valid()){t.participant.attendance_status=button.dataset.liveAttendance;draw();}}
         catch(error){if(valid()){button.disabled=false;status(error.message,true);}}finally{busy=false;}
       });
       target.querySelector('[data-live-finish]').onclick=finish;
@@ -192,7 +198,7 @@ BT.individualLive = (function () {
         exerciseId:e.database_id,seconds:Number(state.elapsed[`block-${e.position}`]||0),rating:state.players[t.profile.id].ratings[e.id]||null,note:(state.players[t.profile.id].notes[e.id]||'').trim()
       }))}));
       try{
-        const result=await BT.api.individualAction('completeLiveSession',{profileId:profile.id,sessionId:session.id,documents});
+        const result=await (BT.individualTraining?.coachAction || BT.api.individualAction)('completeLiveSession',{profileId:profile.id,sessionId:session.id,documents});
         if(!valid())return;
         localStorage.removeItem(key);draft.valid=false;drafts.delete(key);disposed=true;stopTimer();window.removeEventListener('bt-individual-live-saved',saved);document.body.classList.remove('individual-live-mode');dispose=()=>{};
         const jobs=(result.queuedDrafts || []).map(d=>BT.api.individualAIDraft('generate',{profileId:d.individual_profile_id,sessionId:d.session_id}));

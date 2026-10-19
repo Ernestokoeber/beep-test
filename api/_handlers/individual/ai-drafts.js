@@ -52,7 +52,7 @@ async function sourceData(client, auth, profileId, sessionId) {
     profile: { id: profile.id, playerProfileId: profile.player_profile_id },
     session: session.rows[0],
     plan: plan.rows[0] || null,
-    exercises: exercises.rows,
+    exercises: exercises.rows.map(e=>({...e,duration_minutes:e.measurement_method?.durationNotRecorded ? null : e.duration_minutes})),
     measurements: measurements.rows.filter(row => row.metric_key !== 'trainernotiz'),
     privatePriorKnowledge: {
       kind: 'coach_observations_not_test_results',

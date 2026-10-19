@@ -20,7 +20,10 @@ BT.api = (function() {
     const token = getToken();
     if (config.auth !== false && token) headers.Authorization = 'Bearer ' + token;
 
-    const timeoutMs = Number(config.timeoutMs);
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const error = new Error('Offline. Eingaben bleiben auf diesem Gerät gespeichert.'); error.status = 0; throw error;
+    }
+    const timeoutMs = Number(config.timeoutMs ?? (path.startsWith('/individual/') || path === '/auth/me' ? 12000 : 0));
     const controller = Number.isFinite(timeoutMs) && timeoutMs > 0 ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
 
@@ -34,7 +37,7 @@ BT.api = (function() {
           signal: controller ? controller.signal : undefined
         });
       } catch (cause) {
-        if (controller?.signal.aborted || cause?.name === 'AbortError') throw timeoutError();
+        if (controller?.signal.aborted || cause?.name === 'AbortError') throw timeoutError(path);
         const error = new Error('Server nicht erreichbar. Offline-Daten bleiben erhalten.');
         error.status = 0;
         throw error;
@@ -43,7 +46,7 @@ BT.api = (function() {
       let data = {};
       try { data = await response.json(); }
       catch (cause) {
-        if (controller?.signal.aborted || cause?.name === 'AbortError') throw timeoutError();
+        if (controller?.signal.aborted || cause?.name === 'AbortError') throw timeoutError(path);
         const serverTimedOut = path === '/ai/gemini' && response.status === 504;
         const error = new Error(serverTimedOut
           ? 'KI-Server hat die Anfrage vorzeitig beendet.'
@@ -70,8 +73,8 @@ BT.api = (function() {
     }
   }
 
-  function timeoutError() {
-    const error = new Error('KI-Anfrage hat zu lange gedauert.');
+  function timeoutError(path) {
+    const error = new Error(path === '/ai/gemini' ? 'KI-Anfrage hat zu lange gedauert.' : 'Server antwortet nicht. Offline-Eingaben bleiben erhalten.');
     error.status = 0;
     error.code = 'CLIENT_TIMEOUT';
     error.retryable = true;

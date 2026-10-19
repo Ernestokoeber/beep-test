@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {JSDOM} from 'jsdom';
+const dom=new JSDOM('<main id="app"></main>',{url:'https://coach.test/#/individual',runScripts:'outside-only'}),w=dom.window;
+const user={id:'coach',role:'coach',organization:{id:'team'}},session={id:'session',individual_profile_id:'p',status:'planned',attendance_status:'attended',unit_number:1,scheduled_for:'2026-10-19T18:15:00Z'};
+let online=true,identitySource='server',failAfterSave=false;
+const calls=[],applied=new Map();
+const data={role:'coach',profiles:[{id:'p',player_profile_id:'player'}],sessions:[session],plans:[{id:'plan',session_id:'session',individual_profile_id:'p',title:'Test',version:1}],exercises:[{id:'e',plan_id:'plan',session_id:'session',individual_profile_id:'p',position:1,title:'Freiwürfe',duration_minutes:10}],measurements:[],coachNotes:[],readiness:[],focuses:[],feedback:[],releasedFeedback:[],aiDrafts:[],pilotRoadmap:[]};
+Object.defineProperty(w.navigator,'onLine',{get:()=>online});
+w.Date.now=()=>Date.parse('2026-10-19T20:00:00Z');
+w.BT={util:{escapeHTML:v=>String(v??'')},sync:{getState:()=>({user,identitySource})},storage:{getPlayers:()=>[{id:'player',name:'Testspieler'}]},api:{
+ getIndividualOverview:async()=>{if(!online)throw Object.assign(new Error('Offline'),{status:0});return data;},
+ individualAction:async(action,payload)=>{calls.push({action,payload});if(!online)throw Object.assign(new Error('Offline'),{status:0});
+   if(!applied.has(payload.mutationId))applied.set(payload.mutationId,{action,payload});
+   if(failAfterSave){failAfterSave=false;throw Object.assign(new Error('Antwort verloren'),{status:0});}return {};}
+}};
+for(const module of ['individual-copy','individual-player-view','individual-live','individual-training'])w.eval(readFileSync(`js/${module}.js`,'utf8'));
+const app=w.document.querySelector('main'),api=w.BT.individualTraining;
+await api.render(app,'p','training');online=false;
+await api.coachAction('startSession',{profileId:'p',sessionId:'session'});
+await api.coachAction('saveMeasurement',{profileId:'p',sessionId:'session',exerciseId:'e',metricKey:'treffer',numericValue:6,unit:'von 10'});
+await api.coachAction('addCoachNote',{profileId:'p',sessionId:'session',note:'Privat, nur auf diesem Gerät.'});
+assert.equal(calls.length,0,'Offline darf keine Serveraktion den Ablauf blockieren');
+await api.render(app,'p','measurements');assert(app.textContent.includes('6'),'Lokal gespeicherte Messung fehlt');
+await api.render(app,'p','feedback');assert(app.textContent.includes('Privat, nur auf diesem Gerät.'));
+assert(app.textContent.includes('3 Eingaben nur auf diesem Gerät'));
+await api.render(app,'p','measurements');
+const unsent=app.querySelector('[data-guided-measurement] [name="value"]');unsent.value='9';unsent.dispatchEvent(new w.Event('input',{bubbles:true}));
+await api.render(app,'p','feedback');await api.render(app,'p','measurements');
+assert.equal(app.querySelector('[data-guided-measurement] [name="value"]').value,'9','Noch nicht abgesendete Eingaben müssen den Seitenwechsel überstehen');
+const snapshot=Object.fromEntries(Array.from({length:w.localStorage.length},(_,i)=>{const key=w.localStorage.key(i);return[key,w.localStorage.getItem(key)];}));
+for(const module of ['individual-training'])w.eval(readFileSync(`js/${module}.js`,'utf8'));
+await w.BT.individualTraining.render(app,'p','feedback');assert(app.textContent.includes('Privat, nur auf diesem Gerät.'),'Neustart verliert Offline-Notiz');
+online=true;identitySource='cache';await w.BT.individualTraining.syncCoachPending();assert.equal(calls.length,0,'Ungeprüfte Offline-Identität darf noch nicht synchronisieren');
+identitySource='server';failAfterSave=true;
+await assert.rejects(w.BT.individualTraining.syncCoachPending(),/Antwort verloren/);
+await w.BT.individualTraining.syncCoachPending();
+assert.equal(applied.size,3);assert.equal(calls.length,4);assert.equal(calls[0].payload.mutationId,calls[1].payload.mutationId,'Wiederholung braucht dieselbe Kennung');
+assert.deepEqual([...applied.values()].map(x=>x.action),['startSession','saveMeasurement','addCoachNote']);
+assert.equal(JSON.parse(w.localStorage.getItem(Object.keys(snapshot).find(k=>k.startsWith('courthub_individual_coach_queue:')))).length,0);
+w.BT.individualTraining.clearLocalData();assert.equal(w.localStorage.length,0);dom.window.close();
+console.log('Coach offline: Start, Messung, private Notiz, Neustart, Identitätsprüfung, geordnete Wiederholung und Abmeldung geprüft.');
