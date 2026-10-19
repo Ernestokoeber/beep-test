@@ -86,21 +86,30 @@ offline=true;
 assert.equal(await (await request(reportIndex)).text(),'network:'+reportIndex,'Offline das zuletzt geladene Verzeichnis verwenden.');
 
 function appSession(initialController) {
-  const events = new Map(), workerEvents = new Map();
+  const events = new Map(), workerEvents = new Map(), documentEvents = new Map();
   let reloads = 0, registrations = 0, forcedUpdates = 0;
+  let clock = 100000, rejectUpdate = false;
+  const document = { readyState: 'loading', visibilityState: 'visible', getElementById() { return {}; }, addEventListener(type, listener) { documentEvents.set(type, listener); } };
+  const navigator = { onLine: true };
   const serviceWorker = {
     controller: initialController,
     addEventListener(type, listener) { workerEvents.set(type, listener); },
-    async register() { registrations++; return { async update() { forcedUpdates++; } }; }
+    async register() { registrations++; return { async update() { forcedUpdates++; if (rejectUpdate) throw new Error('offline'); } }; }
   };
+  navigator.serviceWorker = serviceWorker;
   const BT = {};
   runInNewContext(readFileSync('js/app.js', 'utf8'), {
-    document: { readyState: 'loading', getElementById() { return {}; }, addEventListener() {} },
+    document,
     window: { BT, addEventListener(type, listener) { events.set(type, listener); } }, BT,
-    navigator: { serviceWorker }, location: { protocol: 'https:', reload() { reloads++; } }, console
+    navigator, Date: { now: () => clock }, location: { protocol: 'https:', reload() { reloads++; } }, console
   });
   return {
     async load() { events.get('load')(); await new Promise(resolve => setImmediate(resolve)); return { registrations, forcedUpdates }; },
+    async resume(type, { hidden = false, online = true, advance = 0, fail = false } = {}) {
+      clock += advance; document.visibilityState = hidden ? 'hidden' : 'visible'; navigator.onLine = online; rejectUpdate = fail;
+      (documentEvents.get(type) || events.get(type))();
+      await new Promise(resolve => setImmediate(resolve)); return forcedUpdates;
+    },
     change(controller) { serviceWorker.controller = controller; workerEvents.get('controllerchange')(); return reloads; }
   };
 }
@@ -112,4 +121,13 @@ assert.equal(firstVisit.change({}), 1, 'Repeated controller changes must not cau
 const installedVisit = appSession({});
 assert.equal(installedVisit.change({}), 1, 'Existing installed clients must load a new release');
 assert.equal(installedVisit.change({}), 1);
+const resumedVisit = appSession({});
+await resumedVisit.load();
+assert.equal(await resumedVisit.resume('visibilitychange', { hidden: true }), 0, 'Background apps must not fetch updates');
+assert.equal(await resumedVisit.resume('visibilitychange'), 1, 'Returning to an installed mobile app must check for a release');
+assert.equal(await resumedVisit.resume('focus'), 1, 'Related foreground events must coalesce');
+assert.equal(await resumedVisit.resume('pageshow', { advance: 30000 }), 2, 'Restoring a page must check for updates');
+assert.equal(await resumedVisit.resume('online', { online: false, advance: 30000 }), 2, 'Offline resumes must remain usable');
+assert.equal(await resumedVisit.resume('online', { fail: true }), 3);
+assert.equal(await resumedVisit.resume('online'), 4, 'A failed check must allow an immediate reconnect retry');
 console.log(`PWA loading passed: ${assets.length} cached assets, zero repeated asset downloads, single update reload and offline recovery`);
