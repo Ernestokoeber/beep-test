@@ -693,6 +693,7 @@ export function createIndividualManageHandler(deps = {}) {
                 metricKey, numeric, textual, optionalText(req.body.unit, 'Einheit', { min: 1, max: 40 }),
                 req.body.attempt || null, req.body.deviceRecordedAt ? isoInstant(req.body.deviceRecordedAt, 'Gerätezeit') : null, auth.sub]
             );
+            await client.query("UPDATE individual_ai_drafts SET status='stale' WHERE individual_profile_id=$1 AND session_id=$2 AND status='current'",[profile.id,session.id]);
             return { status: 201, body: { measurement: created.rows[0] } };
           }
           const reason = validateChangeReason(req.body.changeReason);
