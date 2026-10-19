@@ -384,9 +384,70 @@ export function createIndividualManageHandler(deps = {}) {
           return { status: 200, body: { attendance: changed.rows[0] } };
         }
 
-        if (action === 'completeSession') {
+        if (action === 'startSession') {
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
           const session = await assertSessionForProfile(client, profile, req.body.sessionId);
+          if (!['planned', 'in_progress'].includes(session.status)) throw new IndividualRequestError(409, 'Nur eine offene Einheit kann gestartet werden.');
+          const started = await client.query(
+            `UPDATE individual_sessions SET status = 'in_progress', updated_at = clock_timestamp()
+              WHERE id = $1 AND status IN ('planned', 'in_progress') RETURNING *`, [session.id]
+          );
+          return { status: 200, body: { session: started.rows[0] } };
+        }
+
+        if (action === 'completeSession' || action === 'completeLiveSession') {
+          const profile = await accessibleProfile(client, auth, req.body.profileId, true);
+          const session = await assertSessionForProfile(client, profile, req.body.sessionId);
+          if (action === 'completeLiveSession' && session.status === 'completed') {
+            const queued = await client.query(
+              `SELECT * FROM individual_ai_drafts WHERE session_id = $1 AND status = 'queued'`, [session.id]
+            );
+            return { status: 200, body: { session, queuedDrafts: queued.rows, alreadyCompleted: true } };
+          }
+          if (action === 'completeLiveSession') {
+            if (!['planned', 'in_progress'].includes(session.status)) throw new IndividualRequestError(409, 'Diese Einheit kann nicht abgeschlossen werden.');
+            const participants = await client.query(
+              `SELECT individual_profile_id, attendance_status FROM individual_session_participants WHERE session_id = $1`, [session.id]
+            );
+            const present = participants.rows.filter(row => row.attendance_status === 'attended');
+            if (!present.length) throw new IndividualRequestError(409, 'Bitte die tatsächliche Anwesenheit vor dem Abschluss bestätigen.');
+            if (participants.rows.some(row => !['attended', 'declined', 'unexcused_no_show'].includes(row.attendance_status))) throw new IndividualRequestError(409, 'Bitte die Teilnahme für jeden Spieler als anwesend oder fehlend bestätigen.');
+            const documents = req.body.documents;
+            if (!Array.isArray(documents) || documents.length !== present.length || documents.length > 2) throw new TypeError('Die Dokumentation muss alle anwesenden Spieler genau einmal enthalten.');
+            const seen = new Set(), records = [];
+            const exercises = await client.query(
+              `SELECT e.id, p.individual_profile_id FROM individual_exercises e
+                 JOIN individual_session_plans p ON p.id = e.plan_id WHERE p.session_id = $1`, [session.id]
+            );
+            for (const document of documents) {
+              const id = uuid(document.profileId, 'Spielerprofil');
+              if (seen.has(id) || !present.some(row => row.individual_profile_id === id)) throw new TypeError('Die Spielerdokumentation ist nicht eindeutig zugeordnet.');
+              seen.add(id);
+              await accessibleProfile(client, auth, id, true);
+              if (!Array.isArray(document.exercises) || document.exercises.length > 100) throw new TypeError('Ungültige Übungsdokumentation.');
+              const seenExercises = new Set();
+              for (const exercise of document.exercises) {
+                const exerciseId = exercise.exerciseId ? uuid(exercise.exerciseId, 'Übungs-ID') : null;
+                if (exerciseId && (!exercises.rows.some(row => row.id === exerciseId && row.individual_profile_id === id) || seenExercises.has(exerciseId))) throw new TypeError('Die Übung gehört nicht eindeutig zu diesem Spieler und dieser Einheit.');
+                if (exerciseId) seenExercises.add(exerciseId);
+                if (!Number.isInteger(exercise.seconds) || exercise.seconds < 0 || exercise.seconds > 86400) throw new TypeError('Ungültige Trainingsdauer.');
+                const rating = exercise.rating || null;
+                if (rating && !['Funktioniert', 'Wiederholen', 'Problem'].includes(rating)) throw new TypeError('Ungültige Schnellbewertung.');
+                const note = optionalText(exercise.note, 'Trainernotiz', { min: 1, max: 500 });
+                records.push({id, exerciseId, key:'tatsaechliche_dauer', numeric:exercise.seconds, textual:null, unit:'Sekunden'});
+                if (rating) records.push({id, exerciseId, key:'schnellbewertung', numeric:null, textual:rating, unit:null});
+                if (note) records.push({id, exerciseId, key:'trainernotiz', numeric:null, textual:note, unit:null});
+              }
+            }
+            for (const record of records) {
+              await client.query(
+                `INSERT INTO individual_measurements
+                  (organization_id, individual_profile_id, session_id, exercise_id, metric_key, numeric_value, text_value, unit, created_by)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                [auth.organization_id,record.id,session.id,record.exerciseId,record.key,record.numeric,record.textual,record.unit,auth.sub]
+              );
+            }
+          }
           const attended = await client.query(
             `SELECT count(*)::int AS count FROM individual_session_participants
               WHERE session_id = $1 AND attendance_status = 'attended'`, [session.id]

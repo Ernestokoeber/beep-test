@@ -19,6 +19,7 @@ BT.individualTraining = (function() {
   function saveLocal(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 
   function clearLocalData() {
+    BT.individualLive?.clearLocalData();
     try {
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -390,172 +391,23 @@ BT.individualTraining = (function() {
     </article>`;
   }
 
-  function secondsLabel(seconds) {
-    const safe = Math.max(0, Math.floor(Number(seconds) || 0));
-    return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`;
-  }
-
-  function liveKey(sessionId) { return `${userKey(LIVE_PREFIX)}:${sessionId}`; }
-
-  function freshLiveState(session, exercises) {
-    return {
-      sessionId: session.id,
-      startedAt: null,
-      index: 0,
-      runningSince: null,
-      elapsed: Object.fromEntries(exercises.map(item => [item.id, 0])),
-      adjustments: Object.fromEntries(exercises.map(item => [item.id, 0])),
-      ratings: {}, notes: {}, completed: {}, skipped: {}
-    };
-  }
-
   function renderCoachLive(target, profile, data, session, fallbackExercises = []) {
-    const storedExercises = (data.exercises || [])
-      .filter(item => item.session_id === session.id && item.individual_profile_id === profile.id)
-      .sort((a, b) => Number(a.position) - Number(b.position));
-    const exercises = storedExercises.length
-      ? storedExercises.map(item => ({ ...item, database_id: item.id }))
-      : fallbackExercises.map((item, index) => ({ ...item, id: `template-${index + 1}`, database_id: null }));
-    if (!exercises.length) {
-      notice(target.querySelector('.individual-view'), 'Für diese Einheit ist noch kein Übungsplan gespeichert.', true);
+    stopCoachRefresh();
+    if (!['planned', 'in_progress'].includes(session.status)) {
+      notice(target, 'Diese Einheit ist bereits abgeschlossen oder abgesagt.', true);
       return;
     }
-    const key = liveKey(session.id);
-    const stored = loadLocal(key, null);
-    const state = stored?.sessionId === session.id ? { ...freshLiveState(session, exercises), ...stored } : freshLiveState(session, exercises);
-    state.index = Math.max(0, Math.min(exercises.length - 1, Number(state.index) || 0));
-    let timer = null;
-    document.body.classList.add('individual-live-mode');
-
-    const exercise = () => exercises[state.index];
-    const finalizeRunning = () => {
-      if (!state.runningSince) return;
-      const item = exercise();
-      state.elapsed[item.id] = Number(state.elapsed[item.id] || 0) + Math.max(0, Math.floor((Date.now() - state.runningSince) / 1000));
-      state.runningSince = null;
-    };
-    const currentSeconds = () => Number(state.elapsed[exercise().id] || 0) + (state.runningSince ? Math.max(0, Math.floor((Date.now() - state.runningSince) / 1000)) : 0);
-    const totalSeconds = () => {
-      const base = Object.values(state.elapsed).reduce((sum, value) => sum + Number(value || 0), 0);
-      return base + (state.runningSince ? Math.max(0, Math.floor((Date.now() - state.runningSince) / 1000)) : 0);
-    };
-    const persist = () => saveLocal(key, state);
-    const stopTimer = () => { if (timer) clearInterval(timer); timer = null; };
-    const tick = () => {
-      target.querySelector('[data-live-block-clock]')?.replaceChildren(document.createTextNode(secondsLabel(currentSeconds())));
-      target.querySelector('[data-live-total-clock]')?.replaceChildren(document.createTextNode(secondsLabel(totalSeconds())));
-    };
-    const runTimer = () => { stopTimer(); tick(); timer = setInterval(tick, 1000); };
-
-    const draw = () => {
-      const item = exercise();
-      const next = exercises[state.index + 1];
-      const quickMeasurements = measurementDefinitions(item);
-      const planned = Math.max(1, Number(item.duration_minutes) || 1) * 60 + Number(state.adjustments[item.id] || 0);
-      const repetitions = BT.individualCopy.details(item.repetitions || {});
-      const measurement = BT.individualCopy.details(item.measurement_method || {});
-      target.innerHTML = `<section class="individual-live-shell" aria-label="Geführtes Individualtraining">
-        <header class="individual-live-header">
-          <button class="individual-live-back" type="button" data-live-exit>← Trainerübersicht</button>
-          <div><span>Einheit ${session.unit_number || '–'} · ${BT.util.escapeHTML(playerName(profile))}</span><strong>${fmt(session.scheduled_for)}</strong></div>
-          <div class="individual-live-total"><small>Trainingszeit</small><strong data-live-total-clock>${secondsLabel(totalSeconds())}</strong></div>
-        </header>
-        <div class="individual-live-progress" aria-label="Trainingsfortschritt"><span style="width:${Math.round(((state.index + 1) / exercises.length) * 100)}%"></span></div>
-        <main class="individual-live-main">
-          <section class="individual-live-current">
-            <div class="individual-live-kicker"><span>Aktuelle Übung · ${state.index + 1} von ${exercises.length}</span><span>${Math.round(planned / 60)} Min. geplant</span></div>
-            <h1>${BT.util.escapeHTML(trainingTitle(item.title))}</h1>
-            <div class="individual-live-clock" data-live-block-clock>${secondsLabel(currentSeconds())}</div>
-            <div class="individual-live-timer-actions">
-              <button class="btn primary" type="button" data-live-toggle>${state.runningSince ? 'Pause' : currentSeconds() ? 'Fortsetzen' : 'Uhr starten'}</button>
-              <button class="btn" type="button" data-live-adjust="-60">−1 Min.</button>
-              <button class="btn" type="button" data-live-adjust="60">+1 Min.</button>
-              <button class="btn" type="button" data-live-adjust="300">+5 Min.</button>
-            </div>
-            <div class="individual-live-instructions">
-              <div><small>Wiederholungen</small><p>${BT.util.escapeHTML(repetitions)}</p></div>
-              <div><small>Messmethode</small><p>${BT.util.escapeHTML(measurement)}</p></div>
-            </div>
-            <section class="individual-live-cues"><span class="section-kicker">Trainerhinweise</span><ul>${(item.coaching_cues || []).map(cue => `<li>${BT.util.escapeHTML(BT.individualCopy.cue(cue))}</li>`).join('') || '<li>Technik sauber und kontrolliert ausführen.</li>'}</ul></section>
-            <div class="individual-live-rating" role="group" aria-label="Schnellbewertung">
-              ${['Funktioniert', 'Wiederholen', 'Problem'].map(value => `<button type="button" data-live-rating="${value}" class="${state.ratings[item.id] === value ? 'active' : ''}">${value}</button>`).join('')}
-            </div>
-            <label class="individual-live-note">Trainernotiz<textarea data-live-note maxlength="500" placeholder="Beobachtung zu dieser Übung …">${BT.util.escapeHTML(state.notes[item.id] || '')}</textarea></label>
-            <div class="individual-live-quick-actions"><button class="btn" type="button" data-live-quick-note>Schnellnotiz mit Zeit</button><button class="btn" type="button" data-live-tactics>Taktik öffnen</button></div>
-            ${quickMeasurements.length ? `<form class="individual-live-measurement" data-live-measurement>
-              <strong>Ergebnis direkt erfassen</strong>
-              <select name="metric" aria-label="Beobachtung wählen">${quickMeasurements.map(definition => `<option value="${definition.key}" data-type="${definition.type}" data-unit="${BT.util.escapeHTML(definition.unit || '')}">${BT.util.escapeHTML(definition.label)}</option>`).join('')}</select>
-              <input name="value" required placeholder="Ergebnis"><button class="btn" type="submit">Speichern</button>
-            </form>` : ''}
-            <p class="auth-status" data-role="individual-status" aria-live="polite"></p>
-          </section>
-          <aside class="individual-live-side">
-            <section class="individual-live-next"><small>Als Nächstes</small>${next ? `<strong>${BT.util.escapeHTML(trainingTitle(next.title))}</strong><span>${next.duration_minutes} Minuten</span>` : '<strong>Abschluss</strong><span>Einheit auswerten und speichern</span>'}</section>
-            <section class="individual-live-attendance"><small>Teilnahme</small><strong>${BT.util.escapeHTML(playerName(profile))}</strong><span>${attendanceLabel(session.attendance_status)}</span><div><button class="btn" type="button" data-live-attendance="attended">Anwesend</button><button class="btn" type="button" data-live-attendance="unexcused_no_show">Unentschuldigt gefehlt</button></div></section>
-            <section class="individual-live-outline"><small>Ablauf</small>${exercises.map((entry, index) => `<button type="button" data-live-jump="${index}" class="${index === state.index ? 'active' : ''} ${state.skipped[entry.id] ? 'skipped' : ''} ${state.completed[entry.id] ? 'done' : ''}"><span>${index + 1}</span><b>${BT.util.escapeHTML(trainingTitle(entry.title))}</b><em>${entry.duration_minutes} Min.</em></button>`).join('')}</section>
-          </aside>
-        </main>
-        <footer class="individual-live-footer">
-          <button class="btn" type="button" data-live-prev ${state.index === 0 ? 'disabled' : ''}>← Vorherige Übung</button>
-          <button class="btn" type="button" data-live-skip>Überspringen</button>
-          <button class="btn primary" type="button" data-live-next>${next ? 'Übung beenden · Nächste Übung' : 'Übung beenden'}</button>
-          <button class="btn danger" type="button" data-live-finish>Training beenden &amp; speichern</button>
-        </footer>
-        <div class="individual-tactics-sheet" data-live-tactics-sheet hidden><div><button type="button" data-live-tactics-close>×</button><span class="section-kicker">Schnellzugriff</span><h2>Taktik</h2><p>Öffne das CourtHub-Taktikboard direkt aus der Durchführung. Dein aktueller Ablauf bleibt gespeichert.</p><a class="btn primary" href="#/tactics">Taktikboard öffnen</a></div></div>
-      </section>`;
-
-      target.querySelector('[data-live-exit]').onclick = () => { finalizeRunning(); persist(); stopTimer(); document.body.classList.remove('individual-live-mode'); renderCoach(target, data); };
-      target.querySelector('[data-live-toggle]').onclick = event => {
-        if (state.runningSince) { finalizeRunning(); stopTimer(); event.currentTarget.textContent = 'Fortsetzen'; }
-        else { state.startedAt ||= new Date().toISOString(); state.runningSince = Date.now(); event.currentTarget.textContent = 'Pause'; runTimer(); }
-        persist(); tick();
-      };
-      target.querySelectorAll('[data-live-adjust]').forEach(button => button.onclick = () => {
-        state.adjustments[item.id] = Math.max(-Math.max(0, Number(item.duration_minutes) - 1) * 60, Number(state.adjustments[item.id] || 0) + Number(button.dataset.liveAdjust));
-        persist(); draw();
+    try {
+      BT.individualLive.render({
+        target, profile, data, session, fallbackExercises,
+        helpers: {
+          key: `${userKey(LIVE_PREFIX)}:${session.id}`, contextKey, notice, playerName, trainingTitle,
+          fmt, attendanceLabel, measurementDefinitions, measurementInput,
+          exit: () => render(target),
+          finished: () => render(target)
+        }
       });
-      target.querySelectorAll('[data-live-rating]').forEach(button => button.onclick = () => { state.ratings[item.id] = button.dataset.liveRating; persist(); draw(); });
-      target.querySelector('[data-live-note]').oninput = event => { state.notes[item.id] = event.target.value; persist(); };
-      target.querySelector('[data-live-quick-note]').onclick = () => { state.notes[item.id] = `${state.notes[item.id] || ''}${state.notes[item.id] ? '\n' : ''}[${secondsLabel(totalSeconds())}] `; persist(); draw(); target.querySelector('[data-live-note]')?.focus(); };
-      const move = (index, status) => { finalizeRunning(); stopTimer(); if (status) state[status][item.id] = true; state.index = Math.max(0, Math.min(exercises.length - 1, index)); persist(); draw(); };
-      target.querySelector('[data-live-prev]').onclick = () => move(state.index - 1);
-      target.querySelector('[data-live-skip]').onclick = () => move(Math.min(exercises.length - 1, state.index + 1), 'skipped');
-      target.querySelector('[data-live-next]').onclick = () => move(Math.min(exercises.length - 1, state.index + 1), 'completed');
-      target.querySelectorAll('[data-live-jump]').forEach(button => button.onclick = () => move(Number(button.dataset.liveJump)));
-      target.querySelector('[data-live-tactics]').onclick = () => { target.querySelector('[data-live-tactics-sheet]').hidden = false; };
-      target.querySelector('[data-live-tactics-close]').onclick = () => { target.querySelector('[data-live-tactics-sheet]').hidden = true; };
-      target.querySelectorAll('[data-live-attendance]').forEach(button => button.onclick = async () => {
-        try { await BT.api.individualAction('setAttendance', { profileId: profile.id, sessionId: session.id, status: button.dataset.liveAttendance }); notice(target, 'Teilnahme gespeichert.'); }
-        catch (error) { notice(target, error.message, true); }
-      });
-      const liveMeasurementForm = target.querySelector('[data-live-measurement]');
-      if (liveMeasurementForm) liveMeasurementForm.onsubmit = async event => {
-        event.preventDefault(); const form = new FormData(event.currentTarget);
-        const selected = event.currentTarget.elements.metric.selectedOptions[0];
-        const numeric = selected.dataset.type === 'number';
-        try { await BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: item.database_id, metricKey: form.get('metric'), numericValue: numeric ? Number(form.get('value')) : null, textValue: numeric ? null : form.get('value'), unit: selected.dataset.unit || null }); event.currentTarget.reset(); notice(target, 'Ergebnis gespeichert.'); }
-        catch (error) { notice(target, error.message, true); }
-      };
-      target.querySelector('[data-live-finish]').onclick = async () => {
-        finalizeRunning(); stopTimer(); persist();
-        const finishButton = target.querySelector('[data-live-finish]'); finishButton.disabled = true; notice(target, 'Der durchgeführte Ablauf wird gespeichert …');
-        try {
-          const writes = exercises.flatMap(entry => {
-            const values = [BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.database_id, metricKey: 'tatsaechliche_dauer', numericValue: Number(state.elapsed[entry.id] || 0), unit: 'Sekunden' })];
-            if (state.ratings[entry.id]) values.push(BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.database_id, metricKey: 'schnellbewertung', textValue: state.ratings[entry.id] }));
-            if ((state.notes[entry.id] || '').trim()) values.push(BT.api.individualAction('saveMeasurement', { profileId: profile.id, sessionId: session.id, exerciseId: entry.database_id, metricKey: 'trainernotiz', textValue: state.notes[entry.id].trim() }));
-            return values;
-          });
-          await Promise.all(writes);
-          const result = await BT.api.individualAction('completeSession', { profileId: profile.id, sessionId: session.id });
-          await Promise.allSettled((result.queuedDrafts || []).map(draft => BT.api.individualAIDraft('generate', { profileId: draft.individual_profile_id, sessionId: draft.session_id })));
-          localStorage.removeItem(key); document.body.classList.remove('individual-live-mode'); await render(target);
-        } catch (error) { finishButton.disabled = false; notice(target, error.message, true); }
-      };
-      tick();
-      if (state.runningSince) runTimer();
-    };
-    draw();
+    } catch (error) { notice(target, error.message, true); }
   }
 
   function measurementDefinitions(exercise) {
@@ -666,6 +518,7 @@ BT.individualTraining = (function() {
     const roadmapUnit = (data.pilotRoadmap || []).find(item => Number(item.unitNumber) === Number(activeSession?.unit_number));
     const fallbackTemplate = roadmapUnit?.template || null;
     const displayPlan = plan || fallbackTemplate;
+    const sessionPlayers = (data.profiles || []).filter(p => (data.sessions || []).some(s => s.id === activeSession?.id && s.individual_profile_id === p.id));
     const displayExercises = exercises.length ? exercises : (fallbackTemplate?.exercises || []).map((exercise, index) => ({
       id: null,
       position: index + 1,
@@ -698,7 +551,8 @@ BT.individualTraining = (function() {
         ${activeSession && ['planned', 'in_progress'].includes(activeSession.status) ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · 105 Minuten</p><a class="btn primary" href="#/individual/player/${encodeURIComponent(profile.id)}/training">Einheit öffnen</a></section>` : `<form class="card" data-plan-session><h4>Nächste Montagseinheit planen</h4><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}">${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><button class="btn primary" type="submit">105-Minuten-Einheit anlegen</button></form>`}
       </div>`;
     const training = activeSession ? `<section class="card individual-session-run-card"><div class="section-head"><div><span class="section-kicker">Durchführung</span><h4>Einheit ${activeSession.unit_number || '–'} · ${fmt(activeSession.scheduled_for)}</h4></div><span>${BT.util.escapeHTML(sessionStatusLabel(activeSession.status))}</span></div>
-        <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${displayExercises.length ? '' : 'disabled'}>▶ Training durchführen</button>
+        <p><strong>Teilnehmer: ${BT.util.escapeHTML(sessionPlayers.map(playerName).join(' + '))}</strong>${sessionPlayers.length > 1 ? '<br>Eine gemeinsame Uhr und ein Ablauf, persönliche Dokumentation für jeden Spieler.' : ''}</p>
+        <button class="btn primary individual-start-live" type="button" data-action="start-live-training" ${displayExercises.length && ['planned', 'in_progress'].includes(activeSession.status) ? '' : 'disabled'}>▶ ${sessionPlayers.length > 1 ? 'Gemeinsames Training durchführen' : 'Training durchführen'}</button>
         <div class="individual-actions"><button class="btn" data-set-attendance="attended">Als anwesend bestätigen</button><button class="btn" data-set-attendance="unexcused_no_show">Unentschuldigt gefehlt</button><button class="btn danger" data-cancel-session>Einheit absagen</button></div>
         ${displayPlan ? `<h4>${BT.util.escapeHTML(trainingTitle(displayPlan.title))}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(trainingTitle(exercise.title))} · ${exercise.duration_minutes} Min.</strong><details><summary>Wiederholungen, Messung und Trainerhinweise</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.measurement_method))}</p><p><b>Trainerhinweise:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).map(BT.individualCopy.cue).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
         <div class="individual-actions"><button class="btn primary" data-complete-session>Einheit abschließen und KI-Entwurf starten</button></div>
@@ -934,6 +788,7 @@ BT.individualTraining = (function() {
   }
 
   async function render(target, selectedProfileId = null, selectedPane = 'overview', previewPane = 'overview') {
+    BT.individualLive?.cleanup();
     stopCoachRefresh();
     const request = ++activeRequest;
     const current = user();
@@ -992,7 +847,7 @@ BT.individualTraining = (function() {
       renderPlayer(target,data,{preview:true,demo:true,pane});
     } catch (error) { if (request === activeRequest && owner === contextKey()) target.innerHTML=`<section class="view"><p>${BT.util.escapeHTML(error.message)}</p><a class="btn" href="#/individual">Zurück</a></section>`; }
   }
-  function cleanup() { activeRequest++; stopCoachRefresh(); }
+  function cleanup() { activeRequest++; stopCoachRefresh(); BT.individualLive?.cleanup(); }
 
   function applyNavigationForRole() {
     const role = user()?.role;

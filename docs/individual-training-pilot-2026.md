@@ -49,6 +49,16 @@ Nachweise: `scripts/individual-access-policy-smoke.mjs`, UI-Regressionen und ech
 - Die Durchführung umfasst eine durchgehende Trainingsuhr, Blockuhr, Coaching-Points, Messwerterfassung, Schnellbewertung (`Funktioniert`, `Wiederholen`, `Problem`), Trainernotiz, Taktik-Schnellzugriff, Zeitkorrektur sowie Vor-, Weiter- und Überspringen-Steuerung.
 - Beim Abschluss werden tatsächliche Dauer, Bewertung und Notiz je Übung gespeichert; erst danach wird die Einheit abgeschlossen und der private KI-Prozess ausgelöst.
 
+### Gemeinsame Durchführung für zwei Spieler
+
+„Training durchführen“ öffnet aus beiden Spielerprofilen dieselbe gemeinsame Einheit. Ein Start, eine Uhr, Pause und Blocksteuerung gelten für die ganze Einheit. Die persönlichen Übungen erscheinen nebeneinander, auf kleinen Smartphones untereinander. Unterschiedliche Aufgaben teilen sich einen Zeitblock nach ihrer Reihenfolge; die geplante Blockdauer richtet sich nach der längeren Aufgabe.
+
+Wiederholungen, Messmethode, Trainerhinweise, Messwerte, Schnellbewertung und private Notizen bleiben pro Spieler und Übung getrennt. Nicht gesendete Eingaben bleiben bei Block- und Profilwechsel erhalten. Laufende Messanfragen sperren nur das betroffene Ergebnisformular. Beim Verlassen wird die gemeinsame Uhr pausiert; beim Wiedereinstieg wird derselbe lokale Entwurf verwendet.
+
+Absagen und Fehlzeiten bleiben sichtbar und erzeugen keine fiktiven Trainingswerte. Vor dem Abschluss bestätigt der Coach jeden Teilnehmer als anwesend oder fehlend. Die Aktion `completeLiveSession` speichert die Dokumentation aller Anwesenden und den gemeinsamen Abschluss in einer Transaktion. Wiederholte Abschlussanfragen erzeugen keine doppelten Messwerte oder KI-Aufträge. Nach Fehlern bleibt der Entwurf zum erneuten Speichern erhalten. Die Spieleransicht und die Vertraulichkeit der privaten Notizen verwenden weiterhin die bestehenden Freigaberegeln.
+
+Nachweise: `scripts/individual-shared-session-api-smoke.mjs`, `scripts/individual-shared-session-smoke.mjs` und `scripts/individual-shared-session-browser.mjs`. Die Browserprüfung verwendet synthetische Testdaten auf Desktop, Tablet und Smartphone; sie verändert keine realen Pilotdaten.
+
 ## Erinnerungen
 
 Der serverseitige Scheduler aktiviert montags eine Terminerinnerung 60 bis 120 Minuten vor der festen Startzeit um 20:15 Uhr. Die Dienstagserinnerung entfällt. Freitags wird der persönliche Beobachtungsfokus 60 bis 120 Minuten vor dem Mannschaftstraining um 20:15 Uhr aktiviert; samstags folgt ungefähr um 12:00 Uhr genau eine Rückmeldungsaufforderung. Eine Folgeerinnerung gibt es nicht. Die paarweise angelegten UTC-Zeitfenster fangen die Sommer-/Winterzeit von `Europe/Berlin` ab; die idempotente Verarbeitung verhindert doppelte Auslieferungen. Dashboard-Auslieferung funktioniert unabhängig von Web-Push.

@@ -20,7 +20,7 @@ const scripts = [
   'js/library-pages.js', 'js/drills.js', 'js/notes.js',
   'js/training-shots.js',
   'js/station-training.js',
-  'js/util.js', 'js/storage.js', 'js/api.js', 'js/individual-training.js', 'js/individual-copy.js', 'js/individual-player-view.js', 'js/individual-invite.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',
+  'js/util.js', 'js/storage.js', 'js/api.js', 'js/individual-training.js', 'js/individual-live.js', 'js/individual-copy.js', 'js/individual-player-view.js', 'js/individual-invite.js', 'js/sync.js', 'js/ai-core.js', 'js/aiimport.js',
   'js/schedule.js', 'js/season-ai-draft.js', 'js/seasonplanner.js', 'js/training.js', 'js/tactics.js', 'js/screen-academy.js',
   'js/play-designer/main.js', 'js/play-designer/styles.js', 'js/play-designer/rendering.js',
   'js/play-designer/court-enhancements.js', 'js/play-designer/layout-fix.js',

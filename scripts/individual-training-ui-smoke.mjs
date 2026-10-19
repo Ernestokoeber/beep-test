@@ -33,6 +33,7 @@ function browser(role, overview) {
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
   window.eval(readFileSync(new URL('../js/individual-copy.js', import.meta.url), 'utf8'));
   window.eval(readFileSync(new URL('../js/individual-player-view.js', import.meta.url), 'utf8'));
+  window.eval(readFileSync(new URL('../js/individual-live.js', import.meta.url), 'utf8'));
   window.eval(readFileSync(new URL('../js/individual-training.js', import.meta.url), 'utf8'));
   return window;
 }
