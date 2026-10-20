@@ -3,7 +3,7 @@ import { buildOpponentResearch } from './opponent-research.js';
 import { INDIVIDUAL_EXERCISE_LABELS } from './individual-plan-labels.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
-export const AI_CONTRACT_VERSION = 17;
+export const AI_CONTRACT_VERSION = 18;
 export const INDIVIDUAL_PLANNING_CONTRACT_VERSION = 3;
 export { BASKETBALL_KNOWLEDGE_VERSION };
 
@@ -392,7 +392,7 @@ const PROMPTS = {
 
 Das ist Individualtraining, kein allgemeines Basketballtraining. playerRole ist die verbindliche Spielposition des Spielers. Nutze roleResponsibilities, um belegte Entwicklungsfelder rollengerecht zu gewichten: Ein Point Guard arbeitet insbesondere als Ballhandler, Passgeber und Entscheider; ein Center insbesondere als Screener/Roller, Rebounder und Finisher. Die Rolle allein beweist keine Schwäche. planningEvidence enthält nummerierte Belege mit Übungs- und Messwertkontext. privatePlanningEvidence enthält zusätzlich vertrauliche Trainerbeobachtungen. Wähle daraus genau einen wichtigsten und einen zweiten Entwicklungsbereich. Jeder Bereich muss durch angegebene evidenceRefs belegt sein. Eine allgemeine Rundum-Einheit oder die gleichmäßige Abdeckung vieler Themen ist unzulässig. Ordne jedem Trainingsblock primary, secondary oder support zu. Mindestens 40 Minuten gehören zur Hauptpriorität, mindestens 20 Minuten zur zweiten Priorität und zusammen mindestens 70 Minuten. support dient nur Ankommen, Aktivierung, Übergängen, Freiwürfen oder Reflexion. Themen ohne aktuelle hohe Priorität nennst du in deferredTopics und trainierst sie diesmal nicht.
 
-Die beiden Teilnehmer dürfen nicht denselben Ablauf erhalten. Plane den Point Guard überwiegend in der Guard-Spur Ballkontrolle, Passspiel und Vorteilsentscheidung. Plane den Center überwiegend in der Big-Spur Fußarbeit, Rebound/Box-out und Abschluss am Ring. Mindestens 50 Minuten der gesamten Einheit müssen aus der jeweiligen Rollenspur stammen. Für den Point Guard zählen dafür ballhandling, passing und decision; für den Center finishing, footwork und rebounding. Pick-and-Roll ergänzt diese Rollenspur, ersetzt sie aber nicht. Center-Pässe sind als Outlet, Weiterleitung oder Short-Roll-Pass zu gestalten. So dürfen gleiche Messprobleme nicht automatisch zu identischen Übungsfolgen führen.
+Die beiden Teilnehmer dürfen nicht denselben Ablauf erhalten. Plane den Point Guard überwiegend in der Guard-Spur Ballkontrolle, Passspiel und Vorteilsentscheidung. Plane den Center überwiegend in der Big-Spur Fußarbeit, Rebound/Box-out und Abschluss am Ring. Mindestens 50 Minuten der gesamten Einheit müssen aus der jeweiligen Rollenspur stammen. Für den Point Guard zählen dafür ballhandling, passing, decision sowie Pick-and-Roll mit der ausdrücklichen Aufgabe als Ballhandler; für den Center finishing, footwork, rebounding sowie Pick-and-Roll mit der ausdrücklichen Aufgabe als Screener/Roller. Mindestens 30 dieser 50 Minuten müssen außerhalb des Pick-and-Roll aus den drei erstgenannten positionsspezifischen Übungstypen stammen. Center-Pässe sind als Outlet, Weiterleitung oder Short-Roll-Pass zu gestalten. So dürfen gleiche Messprobleme nicht automatisch zu identischen Übungsfolgen führen.
 
 coordinationMode ist nur dann shared, wenn beide Spieler im selben Block unmittelbar miteinander arbeiten. Das ist ausschließlich für finishing oder pickandroll zulässig, höchstens in zwei Blöcken und insgesamt höchstens 35 Minuten. In allen anderen Blöcken ist coordinationMode individual. roleAssignment beschreibt konkret, was genau dieser Spieler in diesem Block tut. Bei einem gemeinsamen Pick-and-Roll ist der Point Guard ausschließlich Ballhandler mit Blick, Pass und Entscheidung, der Center ausschließlich Screener/Roller mit Screenwinkel, Timing, Zielhand und Abschluss. Bei gemeinsamen Korblegern erhält jeder eine andere rollenbezogene Aufgabe und eine eigene Messung. Kopiere niemals einen Standardplan: Titel, Ziel, Reihenfolge, Wiederholungen, Messmethode, Rollenauftrag und Coaching-Hinweise müssen den belegten Prioritäten genau dieses Spielers entsprechen.
 
@@ -1050,10 +1050,14 @@ function buildIndividualTrainingDraft(payload) {
     }
     const minutesOf = types => focusBlocks.filter(block => types.includes(block.playerExerciseType)).reduce((sum, block) => sum + block.minutes, 0);
     if (data.playerRole.key === 'point_guard') {
-      if (minutesOf(['ballhandling', 'passing', 'decision']) < 50) fail('Der Point-Guard-Plan benötigt mindestens 50 Schwerpunkt-Minuten Ballkontrolle, Passspiel oder Vorteilsentscheidung.');
+      if (minutesOf(['ballhandling', 'passing', 'decision']) < 30 || minutesOf(['ballhandling', 'passing', 'decision', 'pickandroll']) < 50) {
+        fail('Der Point-Guard-Plan benötigt mindestens 50 Schwerpunkt-Minuten in der Guard-Rolle; davon mindestens 30 Minuten Ballkontrolle, Passspiel oder Vorteilsentscheidung außerhalb des Pick-and-Roll.');
+      }
     }
     if (data.playerRole.key === 'center') {
-      if (minutesOf(['finishing', 'footwork', 'rebounding']) < 50) fail('Der Center-Plan benötigt mindestens 50 Schwerpunkt-Minuten Abschluss, Fußarbeit oder Rebound/Box-out.');
+      if (minutesOf(['finishing', 'footwork', 'rebounding']) < 30 || minutesOf(['finishing', 'footwork', 'rebounding', 'pickandroll']) < 50) {
+        fail('Der Center-Plan benötigt mindestens 50 Schwerpunkt-Minuten in der Big-Rolle; davon mindestens 30 Minuten Abschluss, Fußarbeit oder Rebound/Box-out außerhalb des Pick-and-Roll.');
+      }
     }
     const normalizePriority = (input, label) => {
       const refs = Array.isArray(input?.evidenceRefs) ? [...new Set(input.evidenceRefs.map(String))] : [];
