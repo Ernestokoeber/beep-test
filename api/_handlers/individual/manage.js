@@ -244,6 +244,18 @@ async function insertReadyDraftPlans(client, session, profiles, createdBy) {
   return plans;
 }
 
+async function replaceReadyDraftPlans(client, session, profiles, createdBy) {
+  const measurements = await client.query(
+    'SELECT count(*)::int AS count FROM individual_measurements WHERE session_id = $1',
+    [session.id]
+  );
+  if (Number(measurements.rows[0]?.count || 0) > 0) {
+    throw new IndividualRequestError(409, 'Der Trainingsplan kann nach der ersten gespeicherten Messung nicht mehr ersetzt werden.');
+  }
+  await client.query('DELETE FROM individual_session_plans WHERE session_id = $1', [session.id]);
+  return insertReadyDraftPlans(client, session, profiles, createdBy);
+}
+
 export function createIndividualManageHandler(deps = {}) {
   const runTransaction = deps.transaction || transaction;
   const membership = deps.requireMembership || requireMembership;
@@ -393,6 +405,24 @@ export function createIndividualManageHandler(deps = {}) {
           const fixedPlans = await insertPilotTemplate(client, created.rows[0], profiles, auth.sub);
           const plans = fixedPlans || await insertReadyDraftPlans(client, created.rows[0], profiles, auth.sub);
           return { status: 201, body: { session: created.rows[0], profileIds: profiles.map(profile => profile.id), plans } };
+        }
+
+        if (action === 'refreshSessionPlans') {
+          if (!isIndividualCoach(auth.role)) throw new IndividualRequestError(403, 'Nur Trainer dürfen einen geplanten Ablauf ersetzen.');
+          const profile = await accessibleProfile(client, auth, req.body.profileId, true);
+          const session = await assertSessionForProfile(client, profile, req.body.sessionId);
+          if (session.status !== 'planned') throw new IndividualRequestError(409, 'Nur eine noch nicht gestartete Einheit kann einen neuen KI-Plan übernehmen.');
+          const participants = await client.query(
+            `SELECT p.* FROM individual_profiles p
+              JOIN individual_session_participants sp ON sp.individual_profile_id = p.id
+             WHERE sp.session_id = $1 AND p.organization_id = $2
+             ORDER BY p.created_at ASC
+             FOR SHARE`,
+            [session.id, auth.organization_id]
+          );
+          if (!participants.rows.length) throw new IndividualRequestError(409, 'Für diese Einheit wurden keine Teilnehmer gefunden.');
+          const plans = await replaceReadyDraftPlans(client, session, participants.rows, auth.sub);
+          return { status: 200, body: { session, profileIds: participants.rows.map(item => item.id), plans, refreshed: true } };
         }
 
         if (action === 'setAttendance') {

@@ -5,11 +5,12 @@ import {createIndividualManageHandler} from '../api/_handlers/individual/manage.
 const id=n=>`${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
 const [coach,org,p1,p2,s1,s2,planId]=[1,2,3,4,5,6,7].map(id);
 const content={planningContractVersion:2,planningBasis:{primaryPriority:{title:'Passpräzision'},secondaryPriority:{title:'Pick-and-Roll'},deferredTopics:[],allocationMinutes:{primary:60,secondary:30,support:15}},nextSession:{objective:'Kontrolliert passen',blocks:[{playerExerciseType:'passing',priorityRole:'primary',minutes:105,repetitions:'Zielpässe',measurementMethod:'Präzision zählen',coachingCues:['Anspielpunkt treffen']}]}};
-let open=false,missing=false,queries=[],state={writes:[],published:[]};
+let open=false,missing=false,sessionStatus='completed',measurementCount=0,queries=[],state={writes:[],published:[]};
 const handler=createIndividualManageHandler({requireMembership:async()=>({sub:coach,organization_id:org,role:'coach'}),transaction:async fn=>{
  const before=structuredClone(state);
  try{return await fn({query:async(sql,params=[])=>{
   queries.push(sql);
+  if(sql.includes('JOIN individual_session_participants sp ON sp.individual_profile_id = p.id'))return {rows:[p1,p2].map(id=>({id,organization_id:org,coach_user_id:coach}))};
   if(sql.includes('FROM individual_profiles'))return {rows:[{id:params[0],organization_id:org,coach_user_id:coach}]};
   if(sql.includes('SELECT content FROM individual_ai_drafts')){
    assert(sql.includes("status IN ('current', 'approved')"));assert(sql.includes("s.status = 'completed'"));assert(sql.includes('max(newest.version)'));
@@ -17,12 +18,14 @@ const handler=createIndividualManageHandler({requireMembership:async()=>({sub:co
   }
   if(sql.includes('SELECT id FROM individual_sessions'))return {rows:open?[{id:s2}]:[]};
   if(sql.includes('SELECT max('))return {rows:[{date:'2026-10-19'}]};
+  if(sql.includes('FROM individual_measurements WHERE session_id'))return {rows:[{count:measurementCount}]};
   if(sql.includes('SELECT count(*)'))return {rows:[{count:1}]};
-  if(sql.includes('SELECT s.*'))return {rows:[{id:s1,status:'completed'}]};
+  if(sql.includes('SELECT s.*'))return {rows:[{id:sessionStatus==='planned'?s2:s1,status:sessionStatus,unit_number:sessionStatus==='planned'?2:1}]};
   if(sql.includes('FROM individual_ai_drafts'))return {rows:[]};
   if(sql.includes('INSERT INTO individual_sessions')){state.writes.push('session');return {rows:[{id:s2,unit_number:2,scheduled_for:params[2]}]};}
   if(sql.includes('INSERT INTO individual_session_plans')){state.writes.push('plan');return {rows:[{id:planId}]};}
   if(sql.includes('INSERT INTO individual_exercises'))state.writes.push('exercise');
+  if(sql.includes('DELETE FROM individual_session_plans'))state.writes.push('delete-plans');
   if(sql.includes('individual_released_feedback')||sql.includes('individual_weekly_focus'))state.published.push(sql);
   return {rows:[]};
  }});}catch(e){state=before;throw e;}
@@ -33,6 +36,8 @@ let res=await call(request);assert.equal(res.statusCode,201,JSON.stringify(res.b
 state.writes=[];open=true;assert.equal((await call(request)).statusCode,409);assert.equal(state.writes.length,0,'Offene Einheit darf nicht dupliziert werden');
 open=false;missing=true;assert.equal((await call(request)).statusCode,409);assert.equal(state.writes.length,0,'Fehlender KI-Plan muss die gesamte Anlage zurückrollen');
 res=await call({action:'completeSession',profileId:p1,sessionId:s1});assert.equal(res.statusCode,200);assert.equal(res.body.alreadyCompleted,true);assert.equal(state.writes.length,0,'Wiederholter Abschluss darf keine Daten duplizieren');
+state.writes=[];sessionStatus='planned';missing=false;res=await call({action:'refreshSessionPlans',profileId:p1,sessionId:s2});assert.equal(res.statusCode,200,JSON.stringify(res.body));assert.deepEqual(state.writes,['delete-plans','plan','exercise','plan','exercise']);
+state.writes=[];measurementCount=1;res=await call({action:'refreshSessionPlans',profileId:p1,sessionId:s2});assert.equal(res.statusCode,409);assert.equal(state.writes.length,0,'Plan mit Messwerten darf nicht ersetzt werden');measurementCount=0;sessionStatus='completed';
 
 const dom=new JSDOM('<main></main>',{url:'https://coach.test/#/individual',runScripts:'outside-only'}),w=dom.window;
 const data={role:'coach',profiles:[{id:p1,account_name:'Spieler Eins'},{id:p2,account_name:'Spieler Zwei'}],sessions:[p1,p2].map(p=>({id:s1,individual_profile_id:p,scheduled_for:'2026-10-19T18:15:00Z',unit_number:1,status:'completed',attendance_status:'attended'})),plans:[p1,p2].map(p=>({id:planId,session_id:s1,individual_profile_id:p,title:'Erfasste Einheit'})),exercises:[],aiDrafts:[p1,p2].map((p,index)=>({id:'draft'+index,individual_profile_id:p,session_id:s1,status:'current',content})),pilotRoadmap:[],coachNotes:[],measurements:[]};
@@ -46,7 +51,12 @@ form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));form.di
 release();await new Promise(r=>setTimeout(r,0));assert.match(form.querySelector('[data-plan-session-status]').textContent,/Verbindung/);assert(!form.querySelector('button').disabled);assert.equal(form.elements.secondProfileId.value,p2);
 await w.BT.individualTraining.render(root,p1,'ai-history');assert(root.querySelector('.individual-ai-plan').textContent.includes('Zielpässe'));assert(root.querySelector('[data-plan-session]'));
 await w.BT.individualTraining.render(root,p1,'overview');assert(root.querySelector('[data-plan-session]'));
-data.aiDrafts.find(item=>item.individual_profile_id===p1).content={...content,planningContractVersion:1};
+data.aiDrafts.find(item=>item.individual_profile_id===p1).content={...content,planningContractVersion:1};data.aiDrafts.find(item=>item.individual_profile_id===p1).status='approved';
 await w.BT.individualTraining.render(root,p1,'ai-history');assert.match(root.textContent,/ohne verbindliche Spielerrolle/);assert.match(root.querySelector('[data-regenerate-draft]').textContent,/Rollenspezifischen/);assert(!root.querySelector('[data-approve-draft]'));
 await w.BT.individualTraining.render(root,p1,'overview');assert(root.querySelector('[data-plan-session] button[type="submit"]').disabled);assert.match(root.querySelector('[data-plan-session-status]').textContent,/rollenspezifischen/);
+data.aiDrafts.find(item=>item.individual_profile_id===p1).content=content;data.aiDrafts.find(item=>item.individual_profile_id===p1).status='current';
+data.sessions.push(...[p1,p2].map(p=>({id:s2,individual_profile_id:p,scheduled_for:'2026-10-26T19:15:00Z',unit_number:2,status:'planned',attendance_status:'pending'})));
+data.plans.push(...[p1,p2].map(p=>({id:planId,session_id:s2,individual_profile_id:p,title:'Alter Ablauf'})));
+w.BT.api.individualAction=async(action,payload)=>{calls.push({action,payload});};
+await w.BT.individualTraining.render(root,p1,'training');const refreshButton=root.querySelector('[data-refresh-session-plans]');assert(refreshButton);assert(!refreshButton.disabled);refreshButton.click();await new Promise(r=>setTimeout(r,0));assert.equal(calls.at(-1).action,'refreshSessionPlans');assert.equal(calls.at(-1).payload.sessionId,s2);
 w.BT.individualTraining.cleanup();dom.window.close();console.log('Einheitenablauf: wiederholter Abschluss, aktueller privater KI-Plan, vollständige Zweierplanung, keine Veröffentlichung, Rollback und Doppelklickschutz geprüft.');
