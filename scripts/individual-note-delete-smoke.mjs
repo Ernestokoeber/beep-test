@@ -7,7 +7,8 @@ import {ids,user,overview} from './fixtures/individual-player.mjs';
 const noteId='44444444-4444-4444-8444-444444444444', secret='PRIVATE_DELETED: Alte Beobachtung';
 let role='coach', accessible=true, stored=secret, writes=[], calls=[];
 const query=async(sql,params=[])=>{
- if(sql.includes('FROM individual_profiles')) return {rows:accessible?[{id:ids.profile}]:[]};
+ if(sql.includes('FROM individual_profiles')) return {rows:accessible?[{id:ids.profile,player_profile_id:'own-player'}]:[]};
+ if(sql.includes('FROM workspaces')) return {rows:[{data:{players:[{id:'own-player',name:'Testspieler',position:'Point Guard'}]}}]};
  if(sql.includes('SELECT')&&sql.includes('FROM individual_coach_notes')) return {rows:stored?[{id:noteId,note:stored}]:[]};
  if(sql.includes('DELETE FROM individual_coach_notes')) {assert.deepEqual(params,[noteId,ids.profile]);stored=null;}
  if(sql.includes('SELECT s.* FROM individual_sessions')) return {rows:[{id:ids.session,status:'completed'}]};

@@ -9,13 +9,14 @@ const sessionId = '22222222-2222-4222-8222-222222222222';
 const draftId = '33333333-3333-4333-8333-333333333333';
 const secret = 'PRIVATE_ONLY: Ballvortrag laut Spielbeobachtung unsicher';
 const privateMeasurement = 'PRIVATE_MEASUREMENT_ONLY';
-function fixture({ status = 'completed', failPublic = false, changeNotes = false, role = 'coach' } = {}) {
+function fixture({ status = 'completed', failPublic = false, changeNotes = false, role = 'coach', position = 'Point Guard' } = {}) {
   const calls = [], writes = [];
   let content, noteReads = 0, sourceRevision;
   const published = [];
   const auth = { sub: draftId, organization_id: sessionId, role };
   const query = async (sql, params = []) => {
     if (sql.includes('FROM individual_profiles ip')) return { rows: [{ id: profileId, player_profile_id: draftId }] };
+    if (sql.includes('FROM workspaces')) return { rows: [{ data: { players: [{ id: draftId, name: 'Testspieler', position }] } }] };
     if (sql.includes('SELECT s.* FROM individual_sessions')) return { rows: [{ id: sessionId, status, unit_number: 1, scheduled_for: '2026-10-19T18:15:00Z', duration_minutes: 105 }] };
     if (sql.includes('count(*)')) return { rows: [{ count: 0 }] };
     if (sql.includes('FROM individual_coach_notes')) {
@@ -47,8 +48,13 @@ function fixture({ status = 'completed', failPublic = false, changeNotes = false
     if (!isPrivate && failPublic) throw new Error('Synthetic public generation failure');
     return { value: {
       analysis: isPrivate ? secret : 'Messwerte analysiert',
+      planningBasis: {
+        primaryPriority: { title: 'Passpräzision', reason: secret, evidenceRefs: ['coach-note:' + draftId] },
+        secondaryPriority: { title: 'Abschluss links', reason: secret, evidenceRefs: ['measurement:undefined'] },
+        deferredTopics: ['Reboundarbeit']
+      },
       nextSession: { title: isPrivate ? secret : 'Öffentlicher Vorschlag', objective: secret, blocks: [15,30,30,30].map(minutes => ({
-        title: secret, playerExerciseType: 'ballhandling', minutes, repetitions: secret, measurementMethod: secret, coachingCues: [secret]
+        title: secret, playerExerciseType: 'ballhandling', priorityRole: minutes === 15 ? 'support' : 'primary', minutes, repetitions: secret, measurementMethod: secret, coachingCues: [secret]
       })) },
       // Deliberately disobey the prompt: these values must never reach a player.
       playerFeedback: isPrivate ? secret : 'Deine gemessenen Abschlüsse sind der Ausgangspunkt.',
@@ -67,10 +73,15 @@ const privateCall = main.calls.find(c => c.payload.data.privatePriorKnowledge);
 const publicCall = main.calls.find(c => !c.payload.data.privatePriorKnowledge);
 assert(JSON.stringify(privateCall).includes(secret));
 assert(JSON.stringify(privateCall).includes(privateMeasurement));
+assert.equal(privateCall.payload.data.playerRole.label, 'Point Guard');
+assert(privateCall.payload.data.privatePlanningEvidence.some(item => item.kind === 'coach_observation'));
 assert(!JSON.stringify(publicCall).includes(secret));
 assert(!JSON.stringify(publicCall).includes(privateMeasurement));
+assert.equal(publicCall.payload.data.playerRole.label, 'Point Guard');
+assert.equal(publicCall.payload.data.privatePlanningEvidence, undefined);
 assert(!privateCall.payload.data.measurements.some(m => m.metric_key === 'trainernotiz'));
 assert.equal(main.content.analysis, secret);
+assert.equal(main.content.playerRole.label, 'Point Guard');
 assert.equal(main.content.nextSession.title, secret);
 assert(!JSON.stringify({ playerFeedback: main.content.playerFeedback, weeklyFocus: main.content.weeklyFocus }).includes(secret));
 assert(!JSON.stringify(individualPlayerData({ profiles: [{ id: profileId }], coachNotes: [{ note: secret }], aiDrafts: [main.content] })).includes(secret));
@@ -99,7 +110,10 @@ assert.equal(stored.exercises.length, 4);
 assert.equal(stored.exercises[0].title, 'Ballkontrolle');
 assert(stored.plans[0].objective.includes(secret), 'Trainer erhält weiterhin den privaten Plan');
 assert(!JSON.stringify(individualPlayerData(stored)).includes(secret), 'Folgeplan darf private KI-Titel und Details nicht an Spieler geben');
-const contract = buildAIRequest('individualTrainingDraft', { data: { privatePriorKnowledge: { notes: [secret] } } });
+const contract = buildAIRequest('individualTrainingDraft', { data: {
+  playerRole: { key: 'point_guard', label: 'Point Guard' }, planningEvidence: [{ id: 'measurement:one' }],
+  privatePlanningEvidence: [{ id: 'coach-note:one' }], privatePriorKnowledge: { notes: [secret] }
+} });
 assert(JSON.stringify(contract.parts).includes('keine Messwerte der Bestandsaufnahme'));
 const incomplete = fixture({ status: 'planned' });
 assert.equal((await incomplete.run()).statusCode, 409);
@@ -113,4 +127,8 @@ assert.equal(failure.content, undefined, 'Kein Rückfall auf private Spielertext
 const changed = fixture({ changeNotes: true });
 assert.equal((await changed.run()).statusCode, 409);
 assert.equal(changed.content, undefined, 'Geändertes Vorwissen darf keinen aktuellen Entwurf ergeben');
+const center = fixture({ position: 'Center' });
+assert.equal((await center.run()).statusCode, 200);
+assert.equal(center.calls.find(call => call.payload.data.privatePriorKnowledge).payload.data.playerRole.label, 'Center');
+assert(center.calls.find(call => call.payload.data.privatePriorKnowledge).payload.data.playerRole.responsibilities.some(value => value.includes('Screenwinkel')));
 console.log('Privates KI-Vorwissen: Quellen getrennt, absichtliche KI-Leaks verworfen, Rollen/Abschluss/Fehler/Änderungen geprüft.');
