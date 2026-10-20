@@ -63,7 +63,7 @@ const validSeasonResult = JSON.stringify({
 });
 
 assert(AI_MODEL_ID === 'gemini-3.8-flash', 'Falsches Gemini-Modell');
-assert(AI_CONTRACT_VERSION === 15, 'KI-Vertrag für rollenspezifische Individualplanung fehlt');
+assert(AI_CONTRACT_VERSION === 16, 'KI-Vertrag für getrennte rollenspezifische Individualplanung fehlt');
 assert(BASKETBALL_KNOWLEDGE_VERSION === '2026.10.2', 'Basketball-Fachstandard ist nicht versioniert');
 const season = buildAIRequest('planSeason', validSeasonPayload);
 const promptText = request => request.parts.map(part => part.text || '').join('\n');
