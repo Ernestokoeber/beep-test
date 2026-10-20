@@ -83,10 +83,10 @@ const manage = createIndividualManageHandler({
   requireMembership: async () => ({ sub: draftId, organization_id: sessionId, role: 'coach' }),
   transaction: async fn => fn({ query: async (sql, params = []) => {
     if (sql.includes('FROM individual_profiles ip')) return { rows: [{ id: profileId }] };
+    if (sql.includes('SELECT content FROM individual_ai_drafts')) return { rows: [{ content: main.content }] };
     if (sql.includes('count(*)')) return { rows: [{ count: 1 }] };
     if (sql.includes('SELECT max(')) return { rows: [{ date: '2026-10-19' }] };
     if (sql.includes('INSERT INTO individual_sessions')) return { rows: [{ id: sessionId, unit_number: 2, scheduled_for: params[2] }] };
-    if (sql.includes('SELECT content FROM individual_ai_drafts')) return { rows: [{ content: main.content }] };
     if (sql.includes('INSERT INTO individual_session_plans')) { const row = { id: draftId, title: params[2], objective: params[3] }; stored.plans.push(row); return { rows: [row] }; }
     if (sql.includes('INSERT INTO individual_exercises')) stored.exercises.push({ title: params[2], duration_minutes: params[3], repetitions: params[4], coaching_cues: params[6] });
     return { rows: [] };
