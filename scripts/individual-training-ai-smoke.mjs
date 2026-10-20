@@ -13,13 +13,13 @@ const valid = {
   nextSession: {
     title: 'Technik und Entscheidung', objective: 'Ballkontrolle in Entscheidungen übertragen.',
     blocks: [
-      { title: 'Check-in', playerExerciseType: 'checkin', priorityRole: 'support', minutes: 5, repetitions: 'Readiness 1–10', measurementMethod: 'Skala speichern', coachingCues: ['Neutral nachfragen'] },
-      { title: 'Aktivierung', playerExerciseType: 'warmup', priorityRole: 'support', minutes: 10, repetitions: '2 Serien', measurementMethod: 'keine Messung', coachingCues: ['Blick oben'] },
-      { title: 'Passpräzision', playerExerciseType: 'passing', priorityRole: 'primary', minutes: 25, repetitions: '3 × 6 je Seite', measurementMethod: 'Zielkorridor und Fehler getrennt zählen', coachingCues: ['Tief bleiben'] },
-      { title: 'Pass unter Entscheidung', playerExerciseType: 'passing', priorityRole: 'primary', minutes: 20, repetitions: '3 × 6 Aktionen', measurementMethod: 'Passfenster und Genauigkeit trennen', coachingCues: ['Signal spät geben'] },
-      { title: 'Pick-and-Roll lesen', playerExerciseType: 'pickandroll', priorityRole: 'secondary', minutes: 25, repetitions: '10 Ballbesitze', measurementMethod: 'Entscheidung dokumentieren', coachingCues: ['Blick früh anheben'] },
-      { title: 'Transfer', playerExerciseType: 'decision', priorityRole: 'secondary', minutes: 15, repetitions: '8 Aktionen', measurementMethod: 'richtige Entscheidung zählen', coachingCues: ['Vorteil nutzen'] },
-      { title: 'Reflexion', playerExerciseType: 'reflection', priorityRole: 'support', minutes: 5, repetitions: '3 Fragen', measurementMethod: 'Kurzantworten', coachingCues: ['Einen Fokus wählen'] }
+      { title: 'Check-in', playerExerciseType: 'checkin', priorityRole: 'support', coordinationMode: 'individual', roleAssignment: 'Eigene Tagesform einordnen', minutes: 5, repetitions: 'Readiness 1–10', measurementMethod: 'Skala speichern', coachingCues: ['Neutral nachfragen'] },
+      { title: 'Aktivierung', playerExerciseType: 'warmup', priorityRole: 'support', coordinationMode: 'individual', roleAssignment: 'Ball als Point Guard kontrollieren', minutes: 10, repetitions: '2 Serien', measurementMethod: 'keine Messung', coachingCues: ['Blick oben'] },
+      { title: 'Passpräzision', playerExerciseType: 'passing', priorityRole: 'primary', coordinationMode: 'individual', roleAssignment: 'Passfenster als Ballhandler treffen', minutes: 25, repetitions: '3 × 6 je Seite', measurementMethod: 'Zielkorridor und Fehler getrennt zählen', coachingCues: ['Tief bleiben'] },
+      { title: 'Pass unter Entscheidung', playerExerciseType: 'passing', priorityRole: 'primary', coordinationMode: 'individual', roleAssignment: 'Hilfe lesen und Pass auswählen', minutes: 20, repetitions: '3 × 6 Aktionen', measurementMethod: 'Passfenster und Genauigkeit trennen', coachingCues: ['Signal spät geben'] },
+      { title: 'Pick-and-Roll lesen', playerExerciseType: 'pickandroll', priorityRole: 'secondary', coordinationMode: 'shared', roleAssignment: 'Als Ballhandler den Roller lesen', minutes: 25, repetitions: '10 Ballbesitze', measurementMethod: 'Entscheidung dokumentieren', coachingCues: ['Blick früh anheben'] },
+      { title: 'Transfer', playerExerciseType: 'decision', priorityRole: 'secondary', coordinationMode: 'individual', roleAssignment: 'Vorteil als Point Guard organisieren', minutes: 15, repetitions: '8 Aktionen', measurementMethod: 'richtige Entscheidung zählen', coachingCues: ['Vorteil nutzen'] },
+      { title: 'Reflexion', playerExerciseType: 'reflection', priorityRole: 'support', coordinationMode: 'individual', roleAssignment: 'Eigenen Fokus benennen', minutes: 5, repetitions: '3 Fragen', measurementMethod: 'Kurzantworten', coachingCues: ['Einen Fokus wählen'] }
     ]
   },
   weeklyFocus: { title: 'Blick vor dem ersten Dribbling', coachingCues: ['Korb und Hilfe vor Ballannahme sehen'], successIndicator: 'Vor dem ersten Dribbling ist der Kopf sichtbar oben.' }
@@ -34,6 +34,7 @@ const parsed = request.parse(JSON.stringify(valid));
 assert.equal(parsed.nextSession.blocks.reduce((sum, block) => sum + block.minutes, 0), 105);
 assert.deepEqual(parsed.planningBasis.allocationMinutes, { primary: 45, secondary: 40, support: 20 });
 assert.match(request.parts[0].text, /Point Guard.*Ballhandler/s);
+assert.equal(parsed.nextSession.blocks.filter(block => block.coordinationMode === 'shared').length, 1);
 const invalid = structuredClone(valid);
 invalid.nextSession.blocks[0].minutes = 4;
 assert.throws(() => request.parse(JSON.stringify(invalid)), /105 Minuten/);
@@ -43,11 +44,27 @@ assert.throws(() => request.parse(JSON.stringify(generic)), /Hauptpriorität/);
 const inventedEvidence = structuredClone(valid);
 inventedEvidence.planningBasis.primaryPriority.evidenceRefs = ['measurement:invented'];
 assert.throws(() => request.parse(JSON.stringify(inventedEvidence)), /vorhandene Belege/);
+const excessiveShared = structuredClone(valid);
+excessiveShared.nextSession.blocks[0].coordinationMode = 'shared';
+assert.throws(() => request.parse(JSON.stringify(excessiveShared)), /ausschließlich für Korbabschlüsse oder Pick-and-Roll/);
 const centerRequest = buildAIRequest('individualTrainingDraft', { data: {
   profile: { id: 'center' }, playerRole: { key: 'center', label: 'Center', responsibilities: ['Screenwinkel und Kontakt'] },
   planningEvidence: [{ id: 'measurement:roll', kind: 'measurement' }, { id: 'measurement:boxout', kind: 'measurement' }]
 } });
 assert.match(centerRequest.parts[0].text, /"key":"center"/);
+const centerPlan = structuredClone(valid);
+centerPlan.planningBasis.primaryPriority = { title: 'Abschluss am Ring', reason: 'Der Abschluss braucht Stabilität.', evidenceRefs: ['measurement:roll'] };
+centerPlan.planningBasis.secondaryPriority = { title: 'Rebound und Box-out', reason: 'Die Position muss gefestigt werden.', evidenceRefs: ['measurement:boxout'] };
+centerPlan.nextSession.blocks = [
+  { title: 'Check-in', playerExerciseType: 'checkin', priorityRole: 'support', coordinationMode: 'individual', roleAssignment: 'Eigene Tagesform einordnen', minutes: 5, repetitions: 'Readiness 1–10', measurementMethod: 'Skala speichern', coachingCues: ['Neutral nachfragen'] },
+  { title: 'Aktivierung', playerExerciseType: 'warmup', priorityRole: 'support', coordinationMode: 'individual', roleAssignment: 'Hüfte und Füße aktivieren', minutes: 10, repetitions: '2 Serien', measurementMethod: 'Bewegungsqualität prüfen', coachingCues: ['Tief starten'] },
+  { title: 'Abschluss', playerExerciseType: 'finishing', priorityRole: 'primary', coordinationMode: 'individual', roleAssignment: 'Als Center mit Zielhand am Ring abschließen', minutes: 25, repetitions: '3 × 6', measurementMethod: 'Treffer und Balance zählen', coachingCues: ['Breit landen'] },
+  { title: 'Fußarbeit', playerExerciseType: 'footwork', priorityRole: 'primary', coordinationMode: 'individual', roleAssignment: 'Als Center den Innenfuß setzen', minutes: 25, repetitions: '3 × 5 je Seite', measurementMethod: 'Saubere Pivot-Folgen zählen', coachingCues: ['Basis halten'] },
+  { title: 'Rebound', playerExerciseType: 'rebounding', priorityRole: 'secondary', coordinationMode: 'individual', roleAssignment: 'Kontakt aufnehmen und Ball sichern', minutes: 20, repetitions: '12 Wiederholungen', measurementMethod: 'Gesicherte Rebounds zählen', coachingCues: ['Zuerst Körperkontakt'] },
+  { title: 'Pick-and-Roll', playerExerciseType: 'pickandroll', priorityRole: 'secondary', coordinationMode: 'shared', roleAssignment: 'Als Screener Kontakt herstellen und hart rollen', minutes: 15, repetitions: '10 Aktionen', measurementMethod: 'Screenwinkel und Zielhand getrennt werten', coachingCues: ['Hüfte zum Korb öffnen'] },
+  { title: 'Reflexion', playerExerciseType: 'reflection', priorityRole: 'support', coordinationMode: 'individual', roleAssignment: 'Eigenen Fokus benennen', minutes: 5, repetitions: '3 Fragen', measurementMethod: 'Kurzantworten', coachingCues: ['Einen Fokus wählen'] }
+];
+assert.equal(centerRequest.parse(JSON.stringify(centerPlan)).nextSession.blocks[3].playerExerciseType, 'footwork');
 
 function response() {
   return { statusCode: 200, body: null, setHeader() {}, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };

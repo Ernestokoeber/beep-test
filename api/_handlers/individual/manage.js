@@ -232,8 +232,8 @@ async function insertReadyDraftPlans(client, session, profiles, createdBy) {
       objective: nextSession.objective,
       version: 1,
       exercises: nextSession.blocks.map(block => ({
-        title: individualExerciseLabel(block.playerExerciseType), durationMinutes: block.minutes,
-        repetitions: { instruction: block.repetitions },
+        title: individualExerciseLabel(block.playerExerciseType, content.playerRole?.key), durationMinutes: block.minutes,
+        repetitions: { instruction: `${block.roleAssignment} · ${block.repetitions}`, coordinationMode: block.coordinationMode },
         measurementMethod: { instruction: block.measurementMethod },
         coachingCues: block.coachingCues
       }))

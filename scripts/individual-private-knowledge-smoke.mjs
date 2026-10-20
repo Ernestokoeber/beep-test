@@ -107,7 +107,7 @@ const planResponse = { statusCode: 200, setHeader() {}, status(n) { this.statusC
 await manage({ method: 'POST', headers: {}, body: { action: 'createSession', profileIds: [profileId], scheduledDate: '2026-10-26', scheduledTime: '20:15' } }, planResponse);
 assert.equal(planResponse.statusCode, 201);
 assert.equal(stored.exercises.length, 4);
-assert.equal(stored.exercises[0].title, 'Ballkontrolle');
+assert.equal(stored.exercises[0].title, 'Point Guard · Ballkontrolle');
 assert(stored.plans[0].objective.includes(secret), 'Trainer erhält weiterhin den privaten Plan');
 assert(!JSON.stringify(individualPlayerData(stored)).includes(secret), 'Folgeplan darf private KI-Titel und Details nicht an Spieler geben');
 const contract = buildAIRequest('individualTrainingDraft', { data: {
