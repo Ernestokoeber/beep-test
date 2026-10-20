@@ -35,7 +35,7 @@ try {
   const form=page.locator('[data-plan-session]');await form.waitFor();
   assert.equal(await page.locator('[data-complete-session]').count(),0,'Completed session must not offer completion');
   assert.equal(await page.locator('[data-cancel-session]').count(),0);
-  await form.getByRole('button',{name:'Nächste Einheit mit KI-Plan ansetzen'}).click();
+  await form.getByRole('button',{name:'Nächste Einheit mit rollenspezifischem KI-Plan ansetzen'}).click();
   await page.waitForFunction(()=>document.querySelector('.individual-session-run-card h4')?.textContent.includes('Einheit 2'));
   assert(await page.locator('[data-action="start-live-training"]').isEnabled());
   await page.locator('[data-complete-session]').click();
