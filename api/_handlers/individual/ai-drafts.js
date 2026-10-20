@@ -3,6 +3,7 @@ import { transaction } from '../../_lib/db.js';
 import { isIndividualCoach, requireMembership } from '../../_lib/auth.js';
 import { findIndividualProfile } from '../../_lib/individual-access.js';
 import { generateWithGemini } from '../../_lib/gemini-client.js';
+import { INDIVIDUAL_PLANNING_CONTRACT_VERSION } from '../../_lib/ai-contracts.js';
 import { canApproveDraft, uuid } from '../../_lib/individual-training.js';
 import { method, noStore, safeError } from '../../_lib/http.js';
 
@@ -12,6 +13,45 @@ class DraftRequestError extends Error {
 
 function revisionOf(value) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+const ROLE_DEFINITIONS = Object.freeze({
+  point_guard: { label: 'Point Guard', responsibilities: ['Ballvortrag und Ballkontrolle', 'Passpräzision und Spielorganisation', 'Pick-and-Roll als Ballhandler', 'früher Blick und Vorteilsentscheidung', 'guardtypische Abschlüsse'] },
+  shooting_guard: { label: 'Shooting Guard', responsibilities: ['Wurfvorbereitung und schneller Release', 'Bewegung ohne Ball', 'sekundäres Ballhandling und Entscheidungen', 'Abschlüsse aus Closeout-Vorteilen'] },
+  small_forward: { label: 'Small Forward', responsibilities: ['Flügel-Fußarbeit', 'Drive- und Closeout-Entscheidungen', 'Abschlüsse durch Kontakt', 'Rebound und vielseitige Verteidigung'] },
+  power_forward: { label: 'Power Forward', responsibilities: ['Screens und Anschlussbewegungen', 'Abschlüsse aus Short Roll und Closeout', 'Rebound und Box-out', 'Innen-Außen-Fußarbeit'] },
+  center: { label: 'Center', responsibilities: ['Screenwinkel und Kontakt', 'Roll-Timing, Zielhand und Abschluss', 'Rebound und Box-out', 'Post-Fußarbeit und Outlet-Pässe'] }
+});
+
+function basketballRole(position) {
+  const value = String(position || '').trim().toLocaleLowerCase('de-DE').replace(/[._-]+/g, ' ');
+  const key = value === 'pg' || value.includes('point guard') ? 'point_guard'
+    : value === 'sg' || value.includes('shooting guard') ? 'shooting_guard'
+      : value === 'sf' || value.includes('small forward') ? 'small_forward'
+        : value === 'pf' || value.includes('power forward') ? 'power_forward'
+          : value === 'c' || value === 'center' || value.includes('centre') ? 'center' : null;
+  return key ? { key, ...ROLE_DEFINITIONS[key] } : null;
+}
+
+function publicEvidence({ measurements, readiness, weeklyFeedback, releasedFeedback }) {
+  const planningMetrics = measurements.filter(row => !['trainernotiz', 'tatsaechliches_ende', 'tatsaechliche_dauer'].includes(row.metric_key));
+  return [
+    ...planningMetrics.map(row => ({
+      id: `measurement:${row.id}`, kind: 'measurement', exerciseTitle: row.exercise_title || 'Übung nicht zugeordnet',
+      metricKey: row.metric_key, numericValue: row.numeric_value, textValue: row.text_value,
+      unit: row.unit, attempt: row.attempt
+    })),
+    ...readiness.map(row => ({ id: `readiness:${row.id || row.session_id}`, kind: 'readiness', score: row.score })),
+    ...weeklyFeedback.map(row => ({ id: `weekly-feedback:${row.id}`, kind: 'weekly_feedback', trainingDate: row.training_date, occurrence: row.occurrence, implementationScore: row.implementation_score, note: row.note })),
+    ...releasedFeedback.map(row => ({ id: `released-feedback:${row.id}`, kind: 'released_feedback', content: row.content, releasedAt: row.released_at }))
+  ];
+}
+
+function privateEvidence({ coachNotes, measurements }) {
+  return [
+    ...coachNotes.map(row => ({ id: `coach-note:${row.id}`, kind: 'coach_observation', sessionId: row.session_id, note: row.note, observedAt: row.updated_at || row.created_at })),
+    ...measurements.filter(row => row.metric_key === 'trainernotiz').map(row => ({ id: `session-note:${row.id}`, kind: 'session_observation', exerciseTitle: row.exercise_title || 'Einheit', note: row.text_value, observedAt: row.server_received_at }))
+  ];
 }
 
 async function sourceData(client, auth, profileId, sessionId) {
@@ -29,31 +69,41 @@ async function sourceData(client, auth, profileId, sessionId) {
     'SELECT count(*)::int AS count FROM individual_sync_mutations WHERE individual_profile_id = $1 AND applied = FALSE', [profile.id]
   );
   if (Number(pending.rows[0].count) > 0) throw new DraftRequestError(409, 'Zugehörige Offline-Eingaben sind noch nicht vollständig synchronisiert.');
-  const [plan, exercises, measurements, readiness, focuses, weeklyFeedback, releasedFeedback, coachNotes] = await Promise.all([
+  const [plan, exercises, measurements, readiness, focuses, weeklyFeedback, releasedFeedback, coachNotes, workspace] = await Promise.all([
     client.query('SELECT title, objective, version FROM individual_session_plans WHERE session_id = $1 AND individual_profile_id = $2', [session.rows[0].id, profile.id]),
     client.query(`SELECT e.position, e.title, e.duration_minutes, e.repetitions, e.measurement_method, e.coaching_cues
                     FROM individual_exercises e JOIN individual_session_plans p ON p.id = e.plan_id
                    WHERE p.session_id = $1 AND p.individual_profile_id = $2 ORDER BY e.position`, [session.rows[0].id, profile.id]),
-    client.query(`SELECT metric_key, numeric_value, text_value, unit, attempt, device_recorded_at, server_received_at
-                    FROM individual_measurements WHERE individual_profile_id = $1 AND session_id = $2
-                   ORDER BY server_received_at`, [profile.id, session.rows[0].id]),
-    client.query(`SELECT score, device_recorded_at, server_received_at FROM individual_readiness
+    client.query(`SELECT m.id, m.exercise_id, e.title AS exercise_title, m.metric_key, m.numeric_value, m.text_value, m.unit, m.attempt, m.device_recorded_at, m.server_received_at
+                    FROM individual_measurements m LEFT JOIN individual_exercises e ON e.id = m.exercise_id
+                   WHERE m.individual_profile_id = $1 AND m.session_id = $2
+                   ORDER BY m.server_received_at`, [profile.id, session.rows[0].id]),
+    client.query(`SELECT id, session_id, score, device_recorded_at, server_received_at FROM individual_readiness
                    WHERE individual_profile_id = $1 AND session_id = $2`, [profile.id, session.rows[0].id]),
-    client.query(`SELECT title, cue_one, cue_two, success_indicator, valid_from, valid_until
+    client.query(`SELECT id, title, cue_one, cue_two, success_indicator, valid_from, valid_until
                     FROM individual_weekly_focus WHERE individual_profile_id = $1 ORDER BY valid_from DESC LIMIT 8`, [profile.id]),
-    client.query(`SELECT training_day, training_date, occurrence, implementation_score, note
+    client.query(`SELECT id, training_day, training_date, occurrence, implementation_score, note
                     FROM individual_weekly_feedback WHERE individual_profile_id = $1 ORDER BY training_date DESC LIMIT 16`, [profile.id]),
-    client.query(`SELECT content, released_at FROM individual_released_feedback
+    client.query(`SELECT id, content, released_at FROM individual_released_feedback
                    WHERE individual_profile_id = $1 ORDER BY released_at DESC LIMIT 8`, [profile.id]),
     client.query(`SELECT id, session_id, note, created_at, updated_at FROM individual_coach_notes
-                   WHERE individual_profile_id = $1 ORDER BY updated_at DESC, id DESC LIMIT 12`, [profile.id])
+                   WHERE individual_profile_id = $1 ORDER BY updated_at DESC, id DESC LIMIT 12`, [profile.id]),
+    client.query('SELECT data FROM workspaces WHERE organization_id = $1', [auth.organization_id])
   ]);
+  const workspacePlayer = (workspace.rows[0]?.data?.players || []).find(player => player?.id === profile.player_profile_id) || null;
+  const playerRole = basketballRole(workspacePlayer?.position);
+  if (!playerRole) throw new DraftRequestError(409, 'Für diesen Spieler fehlt im Teamprofil eine eindeutige Basketballposition. Bitte zuerst Point Guard, Shooting Guard, Small Forward, Power Forward oder Center speichern.');
+  const planningEvidence = publicEvidence({ measurements: measurements.rows, readiness: readiness.rows, weeklyFeedback: weeklyFeedback.rows, releasedFeedback: releasedFeedback.rows });
+  const privatePlanningEvidence = privateEvidence({ coachNotes: coachNotes.rows, measurements: measurements.rows });
   return {
-    profile: { id: profile.id, playerProfileId: profile.player_profile_id },
+    profile: { id: profile.id, playerProfileId: profile.player_profile_id, displayName: workspacePlayer?.name || null },
+    playerRole,
     session: session.rows[0],
     plan: plan.rows[0] || null,
     exercises: exercises.rows.map(e=>({...e,duration_minutes:e.measurement_method?.durationNotRecorded ? null : e.duration_minutes})),
     measurements: measurements.rows.filter(row => row.metric_key !== 'trainernotiz'),
+    planningEvidence,
+    privatePlanningEvidence,
     privatePriorKnowledge: {
       kind: 'coach_observations_not_test_results',
       notes: coachNotes.rows,
@@ -72,6 +122,7 @@ async function sourceData(client, auth, profileId, sessionId) {
 function playerDraftData(data) {
   return {
     profile: data.profile,
+    playerRole: data.playerRole,
     session: { id: data.session.id, status: data.session.status, unit_number: data.session.unit_number,
       scheduled_for: data.session.scheduled_for, duration_minutes: data.session.duration_minutes },
     plan: data.plan ? { title: data.plan.title, version: data.plan.version } : null,
@@ -81,6 +132,7 @@ function playerDraftData(data) {
     previousFocuses: data.previousFocuses,
     weeklyFeedback: data.weeklyFeedback,
     releasedFeedback: data.releasedFeedback,
+    planningEvidence: data.planningEvidence,
     constraints: data.constraints
   };
 }
@@ -153,6 +205,7 @@ export function createIndividualAIDraftHandler(deps = {}) {
           const draft = selected.rows[0];
           if (!draft) throw new DraftRequestError(404, 'KI-Entwurf nicht gefunden.');
           if (!canApproveDraft(draft)) throw new DraftRequestError(409, 'Nur ein aktueller, vollständiger KI-Entwurf kann freigegeben werden. Veraltete Entwürfe müssen neu erzeugt werden.');
+          if (draft.content?.planningContractVersion !== INDIVIDUAL_PLANNING_CONTRACT_VERSION) throw new DraftRequestError(409, 'Dieser Entwurf stammt noch aus der allgemeinen Planung. Bitte zuerst einen neuen rollenspezifischen Individualplan erzeugen.');
           const latestData = await sourceData(client, auth, draft.individual_profile_id, draft.session_id);
           if (revisionOf(latestData) !== draft.source_revision) throw new DraftRequestError(409, 'Messwerte oder Trainernotizen wurden geändert. Bitte den Entwurf neu erzeugen.');
           const approved = await client.query(
@@ -236,7 +289,10 @@ export function createIndividualAIDraftHandler(deps = {}) {
         // Explicit allowlist: ignore playerFeedback/weeklyFocus from the private model,
         // even if it repeats or paraphrases confidential notes despite the prompt.
         const content = {
+          planningContractVersion: INDIVIDUAL_PLANNING_CONTRACT_VERSION,
+          playerRole: prepared.data.playerRole,
           analysis: privateResult.value.analysis,
+          planningBasis: privateResult.value.planningBasis,
           nextSession: privateResult.value.nextSession,
           playerFeedback: publicResult.value.playerFeedback,
           weeklyFocus: publicResult.value.weeklyFocus

@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { transaction } from '../../_lib/db.js';
 import QRCode from 'qrcode';
 import { individualExerciseLabel } from '../../_lib/individual-plan-labels.js';
+import { INDIVIDUAL_PLANNING_CONTRACT_VERSION } from '../../_lib/ai-contracts.js';
 import { isIndividualCoach, isIndividualPlayer, requireMembership } from '../../_lib/auth.js';
 import { findIndividualProfile, hashIndividualInviteToken, newIndividualInviteToken, individualInviteUrl } from '../../_lib/individual-access.js';
 import { assertTemplateDuration, pilotSessionTemplate } from '../../_lib/individual-pilot.js';
@@ -218,7 +219,11 @@ async function insertReadyDraftPlans(client, session, profiles, createdBy) {
           )
         ORDER BY version DESC LIMIT 1 FOR SHARE`, [profile.id]
     );
-    const nextSession = approved.rows[0]?.content?.nextSession;
+    const content = approved.rows[0]?.content;
+    const nextSession = content?.nextSession;
+    if (content?.planningContractVersion !== INDIVIDUAL_PLANNING_CONTRACT_VERSION) {
+      throw new IndividualRequestError(409, 'Dieser KI-Entwurf stammt noch aus der allgemeinen Planung. Bitte für jeden Teilnehmer unter KI-Auswertung & Verlauf einen neuen rollenspezifischen Entwurf erstellen.');
+    }
     if (!nextSession || !Array.isArray(nextSession.blocks) || !nextSession.blocks.length) {
       throw new IndividualRequestError(409, 'Für jeden Teilnehmer wird zuerst ein aktueller KI-Entwurf aus der letzten abgeschlossenen Einheit benötigt. Bitte unter KI-Auswertung & Verlauf erstellen oder erneuern.');
     }
