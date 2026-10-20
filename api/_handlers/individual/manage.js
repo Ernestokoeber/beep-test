@@ -202,16 +202,26 @@ async function ensurePilotStartExtras(client, auth, ensured) {
   }
 }
 
-async function insertApprovedDraftPlans(client, session, profiles, createdBy) {
+async function insertReadyDraftPlans(client, session, profiles, createdBy) {
   const plans = [];
   for (const profile of profiles) {
     const approved = await client.query(
       `SELECT content FROM individual_ai_drafts
-        WHERE individual_profile_id = $1 AND status = 'approved' AND content IS NOT NULL
-        ORDER BY approved_at DESC LIMIT 1`, [profile.id]
+        WHERE individual_profile_id = $1 AND status IN ('current', 'approved') AND content IS NOT NULL
+          AND version = (SELECT max(newest.version) FROM individual_ai_drafts newest
+                          WHERE newest.individual_profile_id = $1 AND newest.session_id = individual_ai_drafts.session_id)
+          AND session_id = (
+            SELECT s.id FROM individual_sessions s
+              JOIN individual_session_participants sp ON sp.session_id = s.id
+             WHERE sp.individual_profile_id = $1 AND s.status = 'completed'
+             ORDER BY s.scheduled_for DESC, s.id DESC LIMIT 1
+          )
+        ORDER BY version DESC LIMIT 1 FOR SHARE`, [profile.id]
     );
     const nextSession = approved.rows[0]?.content?.nextSession;
-    if (!nextSession || !Array.isArray(nextSession.blocks)) continue;
+    if (!nextSession || !Array.isArray(nextSession.blocks) || !nextSession.blocks.length) {
+      throw new IndividualRequestError(409, 'Für jeden Teilnehmer wird zuerst ein aktueller KI-Entwurf aus der letzten abgeschlossenen Einheit benötigt. Bitte unter KI-Auswertung & Verlauf erstellen oder erneuern.');
+    }
     const template = {
       title: `Individualtraining · Einheit ${session.unit_number}`,
       objective: nextSession.objective,
@@ -340,6 +350,12 @@ export function createIndividualManageHandler(deps = {}) {
           const participantIds = assertParticipantCapacity(req.body.profileIds).map(id => uuid(id, 'Individualprofil-ID'));
           const profiles = [];
           for (const profileId of participantIds) profiles.push(await accessibleProfile(client, auth, profileId, true));
+          await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`individual-session:${auth.organization_id}:${auth.sub}`]);
+          const open = await client.query(
+            `SELECT id FROM individual_sessions WHERE organization_id = $1 AND coach_user_id = $2
+              AND status IN ('planned', 'in_progress') LIMIT 1`, [auth.organization_id, auth.sub]
+          );
+          if (open.rows.length) throw new IndividualRequestError(409, 'Es gibt bereits eine offene Einheit. Bitte diese zuerst öffnen und abschließen.');
           const completed = await client.query(
             `SELECT count(*)::int AS count FROM individual_sessions
               WHERE organization_id = $1 AND coach_user_id = $2 AND status = 'completed'`,
@@ -370,7 +386,7 @@ export function createIndividualManageHandler(deps = {}) {
           );
           for (const profile of profiles) await addSessionParticipant(client, created.rows[0], profile);
           const fixedPlans = await insertPilotTemplate(client, created.rows[0], profiles, auth.sub);
-          const plans = fixedPlans || await insertApprovedDraftPlans(client, created.rows[0], profiles, auth.sub);
+          const plans = fixedPlans || await insertReadyDraftPlans(client, created.rows[0], profiles, auth.sub);
           return { status: 201, body: { session: created.rows[0], profileIds: profiles.map(profile => profile.id), plans } };
         }
 
@@ -433,7 +449,7 @@ export function createIndividualManageHandler(deps = {}) {
         if (action === 'completeSession' || action === 'completeLiveSession') {
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
           const session = await assertSessionForProfile(client, profile, req.body.sessionId);
-          if (action === 'completeLiveSession' && session.status === 'completed') {
+          if (session.status === 'completed') {
             const queued = await client.query(
               `SELECT * FROM individual_ai_drafts WHERE session_id = $1 AND status = 'queued'`, [session.id]
             );
