@@ -35,6 +35,16 @@ assert.equal(parsed.nextSession.blocks.reduce((sum, block) => sum + block.minute
 assert.deepEqual(parsed.planningBasis.allocationMinutes, { primary: 45, secondary: 40, support: 20 });
 assert.match(request.parts[0].text, /Point Guard.*Ballhandler/s);
 assert.equal(parsed.nextSession.blocks.filter(block => block.coordinationMode === 'shared').length, 1);
+const pointGuardPnrCountsTowardRole = structuredClone(valid);
+pointGuardPnrCountsTowardRole.nextSession.blocks[2].minutes = 15;
+pointGuardPnrCountsTowardRole.nextSession.blocks[3].playerExerciseType = 'finishing';
+pointGuardPnrCountsTowardRole.nextSession.blocks[3].priorityRole = 'secondary';
+pointGuardPnrCountsTowardRole.nextSession.blocks[4].minutes = 35;
+pointGuardPnrCountsTowardRole.nextSession.blocks[4].priorityRole = 'primary';
+assert.equal(request.parse(JSON.stringify(pointGuardPnrCountsTowardRole)).nextSession.blocks[4].playerExerciseType, 'pickandroll');
+const pointGuardPnrCannotReplaceGuardWork = structuredClone(pointGuardPnrCountsTowardRole);
+pointGuardPnrCannotReplaceGuardWork.nextSession.blocks[2].playerExerciseType = 'finishing';
+assert.throws(() => request.parse(JSON.stringify(pointGuardPnrCannotReplaceGuardWork)), /mindestens 30 Minuten/);
 const invalid = structuredClone(valid);
 invalid.nextSession.blocks[0].minutes = 4;
 assert.throws(() => request.parse(JSON.stringify(invalid)), /105 Minuten/);

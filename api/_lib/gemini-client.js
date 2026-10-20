@@ -123,7 +123,22 @@ export async function generateWithGemini({
         parts = [...request.parts, {text:`Strukturiere ausschließlich das folgende Recherchematerial. Keine neue Suche und kein Vorwissen. Verwende die konkreten URLs der Suchbelege. Die Anwendung blendet die direkten DBB-Primärdaten bereits vollständig ein: Wiederhole daher weder deren Spielpläne noch Kader, Überschneidungen oder Spielerstatistiken. findings und players enthalten ausschließlich zusätzliche externe Funde, höchstens sechs belegte Spielerhistorien. Ohne zusätzliche Belege bleiben die Arrays leer. summary höchstens zwei Sätze, coachingFocus höchstens zwei zusätzliche quellenbezogene Prüfaufträge. Eine Absage erlaubt keine Aussage zu Doppelbelastung, Verfügbarkeit oder maximaler Einsatzzeit. Formuliere fehlende Funde als Suchgrenzen statt Nichtexistenz. Recherchematerial: ${JSON.stringify({report:text,sources:metadata?.groundingChunks || [],supports:metadata?.groundingSupports || [],officialEvidence})}`}];
         continue;
       }
-      const parsed = request.parse(text, { action, payload, providerResponse:searchResponse || data,officialEvidence });
+      let parsed;
+      try {
+        parsed = request.parse(text, { action, payload, providerResponse:searchResponse || data,officialEvidence });
+      } catch (error) {
+        // Individual plans have several coupled duration and role constraints. Give
+        // the model one precise repair pass instead of discarding a nearly valid
+        // draft; the same parser validates the corrected result again.
+        if (action === 'individualTrainingDraft' && error?.code === 'AI_INVALID_RESPONSE' &&
+            attempt === 1 && deadline - now() >= 8_000) {
+          parts = [...request.parts, {
+            text: `Der erste Entwurf wurde von CourtHub abgelehnt: ${String(error.message || 'Formatfehler').slice(0, 500)} Korrigiere diesen Punkt vollständig und liefere erneut ausschließlich das vollständige JSON. Halte weiterhin alle Rollen-, Prioritäts-, Zeit-, Beleg- und Datenschutzregeln ein.`
+          }];
+          continue;
+        }
+        throw error;
+      }
       const value = officialEvidence?attachOfficialResearch(parsed,officialEvidence):parsed;
       return {
         value,
