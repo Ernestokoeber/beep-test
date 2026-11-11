@@ -48,6 +48,11 @@ try {
   assert.deepEqual(actions.map(a=>a.action),['createSession','completeSession']);
   await page.goto(`http://127.0.0.1:${port}/#/individual/player/p1/focus`);
   const focusForm=page.locator('[data-weekly-focus]');await focusForm.waitFor();
+  // Long focus names and iOS-sized controls must fit narrow coach screens.
+  await focusForm.locator('[name=focusId]').evaluate(select=>{const option=document.createElement('option');option.textContent='09.11.2026 – 15.11.2026 · Ballkontrolle, Zug zum Korb und klare Entscheidungen im Mannschaftstraining';select.append(option);});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Weekly focus causes horizontal page overflow');
+  for(const field of await focusForm.locator('input,select,button').all()){const box=await field.boundingBox();assert(box && box.x>=0 && box.x+box.width<=width+1,'Focus control extends beyond viewport');}
+
   await focusForm.locator('[name="title"]').fill('Blick vor Ballannahme');
   await focusForm.locator('[name="cueOne"]').fill('Korb zuerst sehen');
   await focusForm.locator('[name="successIndicator"]').fill('Kopf vor dem Dribbling oben');
