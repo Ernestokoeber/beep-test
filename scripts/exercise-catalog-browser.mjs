@@ -16,19 +16,20 @@ try {
   await context.addInitScript(()=>{window.BT={};let sync;Object.defineProperty(BT,'sync',{configurable:true,get:()=>sync,set(value){sync=value;const get=value.getState;value.getState=()=>({...get(),sessionEpoch:1,user:{id:'catalog-coach',role:'coach',organization:{id:'catalog-team'}}});}});});
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(15000);
   const base='http://127.0.0.1:'+port;
+  const openFilters=async()=>{const filter=page.locator('.exercise-filter-options');await filter.waitFor();if(!await filter.evaluate(el=>el.open))await filter.locator('summary').click();};
   const check=async label=>{assert(await page.evaluate(()=>Math.max(document.body.scrollWidth,document.documentElement.scrollWidth)<=innerWidth+1),label+': horizontal overflow');assert.deepEqual(errors,[]);await page.screenshot({path:'/tmp/courthub-catalog-screenshots/'+label+'-'+width+'.png',fullPage:true});};
   try {
   await page.goto(base+'/#/drills');await page.locator('[data-library-item]').first().waitFor();
   assert.equal(await page.evaluate(()=>BT.exerciseCatalog.all().length),400);assert.equal(await page.evaluate(()=>BT.storage.getDrills().length),0);
   assert.equal(await page.locator('[data-library-item]').count(),40);await check('catalog');
-  await page.getByText('Weitere Filter',{exact:true}).click();
+  await openFilters();
   await page.locator('[name=players]').selectOption('2');await page.locator('[name=level]').selectOption('Grundlagen');await page.locator('[name=minutes]').selectOption('10');
   await page.locator('[name=search]').fill('Führhand');await page.locator('[data-library-item]').first().waitFor();await check('filters');
   const name=await page.locator('[data-library-item] strong').first().innerText();await page.locator('[data-favorite]').first().click();await page.waitForFunction(()=>BT.storage.getSetting('exerciseFavorites',[]).length===1);
   await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();assert.equal(await page.locator('a[href^="#/drills/catalog-"]').count(),3);await check('detail');
   await page.locator('[data-catalog-copy]').click();await page.locator('[data-library-page=detail] a[href$="/edit"]').click();await page.locator('form.library-editor').waitFor();await page.locator('[name=name]').fill('Meine eigene Katalogübung');await page.getByRole('button',{name:'Übung speichern',exact:true}).click();await page.locator('[data-library-page=detail]').waitFor();
   assert.equal(await page.evaluate(()=>BT.storage.getDrills().length),1);assert.equal(await page.evaluate(()=>BT.exerciseCatalogSeed.length),400);
-  await page.goto(base+'/#/drills');await page.locator('[data-clear-filters]').waitFor();await page.locator('[data-clear-filters]').click();await page.locator('[name=source]').selectOption('favorites');assert.equal(await page.locator('[data-library-item]').count(),1);
+  await page.goto(base+'/#/drills');await openFilters();await page.locator('[data-clear-filters]').click();await page.locator('[name=source]').selectOption('favorites');assert.equal(await page.locator('[data-library-item]').count(),1);
   const training=await page.evaluate(async()=>{const t=BT.storage.upsertTraining({date:'2026-12-01',plan:{drills:[]}});await BT.storage.flush();return t.id;});
   await page.goto(base+'/#/training/'+training+'/plan/library');await page.locator('[data-catalog-pick]').first().waitFor();await page.locator('[name=search]').fill(name);await page.locator('[data-catalog-pick]').first().click();await page.waitForFunction(id=>BT.storage.getTraining(id).plan.drills.length===1,training);await check('team-picker');
   // Mount the real individual editor with an isolated plan fixture; no real account or session is changed.
@@ -40,7 +41,7 @@ try {
   await page.locator('[data-save-review-library]').click();await page.waitForFunction(()=>BT.storage.getDrills().length===2);assert(!(await page.evaluate(()=>JSON.stringify(BT.storage.getDrills()))).includes('Privates Ergebnis'));
   await check('individual-editor');await page.locator('.individual-plan-editor form > button[type=submit]').click();await page.waitForFunction(()=>!!window.savedCatalogPlan);assert.equal(await page.evaluate(()=>window.savedCatalogPlan.body.exercises[0].durationMinutes),'11');
   if(width===390) {
-   await page.goto(base+'/#/drills');await page.locator('[data-library-count]').waitFor();await page.locator('[data-clear-filters]').click();
+   await page.goto(base+'/#/drills');await page.locator('[data-library-count]').waitFor();await openFilters();await page.locator('[data-clear-filters]').click();
    await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise(r=>navigator.serviceWorker.addEventListener('controllerchange',r,{once:true}));await BT.storage.flush();});
    await context.setOffline(true);await page.reload();await page.locator('[data-library-count]').waitFor();assert.equal(await page.evaluate(()=>BT.exerciseCatalogSeed.length),400);
    await page.locator('[name=search]').fill('Short Roll');assert.equal(await page.locator('[data-library-item]').count(),4);await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();await check('offline-detail');
