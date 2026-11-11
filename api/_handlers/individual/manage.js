@@ -63,7 +63,7 @@ function assertPilotSessionInstant(value, expectedDate, localTime) {
   if (weekday !== 1) throw new TypeError('Individualeinheiten müssen montags stattfinden.');
   if (localDate < '2026-10-19') throw new TypeError('Der Trainingsblock beginnt am 19. Oktober 2026.');
   if (localDate === '2026-11-02') throw new TypeError('Am 2. November 2026 ist die Halle ferienbedingt geschlossen.');
-  if (localDate < expectedDate) throw new TypeError(`Bitte Montag, ${expectedDate}, oder einen späteren Montag wählen.`);
+  if (localDate !== expectedDate) throw new TypeError('Trainingsdatum und Zeitpunkt stimmen nicht überein.');
   if (berlinTime(instant) !== '20:15') throw new TypeError('Die Montagseinheiten beginnen verbindlich um 20:15 Uhr.');
   return instant;
 }
@@ -424,6 +424,12 @@ export function createIndividualManageHandler(deps = {}) {
           if (day < berlinDate(now())) throw new TypeError('Bitte einen heutigen oder zukünftigen Montag wählen.');
           const scheduledFor = assertPilotSessionInstant(null, day, '20:15:00');
           if (scheduledFor === isoInstant(session.scheduled_for, 'Termin')) return {status:200, body:{session}};
+          const oldReadiness = await client.query('SELECT * FROM individual_readiness WHERE session_id = $1', [session.id]);
+          await client.query(`INSERT INTO individual_audit_log
+            (organization_id,individual_profile_id,entity_type,entity_id,field_name,old_value,new_value,change_reason,changed_by)
+            VALUES ($1,$2,'session',$3,'scheduled_for',$4::jsonb,$5::jsonb,'Trainingstermin verschoben',$6)`,
+            [auth.organization_id,profile.id,session.id,JSON.stringify({scheduledFor:session.scheduled_for,readiness:oldReadiness.rows}),JSON.stringify({scheduledFor}),auth.sub]);
+          await client.query('DELETE FROM individual_readiness WHERE session_id = $1', [session.id]);
           const changed = await client.query(`UPDATE individual_sessions SET scheduled_for=$1, updated_at=clock_timestamp()
             WHERE id=$2 RETURNING *`, [scheduledFor, session.id]);
           await client.query(`UPDATE individual_session_participants SET attendance_status='pending', player_decided_at=NULL, coach_confirmed_at=NULL

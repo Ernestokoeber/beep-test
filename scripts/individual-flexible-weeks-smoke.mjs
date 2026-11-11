@@ -30,7 +30,10 @@ try {
   assert.equal(planned.plans.length,2);assert.equal(planned.session.unit_number,2);
   assert.equal((await db.query('SELECT count(*)::int AS count FROM individual_exercises')).rows[0].count,0);
   await call(planRequest,409);
+  await db.query('INSERT INTO individual_readiness(individual_profile_id,session_id,score,created_by) VALUES ($1,$2,7,$3)',[profile,planned.session.id,coach]);
   const shifted=await call({action:'rescheduleSession',profileId:profile,sessionId:planned.session.id,expectedScheduledFor:planned.session.scheduled_for,scheduledDate:'2026-11-23'},200);
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM individual_readiness WHERE session_id=$1',[planned.session.id])).rows[0].count,0,'Readiness belongs to the old date');
+  const audit=(await db.query("SELECT old_value FROM individual_audit_log WHERE entity_type='session'")).rows[0];assert.equal(audit.old_value.readiness[0].score,7,'Previous readiness is retained in audit history');
   assert.equal(new Date(shifted.session.scheduled_for).toISOString(),'2026-11-23T19:15:00.000Z');
   await call({action:'rescheduleSession',profileId:profile,sessionId:planned.session.id,expectedScheduledFor:planned.session.scheduled_for,scheduledDate:'2026-11-30'},409);
   await call({action:'rescheduleSession',profileId:profile,sessionId:planned.session.id,scheduledDate:'2026-11-16'},200);

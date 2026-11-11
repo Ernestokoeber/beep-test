@@ -21,12 +21,12 @@ try {
    else if(path==='/api/individual/manage'){
     const input=route.request().postDataJSON();actions.push(input);
     if(input.action==='createSession'){
-     assert.deepEqual(input.profileIds,['p1','p2']);assert.equal(input.scheduledDate,'2026-11-16');
+     assert.deepEqual(input.profileIds,['p1','p2']);assert.equal(input.scheduledDate,input.planSource === 'manual' ? '2026-11-23' : '2026-11-16');
      const number = new Set(data.sessions.filter(s=>s.status==='completed').map(s=>s.id)).size + 1;const sessionId='next-'+number;
-     data.sessions.push(...profiles.map(p=>({id:sessionId,individual_profile_id:p.id,unit_number:number,status:'planned',scheduled_for:'2026-11-16T19:15:00Z',attendance_status:'attended'})));
-     data.plans.push(...profiles.map(p=>({id:'new-plan-'+number+'-'+p.id,session_id:sessionId,individual_profile_id:p.id,title:'Individualtraining · Einheit 2',version:1})));
+     data.sessions.push(...profiles.map(p=>({id:sessionId,individual_profile_id:p.id,unit_number:number,status:'planned',scheduled_for:input.scheduledDate+'T19:15:00Z',attendance_status:'attended'})));
+     data.plans.push(...profiles.map(p=>({id:'new-plan-'+number+'-'+p.id,session_id:sessionId,individual_profile_id:p.id,title:'Individualtraining · Einheit '+number,version:1})));
      if(input.planSource !== 'manual') data.exercises.push(...profiles.map(p=>({id:'new-exercise-'+number+'-'+p.id,session_id:sessionId,individual_profile_id:p.id,position:1,title:'Passspiel',duration_minutes:105,repetitions:{instruction:'Zielpässe'},measurement_method:{},coaching_cues:['Anspielpunkt treffen']})));
-    } else if(input.action==='completeSession') {data.sessions.filter(s=>s.id===input.sessionId).forEach(s=>s.status='completed');body={session:{id:'next',status:'completed'},queuedDrafts:[]};}
+    } else if(input.action==='completeSession') {data.sessions.filter(s=>s.id===input.sessionId).forEach(s=>s.status='completed');body={session:{id:input.sessionId,status:'completed'},queuedDrafts:[]};}
     else if(input.action==='setFocus') {const focus={id:input.focusId || 'focus',individual_profile_id:input.profileId,title:input.title,cue_one:input.cueOne,cue_two:input.cueTwo,success_indicator:input.successIndicator,valid_from:input.validFrom,valid_until:input.validUntil};data.focuses=[focus];body={focus};}
    }
    await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
@@ -63,7 +63,7 @@ try {
   await page.goto(`http://127.0.0.1:${port}/#/individual/player/p1/overview`);await form.waitFor();
   assert.equal(await form.locator('[name="planSource"]').inputValue(),'manual');
   assert(await form.locator('button[type="submit"]').isEnabled());
-  await form.locator('[name="scheduledDate"]').fill('2026-11-16');
+  await form.locator('[name="scheduledDate"]').fill('2026-11-23');
   await form.locator('button[type="submit"]').click();
   await page.locator('.individual-plan-editor[open]').waitFor();
   assert.equal(actions.at(-1).planSource,'manual');
@@ -71,7 +71,7 @@ try {
   assert(await page.locator('[name="repetitions"]').isVisible());
   assert(await page.locator('[name="measurementInstruction"]').isVisible());
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'No mobile horizontal overflow');
-  console.log(`${width}px: completed session -> next shared AI plan -> completion, no obsolete actions or duplicated requests`);
+  console.log(`${width}px: AI planning, independent editable focus, manual planning and mobile editor`);
   await context.close();
  }
 } finally {await browser?.close();server.kill();}
