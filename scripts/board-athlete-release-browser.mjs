@@ -4,13 +4,19 @@ const base = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ headless: true, ...(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {}) });
 try {
  const context = await browser.newContext({ ...devices['iPhone 15'], serviceWorkers: 'allow' });
+ // Count document loads, not framenavigated events: the router's replaceState
+ // also emits a same-document navigation on the first visit.
+ await context.addInitScript(() => {
+  if (window === window.top && /^https?:$/.test(location.protocol)) {
+   const key = '__courthub_release_document_loads';
+   sessionStorage.setItem(key, String(Number(sessionStorage.getItem(key) || 0) + 1));
+  }
+ });
  const page = await context.newPage(), errors = [];
  page.on('pageerror', error => errors.push(error.message));
- let navigations = 0;
- page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations++; });
  await page.goto(base);
  await page.waitForFunction(() => navigator.serviceWorker.controller && window.BT?.tactics?.__core);
- assert.equal(navigations, 1, 'First PWA installation must not reload the page');
+ assert.equal(await page.evaluate(() => Number(sessionStorage.getItem('__courthub_release_document_loads'))), 1, 'First PWA installation must not reload the page');
  // A warm visit uses cached app files without downloading them in the worker.
  const workerAssetRequests = [];
  const trackWorkerRequest = request => {
@@ -20,6 +26,7 @@ try {
  await page.reload();
  await page.waitForFunction(() => window.BT?.tactics?.__core);
  await page.waitForLoadState('networkidle');
+ assert.equal(await page.evaluate(() => Number(sessionStorage.getItem('__courthub_release_document_loads'))), 2, 'The explicit reload must create exactly one new document');
  context.off('request', trackWorkerRequest);
  assert.deepEqual(workerAssetRequests, [], 'Cached app files must not be downloaded again on reload');
  const large = await page.evaluate(async () => {
