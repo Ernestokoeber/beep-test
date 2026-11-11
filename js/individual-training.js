@@ -233,9 +233,8 @@ BT.individualTraining = (function() {
   }
 
   function currentFocus(data, profileId) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localBerlinDate(new Date());
     return (data.focuses || []).find(item => item.individual_profile_id === profileId && item.valid_from <= today && item.valid_until >= today)
-      || (data.focuses || []).find(item => item.individual_profile_id === profileId)
       || null;
   }
 
@@ -370,7 +369,7 @@ BT.individualTraining = (function() {
       const isAssessment = unit.kind === 'assessment';
       const planDate = actual ? localBerlinDate(actual.scheduled_for) : unit.scheduledDate;
       const actualPlan=(data.plans || []).find(p=>p.session_id===actual?.id && p.individual_profile_id===profileId);
-      const reviewed=actualPlan && actualPlan.version>1;
+      const reviewed=!!actualPlan;
       const exercises = reviewed ? (data.exercises || []).filter(e=>e.plan_id===actualPlan.id).map(e=>({title:e.title,durationMinutes:e.measurement_method?.durationNotRecorded ? null : e.duration_minutes,repetitions:e.repetitions,measurementMethod:e.measurement_method,coachingCues:e.coaching_cues})) : unit.template?.exercises || [];
       return `<article class="individual-roadmap-unit ${isAssessment ? 'assessment' : ''} ${actual?.status || 'upcoming'}" data-pilot-unit="${unit.unitNumber}">
         <div class="individual-roadmap-number"><span>Einheit</span><strong>${unit.unitNumber}</strong></div>
@@ -378,7 +377,7 @@ BT.individualTraining = (function() {
           <div class="individual-roadmap-heading"><div><small>${isAssessment ? 'Verbindliche Testeinheit' : 'Entwicklungseinheit'}</small><h5>${BT.util.escapeHTML(trainingTitle(reviewed ? actualPlan.title : unit.title))}</h5></div><span>${BT.util.escapeHTML(sessionStatusLabel(actual?.status))}</span></div>
           <p class="individual-roadmap-date">${BT.util.escapeHTML(roadmapDate(planDate))} · 20:15 Uhr · ${unit.durationMinutes} Minuten</p>
           <p>${BT.util.escapeHTML(reviewed ? actualPlan.objective : unit.objective)}</p>
-          ${exercises.length ? `<details class="individual-roadmap-details"><summary>Freigegebenen Ablauf anzeigen</summary><ol class="individual-exercise-list">${exercises.map(roadmapExercise).join('')}</ol></details>` : '<p class="muted">Der individuelle Ablauf entsteht nach Auswertung der vorherigen Einheit.</p>'}
+          ${actual ? `<button class="btn" type="button" data-open-session="${BT.util.escapeHTML(actual.id)}">Trainingsplan öffnen / bearbeiten</button>` : ''}${exercises.length ? `<details class="individual-roadmap-details"><summary>Freigegebenen Ablauf anzeigen</summary><ol class="individual-exercise-list">${exercises.map(roadmapExercise).join('')}</ol></details>` : '<p class="muted">Noch keine Übungen gespeichert. Öffne die Einheit, um den Trainingsplan zu ergänzen.</p>'}
         </div>
       </article>`;
     }).join('');
@@ -447,6 +446,8 @@ BT.individualTraining = (function() {
     const drafts = (data.aiDrafts || []).filter(item => item.individual_profile_id === profile.id);
     const latestDraft = drafts[0];
     const focus = currentFocus(data, profile.id);
+    const nextPlan=(data.plans || []).find(p=>p.session_id===session?.id && p.individual_profile_id===profile.id);
+    const nextExercises=(data.exercises || []).filter(e=>e.session_id===session?.id && e.individual_profile_id===profile.id).sort((a,b)=>a.position-b.position);
     const openFeedback = (data.notifications || []).some(item => item.individual_profile_id === profile.id && item.kind === 'feedback_request' && !item.read_at);
     return `<article class="card individual-profile-card" data-profile-id="${profile.id}">
       <div class="individual-profile-heading"><div><span class="section-kicker">Spieler</span><h3><a href="#/individual/player/${encodeURIComponent(profile.id)}/overview">${BT.util.escapeHTML(playerName(profile))}</a></h3></div><span class="individual-sync-dot ${Number(profile.pending_sync_count || 0) ? 'pending' : ''}" title="Synchronisierungsstatus"></span></div>
@@ -455,6 +456,12 @@ BT.individualTraining = (function() {
         <div><dt>Teilnahme</dt><dd data-coach-attendance aria-live="polite">${session ? attendanceLabel(session.attendance_status) : '—'}</dd></div>
         <div><dt>Tagesform</dt><dd data-coach-readiness aria-live="polite">${readinessLabel}</dd></div>
       </dl>
+      <section class="individual-next-plan"><h4>${nextPlan ? BT.util.escapeHTML(trainingTitle(nextPlan.title)) : 'Trainingsablauf'}</h4>
+        ${nextPlan?.objective ? `<p>${BT.util.escapeHTML(nextPlan.objective)}</p>` : ''}
+        ${nextExercises.length ? `<ol>${nextExercises.map(e=>`<li>${BT.util.escapeHTML(trainingTitle(e.title))} · ${e.measurement_method?.durationNotRecorded ? 'Dauer offen' : `${e.duration_minutes} Min.`}</li>`).join('')}</ol>` : '<p>Noch keine Übungen gespeichert.</p>'}
+        <a class="btn primary" data-action="open-training" href="#/individual/player/${encodeURIComponent(profile.id)}/training">Trainingsplan ansehen / bearbeiten</a>
+        <a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/overview">Alle Einheiten ansehen</a>
+      </section>
       <details class="individual-profile-details"><summary>Fokus und Auswertung${openFeedback ? ' · Rückmeldung offen' : ''}</summary><dl class="individual-status-grid">
         <div><dt>Synchronisierung</dt><dd>${Number(profile.pending_sync_count || 0) ? `${Number(profile.pending_sync_count)} offen` : 'Aktuell'}</dd></div>
         <div><dt>Rückmeldung</dt><dd>${openFeedback ? 'Offen' : 'Aktuell'}</dd></div>
@@ -590,7 +597,7 @@ BT.individualTraining = (function() {
   function renderCoachDetail(root, profile, data, pane = 'overview') {
     const host = root.querySelector('[data-role="individual-detail"]');
     const sessions = (data.sessions || []).filter(item => item.individual_profile_id === profile.id);
-    const selectedSession = pane === 'measurements' ? sessions.find(s=>s.id===measurementSessions.get(`${contextKey()}:${profile.id}`)) : null;
+    const selectedSession = ['measurements','training'].includes(pane) ? sessions.find(s=>s.id===measurementSessions.get(`${contextKey()}:${profile.id}`)) : null;
     const activeSession = selectedSession || [...sessions].reverse().find(item => ['planned', 'in_progress'].includes(item.status)) || sessions.at(-1) || null;
     const plan = (data.plans || []).find(item => item.session_id === activeSession?.id && item.individual_profile_id === profile.id);
     const exercises = (data.exercises || []).filter(item => item.session_id === activeSession?.id && item.individual_profile_id === profile.id);
@@ -598,7 +605,7 @@ BT.individualTraining = (function() {
     const fallbackTemplate = roadmapUnit?.template || null;
     const displayPlan = plan || fallbackTemplate;
     const sessionPlayers = (data.profiles || []).filter(p => (data.sessions || []).some(s => s.id === activeSession?.id && s.individual_profile_id === p.id));
-    const displayExercises = exercises.length ? exercises : (fallbackTemplate?.exercises || []).map((exercise, index) => ({
+    const displayExercises = plan ? exercises : (fallbackTemplate?.exercises || []).map((exercise, index) => ({
       id: null,
       position: index + 1,
       title: exercise.title,
@@ -619,7 +626,7 @@ BT.individualTraining = (function() {
     const latestDraftFor = profileId => (data.aiDrafts || []).find(item => item.individual_profile_id === profileId) || null;
     const paneLabels = {
       overview: 'Übersicht',
-      training: 'Training durchführen',
+      training: 'Trainingspläne & Durchführung',
       measurements: 'Messwerte',
       focus: 'Wochenfokus',
       feedback: 'Notizen & Rückmeldungen',
@@ -669,7 +676,12 @@ BT.individualTraining = (function() {
     host.hidden = false;
     host.innerHTML = `<div class="section-head individual-player-title"><div><span class="section-kicker">Traineransicht</span><h3>${BT.util.escapeHTML(playerName(profile))}</h3></div><span class="individual-current-pane">${paneLabels[pane]}</span></div><p><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/preview">Spieleransicht ansehen</a></p>${paneContent}`;
     const refresh = () => render(root.parentElement, profile.id, pane);
-    if (pane === 'measurements' && sessions.length) {
+    host.querySelectorAll('[data-open-session]').forEach(button=>button.addEventListener('click',()=>{
+      measurementSessions.set(`${contextKey()}:${profile.id}`,button.dataset.openSession);
+      if (pane === 'training') refresh();
+      else location.hash=`#/individual/player/${encodeURIComponent(profile.id)}/training`;
+    }));
+    if (['measurements','training'].includes(pane) && sessions.length) {
       const label=document.createElement('label');label.textContent='Einheit auswählen';
       const select=document.createElement('select');select.dataset.measurementSession='';
       for (const s of [...sessions].reverse()) {const option=document.createElement('option');option.value=s.id;option.textContent=`Einheit ${s.unit_number} · ${fmt(s.scheduled_for)} · ${sessionStatusLabel(s.status)}`;option.selected=s.id===activeSession?.id;select.append(option);}
@@ -925,6 +937,10 @@ BT.individualTraining = (function() {
         actionButton.disabled = true;
         try { await BT.api.individualAction('archiveUnusedProfile', {profileId:profile.id}); await render(target); }
         catch (error) { notice(root,error.message,true); actionButton.disabled=false; }
+        return;
+      }
+      if (actionButton.dataset.action === 'open-training') {
+        measurementSessions.delete(`${contextKey()}:${profile.id}`);
         return;
       }
       if (actionButton.dataset.action === 'open-profile') {

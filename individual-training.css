@@ -279,3 +279,15 @@ body.individual-player-mode .mobile-dock { grid-template-columns:1fr; }
 .individual-private-note summary { min-height:44px; padding:.65rem 0; cursor:pointer; }
 .individual-private-note [data-edit-coach-note] { display:grid; gap:.8rem; padding-top:.5rem; }
 .individual-private-note [data-edit-coach-note] label { display:grid; gap:.5rem; }
+
+/* Coach forms must shrink inside mobile grids, including native iOS date/select fields. */
+#app .individual-view :is([data-role="individual-detail"],.individual-next-plan) { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+#app .individual-view :is([data-weekly-focus],[data-plan-session],[data-reschedule-session]) { display:grid; grid-template-columns:minmax(0,1fr); gap:1rem; min-width:0; max-width:100%; padding:clamp(14px,3vw,22px); box-sizing:border-box; white-space:normal; }
+#app .individual-view :is([data-weekly-focus],[data-plan-session],[data-reschedule-session]) label { display:grid; gap:.5rem; min-width:0; max-width:100%; }
+#app .individual-view :is([data-weekly-focus],[data-plan-session],[data-reschedule-session]) :is(input,select,textarea) { display:block; width:100%; min-width:0; max-width:100%; box-sizing:border-box; min-height:48px; font:inherit; font-size:16px; }
+#app .individual-view :is([data-weekly-focus],[data-plan-session],[data-reschedule-session]) :is(p,button) { min-width:0; max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+#app .individual-view [data-measurement-session] { display:block; width:100%; min-width:0; max-width:100%; min-height:48px; font-size:16px; }
+.individual-next-plan { border-top:1px solid var(--border); padding-top:1rem; margin-block:1rem; }
+.individual-next-plan h4 { margin:0 0 .6rem; }
+.individual-next-plan ol { padding-left:1.4rem; line-height:1.6; }
+.individual-next-plan .btn { display:block; margin-top:.6rem; white-space:normal; }
