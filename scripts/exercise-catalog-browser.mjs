@@ -21,7 +21,7 @@ try {
   assert.equal(await page.evaluate(()=>BT.exerciseCatalog.all().length),400);assert.equal(await page.evaluate(()=>BT.storage.getDrills().length),0);
   assert.equal(await page.locator('[data-library-item]').count(),40);await check('catalog');
   await page.getByText('Weitere Filter',{exact:true}).click();
-  await page.locator('[name=players]').selectOption('2');await page.locator('[name=level]').selectOption('Grundlagen');await page.locator('[name=minutes]').selectOption('8');
+  await page.locator('[name=players]').selectOption('2');await page.locator('[name=level]').selectOption('Grundlagen');await page.locator('[name=minutes]').selectOption('10');
   await page.locator('[name=search]').fill('Führhand');await page.locator('[data-library-item]').first().waitFor();await check('filters');
   const name=await page.locator('[data-library-item] strong').first().innerText();await page.locator('[data-favorite]').first().click();await page.waitForFunction(()=>BT.storage.getSetting('exerciseFavorites',[]).length===1);
   await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();assert.equal(await page.locator('a[href^="#/drills/catalog-"]').count(),3);await check('detail');
