@@ -25,7 +25,7 @@ try {
   await page.locator('[name=search]').fill('Führhand');await page.locator('[data-library-item]').first().waitFor();await check('filters');
   const name=await page.locator('[data-library-item] strong').first().innerText();await page.locator('[data-favorite]').first().click();await page.waitForFunction(()=>BT.storage.getSetting('exerciseFavorites',[]).length===1);
   await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();assert.equal(await page.locator('a[href^="#/drills/catalog-"]').count(),3);await check('detail');
-  await page.locator('[data-catalog-copy]').click();await page.locator('.library-editor').waitFor();await page.locator('[name=name]').fill('Meine eigene Katalogübung');await page.getByRole('button',{name:'Übung speichern',exact:true}).click();await page.locator('[data-library-page=detail]').waitFor();
+  await page.locator('[data-catalog-copy]').click();await page.locator('form.library-editor').waitFor();await page.locator('[name=name]').fill('Meine eigene Katalogübung');await page.getByRole('button',{name:'Übung speichern',exact:true}).click();await page.locator('[data-library-page=detail]').waitFor();
   assert.equal(await page.evaluate(()=>BT.storage.getDrills().length),1);assert.equal(await page.evaluate(()=>BT.exerciseCatalogSeed.length),400);
   await page.goto(base+'/#/drills');await page.locator('[data-clear-filters]').waitFor();await page.locator('[data-clear-filters]').click();await page.locator('[name=source]').selectOption('favorites');assert.equal(await page.locator('[data-library-item]').count(),1);
   const training=await page.evaluate(async()=>{const t=BT.storage.upsertTraining({date:'2026-12-01',plan:{drills:[]}});await BT.storage.flush();return t.id;});
