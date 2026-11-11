@@ -17,6 +17,7 @@ try {
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(15000);
   const base='http://127.0.0.1:'+port;
   const check=async label=>{assert(await page.evaluate(()=>Math.max(document.body.scrollWidth,document.documentElement.scrollWidth)<=innerWidth+1),label+': horizontal overflow');assert.deepEqual(errors,[]);await page.screenshot({path:'/tmp/courthub-catalog-screenshots/'+label+'-'+width+'.png',fullPage:true});};
+  try {
   await page.goto(base+'/#/drills');await page.locator('[data-library-item]').first().waitFor();
   assert.equal(await page.evaluate(()=>BT.exerciseCatalog.all().length),400);assert.equal(await page.evaluate(()=>BT.storage.getDrills().length),0);
   assert.equal(await page.locator('[data-library-item]').count(),40);await check('catalog');
@@ -25,7 +26,7 @@ try {
   await page.locator('[name=search]').fill('Führhand');await page.locator('[data-library-item]').first().waitFor();await check('filters');
   const name=await page.locator('[data-library-item] strong').first().innerText();await page.locator('[data-favorite]').first().click();await page.waitForFunction(()=>BT.storage.getSetting('exerciseFavorites',[]).length===1);
   await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();assert.equal(await page.locator('a[href^="#/drills/catalog-"]').count(),3);await check('detail');
-  await page.locator('[data-catalog-copy]').click();await page.locator('form.library-editor').waitFor();await page.locator('[name=name]').fill('Meine eigene Katalogübung');await page.getByRole('button',{name:'Übung speichern',exact:true}).click();await page.locator('[data-library-page=detail]').waitFor();
+  await page.locator('[data-catalog-copy]').click();await page.locator('[data-library-page=detail] a[href$="/edit"]').click();await page.locator('form.library-editor').waitFor();await page.locator('[name=name]').fill('Meine eigene Katalogübung');await page.getByRole('button',{name:'Übung speichern',exact:true}).click();await page.locator('[data-library-page=detail]').waitFor();
   assert.equal(await page.evaluate(()=>BT.storage.getDrills().length),1);assert.equal(await page.evaluate(()=>BT.exerciseCatalogSeed.length),400);
   await page.goto(base+'/#/drills');await page.locator('[data-clear-filters]').waitFor();await page.locator('[data-clear-filters]').click();await page.locator('[name=source]').selectOption('favorites');assert.equal(await page.locator('[data-library-item]').count(),1);
   const training=await page.evaluate(async()=>{const t=BT.storage.upsertTraining({date:'2026-12-01',plan:{drills:[]}});await BT.storage.flush();return t.id;});
@@ -45,6 +46,10 @@ try {
    await page.locator('[name=search]').fill('Short Roll');assert.equal(await page.locator('[data-library-item]').count(),4);await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();await check('offline-detail');
    await page.evaluate(()=>document.documentElement.dataset.theme='dark');await check('dark-detail');await context.setOffline(false);
   }
-  console.log(width+'px: catalog, filters, favorites, own copy, team/individual selection and private-note exclusion passed');await context.close();
+  console.log(width+'px: catalog, filters, favorites, own copy, team/individual selection and private-note exclusion passed');
+  } catch(error) {
+   console.error(await page.evaluate(()=>JSON.stringify({hash:location.hash,text:document.querySelector('#app')?.innerText.slice(0,5000)})).catch(()=>''));
+   await page.screenshot({path:'/tmp/courthub-catalog-screenshots/failure-'+width+'.png',fullPage:true}).catch(()=>{});throw error;
+  } finally {await context.close();}
  }
 }finally{await browser?.close();server.kill();}

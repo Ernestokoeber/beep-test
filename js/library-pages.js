@@ -60,7 +60,7 @@ BT.libraryPages = (() => {
       node.querySelector('[data-catalog-copy]')?.addEventListener('click',async e=>{
         if(!writable()||scope!==identity()||route!==location.hash)return;
         const b=e.currentTarget;if(b.disabled)return;b.disabled=true;
-        try {const saved=await catalog.saveCopy(row);if(node.isConnected&&scope===identity()&&route===location.hash)BT.navigation.replace(href('drills',saved.id,'edit'));}
+        try {const saved=await catalog.saveCopy(row);if(node.isConnected&&scope===identity()&&route===location.hash)BT.navigation.replace(href('drills',saved.id));}
         catch {if(node.isConnected&&scope===identity())node.querySelector('[data-library-status]').textContent='Speichern fehlgeschlagen. Bitte erneut versuchen.';}
         finally {if(node.isConnected&&scope===identity())b.disabled=false;}
       });

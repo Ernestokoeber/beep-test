@@ -38,7 +38,7 @@ try {
  render(source.id);assert(host.querySelector('[data-catalog-copy]'));assert.equal(host.querySelectorAll('a[href^="#/drills/catalog-"]').length,3);
  render(source.id+'/edit');assert(!host.querySelector('form'),'Bundled originals are immutable');
  host.querySelector('[data-catalog-copy]').click();await B.storage.flush();await tick();assert.equal(B.storage.getDrills().length,1);
- const copy=B.storage.getDrills()[0];assert.notEqual(copy.id,source.id);render(copy.id+'/edit');
+ const copy=B.storage.getDrills()[0];assert.notEqual(copy.id,source.id);assert.equal(w.location.hash,'#/drills/'+copy.id,'A saved copy opens its own detail before explicit editing');render(copy.id+'/edit');
  change('name','Meine Nahwurf-Variante');change('description','Eigener Ablauf ohne fremde Notizen');change('playersMin','1');change('playersMax','2');change('coachingPoints','Meine Führhand bleibt ruhig');
  host.querySelector('form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await B.storage.flush();await tick();
  assert.equal(B.storage.getDrill(copy.id).name,'Meine Nahwurf-Variante');assert(C.describe(B.storage.getDrill(copy.id)).includes('Meine Führhand bleibt ruhig'));assert.equal(JSON.stringify(C.get(source.id)),before);
