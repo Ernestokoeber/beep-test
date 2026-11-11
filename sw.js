@@ -1,7 +1,9 @@
 // Bump this whenever any app file or the offline asset manifest changes.
 // Cached files stay fixed for a release; the new worker installs the next release.
-const CACHE = 'courthub-v276';
+const CACHE = 'courthub-v277';
 const ASSETS = [
+  './js/exercise-catalog-data.js',
+  './js/exercise-catalog.js',
   './js/individual-plan-editor.js',
   './js/personal-rehab.mjs',
   './personal-training.css',

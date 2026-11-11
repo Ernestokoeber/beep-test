@@ -9,8 +9,8 @@ BT.libraryPages = (() => {
   const href = (kind, id = '', pane = '') => '#/' + kind + (id ? '/' + encodeURIComponent(id) : '') + (pane ? '/' + pane : '');
   const link = (url, title, detail = '') => '<a class="library-link" href="' + esc(url) + '"><span><strong>' + esc(title) + '</strong>' + (detail ? '<small>' + esc(detail) + '</small>' : '') + '</span><span aria-hidden="true">›</span></a>';
   const config = kind => kind === 'drills' ? {
-    title: 'Übungsbibliothek', singular: 'Übung', fields: ['name', 'category', 'minutes', 'description'],
-    getAll: () => BT.storage.getDrills(), get: id => BT.storage.getDrill(id), put: data => BT.storage.upsertDrill(data), remove: id => BT.storage.deleteDrill(id), restore: row => BT.storage.restoreDrill(row), name: row => row.name || 'Übung ohne Namen'
+    title: 'Übungsbibliothek', singular: 'Übung', fields: ['name', 'category', 'minutes', 'description','goal','playersMin','playersMax','level','equipment','successIndicator','coachingPoints','repetitions','easier','harder'],
+    getAll: () => BT.exerciseCatalog?.all() || BT.storage.getDrills(), get: id => BT.exerciseCatalog?.get(id) || BT.storage.getDrill(id), put: data => BT.storage.upsertDrill(data), remove: id => BT.storage.deleteDrill(id), restore: row => BT.storage.restoreDrill(row), name: row => row.name || 'Übung ohne Namen'
   } : {
     title: 'Trainernotizen', singular: 'Notiz', fields: ['title', 'body'],
     getAll: () => BT.storage.getNotes(), get: id => BT.storage.getNote(id), put: data => BT.storage.upsertNote(data), remove: id => BT.storage.deleteNote(id), restore: row => BT.storage.restoreNote(row), name: row => row.title?.trim() || row.body?.split('\n').find(x => x.trim())?.slice(0, 80) || 'Notiz ohne Titel'
@@ -22,6 +22,13 @@ BT.libraryPages = (() => {
   }
   function renderList(node, kind, c) {
     heading(node, c.title, kind === 'drills' ? 'Übungen finden und direkt für dein Training öffnen.' : 'Ideen und Beobachtungen für dein Coaching.');
+    if(kind==='drills' && BT.exerciseCatalog) {
+      const catalog=BT.exerciseCatalog, count=(BT.exerciseCatalogSeed || []).length;
+      node.insertAdjacentHTML('beforeend','<p class="catalog-intro"><strong>'+count+' Übungen und Varianten</strong> im Grundkatalog. Dazu kommen deine eigenen Vorlagen. Suche nach Ziel, Ablauf oder Übungsname und passe die Auswahl für dein Training an.</p><nav class="library-actions">'+(writable()?link(href(kind,'new'),'Neue Übung')+link(href(kind,'import'),'Aus Trainings übernehmen'):'')+'</nav><div data-catalog-browser></div>');
+      const saved=state(); catalog.mountBrowser(node.querySelector('[data-catalog-browser]'),{initial:{...(saved.catalogQuery || {}),search:saved.librarySearch || '',category:saved.libraryCategory || '',limit:saved.libraryLimit || 40},remember:q=>remember({catalogQuery:q,librarySearch:q.search,libraryCategory:q.category,libraryLimit:q.limit})});
+      node.insertAdjacentHTML('beforeend','<details class="exercise-catalog-about"><summary>Über den Katalog</summary><p>100 Übungsfamilien mit jeweils vier konkreten Durchführungen. Die Beschreibungen und Startwerte lassen sich an deine Gruppe anpassen. Grundkatalog und eigene Vorlagen bleiben getrennt; Änderungen in einem Trainingsplan verändern die Vorlage nicht.</p><p>Weiterführende Coachingmaterialien: <a href="https://about.fiba.basketball/en/wabc-documents" target="_blank" rel="noopener noreferrer">FIBA / WABC</a>. Der CourtHub-Katalog ist eine eigene Sammlung und kein offizieller FIBA-Katalog.</p></details>');
+      return;
+    }
     node.innerHTML += '<nav class="library-actions">' + (writable() ? link(href(kind, 'new'), kind === 'drills' ? 'Neue Übung' : 'Neue Notiz') : '') + (kind === 'drills' && writable() ? link(href(kind, 'import'), 'Aus Trainings übernehmen') : '') + '</nav><div class="library-filters"><label>Suchen<input type="search" name="search" placeholder="' + (kind === 'drills' ? 'Name, Kategorie oder Ablauf' : 'Titel oder Inhalt') + '"></label>' + (kind === 'drills' ? '<label>Kategorie<select name="category"><option value="">Alle Kategorien</option></select></label>' : '') + '</div><p class="muted" role="status" data-library-count></p><div class="library-list" data-library-list></div>';
     const search = node.querySelector('[name=search]'), category = node.querySelector('[name=category]');
     search.value = state().librarySearch || '';
@@ -46,6 +53,24 @@ BT.libraryPages = (() => {
   }
   function renderDetail(node, kind, c, row) {
     heading(node, c.name(row), c.singular);
+    if(kind==='drills' && BT.exerciseCatalog) {
+      const catalog=BT.exerciseCatalog;
+      node.insertAdjacentHTML('beforeend','<nav class="library-actions">'+(writable()?(row.builtIn?'<button class="btn primary" type="button" data-catalog-copy>Als eigene Übung speichern</button>':link(href(kind,row.id,'edit'),'Übung bearbeiten')):'')+'</nav><p role="status" data-library-status></p>'+catalog.detailHTML(row));
+      const scope=identity(),route=location.hash;
+      node.querySelector('[data-catalog-copy]')?.addEventListener('click',async e=>{
+        if(!writable()||scope!==identity()||route!==location.hash)return;
+        const b=e.currentTarget;if(b.disabled)return;b.disabled=true;
+        try {const saved=await catalog.saveCopy(row);if(node.isConnected&&scope===identity()&&route===location.hash)BT.navigation.replace(href('drills',saved.id,'edit'));}
+        catch {if(node.isConnected&&scope===identity())node.querySelector('[data-library-status]').textContent='Speichern fehlgeschlagen. Bitte erneut versuchen.';}
+        finally {if(node.isConnected&&scope===identity())b.disabled=false;}
+      });
+      if(row.familyId) {
+        const others=catalog.all().filter(r=>r.builtIn&&r.familyId===row.familyId&&r.id!==row.id);
+        if(others.length)node.insertAdjacentHTML('beforeend','<section><h3>Weitere Varianten</h3>'+others.map(r=>link(href('drills',r.id),r.name,catalog.meta(r))).join('')+'</section>');
+      }
+      node.insertAdjacentHTML('beforeend','<p class="muted">Im Trainingsplan findest du diese Übung unter „Aus Bibliothek“. Dort bleiben Dauer, Ablauf und Hinweise frei anpassbar.</p>');
+      return;
+    }
     if (writable()) node.innerHTML += '<nav class="library-actions">' + link(href(kind, row.id, 'edit'), c.singular + ' bearbeiten') + '</nav>';
     if (kind === 'drills') {
       node.innerHTML += '<dl class="library-facts"><div><dt>Kategorie</dt><dd>' + esc(row.category || 'Nicht zugeordnet') + '</dd></div><div><dt>Dauer</dt><dd>' + esc(row.minutes ? row.minutes + ' Minuten' : 'Noch offen') + '</dd></div></dl><section><h3>Ablauf & Coaching</h3><p class="library-prose">' + esc(row.description || 'Noch kein Ablauf hinterlegt.') + '</p></section>';
@@ -74,6 +99,7 @@ BT.libraryPages = (() => {
     }
   }
   function renderEditor(node, kind, c, row) {
+    if(kind==='drills' && row?.builtIn) {renderDetail(node,kind,c,row);return;}
     const isNew = !row, original = row || {}, scope = identity(), route = location.hash;
     heading(node, (isNew ? 'Neue ' : '') + c.singular + (isNew ? '' : ' bearbeiten'), 'Deine Änderungen bleiben als Entwurf auf diesem Gerät, bis du sie speicherst.');
     if (!writable()) { node.innerHTML += '<p class="library-empty">Du hast hier Lesezugriff.</p>' + link(href(kind, row?.id), 'Zurück zu ' + (row ? c.singular : c.title)); return; }
@@ -82,9 +108,15 @@ BT.libraryPages = (() => {
     // Never discard a draft merely because that snapshot has equal fields.
     const base = draft?.fields && fingerprint(c,draft.fields) === originalFingerprint ? originalFingerprint : draft?.base ?? originalFingerprint;
     const fields = draft?.fields || original;
-    const field = (key, label, options = {}) => '<label>' + label + (options.area ? '<textarea rows="' + (kind === 'notes' ? 14 : 8) + '" name="' + key + '">' + esc(fields[key] || '') + '</textarea>' : '<input name="' + key + '" type="' + (options.type || 'text') + '" ' + (options.attrs || '') + ' value="' + esc(fields[key] ?? '') + '">') + '</label>';
+    const field = (key, label, options = {}) => '<label>' + label + (options.area ? '<textarea rows="' + (kind === 'notes' ? 14 : 8) + '" name="' + key + '">' + esc(Array.isArray(fields[key])?fields[key].join('\n'):fields[key] || '') + '</textarea>' : '<input name="' + key + '" type="' + (options.type || 'text') + '" ' + (options.attrs || '') + ' value="' + esc(fields[key] ?? '') + '">') + '</label>';
     node.innerHTML += '<form class="library-editor">' + (kind === 'drills' ? field('name', 'Name', { attrs: 'required maxlength="80"' }) + '<div class="library-form-pair">' + field('category', 'Kategorie', { attrs: 'maxlength="40" placeholder="Zum Beispiel: Defense"' }) + field('minutes', 'Dauer in Minuten', { type: 'number', attrs: 'min="0" max="120" step="1" inputmode="numeric"' }) + '</div>' + field('description', 'Aufbau, Ablauf & Coaching-Punkte', { area: true }) : field('title', 'Titel', { attrs: 'maxlength="160"' }) + (tacticNote(original) ? '<p>Das Taktikboard bleibt erhalten. Seine Zeichnung bearbeitest du im Taktikbereich.</p>' : field('body', 'Deine Notiz', { area: true }))) + '<p role="status" data-library-status>Entwurf · noch nicht gespeichert</p><div class="library-editor-actions"><button class="btn primary" type="submit">' + c.singular + ' speichern</button><button class="btn" type="button" data-library-discard>Änderungen verwerfen</button></div></form>' + (!isNew ? '<details class="library-delete"><summary>Weitere Aktionen</summary><button class="btn danger" type="button" data-library-delete>' + c.singular + ' löschen</button></details>' : '');
     const form = node.querySelector('form'), status = node.querySelector('[data-library-status]');
+    if(kind==='drills' && BT.exerciseCatalog) {
+      form.elements.name.maxLength=200;
+      form.querySelector('[name=description]').value=fields.description || BT.exerciseCatalog.describe(fields);
+      status.insertAdjacentHTML('beforebegin','<details class="exercise-editor-meta"><summary>Ziel, Filter & Varianten</summary><div class="library-editor">'+field('goal','Trainingsziel',{attrs:'maxlength="500"'})+'<div class="library-form-pair">'+field('playersMin','Spieler mindestens',{type:'number',attrs:'min="1" max="100"'})+field('playersMax','Spieler höchstens',{type:'number',attrs:'min="1" max="100"'})+'</div><label>Niveau<select name="level"><option value="">Noch offen</option>'+BT.exerciseCatalog.levels.map(l=>'<option>'+esc(l)+'</option>').join('')+'</select></label>'+field('equipment','Material (ein Eintrag pro Zeile)',{area:true})+field('repetitions','Wiederholungen / Umfang',{area:true})+field('coachingPoints','Coachingpunkte (ein Eintrag pro Zeile)',{area:true})+field('successIndicator','Erfolgskriterium',{area:true})+field('easier','Einfachere Variante',{area:true})+field('harder','Schwierigere Variante',{area:true})+'</div></details>');
+      form.elements.level.value=fields.level || '';
+    }
     let busy = false;
     const lock = value => { busy = value; form.querySelectorAll('input,textarea,button').forEach(el => el.disabled = value); };
     const active = () => node.isConnected && scope === identity() && route === location.hash && writable();
@@ -98,6 +130,14 @@ BT.libraryPages = (() => {
       if (kind === 'drills') {
         data.name = data.name.trim(); data.category = data.category.trim(); data.minutes = Number(data.minutes || 0);
         if (!data.name || !Number.isInteger(data.minutes) || data.minutes < 0 || data.minutes > 120) { status.textContent = 'Bitte einen Namen und eine ganze Dauer von 0 bis 120 Minuten eingeben.'; return; }
+        if(BT.exerciseCatalog) {
+          for(const key of ['playersMin','playersMax'])data[key]=data[key]?Number(data[key]):null;
+          if((data.playersMin===null)!==(data.playersMax===null) || (data.playersMin!==null && (!Number.isInteger(data.playersMin)||!Number.isInteger(data.playersMax)||data.playersMin<1||data.playersMax<data.playersMin||data.playersMax>100))) {status.textContent='Bitte eine gültige Spielerzahl von/bis angeben oder beide Felder leer lassen.';return;}
+          data.equipment=String(data.equipment || '').split('\n').map(x=>x.trim()).filter(Boolean);
+          data.coachingPoints=String(data.coachingPoints || '').split('\n').map(x=>x.trim()).filter(Boolean);
+          // The editable description is the authoritative, independent copy.
+          data.setup='';data.steps=[];data.builtIn=false;
+        }
       } else if (tacticNote(original)) data.body = original.body;
       remember({draft:{fields:data,base}}); lock(true); status.textContent = 'Wird auf diesem Gerät gespeichert …';
       try {

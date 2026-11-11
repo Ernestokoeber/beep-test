@@ -28,4 +28,29 @@
 .library-import small { color:var(--muted); }
 .library-import input { width:24px; height:24px; flex-shrink:0; }
 .library-page :is(a,button,input,select,textarea,summary):focus-visible { outline:3px solid #e89a35; outline-offset:3px; }
+.catalog-intro { padding:20px; border:1px solid var(--border); border-radius:14px; line-height:1.7; background:var(--surface); }
+.catalog-intro strong { display:block; color:var(--accent); font-size:1.2rem; }
+.exercise-browser { min-width:0; overflow-wrap:anywhere; }
+.exercise-browser label { display:grid; gap:8px; min-width:0; }
+.exercise-browser :is(input,select) { width:100%; min-height:48px; min-width:0; box-sizing:border-box; font-size:1rem; }
+.exercise-browser .btn,.exercise-dialog .btn { min-height:46px; white-space:normal; }
+.exercise-filter-options,.exercise-catalog-about,.exercise-editor-meta { margin-block:18px; border-block:1px solid var(--border); padding:8px 0; }
+.exercise-filter-options summary,.exercise-catalog-about summary,.exercise-editor-meta summary,.exercise-preview summary { display:flex; align-items:center; min-height:48px; cursor:pointer; color:var(--accent); font-weight:650; }
+.exercise-filter-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:12px; }
+.exercise-card { padding:18px; margin-bottom:12px; border:1px solid var(--border); border-radius:14px; min-width:0; }
+.exercise-card h3 { margin:0 0 8px; font-size:1.08rem; }
+.exercise-card p { line-height:1.6; margin:8px 0 12px; }
+.exercise-card .library-link { border:0; padding:0 0 8px; min-height:48px; }
+.exercise-card-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.exercise-card-actions [aria-pressed=true] { border-color:var(--accent); color:var(--accent); }
+.exercise-preview .library-prose { font-size:.94rem; }
+.exercise-catalog-about a { display:inline-flex; align-items:center; min-height:44px; }
+.individual-catalog-picker { margin-block:16px; padding:16px; border:1px solid var(--border); border-radius:12px; }
+.individual-catalog-picker[hidden] { display:none; }
+.individual-catalog-picker [data-close-exercise-catalog] { margin-bottom:16px; }
+.exercise-dialog { width:min(920px,95vw); max-height:90dvh; box-sizing:border-box; padding:22px; border:1px solid var(--border); border-radius:18px; background:var(--bg,#fff); color:var(--text,#222); }
+.exercise-dialog::backdrop { background:rgba(0,0,0,.6); }
+.exercise-dialog header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:20px; }
+.exercise-browser :is(button,input,select,summary,a):focus-visible { outline:3px solid #e89a35; outline-offset:3px; }
+@media(max-width:600px) { .exercise-filter-grid { grid-template-columns:minmax(0,1fr); } .exercise-card { padding:14px; } .exercise-card-actions .btn { flex:1; } .individual-catalog-picker { padding:10px; } .exercise-dialog { padding:14px; width:98vw; max-height:94dvh; } }
 @media(max-width:600px) { .library-filters,.library-form-pair { grid-template-columns:minmax(0,1fr); } .library-actions { gap:4px; } .library-actions .library-link { flex-basis:100%; } .library-editor-actions .btn { flex-basis:100%; } }
