@@ -49,7 +49,7 @@ const scripts = [
   'js/personal-training.js', 'js/personal-core.mjs', 'js/personal-rehab.mjs', 'api/_handlers/individual/personal.js',
   'js/checkin.js', 'js/games.js', 'js/opponents.js',
   'api/_lib/db.js', 'api/_lib/http.js', 'api/_lib/auth.js', 'api/_lib/workspace-data.js',
-  'api/_lib/individual-training.js', 'api/_lib/individual-access.js', 'api/_lib/individual-pilot.js',
+  'api/_lib/individual-weekly-focus.js', 'api/_lib/individual-training.js', 'api/_lib/individual-access.js', 'api/_lib/individual-pilot.js',
   'api/_lib/ai-contracts.js', 'api/_lib/gemini-client.js', 'api/_lib/ai-handler.js',
   'api/auth/[route].js', 'api/_handlers/auth/register.js', 'api/_handlers/auth/login.js', 'api/_handlers/auth/me.js',
   'api/workspace.js', 'api/members.js', 'api/ai/gemini.js',

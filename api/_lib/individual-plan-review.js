@@ -1,6 +1,6 @@
 import {text, optionalText, uuid, validateChangeReason, zonedDateTimeToInstant} from './individual-training.js';
 
-// This edits the performed session only. The following session remains an AI draft.
+// Planned sessions and the performed record use the same versioned, audited editor.
 export async function saveSessionPlanReview(client, auth, profile, session, body) {
   if (session.status === 'cancelled') throw new TypeError('Eine abgesagte Einheit kann nicht dokumentiert werden.');
   const reason = validateChangeReason(body.changeReason);
@@ -16,6 +16,8 @@ export async function saveSessionPlanReview(client, auth, profile, session, body
     const minutes=e.durationMinutes === null || e.durationMinutes === '' ? null : Number(e.durationMinutes);
     if (minutes !== null && (!Number.isInteger(minutes) || minutes<1 || minutes>120)) throw new TypeError('Die Übungsdauer muss zwischen 1 und 120 Minuten liegen oder leer bleiben.');
     return {id,title:text(e.title,'Übung',{min:2,max:200}),minutes,
+      repetitions:e.repetitions === undefined ? undefined : optionalText(e.repetitions,'Wiederholungen',{min:1,max:2000}) || '',
+      measurementInstruction:e.measurementInstruction === undefined ? undefined : optionalText(e.measurementInstruction,'Messmethode',{min:1,max:2000}) || '',
       cues:optionalText(e.cues,'Trainerhinweise',{min:1,max:1000}) || '',
       observation:optionalText(e.observation,'Beobachtung',{min:1,max:500}) || ''};
   });
@@ -37,9 +39,11 @@ export async function saveSessionPlanReview(client, auth, profile, session, body
   for (const [index,e] of exercises.entries()) {
     const previous=old.find(row=>row.id===e.id);
     const sameExercise=previous?.title===e.title;
-    const repetitions=sameExercise ? previous.repetitions || {} : {};
+    const repetitions={...(sameExercise ? previous.repetitions || {} : {})};
+    if (e.repetitions !== undefined) repetitions.instruction=e.repetitions;
     const measurement={...(sameExercise ? previous?.measurement_method || {} : {}),durationNotRecorded:e.minutes===null,
-      documentation:'Nachgetragener tatsächlicher Ablauf. Nicht notierte Dauer ist unbekannt. Keine standardisierte Ausgangsmessung unterstellen.'};
+      documentation:session.status === 'planned' ? 'Vom Trainer geplanter Ablauf; noch nicht durchgeführt.' : 'Nachgetragener tatsächlicher Ablauf. Nicht notierte Dauer ist unbekannt. Keine standardisierte Ausgangsmessung unterstellen.'};
+    if (e.measurementInstruction !== undefined) measurement.instruction=e.measurementInstruction;
     const params=[plan.id,index+1,e.title,e.minutes || 1,JSON.stringify(repetitions),JSON.stringify(measurement),JSON.stringify(e.cues.split('\n').filter(Boolean))];
     const saved=e.id
       ? await client.query('UPDATE individual_exercises SET position=$2,title=$3,duration_minutes=$4,repetitions=$5::jsonb,measurement_method=$6::jsonb,coaching_cues=$7::jsonb WHERE plan_id=$1 AND id=$8 RETURNING *',[...params,e.id])

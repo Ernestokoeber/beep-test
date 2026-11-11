@@ -315,13 +315,18 @@ BT.individualTraining = (function() {
   }
 
   function nextPilotDate(sessions) {
-    const dates = [...new Set((sessions || []).map(item => new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit'
-    }).format(new Date(item.scheduled_for))))].sort();
-    if (!dates.length) return '2026-10-19';
-    const next = new Date(`${dates.at(-1)}T12:00:00Z`);
-    do { next.setUTCDate(next.getUTCDate() + 7); } while (next.toISOString().slice(0, 10) === '2026-11-02');
-    return next.toISOString().slice(0, 10);
+    const dates = (sessions || []).map(item => localBerlinDate(item.scheduled_for)).sort();
+    const today = localBerlinDate(new Date());
+    let next = dates.length ? datePlus(dates.at(-1), 7) : '2026-10-19';
+    while (next <= today || next === '2026-11-02') next = datePlus(next, 7);
+    return next;
+  }
+
+  function currentFocusWeek() {
+    const today = localBerlinDate(new Date());
+    const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+    const from = datePlus(today, -((weekday + 6) % 7));
+    return {from, until:datePlus(from, 6)};
   }
 
   function localBerlinDate(value) {
@@ -629,7 +634,10 @@ BT.individualTraining = (function() {
       ? `<div class="individual-actions"><button class="btn" type="button" data-refresh-session-plans ${canRefreshSessionPlans ? '' : 'disabled'}>Rollenspezifische KI-Pläne in Einheit übernehmen</button><p role="status" data-refresh-session-plans-status>${canRefreshSessionPlans ? 'Ersetzt die bereits angelegten Abläufe durch die aktuellen Rollenpläne.' : 'Zuerst für alle Teilnehmer einen aktuellen rollenspezifischen KI-Entwurf erstellen.'}</p></div>`
       : '';
     const completedCount = new Set((data.sessions || []).filter(s=>s.status === 'completed').map(s=>s.id)).size;
-    const nextSessionCard = sessionOpen ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · ${activeSession.duration_minutes || 105} Minuten</p><a class="btn primary" href="#/individual/player/${encodeURIComponent(profile.id)}/training">Einheit öffnen</a></section>` : completedCount >= 8 ? '<section class="card"><h4>Trainingsblock abgeschlossen</h4><p>Alle acht Einheiten sind durchgeführt.</p></section>' : `<form class="card" data-plan-session data-primary-plan-ready="${rolePlanReady(latestDraft)}"><h4>Nächste Montagseinheit planen</h4><p>Für jeden Teilnehmer wird ausschließlich der aktuelle rollenspezifische KI-Entwurf übernommen. Rückmeldung und Wochenfokus bleiben bis zur gesonderten Freigabe privat.</p><label>Datum<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" readonly required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="" data-plan-ready="true">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}" data-plan-ready="${rolePlanReady(latestDraftFor(item.id))}" ${sessionPlayers.some(p=>p.id===item.id) ? 'selected' : ''}>${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><p role="status" data-plan-session-status></p><button class="btn primary" type="submit">Nächste Einheit mit rollenspezifischem KI-Plan ansetzen</button><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/ai-history">KI-Entwurf prüfen</a></form>`;
+    const fixedNextPlan = [1,4,8].includes(completedCount + 1);
+    const initialPlanSource = fixedNextPlan || rolePlanReady(latestDraft) && sessionPlayers.every(item => rolePlanReady(latestDraftFor(item.id))) ? 'ai' : 'manual';
+    const rescheduleForm = activeSession?.status === 'planned' ? `<form data-reschedule-session><label>Termin verschieben (Montag)<input name="scheduledDate" type="date" value="${nextPilotDate([])}" min="${localBerlinDate(new Date())}" required></label><p>20:15 Uhr · 105 Minuten. Die Teilnehmer bestätigen den geänderten Termin erneut.</p><button class="btn" type="submit">Termin verschieben</button><p role="status" data-reschedule-status></p></form>` : '';
+    const nextSessionCard = sessionOpen ? `<section class="card"><h4>Nächste Montagseinheit</h4><p><strong>Einheit ${activeSession.unit_number} ist angelegt.</strong></p><p>${fmt(activeSession.scheduled_for)} · ${activeSession.duration_minutes || 105} Minuten</p><a class="btn primary" href="#/individual/player/${encodeURIComponent(profile.id)}/training">Einheit öffnen</a>${rescheduleForm}</section>` : completedCount >= 8 ? '<section class="card"><h4>Trainingsblock abgeschlossen</h4><p>Alle acht Einheiten sind durchgeführt.</p></section>' : `<form class="card" data-plan-session data-primary-plan-ready="${rolePlanReady(latestDraft)}" data-fixed-plan="${fixedNextPlan}"><h4>Nächste Montagseinheit planen</h4><p>Wähle den Montag selbst, auch nach einer Pause. Du kannst einen KI-Entwurf übernehmen oder die Übungen selbst planen.</p><label>Datum (Montag)<input name="scheduledDate" type="date" value="${nextPilotDate(data.sessions)}" required></label><label>Startzeit<input name="scheduledTime" type="time" value="20:15" readonly required></label><label>Trainingsplan<select name="planSource"><option value="ai" ${initialPlanSource === 'ai' ? 'selected' : ''}>${fixedNextPlan ? 'Vorgesehene Testvorlage' : 'Aktuellen KI-Entwurf übernehmen'}</option><option value="manual" ${initialPlanSource === 'manual' ? 'selected' : ''}>Selbst planen / Übungen ergänzen</option></select></label>${fixedNextPlan ? '<p>Die vorgesehene Testvorlage dieser Einheit wird unabhängig von der Planungsart angelegt.</p>' : ''}<label>Zweiter Teilnehmer, optional<select name="secondProfileId"><option value="" data-plan-ready="true">Einzeltraining</option>${(data.profiles || []).filter(item => item.id !== profile.id).map(item => `<option value="${item.id}" data-plan-ready="${rolePlanReady(latestDraftFor(item.id))}" ${sessionPlayers.some(p=>p.id===item.id) ? 'selected' : ''}>${BT.util.escapeHTML(playerName(item))}</option>`).join('')}</select></label><p role="status" data-plan-session-status></p><button class="btn primary" type="submit">Nächste Einheit ansetzen</button><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/ai-history">KI-Entwurf prüfen</a></form>`;
     const overview = `${nextSessionCard}${renderPilotRoadmap(data, sessions, profile.id)}`;
     const training = activeSession ? `<section class="card individual-session-run-card"><div class="section-head"><div><span class="section-kicker">Durchführung</span><h4>Einheit ${activeSession.unit_number || '–'} · ${fmt(activeSession.scheduled_for)}</h4></div><span>${BT.util.escapeHTML(sessionStatusLabel(activeSession.status))}</span></div>
         <p><strong>Teilnehmer: ${BT.util.escapeHTML(sessionPlayers.map(playerName).join(' + '))}</strong>${sessionPlayers.length > 1 ? '<br>Eine gemeinsame Uhr und ein Ablauf, persönliche Dokumentation für jeden Spieler.' : ''}</p>
@@ -638,9 +646,12 @@ BT.individualTraining = (function() {
         ${sessionOpen ? '<div class="individual-actions"><button class="btn" data-set-attendance="attended">Als anwesend bestätigen</button><button class="btn" data-set-attendance="unexcused_no_show">Unentschuldigt gefehlt</button><button class="btn danger" data-cancel-session>Einheit absagen</button></div>' : `<p>Diese Einheit ist ${activeSession.status === 'completed' ? 'bereits abgeschlossen. Die Ergebnisse bleiben gespeichert.' : 'abgesagt.'}</p><a class="btn" href="#/individual/player/${encodeURIComponent(profile.id)}/ai-history">KI-Auswertung öffnen</a>`}
         ${displayPlan ? `<h4>${BT.util.escapeHTML(trainingTitle(displayPlan.title))}</h4><p>${BT.util.escapeHTML(displayPlan.objective || '')}</p><ol class="individual-exercise-list">${displayExercises.map(exercise => `<li><strong>${exercise.position}. ${BT.util.escapeHTML(trainingTitle(exercise.title))} · ${exercise.measurement_method?.durationNotRecorded ? 'Dauer nicht notiert' : `${exercise.duration_minutes} Min.`}</strong><details><summary>Wiederholungen, Messung und Trainerhinweise</summary><p><b>Wiederholungen:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.repetitions))}</p><p><b>Messung:</b> ${BT.util.escapeHTML(BT.individualCopy.details(exercise.measurement_method))}</p><p><b>Trainerhinweise:</b> ${BT.util.escapeHTML((exercise.coaching_cues || []).map(BT.individualCopy.cue).join(' · '))}</p></details></li>`).join('')}</ol>` : '<p class="muted">Für diese Einheit ist noch kein Plan gespeichert.</p>'}
         ${sessionOpen ? '<div class="individual-actions"><p role="status" data-complete-session-status></p><button class="btn primary" data-complete-session>Einheit abschließen und KI-Entwurf starten</button></div>' : ''}
-      </section>${sessionOpen ? '' : nextSessionCard}` : `${emptySession}${nextSessionCard}`;
+      </section>${nextSessionCard}` : `${emptySession}${nextSessionCard}`;
     const measurementPane = activeSession ? `<section class="card"><div class="section-head"><div><span class="section-kicker">Einheit ${activeSession.unit_number || '–'}</span><h4>Ergebnisse erfassen</h4></div><strong>${measurements.length} gespeichert</strong></div></section>${renderMeasurementPane(activeSession, displayExercises, measurements)}` : emptySession;
-    const focusPane = activeSession ? `<form class="card individual-feedback-form" data-weekly-focus><h4>Persönlichen Wochenfokus freigeben</h4><label>Persönliches Ziel<input name="title" required maxlength="120"></label><label>Hinweis 1<input name="cueOne" required maxlength="240"></label><label>Hinweis 2, optional<input name="cueTwo" maxlength="240"></label><label>Gelungen, wenn …<input name="successIndicator" required maxlength="300"></label><label>Gültig ab<input name="validFrom" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 1)}" readonly required></label><label>Gültig bis<input name="validUntil" type="date" value="${datePlus(localBerlinDate(activeSession.scheduled_for), 6)}" readonly required></label><button class="btn primary" type="submit">Wochenfokus für Spieler freigeben</button></form>` : emptySession;
+    const week = currentFocusWeek();
+    const focuses = (data.focuses || []).filter(item => item.individual_profile_id === profile.id);
+    const currentFocus = focuses.find(item => item.valid_from <= week.until && item.valid_until >= week.from);
+    const focusPane = `<form class="card individual-feedback-form" data-weekly-focus><h4>Persönlichen Wochenfokus bearbeiten</h4><p>Wähle den Zeitraum unabhängig von einer Montagseinheit. So kannst du auch nach Spielwochen und Pausen einen Fokus setzen.</p><label>Eintrag<select name="focusId"><option value="">Neuen Wochenfokus anlegen</option>${focuses.map(item => `<option value="${BT.util.escapeHTML(item.id)}" ${item.id === currentFocus?.id ? 'selected' : ''}>${BT.util.escapeHTML(item.valid_from)} – ${BT.util.escapeHTML(item.valid_until)} · ${BT.util.escapeHTML(item.title)}</option>`).join('')}</select></label><label>Persönliches Ziel<input name="title" required maxlength="120"></label><label>Hinweis 1<input name="cueOne" required maxlength="240"></label><label>Hinweis 2, optional<input name="cueTwo" maxlength="240"></label><label>Gelungen, wenn …<input name="successIndicator" required maxlength="300"></label><label>Gültig ab<input name="validFrom" type="date" required></label><label>Gültig bis<input name="validUntil" type="date" required></label><p>Ein bis sieben Tage. Speichern gibt den Fokus für den Spieler frei.</p><p role="status" data-focus-status></p><button class="btn primary" type="submit">Wochenfokus speichern und freigeben</button></form>`;
     const feedbackPane = `${incomingFeedback}<div class="individual-detail-grid">
         <form class="card" data-coach-note><h4>Private Trainernotiz</h4><p>Nur für das Trainerteam. Die KI berücksichtigt die zwölf zuletzt gespeicherten oder bearbeiteten privaten Notizen als Vorwissen für ihre interne Analyse und den Trainingsvorschlag. Spielerfeedback und Wochenfokus entstehen getrennt ohne diese Notizen.</p><label>Deine Notiz<textarea name="note" maxlength="5000" required></textarea></label><button class="btn" type="submit">Privat speichern</button></form>
         <form class="card" data-release-feedback><h4>Notiz für den Spieler</h4><label>Text für den Spieler<textarea name="content" maxlength="5000" required></textarea></label><label class="individual-note-consent"><input type="checkbox" name="shareWithPlayer" required><span>Diese Notiz für den Spieler freigeben</span></label><p class="muted">Nur bewusst gekennzeichnete Notizen erscheinen beim Spieler.</p><button class="btn primary" type="submit">Für Spieler freigeben</button></form>
@@ -666,14 +677,15 @@ BT.individualTraining = (function() {
     }
     if (pane === 'training') BT.individualPlanEditor?.mount(host,{profile,session:activeSession,plan,exercises,measurements,refresh});
     const planSessionForm = host.querySelector('[data-plan-session]');
-    const updatePlanReadiness = () => {
+    const updatePlanReadiness = (keepStatus = false) => {
       if (!planSessionForm) return;
       const select = planSessionForm.elements.secondProfileId;
-      const ready = planSessionForm.dataset.primaryPlanReady === 'true' && (select.selectedOptions[0]?.dataset.planReady !== 'false');
+      const ready = planSessionForm.dataset.fixedPlan === 'true' || planSessionForm.elements.planSource.value === 'manual' || planSessionForm.dataset.primaryPlanReady === 'true' && (select.selectedOptions[0]?.dataset.planReady !== 'false');
       planSessionForm.querySelector('[type="submit"]').disabled = !ready;
-      planSessionForm.querySelector('[data-plan-session-status]').textContent = ready ? '' : 'Bitte zuerst für jeden ausgewählten Spieler den neuen rollenspezifischen KI-Entwurf erstellen.';
+      if (keepStatus !== true) planSessionForm.querySelector('[data-plan-session-status]').textContent = ready ? (planSessionForm.elements.planSource.value === 'manual' ? 'Nach dem Anlegen kannst du Ziel und Übungen unter Trainingsplan bearbeiten ergänzen.' : '') : 'Bitte zuerst für jeden ausgewählten Spieler einen aktuellen rollenspezifischen KI-Entwurf erstellen oder Selbst planen wählen.';
     };
     planSessionForm?.elements.secondProfileId.addEventListener('change', updatePlanReadiness);
+    planSessionForm?.elements.planSource.addEventListener('change', updatePlanReadiness);
     updatePlanReadiness();
     planSessionForm?.addEventListener('submit', async event => {
       event.preventDefault(); const element=event.currentTarget;
@@ -681,9 +693,9 @@ BT.individualTraining = (function() {
       const form = new FormData(element),button=element.querySelector('[type="submit"]'),status=element.querySelector('[data-plan-session-status]');
       const secondProfileId = form.get('secondProfileId');
       element.dataset.saving='true';button.disabled=true;status.textContent='Training wird angesetzt …';
-      try { await BT.api.individualAction('createSession', { profileIds: [profile.id, secondProfileId].filter(Boolean), scheduledDate: form.get('scheduledDate'), scheduledTime: form.get('scheduledTime'), durationMinutes: 105 }); location.hash=`#/individual/player/${encodeURIComponent(profile.id)}/training`; await render(root.parentElement,profile.id,'training'); }
+      try { await BT.api.individualAction('createSession', { profileIds: [profile.id, secondProfileId].filter(Boolean), scheduledDate: form.get('scheduledDate'), scheduledTime: form.get('scheduledTime'), planSource: form.get('planSource'), durationMinutes: 105 }); location.hash=`#/individual/player/${encodeURIComponent(profile.id)}/training`; await render(root.parentElement,profile.id,'training'); }
       catch (error) { status.textContent=error.message; }
-      finally {element.dataset.saving='false';button.disabled=false;}
+      finally {element.dataset.saving='false';updatePlanReadiness(true);}
     });
     host.querySelector('[data-coach-note]')?.addEventListener('submit', async event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
@@ -777,10 +789,33 @@ BT.individualTraining = (function() {
         await refresh();
       } catch (error) { status.textContent=error.message;button.disabled=false; }
     });
-    host.querySelector('[data-weekly-focus]')?.addEventListener('submit', async event => {
-      event.preventDefault(); const form = new FormData(event.currentTarget);
-      try { await BT.api.individualAction('setFocus', { profileId: profile.id, sessionId: activeSession.id, title: form.get('title'), cueOne: form.get('cueOne'), cueTwo: form.get('cueTwo'), successIndicator: form.get('successIndicator'), validFrom: form.get('validFrom'), validUntil: form.get('validUntil') }); await refresh(); }
-      catch (error) { notice(root, error.message, true); }
+    const focusForm = host.querySelector('[data-weekly-focus]');
+    function fillFocus() {
+      if (!focusForm) return;
+      const focus = focuses.find(item => item.id === focusForm.elements.focusId.value);
+      for (const [name, value] of Object.entries({title:focus?.title || '', cueOne:focus?.cue_one || '', cueTwo:focus?.cue_two || '', successIndicator:focus?.success_indicator || '', validFrom:focus?.valid_from || week.from, validUntil:focus?.valid_until || week.until})) focusForm.elements[name].value = value;
+      focusForm.querySelector('[data-focus-status]').textContent = '';
+    }
+    focusForm?.elements.focusId.addEventListener('change', fillFocus);
+    fillFocus();
+    focusForm?.addEventListener('submit', async event => {
+      event.preventDefault(); const element=event.currentTarget;
+      if (element.dataset.saving === 'true') return;
+      const form = new FormData(element), button=element.querySelector('[type="submit"]'), status=element.querySelector('[data-focus-status]');
+      element.dataset.saving='true';button.disabled=true;status.textContent='Wochenfokus wird gespeichert …';
+      try {
+        await BT.api.individualAction('setFocus', { profileId:profile.id, focusId:form.get('focusId') || null, title:form.get('title'), cueOne:form.get('cueOne'), cueTwo:form.get('cueTwo'), successIndicator:form.get('successIndicator'), validFrom:form.get('validFrom'), validUntil:form.get('validUntil') });
+        const container=root.parentElement; await refresh(); notice(container.querySelector('.individual-view'), 'Wochenfokus gespeichert und für den Spieler freigegeben.');
+      } catch (error) { status.textContent=error.message; }
+      finally {element.dataset.saving='false';button.disabled=false;}
+    });
+    host.querySelector('[data-reschedule-session]')?.addEventListener('submit', async event => {
+      event.preventDefault();const form=event.currentTarget,button=form.querySelector('button'),status=form.querySelector('[data-reschedule-status]');
+      if (form.dataset.saving === 'true') return;
+      form.dataset.saving='true';button.disabled=true;
+      try {await BT.api.individualAction('rescheduleSession',{profileId:profile.id,sessionId:activeSession.id,expectedScheduledFor:activeSession.scheduled_for,scheduledDate:form.elements.scheduledDate.value});await refresh();}
+      catch(error) {status.textContent=error.message;}
+      finally {form.dataset.saving='false';button.disabled=false;}
     });
     host.querySelector('[data-generate-draft]')?.addEventListener('click', async () => {
       try { await BT.api.individualAIDraft('generate', { profileId: profile.id, sessionId: latestDraft.session_id }); await refresh(); }
@@ -937,7 +972,7 @@ BT.individualTraining = (function() {
       let data = await loadOverview();
       if (request !== activeRequest || owner !== contextKey()) return;
       let pilotStartError = null;
-      if (['admin', 'coach'].includes(current.role) && needsPilotStart(data)) {
+      if (selectedPane !== 'focus' && ['admin', 'coach'].includes(current.role) && needsPilotStart(data)) {
         try {
           await BT.api.individualAction('ensurePilotStart', {});
           data = await loadOverview();
