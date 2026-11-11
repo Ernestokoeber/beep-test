@@ -3212,7 +3212,7 @@ BT.exerciseCatalogSeed = (() => {
     "category": "Pick-and-roll",
     "minutes": 12,
     "goal": "Nach kurzem Abrollen aus der Mitte weiterspielen.",
-    "setup": "Ballhandler oben, Blocker und Empfänger in der Ecke.",
+    "setup": "Ballhandler oben, Blocker in Blockposition; bei Passvarianten zusätzlich ein Empfänger in der Ecke.",
     "coachingPoints": [
       "Vor dem Fang die Ecke wahrnehmen.",
       "Mit Balance stoppen und nicht blind weiterpassen."

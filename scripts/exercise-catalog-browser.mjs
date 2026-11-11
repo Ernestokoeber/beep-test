@@ -39,6 +39,7 @@ try {
   await page.locator('[data-catalog-pick]').first().click();await page.locator('[data-review-exercises] fieldset').waitFor();await page.locator('[data-close-exercise-catalog]').click();
   await page.locator('[data-review-exercises] [name=minutes]').fill('11');await page.locator('[name=observation]').fill('Privates Ergebnis aus Test');
   await page.locator('[data-save-review-library]').click();await page.waitForFunction(()=>BT.storage.getDrills().length===2);assert(!(await page.evaluate(()=>JSON.stringify(BT.storage.getDrills()))).includes('Privates Ergebnis'));
+  assert((await page.locator('[data-review-exercises] [name=repetitions]').boundingBox()).height>=180,'Exercise instructions must have a readable editing area');
   await check('individual-editor');await page.locator('.individual-plan-editor form > button[type=submit]').click();await page.waitForFunction(()=>!!window.savedCatalogPlan);assert.equal(await page.evaluate(()=>window.savedCatalogPlan.body.exercises[0].durationMinutes),'11');
   if(width===390) {
    // The isolated editor replaced the current route's DOM; reload to restore the app.
