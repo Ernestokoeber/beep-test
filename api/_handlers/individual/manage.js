@@ -1,3 +1,4 @@
+import { saveWeeklyFocus } from '../../_lib/individual-weekly-focus.js';
 import { saveSessionPlanReview } from '../../_lib/individual-plan-review.js';
 import { isDeepStrictEqual } from 'node:util';
 import { transaction } from '../../_lib/db.js';
@@ -28,7 +29,7 @@ class IndividualRequestError extends Error {
 
 function isoDate(value, field) {
   const normalized = String(value || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized) || !Number.isFinite(Date.parse(`${normalized}T12:00:00Z`))) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized) || !Number.isFinite(Date.parse(`${normalized}T12:00:00Z`)) || new Date(`${normalized}T12:00:00Z`).toISOString().slice(0,10) !== normalized) {
     throw new TypeError(`${field} ist ungültig.`);
   }
   return normalized;
@@ -50,12 +51,6 @@ function berlinTime(instant) {
   }).format(new Date(instant));
 }
 
-function addDays(date, days) {
-  const value = new Date(`${date}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-  return value.toISOString().slice(0, 10);
-}
-
 function databaseDate(value) {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   return String(value || '').slice(0, 10);
@@ -68,7 +63,7 @@ function assertPilotSessionInstant(value, expectedDate, localTime) {
   if (weekday !== 1) throw new TypeError('Individualeinheiten müssen montags stattfinden.');
   if (localDate < '2026-10-19') throw new TypeError('Der Trainingsblock beginnt am 19. Oktober 2026.');
   if (localDate === '2026-11-02') throw new TypeError('Am 2. November 2026 ist die Halle ferienbedingt geschlossen.');
-  if (localDate !== expectedDate) throw new TypeError(`Der nächste offene Trainingstermin ist Montag, ${expectedDate}.`);
+  if (localDate !== expectedDate) throw new TypeError('Trainingsdatum und Zeitpunkt stimmen nicht überein.');
   if (berlinTime(instant) !== '20:15') throw new TypeError('Die Montagseinheiten beginnen verbindlich um 20:15 Uhr.');
   return instant;
 }
@@ -391,7 +386,9 @@ export function createIndividualManageHandler(deps = {}) {
           const requestedTime = String(req.body.scheduledTime || '');
           if (req.body.scheduledTime && !/^\d{2}:\d{2}$/.test(requestedTime)) throw new TypeError('Startzeit ist ungültig.');
           if (requestedTime && requestedTime !== '20:15') throw new TypeError('Die Montagseinheiten beginnen verbindlich um 20:15 Uhr.');
-          if (requestedDate !== expectedDate) throw new TypeError(`Der nächste offene Trainingstermin ist Montag, ${expectedDate}.`);
+          if (requestedDate < expectedDate) throw new TypeError(`Bitte Montag, ${expectedDate}, oder einen späteren Montag wählen.`);
+          const planSource = req.body.planSource || 'ai';
+          if (!['ai', 'manual'].includes(planSource)) throw new TypeError('Unbekannte Planungsart.');
           const durationMinutes = Number(req.body.durationMinutes ?? 105);
           if (durationMinutes !== 105) throw new TypeError('Eine Individualeinheit dauert verbindlich 105 Minuten.');
           const created = await client.query(
@@ -399,12 +396,51 @@ export function createIndividualManageHandler(deps = {}) {
               (organization_id, coach_user_id, scheduled_for, duration_minutes, unit_number)
              VALUES ($1, $2, $3, $4, $5)
              RETURNING *`,
-            [auth.organization_id, auth.sub, assertPilotSessionInstant(req.body.scheduledFor, expectedDate, req.body.scheduledTime ? `${requestedTime}:00` : null), durationMinutes, unitNumber]
+            [auth.organization_id, auth.sub, assertPilotSessionInstant(req.body.scheduledFor, requestedDate, req.body.scheduledTime ? `${requestedTime}:00` : null), durationMinutes, unitNumber]
           );
           for (const profile of profiles) await addSessionParticipant(client, created.rows[0], profile);
           const fixedPlans = await insertPilotTemplate(client, created.rows[0], profiles, auth.sub);
-          const plans = fixedPlans || await insertReadyDraftPlans(client, created.rows[0], profiles, auth.sub);
+          let plans = fixedPlans;
+          if (!plans && planSource === 'manual') {
+            plans = [];
+            for (const profile of profiles) plans.push(await insertPlan(client, created.rows[0].id, profile.id, {
+              title: `Individualtraining · Einheit ${unitNumber}`, objective: 'Trainingsziel und Übungen noch ergänzen.', exercises: []
+            }, auth.sub));
+          }
+          if (!plans) plans = await insertReadyDraftPlans(client, created.rows[0], profiles, auth.sub);
           return { status: 201, body: { session: created.rows[0], profileIds: profiles.map(profile => profile.id), plans } };
+        }
+
+        if (action === 'rescheduleSession') {
+          const profile = await accessibleProfile(client, auth, req.body.profileId, true);
+          const session = await assertSessionForProfile(client, profile, req.body.sessionId);
+          if (session.status !== 'planned') throw new IndividualRequestError(409, 'Nur eine noch nicht gestartete Einheit kann verschoben werden.');
+          if (req.body.expectedScheduledFor && isoInstant(req.body.expectedScheduledFor, 'Bisheriger Termin') !== isoInstant(session.scheduled_for, 'Termin')) {
+            throw new IndividualRequestError(409, 'Der Termin wurde inzwischen geändert. Bitte neu öffnen.');
+          }
+          const measurements = await client.query('SELECT count(*)::int AS count FROM individual_measurements WHERE session_id = $1', [session.id]);
+          if (Number(measurements.rows[0]?.count || 0)) throw new IndividualRequestError(409, 'Diese Einheit hat bereits Ergebnisse. Bitte abschließen oder absagen, statt den Termin zu verschieben.');
+          const day = isoDate(req.body.scheduledDate, 'Termin');
+          if (day < berlinDate(now())) throw new TypeError('Bitte einen heutigen oder zukünftigen Montag wählen.');
+          const scheduledFor = assertPilotSessionInstant(null, day, '20:15:00');
+          if (scheduledFor === isoInstant(session.scheduled_for, 'Termin')) return {status:200, body:{session}};
+          const oldReadiness = await client.query('SELECT * FROM individual_readiness WHERE session_id = $1', [session.id]);
+          await client.query(`INSERT INTO individual_audit_log
+            (organization_id,individual_profile_id,entity_type,entity_id,field_name,old_value,new_value,change_reason,changed_by)
+            VALUES ($1,$2,'session',$3,'scheduled_for',$4::jsonb,$5::jsonb,'Trainingstermin verschoben',$6)`,
+            [auth.organization_id,profile.id,session.id,JSON.stringify({scheduledFor:session.scheduled_for,readiness:oldReadiness.rows}),JSON.stringify({scheduledFor}),auth.sub]);
+          await client.query('DELETE FROM individual_readiness WHERE session_id = $1', [session.id]);
+          const changed = await client.query(`UPDATE individual_sessions SET scheduled_for=$1, updated_at=clock_timestamp()
+            WHERE id=$2 RETURNING *`, [scheduledFor, session.id]);
+          await client.query(`UPDATE individual_session_participants SET attendance_status='pending', player_decided_at=NULL, coach_confirmed_at=NULL
+            WHERE session_id=$1`, [session.id]);
+          await client.query(`UPDATE individual_notifications SET stopped_at=clock_timestamp()
+            WHERE kind='attendance' AND payload->>'sessionId'=$1 AND stopped_at IS NULL`, [session.id]);
+          const participants = await client.query('SELECT individual_profile_id FROM individual_session_participants WHERE session_id = $1', [session.id]);
+          for (const participant of participants.rows) await addSessionNotification(client, changed.rows[0], {id:participant.individual_profile_id});
+          await client.query(`UPDATE individual_notifications SET stopped_at=NULL, dashboard_visible_at=NULL, push_sent_at=NULL, read_at=NULL
+            WHERE kind='attendance' AND payload->>'sessionId'=$1 AND due_at=$2::timestamptz - interval '2 hours'`, [session.id, scheduledFor]);
+          return {status:200, body:{session:changed.rows[0]}};
         }
 
         if (action === 'refreshSessionPlans') {
@@ -671,54 +707,8 @@ export function createIndividualManageHandler(deps = {}) {
 
         if (action === 'setFocus') {
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
-          const session = await assertSessionForProfile(client, profile, req.body.sessionId);
-          const sessionDate = berlinDate(session.scheduled_for);
-          const validFrom = isoDate(req.body.validFrom, 'Startdatum');
-          const validUntil = isoDate(req.body.validUntil, 'Enddatum');
-          if (validFrom !== addDays(sessionDate, 1) || validUntil !== addDays(sessionDate, 6)) {
-            throw new TypeError('Der Wochenfokus gilt verbindlich von Dienstag bis Sonntag nach der Montagseinheit.');
-          }
-          const saved = await client.query(
-            `INSERT INTO individual_weekly_focus
-              (individual_profile_id, source_session_id, title, cue_one, cue_two, success_indicator, valid_from, valid_until, released_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             RETURNING *, valid_from::text AS valid_from, valid_until::text AS valid_until`,
-            [profile.id, session.id, text(req.body.title, 'Wochenfokus', { min: 2, max: 120 }),
-              text(req.body.cueOne, 'Erster Hinweis', { min: 2, max: 240 }),
-              optionalText(req.body.cueTwo, 'Zweiter Hinweis', { min: 2, max: 240 }),
-              text(req.body.successIndicator, 'Erkennungsmerkmal', { min: 2, max: 300 }),
-              validFrom, validUntil, auth.sub]
-          );
-          await client.query(
-            `WITH friday AS (
-               SELECT day::date AS training_date, 'friday'::text AS training_day
-                 FROM generate_series($3::date, $4::date, interval '1 day') day
-                WHERE extract(isodow FROM day) = 5
-             ), reminders AS (
-               SELECT training_date, training_day, 'focus'::text AS kind,
-                      (training_date + time '18:15') AT TIME ZONE 'Europe/Berlin' AS due_at
-                 FROM friday
-               UNION ALL
-               SELECT training_date, training_day, 'feedback_request',
-                      (training_date + 1 + time '12:00') AT TIME ZONE 'Europe/Berlin'
-                 FROM friday
-             )
-             INSERT INTO individual_notifications
-               (individual_profile_id, notification_key, kind, due_at, payload)
-             SELECT $1::uuid,
-                    $1::text || ':' || kind || ':' || due_at::text,
-                    kind,
-                    due_at,
-                    jsonb_build_object(
-                      'focusId', $2::text, 'trainingDate', training_date::text, 'trainingDay', training_day,
-                      'title', $5::text, 'cueOne', $6::text, 'cueTwo', $7::text
-                    )
-               FROM reminders
-             ON CONFLICT (individual_profile_id, notification_key) DO NOTHING`,
-            [profile.id, saved.rows[0].id, saved.rows[0].valid_from, saved.rows[0].valid_until,
-              saved.rows[0].title, saved.rows[0].cue_one, saved.rows[0].cue_two]
-          );
-          return { status: 201, body: { focus: saved.rows[0] } };
+          const session = req.body.sessionId ? await assertSessionForProfile(client, profile, req.body.sessionId) : null;
+          return saveWeeklyFocus(client, auth, profile, req.body, session);
         }
 
         if (action === 'saveMeasurement') {

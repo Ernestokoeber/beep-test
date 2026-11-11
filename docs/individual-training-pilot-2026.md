@@ -1,5 +1,17 @@
 # CourtHub Individual Training Pilot 2026
 
+## Flexible Wochenplanung (11. November 2026)
+
+- In der Spielerübersicht ist der Montag frei wählbar; Wochen dürfen nach einer Pause übersprungen werden. Der Vorschlag zeigt einen zukünftigen Termin. 20:15 Uhr, 105 Minuten und die acht durchgeführten Einheiten bleiben bestehen.
+- „Selbst planen / Übungen ergänzen“ legt den Termin auch ohne KI-Entwurf an. Unter „Trainingsplan bearbeiten“ lassen sich Ziel, Übungen, Reihenfolge, Dauer, Wiederholungen, Messmethode und Trainerhinweise speichern. Die vorgesehenen Testvorlagen für Einheit 1, 4 und 8 werden weiterhin angelegt.
+- Noch nicht gestartete Einheiten ohne Messwerte lassen sich verschieben. Teilnahmebestätigungen werden neu eingeholt und die Erinnerungen folgen dem neuen Datum.
+- „Wochenfokus“ startet mit der aktuellen Kalenderwoche, unabhängig von der zuletzt ausgewählten Einheit. Neue Einträge benötigen keine Individualeinheit. Bestehende Einträge können ausgewählt und bearbeitet werden; Rückmeldungen und ihre Fokus-ID bleiben erhalten. Ein Zeitraum umfasst höchstens sieben Tage und darf keinen anderen Fokus überschneiden. Bei bereits vorhandenen Rückmeldungen bleibt dessen Zeitraum unverändert.
+- Voraussetzung vor dem Deployment: nach überprüfter Sicherung `npm run db:migrate` ausführen. `20261111_0001_independent_weekly_focus.sql` erlaubt eine leere Quellen-Einheit, ohne vorhandene Daten oder Verknüpfungen zu entfernen.
+- Prüfung: `node scripts/individual-flexible-weeks-smoke.mjs` führt die SQL-Migration und API-Aktionen gegen isoliertes eingebettetes PostgreSQL aus; zusätzlich wird das Formularverhalten geprüft. Der mobile Browser-Test liegt in `scripts/individual-session-workflow-browser.mjs`.
+
+Die folgenden Abschnitte dokumentieren den ursprünglichen Pilotablauf; die oben beschriebenen manuellen Bearbeitungsmöglichkeiten ergänzen ihn.
+
+
 Implementierungsreferenz für die am 15. Oktober 2026 vollständig freigegebene Produktspezifikation.
 
 ## Verbindlicher Pilot

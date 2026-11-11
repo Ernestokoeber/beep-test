@@ -1,3 +1,4 @@
+import { saveWeeklyFocus } from '../../_lib/individual-weekly-focus.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { transaction } from '../../_lib/db.js';
 import { isIndividualCoach, requireMembership } from '../../_lib/auth.js';
@@ -137,7 +138,7 @@ function playerDraftData(data) {
   };
 }
 
-async function publishApprovedContent(client, auth, draft) {
+async function publishApprovedContent(client, auth, draft, session) {
   const content = draft.content;
   await client.query(
     `INSERT INTO individual_released_feedback (individual_profile_id, session_id, content, released_by)
@@ -145,38 +146,13 @@ async function publishApprovedContent(client, auth, draft) {
     [draft.individual_profile_id, draft.session_id, content.playerFeedback, auth.sub]
   );
   const focus = content.weeklyFocus;
-  const saved = await client.query(
-    `INSERT INTO individual_weekly_focus
-      (individual_profile_id, source_session_id, title, cue_one, cue_two, success_indicator, valid_from, valid_until, released_by)
-     SELECT $1, s.id, $2, $3, $4, $5,
-            (s.scheduled_for AT TIME ZONE 'Europe/Berlin')::date + 1,
-            (s.scheduled_for AT TIME ZONE 'Europe/Berlin')::date + 6,
-            $6
-       FROM individual_sessions s WHERE s.id = $7
-     RETURNING *`,
-    [draft.individual_profile_id, focus.title, focus.coachingCues[0], focus.coachingCues[1] || null,
-      focus.successIndicator, auth.sub, draft.session_id]
-  );
-  await client.query(
-    `WITH friday AS (
-       SELECT day::date AS training_date, 'friday'::text AS training_day
-         FROM generate_series($3::date, $4::date, interval '1 day') day
-        WHERE extract(isodow FROM day) = 5
-     ), reminders AS (
-       SELECT training_date, training_day, 'focus'::text AS kind,
-              (training_date + time '18:15') AT TIME ZONE 'Europe/Berlin' AS due_at FROM friday
-       UNION ALL SELECT training_date, training_day, 'feedback_request',
-              (training_date + 1 + time '12:00') AT TIME ZONE 'Europe/Berlin' FROM friday
-     )
-     INSERT INTO individual_notifications (individual_profile_id, notification_key, kind, due_at, payload)
-     SELECT $1::uuid, $1::text || ':' || kind || ':' || due_at::text, kind, due_at,
-            jsonb_build_object('focusId', $2::text, 'trainingDate', training_date::text, 'trainingDay', training_day,
-              'title', $5::text, 'cueOne', $6::text, 'cueTwo', $7::text)
-       FROM reminders
-     ON CONFLICT (individual_profile_id, notification_key) DO NOTHING`,
-    [draft.individual_profile_id, saved.rows[0].id, saved.rows[0].valid_from, saved.rows[0].valid_until,
-      saved.rows[0].title, saved.rows[0].cue_one, saved.rows[0].cue_two]
-  );
+  const monday = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(session.scheduled_for));
+  const offset = days => {const day=new Date(`${monday}T12:00:00Z`);day.setUTCDate(day.getUTCDate()+days);return day.toISOString().slice(0,10);};
+  await saveWeeklyFocus(client, auth, {id:draft.individual_profile_id}, {
+    title:focus.title, cueOne:focus.coachingCues[0], cueTwo:focus.coachingCues[1] || null,
+    successIndicator:focus.successIndicator, validFrom:offset(1), validUntil:offset(6)
+  }, session);
+
 }
 
 export function createIndividualAIDraftHandler(deps = {}) {
@@ -215,7 +191,7 @@ export function createIndividualAIDraftHandler(deps = {}) {
               RETURNING *`, [auth.sub, draft.id]
           );
           if (!approved.rows[0]) throw new DraftRequestError(409, 'Der Entwurfsstatus hat sich geändert.');
-          await publishApprovedContent(client, auth, approved.rows[0]);
+          await publishApprovedContent(client, auth, approved.rows[0], latestData.session);
           return approved.rows[0];
         });
         return res.status(200).json({ draft: result, published: true });
