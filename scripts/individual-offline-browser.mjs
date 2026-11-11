@@ -43,7 +43,9 @@ try {
   await page.waitForFunction(()=>!document.querySelector('.individual-live-shell'));
   const pending=()=>page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('courthub_individual_coach_queue:')).flatMap(k=>JSON.parse(localStorage.getItem(k))));
   assert.equal((await pending()).length,3,'Start, Messung und Abschluss müssen den Offline-Neustart überstehen.');
-  networkAvailable=true;await context.setOffline(false);await page.waitForFunction(()=>Object.keys(localStorage).filter(k=>k.startsWith('courthub_individual_coach_queue:')).every(k=>JSON.parse(localStorage.getItem(k)).length===0));
+  // Chromium can retain navigator.onLine=true across an offline reload. Allow the
+  // real 30-second identity refresh plus network work to recover without forcing an event.
+  networkAvailable=true;await context.setOffline(false);await page.waitForFunction(()=>Object.keys(localStorage).filter(k=>k.startsWith('courthub_individual_coach_queue:')).every(k=>JSON.parse(localStorage.getItem(k)).length===0),null,{timeout:45000});
   assert.deepEqual(actions.map(a=>a.action),['startSession','saveMeasurement','completeLiveSession']);
   assert.equal(actions[2].documents[0].exercises[0].note,'Offline beobachtet und privat gespeichert.');
   assert.equal(new Set(actions.map(a=>a.mutationId)).size,3);

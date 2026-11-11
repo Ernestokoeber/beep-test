@@ -46,6 +46,7 @@ BT.drills = (function() {
 
   // Modal-Picker zur Auswahl eines Drills. onPick(drill) wird aufgerufen.
   function openPicker(onPick) {
+    if(BT.exerciseCatalog) return BT.exerciseCatalog.openPicker(onPick);
     const drills = BT.storage.getDrills();
     const backdrop = renderTemplate('tpl-drill-picker');
     document.body.appendChild(backdrop);

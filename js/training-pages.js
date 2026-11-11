@@ -169,6 +169,14 @@ BT.trainingPages = (() => {
   function library(target,t) {
     const root=shell(target,'library','Übung hinzufügen','Wähle eine Übung für deinen Ablauf.');
     if(!writable()){root.insertAdjacentHTML('beforeend','<p>Du hast hier Lesezugriff.</p>'+link(url(t.id,'plan'),'Trainingsplan ansehen'));return;}
+    if(BT.exerciseCatalog) {
+      root.insertAdjacentHTML('beforeend',`<a class="btn" href="${url(t.id,'drill/new')}">+ Eigene Übung</a><div data-catalog-browser></div>`);
+      BT.exerciseCatalog.mountBrowser(root.querySelector('[data-catalog-browser]'),{initial:state().catalogQuery || {},remember:q=>remember({catalogQuery:q}),onPick:d=>{
+        if(!writable())throw Error('Der Arbeitsbereich hat sich geändert.');
+        if(!update(t.id,x=>{x.plan.drills.push({...BT.exerciseCatalog.planDrill(d),id:uid()});}))throw Error('Training nicht mehr verfügbar.');
+        return BT.storage.flush();
+      }});protect(root);return;
+    }
     root.insertAdjacentHTML('beforeend',`<a class="btn primary" href="${url(t.id,'drill/new')}">+ Eigene Übung</a><label class="tp-search">Bibliothek durchsuchen<input type="search" data-library-search placeholder="Name oder Beschreibung"></label><p role="status" data-library-status></p><div class="tp-library"></div>`);
     const input=root.querySelector('input');input.value=state().librarySearch || '';
     function refresh(){remember({librarySearch:input.value});const q=input.value.trim().toLocaleLowerCase('de');const list=BT.storage.getDrills().filter(d=>[d.name,d.description,d.category].join(' ').toLocaleLowerCase('de').includes(q));root.querySelector('.tp-library').innerHTML=list.length ? list.map(d=>`<button class="tp-link" type="button" data-add="${esc(d.id)}"><span><strong>${esc(d.name)}</strong><small>${esc(d.category || 'Übung')} · ${minutes(d) || 10} Min.</small></span><span aria-hidden="true">+</span></button>`).join('') : '<p class="tp-empty">Keine passende Übung. Lege eine eigene an.</p>';}

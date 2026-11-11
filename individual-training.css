@@ -1,4 +1,15 @@
 .individual-view { max-width: 1180px; margin: 0 auto; }
+#app .individual-plan-editor { padding:clamp(14px,3vw,22px); min-width:0; overflow-wrap:anywhere; }
+#app .individual-plan-editor > summary { min-height:48px; display:flex; align-items:center; cursor:pointer; font-weight:700; }
+#app .individual-plan-editor form { display:grid; gap:16px; min-width:0; }
+#app .individual-plan-editor label { display:grid; gap:8px; min-width:0; }
+#app .individual-plan-editor :is(input,textarea,select) { width:100%; min-width:0; box-sizing:border-box; min-height:48px; font:inherit; font-size:16px; }
+#app .individual-plan-editor textarea { min-height:112px; resize:vertical; line-height:1.55; }
+#app .individual-plan-editor [name=repetitions] { min-height:180px; }
+#app .individual-plan-editor fieldset { min-width:0; margin:0 0 16px; padding:14px; border:1px solid var(--border); border-radius:12px; }
+#app .individual-plan-editor fieldset label { margin-block:12px; }
+#app .individual-plan-editor .btn { min-height:48px; white-space:normal; }
+#app .individual-plan-editor fieldset .btn { margin:4px 4px 4px 0; max-width:100%; }
 .individual-view .card { background:var(--surface); color:var(--text); min-width:0; }
 .individual-player-dashboard { max-width:760px; }
 .individual-player-dashboard > .btn { margin-bottom:1rem; }
