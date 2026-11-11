@@ -41,7 +41,8 @@ try {
   await page.locator('[data-save-review-library]').click();await page.waitForFunction(()=>BT.storage.getDrills().length===2);assert(!(await page.evaluate(()=>JSON.stringify(BT.storage.getDrills()))).includes('Privates Ergebnis'));
   await check('individual-editor');await page.locator('.individual-plan-editor form > button[type=submit]').click();await page.waitForFunction(()=>!!window.savedCatalogPlan);assert.equal(await page.evaluate(()=>window.savedCatalogPlan.body.exercises[0].durationMinutes),'11');
   if(width===390) {
-   await page.goto(base+'/#/drills');await page.locator('[data-library-count]').waitFor();await openFilters();await page.locator('[data-clear-filters]').click();
+   // The isolated editor replaced the current route's DOM; reload to restore the app.
+   await page.reload();await page.locator('[data-library-count]').waitFor();await openFilters();await page.locator('[data-clear-filters]').click();
    await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise(r=>navigator.serviceWorker.addEventListener('controllerchange',r,{once:true}));await BT.storage.flush();});
    await context.setOffline(true);await page.reload();await page.locator('[data-library-count]').waitFor();assert.equal(await page.evaluate(()=>BT.exerciseCatalogSeed.length),400);
    await page.locator('[name=search]').fill('Short Roll');assert.equal(await page.locator('[data-library-item]').count(),4);await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();await check('offline-detail');
