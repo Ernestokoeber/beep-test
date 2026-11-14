@@ -1,6 +1,7 @@
 import { basketballExpertPrompt, BASKETBALL_KNOWLEDGE_VERSION } from './basketball-knowledge.js';
 import { buildOpponentResearch } from './opponent-research.js';
 import { INDIVIDUAL_EXERCISE_LABELS } from './individual-plan-labels.js';
+import {buildTrainingRegeneration} from './training-regeneration-contract.js';
 
 export const AI_MODEL_ID = 'gemini-3.8-flash';
 export const AI_CONTRACT_VERSION = 18;
@@ -1135,6 +1136,7 @@ function buildSeason(payload) {
 }
 
 const ACTIONS = {
+  individualPlanRegeneration: payload => buildTrainingRegeneration(payload,AIError),
   researchOpponent: payload => buildOpponentResearch(payload,AIError),
   parsePlan: buildParsePlan,
   summarizeTraining: buildSummary,

@@ -72,6 +72,11 @@ try {
   assert((await db.query("SELECT count(*)::int AS count FROM individual_audit_log WHERE entity_type='weekly_focus'")).rows[0].count>=2);
   await call({action:'rescheduleSession',profileId:profile,sessionId:session,scheduledDate:'2026-11-23'},409);
 
+  const future=await call({...planRequest,scheduledDate:'2026-11-23'},201);
+  assert.equal(future.session.unit_number,3,'An open unit must not block next week');
+  assert.equal((await db.query("SELECT count(*)::int AS count FROM individual_sessions WHERE status='planned'")).rows[0].count,2);
+  await call({...planRequest,scheduledDate:'2026-11-23'},409);
+  await call({action:'rescheduleSession',profileId:profile,sessionId:planned.session.id,scheduledDate:'2026-11-23'},409);
   // Coach UI: current calendar week independent of a future planned session, editable existing focus.
   const dom=new JSDOM('<main></main>',{url:'https://coach.test/',runScripts:'outside-only'}),w=dom.window;
   try {

@@ -6,8 +6,10 @@ import reminders from '../_handlers/individual/reminders.js';
 import sync from '../_handlers/individual/sync.js';
 import personal from '../_handlers/individual/personal.js';
 import invite from '../_handlers/individual/invite.js';
+import planProposals from '../_handlers/individual/plan-proposals.js';
 
 const handlers = Object.freeze({
+  'plan-proposals': planProposals,
   'ai-drafts': aiDrafts,
   personal,
   manage,

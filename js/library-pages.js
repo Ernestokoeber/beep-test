@@ -23,10 +23,10 @@ BT.libraryPages = (() => {
   function renderList(node, kind, c) {
     heading(node, c.title, kind === 'drills' ? 'Übungen finden und direkt für dein Training öffnen.' : 'Ideen und Beobachtungen für dein Coaching.');
     if(kind==='drills' && BT.exerciseCatalog) {
-      const catalog=BT.exerciseCatalog, count=(BT.exerciseCatalogSeed || []).length;
+      const catalog=BT.exerciseCatalog, count=(BT.exerciseCatalogSeed || []).length+(BT.exerciseLibraryCore || []).length;
       node.insertAdjacentHTML('beforeend','<p class="catalog-intro"><strong>'+count+' Übungen und Varianten</strong> im Grundkatalog. Dazu kommen deine eigenen Vorlagen. Suche nach Ziel, Ablauf oder Übungsname und passe die Auswahl für dein Training an.</p><nav class="library-actions">'+(writable()?link(href(kind,'new'),'Neue Übung')+link(href(kind,'import'),'Aus Trainings übernehmen'):'')+'</nav><div data-catalog-browser></div>');
       const saved=state(); catalog.mountBrowser(node.querySelector('[data-catalog-browser]'),{initial:{...(saved.catalogQuery || {}),search:saved.librarySearch || '',category:saved.libraryCategory || '',limit:saved.libraryLimit || 40},remember:q=>remember({catalogQuery:q,librarySearch:q.search,libraryCategory:q.category,libraryLimit:q.limit})});
-      node.insertAdjacentHTML('beforeend','<details class="exercise-catalog-about"><summary>Über den Katalog</summary><p>100 Übungsfamilien mit jeweils vier konkreten Durchführungen. Die Beschreibungen und Startwerte lassen sich an deine Gruppe anpassen. Grundkatalog und eigene Vorlagen bleiben getrennt; Änderungen in einem Trainingsplan verändern die Vorlage nicht.</p><p>Weiterführende Coachingmaterialien: <a href="https://about.fiba.basketball/en/wabc-documents" target="_blank" rel="noopener noreferrer">FIBA / WABC</a>. Der CourtHub-Katalog ist eine eigene Sammlung und kein offizieller FIBA-Katalog.</p></details>');
+      node.insertAdjacentHTML('beforeend','<details class="exercise-catalog-about"><summary>Über den Katalog</summary><p>400 eigenständige Übungskonzepte plus 400 bisherige Varianten. Die neuen Konzepte sind zur fachlichen Prüfung markiert. Ablauf, Organisationsangaben und Startwerte müssen vor dem Einsatz durch einen Trainer geprüft und angepasst werden. Grundkatalog und eigene Vorlagen bleiben getrennt; Änderungen in einem Trainingsplan verändern die Vorlage nicht.</p><p>Weiterführende Coachingmaterialien: <a href="https://about.fiba.basketball/en/wabc-documents" target="_blank" rel="noopener noreferrer">FIBA / WABC</a>. Der CourtHub-Katalog ist eine eigene Sammlung und kein offizieller FIBA-Katalog.</p></details>');
       return;
     }
     node.innerHTML += '<nav class="library-actions">' + (writable() ? link(href(kind, 'new'), kind === 'drills' ? 'Neue Übung' : 'Neue Notiz') : '') + (kind === 'drills' && writable() ? link(href(kind, 'import'), 'Aus Trainings übernehmen') : '') + '</nav><div class="library-filters"><label>Suchen<input type="search" name="search" placeholder="' + (kind === 'drills' ? 'Name, Kategorie oder Ablauf' : 'Titel oder Inhalt') + '"></label>' + (kind === 'drills' ? '<label>Kategorie<select name="category"><option value="">Alle Kategorien</option></select></label>' : '') + '</div><p class="muted" role="status" data-library-count></p><div class="library-list" data-library-list></div>';
@@ -119,6 +119,10 @@ BT.libraryPages = (() => {
     }
     let busy = false;
     const lock = value => { busy = value; form.querySelectorAll('input,textarea,button').forEach(el => el.disabled = value); };
+    if(kind==='drills' && BT.exerciseCatalog){
+      form.querySelector('.exercise-editor-meta').insertAdjacentHTML('beforeend','<label>Kompetenzen (je Zeile)<textarea name="tags">'+esc((fields.tags||[]).join('\n'))+'</textarea></label><label>Zusätzliche Helfer<input name="helpersMin" type="number" min="0" max="10" value="'+esc(fields.helpersMin??'')+'"></label><label>Freigabestatus<select name="reviewStatus"><option value="draft">Entwurf</option><option value="review">Zur fachlichen Prüfung</option><option value="approved">Fachlich geprüft und freigegeben</option><option value="archived">Archiviert</option></select></label><p>Freigabe bestätigt, dass Ablauf, Organisation und Erfolgskriterium geprüft sind. Bereits verwendete Plankopien bleiben unverändert.</p>');
+      form.elements.reviewStatus.value=fields.reviewStatus||'draft';
+    }
     const active = () => node.isConnected && scope === identity() && route === location.hash && writable();
     const values = () => Object.fromEntries(new FormData(form));
     form.addEventListener('input', () => { if (active()) { remember({ draft: { fields: values(), base } }); status.textContent = 'Entwurf auf diesem Gerät gesichert · noch nicht gespeichert'; } });
@@ -135,6 +139,13 @@ BT.libraryPages = (() => {
           if((data.playersMin===null)!==(data.playersMax===null) || (data.playersMin!==null && (!Number.isInteger(data.playersMin)||!Number.isInteger(data.playersMax)||data.playersMin<1||data.playersMax<data.playersMin||data.playersMax>100))) {status.textContent='Bitte eine gültige Spielerzahl von/bis angeben oder beide Felder leer lassen.';return;}
           data.equipment=String(data.equipment || '').split('\n').map(x=>x.trim()).filter(Boolean);
           data.coachingPoints=String(data.coachingPoints || '').split('\n').map(x=>x.trim()).filter(Boolean);
+          data.tags=String(data.tags||'').split('\n').map(x=>x.trim()).filter(Boolean);
+          data.helpersMin=data.helpersMin===''?null:Number(data.helpersMin);
+          if(data.helpersMin!==null&&(!Number.isInteger(data.helpersMin)||data.helpersMin<0||data.helpersMin>10)){status.textContent='Bitte eine gültige Helferzahl angeben.';return;}
+          if(data.reviewStatus==='approved'&&(!data.goal||!data.description||!data.successIndicator||!data.easier||!data.harder||!data.playersMin||data.helpersMin===null||!data.equipment.length||!data.coachingPoints.length)){status.textContent='Für die Freigabe fehlen Ziel, Ablauf, Erfolgskriterium, Varianten oder vollständige Organisationsangaben.';return;}
+          data.version=(Number(current?.version)||0)+1;
+          data.versions=[...(current?.versions||[]),...(current?[{version:current.version||1,name:current.name,description:current.description,reviewStatus:current.reviewStatus,updatedAt:current.updatedAt}]:[])].slice(-20);
+          if(data.reviewStatus==='approved'){data.reviewedAt=new Date().toISOString();data.reviewedBy=BT.sync?.getState?.().user?.id||'local-coach';}
           // The editable description is the authoritative, independent copy.
           data.setup='';data.steps=[];data.builtIn=false;
         }

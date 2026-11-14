@@ -68,6 +68,7 @@ export function createAIHandler({ requireMembership, query, generate, getApiKey,
       if (!apiKey) throw new AIError('AI_NOT_CONFIGURED', 'Serverseitige KI ist noch nicht konfiguriert.', { status: 503 });
 
       action = String(req.body?.action || '');
+      if(action==='individualPlanRegeneration')throw new AIError('AI_FORBIDDEN','Bitte die geschützte Individualplanung verwenden.',{status:403});
       const payload = req.body?.payload || {};
       buildAIRequest(action, payload);
 

@@ -40,6 +40,12 @@ export async function saveSessionPlanReview(client, auth, profile, session, body
     const previous=old.find(row=>row.id===e.id);
     const sameExercise=previous?.title===e.title;
     const repetitions={...(sameExercise ? previous.repetitions || {} : {})};
+    const submitted=body.exercises[index];
+    if(submitted.details) {
+      repetitions.details={};
+      for(const key of ['goal','setup','steps','sets','reps','pause','equipment','level','easier','harder'])repetitions.details[key]=optionalText(submitted.details[key],key,{max:key==='steps'?2000:1200})||'';
+    }
+    if(typeof submitted.locked==='boolean')repetitions.locked=submitted.locked;
     if (e.repetitions !== undefined) repetitions.instruction=e.repetitions;
     const measurement={...(sameExercise ? previous?.measurement_method || {} : {}),durationNotRecorded:e.minutes===null,
       documentation:session.status === 'planned' ? 'Vom Trainer geplanter Ablauf; noch nicht durchgeführt.' : 'Nachgetragener tatsächlicher Ablauf. Nicht notierte Dauer ist unbekannt. Keine standardisierte Ausgangsmessung unterstellen.'};
