@@ -1,3 +1,4 @@
+BEGIN;
 -- Additive: published plans and historical results remain untouched.
 ALTER TABLE individual_profiles ADD COLUMN IF NOT EXISTS planning_preferences JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE individual_profiles ADD COLUMN IF NOT EXISTS planning_preferences_version INTEGER NOT NULL DEFAULT 1;
@@ -19,3 +20,5 @@ CREATE TABLE IF NOT EXISTS individual_plan_proposals (
   UNIQUE (requested_by, request_key)
 );
 CREATE INDEX IF NOT EXISTS individual_plan_proposals_profile_idx ON individual_plan_proposals(individual_profile_id, created_at DESC);
+INSERT INTO schema_migrations(version) VALUES ('20261114_0001_training_proposals') ON CONFLICT DO NOTHING;
+COMMIT;

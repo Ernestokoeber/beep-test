@@ -35,6 +35,7 @@ try {
   // Mount the real individual editor with an isolated plan fixture; no real account or session is changed.
   await page.goto(base+'/#/drills');await page.locator('[data-library-count]').waitFor();
   await page.evaluate(()=>{const host=document.querySelector('#app');host.replaceChildren();BT.api.individualAction=async(action,body)=>{window.savedCatalogPlan={action,body};};BT.individualPlanEditor.mount(host,{profile:{id:'fixture-player'},session:{id:'fixture-session',status:'completed'},plan:{id:'fixture-plan',title:'Katalogtest',objective:'Wurfkontrolle',version:1},exercises:[],measurements:[],refresh:async()=>{}});});
+  await page.locator('.individual-plan-editor > summary').click();await page.locator('[name=reason]').fill('Bibliotheksübung im Ablauf ergänzt');
   await page.locator('[data-open-exercise-catalog]').click();await page.locator('[name=search]').fill(name);await check('individual-picker');await page.locator('[name=search]').press('Enter');assert.equal(await page.evaluate(()=>!!window.savedCatalogPlan),false);
   await page.locator('[data-catalog-pick]').first().click();await page.locator('[data-review-exercises] fieldset').waitFor();await page.locator('[data-close-exercise-catalog]').click();
   await page.locator('[data-review-exercises] [name=minutes]').fill('11');await page.locator('[name=observation]').fill('Privates Ergebnis aus Test');
