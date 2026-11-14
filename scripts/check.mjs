@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scripts = [
+  'js/training-proposals.js', 'js/individual-plan-browser.js', 'js/exercise-library-core.js',
+  'api/_handlers/individual/plan-proposals.js', 'api/_lib/training-proposals.js', 'api/_lib/training-regeneration-contract.js',
   'js/individual-plan-editor.js', 'api/_lib/individual-plan-review.js',
   'scripts/export-pnr-blender.mjs', 'scripts/render-pnr-blender.mjs', 'scripts/pnr-athlete-asset.mjs',
   ...['bootstrap.js','core.mjs','clock.mjs','journal.mjs','merge.mjs','bridge.mjs','controller.mjs','view.mjs','report.mjs','export.mjs'].map(file=>'js/live-game/'+file),

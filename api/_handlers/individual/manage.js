@@ -363,18 +363,16 @@ export function createIndividualManageHandler(deps = {}) {
           const profiles = [];
           for (const profileId of participantIds) profiles.push(await accessibleProfile(client, auth, profileId, true));
           await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`individual-session:${auth.organization_id}:${auth.sub}`]);
-          const open = await client.query(
-            `SELECT id FROM individual_sessions WHERE organization_id = $1 AND coach_user_id = $2
-              AND status IN ('planned', 'in_progress') LIMIT 1`, [auth.organization_id, auth.sub]
-          );
-          if (open.rows.length) throw new IndividualRequestError(409, 'Es gibt bereits eine offene Einheit. Bitte diese zuerst öffnen und abschließen.');
           const completed = await client.query(
             `SELECT count(*)::int AS count FROM individual_sessions
               WHERE organization_id = $1 AND coach_user_id = $2 AND status = 'completed'`,
             [auth.organization_id, auth.sub]
           );
           if (Number(completed.rows[0].count) >= 8) throw new IndividualRequestError(409, 'Der Trainingsblock mit acht durchgeführten Einheiten ist bereits abgeschlossen.');
-          const unitNumber = Number(completed.rows[0].count) + 1;
+          const allocated=(await client.query(`SELECT COALESCE(max(unit_number),0)::int AS last_unit FROM individual_sessions
+            WHERE organization_id=$1 AND coach_user_id=$2 AND status<>'cancelled'`,[auth.organization_id,auth.sub])).rows[0];
+          const unitNumber=Number(allocated?.last_unit||Number(completed.rows[0].count))+1;
+          if(unitNumber>8)throw new IndividualRequestError(409,'Alle acht Einheiten dieses Trainingsblocks sind bereits angelegt.');
           const latest = await client.query(
             `SELECT max((scheduled_for AT TIME ZONE 'Europe/Berlin')::date)::text AS date
                FROM individual_sessions
@@ -383,6 +381,9 @@ export function createIndividualManageHandler(deps = {}) {
           );
           const expectedDate = nextOpenPilotMonday(latest.rows[0]?.date || null);
           const requestedDate = req.body.scheduledDate ? isoDate(req.body.scheduledDate, 'Termin') : berlinDate(isoInstant(req.body.scheduledFor, 'Termin'));
+          const duplicate=await client.query(`SELECT id FROM individual_sessions WHERE organization_id=$1 AND coach_user_id=$2
+            AND (scheduled_for AT TIME ZONE 'Europe/Berlin')::date=$3::date AND status<>'cancelled' LIMIT 1`,[auth.organization_id,auth.sub,requestedDate]);
+          if(duplicate.rows.length)throw new IndividualRequestError(409,'Für diesen Termin ist bereits eine Einheit vorhanden. Bitte diese öffnen.');
           const requestedTime = String(req.body.scheduledTime || '');
           if (req.body.scheduledTime && !/^\d{2}:\d{2}$/.test(requestedTime)) throw new TypeError('Startzeit ist ungültig.');
           if (requestedTime && requestedTime !== '20:15') throw new TypeError('Die Montagseinheiten beginnen verbindlich um 20:15 Uhr.');
@@ -413,6 +414,7 @@ export function createIndividualManageHandler(deps = {}) {
 
         if (action === 'rescheduleSession') {
           const profile = await accessibleProfile(client, auth, req.body.profileId, true);
+          await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`individual-session:${auth.organization_id}:${auth.sub}`]);
           const session = await assertSessionForProfile(client, profile, req.body.sessionId);
           if (session.status !== 'planned') throw new IndividualRequestError(409, 'Nur eine noch nicht gestartete Einheit kann verschoben werden.');
           if (req.body.expectedScheduledFor && isoInstant(req.body.expectedScheduledFor, 'Bisheriger Termin') !== isoInstant(session.scheduled_for, 'Termin')) {
@@ -424,6 +426,9 @@ export function createIndividualManageHandler(deps = {}) {
           if (day < berlinDate(now())) throw new TypeError('Bitte einen heutigen oder zukünftigen Montag wählen.');
           const scheduledFor = assertPilotSessionInstant(null, day, '20:15:00');
           if (scheduledFor === isoInstant(session.scheduled_for, 'Termin')) return {status:200, body:{session}};
+          const conflict=await client.query(`SELECT id FROM individual_sessions WHERE organization_id=$1 AND coach_user_id=$2
+            AND id<>$3 AND status<>'cancelled' AND (scheduled_for AT TIME ZONE 'Europe/Berlin')::date=$4::date LIMIT 1`,[auth.organization_id,session.coach_user_id,session.id,day]);
+          if(conflict.rows.length)throw new IndividualRequestError(409,'Für diesen Montag ist bereits eine Einheit vorhanden.');
           const oldReadiness = await client.query('SELECT * FROM individual_readiness WHERE session_id = $1', [session.id]);
           await client.query(`INSERT INTO individual_audit_log
             (organization_id,individual_profile_id,entity_type,entity_id,field_name,old_value,new_value,change_reason,changed_by)

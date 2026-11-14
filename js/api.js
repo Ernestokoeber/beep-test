@@ -132,6 +132,7 @@ BT.api = (function() {
     getIndividualResponses: () => request('/individual/overview?view=responses', {timeoutMs:10000}),
     getIndividualInvite: token => request('/individual/invite?token=' + encodeURIComponent(token), {auth:false}),
     individualAction: (action, payload = {}) => request('/individual/manage', { method: 'POST', body: { action, ...payload } }),
+    individualPlanProposal: (action,payload={}) => request('/individual/plan-proposals',{method:'POST',body:{action,...payload},timeoutMs:55_000}),
     individualAIDraft: (action, payload = {}) => request('/individual/ai-drafts', { method: 'POST', body: { action, ...payload }, timeoutMs: 55_000 }),
     getIndividualPushKey: () => request('/individual/push'),
     saveIndividualPush: (subscription) => request('/individual/push', { method: 'POST', body: subscription }),

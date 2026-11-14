@@ -20,10 +20,10 @@ try {
   const check=async label=>{assert(await page.evaluate(()=>Math.max(document.body.scrollWidth,document.documentElement.scrollWidth)<=innerWidth+1),label+': horizontal overflow');assert.deepEqual(errors,[]);await page.screenshot({path:'/tmp/courthub-catalog-screenshots/'+label+'-'+width+'.png',fullPage:true});};
   try {
   await page.goto(base+'/#/drills');await page.locator('[data-library-item]').first().waitFor();
-  assert.equal(await page.evaluate(()=>BT.exerciseCatalog.all().length),400);assert.equal(await page.evaluate(()=>BT.storage.getDrills().length),0);
+  assert.equal(await page.evaluate(()=>BT.exerciseCatalog.all().length),800);assert.equal(await page.evaluate(()=>BT.storage.getDrills().length),0);
   assert.equal(await page.locator('[data-library-item]').count(),40);await check('catalog');
   await openFilters();
-  await page.locator('[name=players]').selectOption('2');await page.locator('[name=level]').selectOption('Grundlagen');await page.locator('[name=minutes]').selectOption('10');
+  await page.locator('[name=entryKind]').selectOption('variant');await page.locator('[name=players]').selectOption('2');await page.locator('[name=level]').selectOption('Grundlagen');await page.locator('[name=minutes]').selectOption('10');
   await page.locator('[name=search]').fill('Führhand');await page.locator('[data-library-item]').first().waitFor();await check('filters');
   const name=await page.locator('[data-library-item] strong').first().innerText();await page.locator('[data-favorite]').first().click();await page.waitForFunction(()=>BT.storage.getSetting('exerciseFavorites',[]).length===1);
   await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();assert.equal(await page.locator('a[href^="#/drills/catalog-"]').count(),3);await check('detail');
@@ -34,7 +34,8 @@ try {
   await page.goto(base+'/#/training/'+training+'/plan/library');await page.locator('[data-catalog-pick]').first().waitFor();await page.locator('[name=search]').fill(name);await page.locator('[data-catalog-pick]').first().click();await page.waitForFunction(id=>BT.storage.getTraining(id).plan.drills.length===1,training);await check('team-picker');
   // Mount the real individual editor with an isolated plan fixture; no real account or session is changed.
   await page.goto(base+'/#/drills');await page.locator('[data-library-count]').waitFor();
-  await page.evaluate(()=>{const host=document.querySelector('#app');host.replaceChildren();BT.api.individualAction=async(action,body)=>{window.savedCatalogPlan={action,body};};BT.individualPlanEditor.mount(host,{profile:{id:'fixture-player'},session:{id:'fixture-session',status:'planned'},plan:{id:'fixture-plan',title:'Katalogtest',objective:'Wurfkontrolle',version:1},exercises:[],measurements:[],refresh:async()=>{}});});
+  await page.evaluate(()=>{const host=document.querySelector('#app');host.replaceChildren();BT.api.individualAction=async(action,body)=>{window.savedCatalogPlan={action,body};};BT.individualPlanEditor.mount(host,{profile:{id:'fixture-player'},session:{id:'fixture-session',status:'completed'},plan:{id:'fixture-plan',title:'Katalogtest',objective:'Wurfkontrolle',version:1},exercises:[],measurements:[],refresh:async()=>{}});});
+  await page.locator('.individual-plan-editor > summary').click();await page.locator('[name=reason]').fill('Bibliotheksübung im Ablauf ergänzt');
   await page.locator('[data-open-exercise-catalog]').click();await page.locator('[name=search]').fill(name);await check('individual-picker');await page.locator('[name=search]').press('Enter');assert.equal(await page.evaluate(()=>!!window.savedCatalogPlan),false);
   await page.locator('[data-catalog-pick]').first().click();await page.locator('[data-review-exercises] fieldset').waitFor();await page.locator('[data-close-exercise-catalog]').click();
   await page.locator('[data-review-exercises] [name=minutes]').fill('11');await page.locator('[name=observation]').fill('Privates Ergebnis aus Test');
@@ -46,7 +47,7 @@ try {
    await page.reload();await page.locator('[data-library-count]').waitFor();await openFilters();await page.locator('[data-clear-filters]').click();
    await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise(r=>navigator.serviceWorker.addEventListener('controllerchange',r,{once:true}));await BT.storage.flush();});
    await context.setOffline(true);await page.reload();await page.locator('[data-library-count]').waitFor();assert.equal(await page.evaluate(()=>BT.exerciseCatalogSeed.length),400);
-   await page.locator('[name=search]').fill('Short Roll');assert.equal(await page.locator('[data-library-item]').count(),4);await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();await check('offline-detail');
+   await openFilters();await page.locator('[name=entryKind]').selectOption('variant');await page.locator('[name=search]').fill('Short Roll');assert.equal(await page.locator('[data-library-item]').count(),4);await page.locator('[data-library-item] a').first().click();await page.locator('[data-catalog-copy]').waitFor();await check('offline-detail');
    await page.evaluate(()=>document.documentElement.dataset.theme='dark');await check('dark-detail');await context.setOffline(false);
   }
   console.log(width+'px: catalog, filters, favorites, own copy, team/individual selection and private-note exclusion passed');
