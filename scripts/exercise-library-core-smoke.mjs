@@ -21,5 +21,7 @@ try{
   assert(C.filter(core,{tags:['post','footwork'],tagMode:'all'}).every(r=>r.tags.includes('post')&&r.tags.includes('footwork')));
   const archived={...core[0],reviewStatus:'archived'};assert.equal(C.filter([archived]).length,0);assert.equal(C.filter([archived],{reviewStatus:'archived'}).length,1);
   C.mountBrowser(w.document.querySelector('main'));const select=w.document.querySelector('[name=reviewStatus]');assert.deepEqual([...select.options].map(x=>x.value),['','draft','review','approved','archived']);
+  C.mountBrowser(w.document.querySelector('main'),{initial:{tags:[],tagMode:'any'}});assert.equal(w.document.querySelector('.exercise-filter-options').open,false,'Empty saved tags must not expand filters after reload');
+  C.mountBrowser(w.document.querySelector('main'),{initial:{tags:['post'],tagMode:'all'}});assert.equal(w.document.querySelector('.exercise-filter-options').open,true,'Selected competency filters remain visible');
   console.log('400 core concepts and 400 legacy variants: counts, distinct IDs/titles, complete cards, plan limits, helpers, compound tags and explicit editorial status passed.');
 }finally{w.close();}

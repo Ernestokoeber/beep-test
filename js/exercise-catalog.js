@@ -83,7 +83,7 @@ BT.exerciseCatalog = (() => {
     names.forEach(n=>controls[n].value=initial[n] || '');
     for(const option of controls.tags.options)option.selected=(initial.tags||[]).includes(option.value);
     controls.search.addEventListener('keydown',event=>{if(event.key==='Enter')event.preventDefault();});
-    if(names.some(n=>n!=='search' && n!=='category' && initial[n])) host.querySelector('details').open=true;
+    if(names.some(n=>!['search','category','tagMode'].includes(n) && (Array.isArray(initial[n])?initial[n].length>0:!!initial[n]))) host.querySelector('details').open=true;
     let limit=Math.max(40,Number(initial.limit)||40),busy=false;
     function draw() {
       const query=Object.fromEntries(names.map(n=>[n,n==='tags'?[...controls[n].selectedOptions].map(o=>o.value):controls[n].value])),matches=filter(rows,query),shown=matches.slice(0,limit),saved=favorites();
