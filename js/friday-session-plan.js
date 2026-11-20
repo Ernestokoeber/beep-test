@@ -42,9 +42,9 @@ BT.fridaySessionPlan=(()=>{
     const saved=training.fridayIndividual?.session||{},duration=Number(saved.durationMinutes??105);
     return {...saved,durationMinutes:Number.isInteger(duration)&&duration>=45&&duration<=180?duration:105,courts:Number(saved.courts)===2?2:1,combination:combinations[saved.combination]?saved.combination:'middle'};
   }
-  function defaultGroups(members){
+  function defaultGroups(members,courts){
     const technique=[];for(const position of ['pg','sg','sf','pf','c',null]){const people=members.filter(m=>m.position===position);for(let i=0;i<people.length;i+=3)technique.push(people.slice(i,i+3));}
-    const mixed=Array.from({length:Math.ceil(members.length/5)},()=>[]),remaining=[...members];
+    const mixed=Array.from({length:members.length?courts===2&&members.length>=6?2:1:0},()=>[]),remaining=[...members];
     for(const positions of [['pg'],['c','pf'],['sg','sf']])for(const group of mixed){const index=remaining.findIndex(m=>positions.includes(m.position));if(index>=0)group.push(...remaining.splice(index,1));}
     for(const member of remaining)[...mixed].sort((a,b)=>a.length-b.length)[0]?.push(member);
     return {technique,mixed};
@@ -53,7 +53,7 @@ BT.fridaySessionPlan=(()=>{
     const byGroup=new Map();defaults.forEach((members,index)=>members.forEach(member=>{const saved=Number(assignments[member.id]),key=Number.isInteger(saved)&&saved>=1&&saved<=9?saved:index+1;if(!byGroup.has(key))byGroup.set(key,[]);byGroup.get(key).push(member);}));
     return [...byGroup].sort((a,b)=>a[0]-b[0]).map(([id,members])=>({id,name:'Gruppe '+letters[id-1],members}));
   }
-  const fallback=()=>({id:'foundation',familyName:'Grundstellung, Ballkontrolle und Fußarbeit',playersMin:1,technicalSteps:['Stabile, schmerzfreie Grundstellung einnehmen.','Ball vor dem Körper kontrollieren und die Augen heben.','Einen kurzen Schritt mit sauberem Stopp verbinden.','Standbein halten und die Bewegung langsam auf beiden Seiten wiederholen.'],coachingPoints:['Balance vor Tempo.'],learningTask:'Ohne festgelegte Position Grundlagen ohne Gegenspieler üben.',setup:'Ein Spieler auf freier Fläche; kein Korb oder zusätzlicher Partner nötig.',successIndicator:'Sechs kontrollierte Wiederholungen ohne Schrittfehler.',source:'foundation'});
+  const fallback=()=>({id:'foundation',familyName:'Grundstellung, Ballkontrolle und Fußarbeit',playersMin:1,needsBasket:false,technicalSteps:['Stabile, schmerzfreie Grundstellung einnehmen.','Ball vor dem Körper kontrollieren und die Augen heben.','Einen kurzen Schritt mit sauberem Stopp verbinden.','Standbein halten und die Bewegung langsam auf beiden Seiten wiederholen.'],coachingPoints:['Balance vor Tempo.'],learningTask:'Ohne festgelegte Position Grundlagen ohne Gegenspieler üben.',setup:'Ein Spieler auf freier Fläche; kein Korb oder zusätzlicher Partner nötig.',successIndicator:'Sechs kontrollierte Wiederholungen ohne Schrittfehler.',source:'foundation'});
   function exercise(member,index,config,rotation){
     const rows=(BT.fridayPositionExercises||[]).filter(r=>r.primaryPosition===member.position);
     const chosen=config.soloSets?.[member.id]?.[index],imported=config.importedExercises?.[chosen];
@@ -77,7 +77,7 @@ BT.fridaySessionPlan=(()=>{
     return {format:offense+' gegen '+Math.min(3,rest.length)+(rest.length>3?' · '+(rest.length-3)+' in Rotation':''),roles};
   }
   function build(training,report){
-    const config=settings(training),members=[...report.members].sort((a,b)=>String(a.id).localeCompare(String(b.id))),defaults=defaultGroups(members);
+    const config=settings(training),members=[...report.members].sort((a,b)=>String(a.id).localeCompare(String(b.id))),defaults=defaultGroups(members,config.courts);
     const technique=groups(defaults.technique,config.techniqueGroups),mixed=groups(defaults.mixed,config.combinationGroups),rotation=Number(training.fridayIndividual?.rotation)||0;
     const start=/^\d{2}:\d{2}$/.test(training.startTime||'')?training.startTime:'20:15',startSeconds=Number(start.slice(0,2))*3600+Number(start.slice(3))*60;
     const result={config,members,technique,mixed,defaults,rotation,startSeconds,phases:[],warnings:[]};if(report.mode!=='individual')return result;

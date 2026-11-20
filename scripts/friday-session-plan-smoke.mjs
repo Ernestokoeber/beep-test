@@ -30,6 +30,8 @@ try{
     for(const phase of plan.phases.filter(p=>p.solo))assert(phase.solo.every(s=>s.helpers.length===0),'Solo sets must be genuine individual tasks');
   }
   const t=training(7),plan=P.build(t,F.assess(t,players));assert.equal(P.clock(plan,0),'20:15');assert.equal(P.clock(plan,6300),'22:00');
+  assert.equal(plan.mixed.length,1,'One basket keeps seven players together for a real 3v3 offense plus rotation');
+  assert.equal(plan.phases.find(p=>p.id==='transfer').rounds[0].courts[0].turns[0].format,'3 gegen 3 · 1 in Rotation');
   assert.deepEqual(copy(plan.phases.filter(p=>p.solo).map(p=>p.id)),['solo-a','solo-b','solo-c','solo-return']);
   assert(plan.phases.find(p=>p.id==='solo-c').start<plan.phases.find(p=>p.id==='combination').start);
   assert(plan.phases.find(p=>p.id==='solo-return').start>plan.phases.find(p=>p.id==='transfer').start);
