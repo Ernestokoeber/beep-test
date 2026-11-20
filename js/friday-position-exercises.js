@@ -1175,13 +1175,16 @@ BT.fridayPositionExercises = (() => {
   return cards.flatMap(base => {
     const [counter, connection, transfer] = tasks[base.primaryPosition][Number(base.code.slice(-2))-1];
     return modes.map((mode, index) => {
-      const hasDefender = /verteidiger|verfolger|helfer|begleiter/i.test(base.setup);
+      // All paired/group families contain a defender except the pass-reception
+      // family SG14; its second player is the passer, so reactive tasks add one.
+      const hasDefender = base.playersMin>1 && base.code!=='FR-SG14';
       const reactivePartner = !hasDefender && (index===1 || index===2);
       const extraPartner = index>=3 || reactivePartner;
       const players = base.playersMin + Number(extraPartner);
       const setup = base.setup + (extraPartner ? (index===3
         ? ' Zusätzlich spielt ein Anschlusspartner an der freien Außenposition mit; er ist in der angegebenen Spielerzahl enthalten.'
         : ' Zusätzlich spielt ein Verteidiger im freien Anschlussraum mit; er ist in der angegebenen Spielerzahl enthalten.') : '')
+        + (base.playersMin===2 && hasDefender ? ' Zu zweit zwischen Angriffs- und Verteidigungsrolle wechseln.' : '')
         + (index===0 ? (hasDefender ? ' Die Verteidigung zeigt vor jedem Start ihre Stellung und begleitet die Bewegung geführt.' : ' Startwinkel vor dem Versuch festlegen und zunächst ohne Gegenspieler arbeiten.') : ' Die genannten Verteidiger entscheiden innerhalb der Aufgabe selbst; zu Beginn ohne harte Kontakte.');
       const specific = [
         'Den Ablauf zuerst langsam zeigen. Nach jeder Aktion genau einen Technikpunkt korrigieren und denselben Ablauf einmal sauber wiederholen.',
