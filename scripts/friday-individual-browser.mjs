@@ -26,7 +26,7 @@ try {
         await page.waitForFunction(p=>location.hash==='#/friday-individual?position='+p && document.querySelector('[data-friday-count]')?.textContent.includes('100 Übungen'),position);
         await page.locator('[name=task]').selectOption('Konter finden');assert.equal(await page.locator('[data-friday-item]').count(),20);
       }
-      await check('center-filter');await page.locator('[name=search]').fill('Drop-Step');assert.equal(await page.locator('[data-friday-item]').count(),2);
+      await check('center-filter');await page.locator('[name=search]').fill('Drop-Step');assert.equal(await page.locator('[data-friday-item]').count(),3);
       await page.locator('[data-friday-item] a').first().click();await page.locator('[data-friday-page=detail]').waitFor();
       assert.equal(await page.locator('.friday-task-links a').count(),4);await check('detail');
       await page.goBack();await page.locator('[data-friday-page=list]').waitFor();assert.equal(await page.locator('[name=search]').inputValue(),'Drop-Step');
