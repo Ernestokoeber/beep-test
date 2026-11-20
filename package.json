@@ -33,7 +33,7 @@
     "test:consistency:browser": "node scripts/consistency-audit-browser.mjs",
     "test:library:browser": "node scripts/library-pages-browser.mjs",
     "test:scouting:browser": "node scripts/scouting-pages-browser.mjs",
-    "test:catalog": "node scripts/exercise-catalog-smoke.mjs",
+    "test:catalog": "node scripts/exercise-catalog-smoke.mjs && node scripts/friday-individual-smoke.mjs && node scripts/friday-training-smoke.mjs",
     "test:catalog:browser": "node scripts/exercise-catalog-browser.mjs",
     "test:planning": "node scripts/training-proposals-smoke.mjs && node scripts/training-proposals-ui-smoke.mjs && node scripts/exercise-library-core-smoke.mjs",
     "test:planning:browser": "node scripts/training-proposals-browser.mjs"

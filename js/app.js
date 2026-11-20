@@ -238,6 +238,8 @@
       return;
     }
     const personalWorkspace = hash === '#/personal' || hash.startsWith('#/personal/');
+    const fridayWorkspace = hash === '#/friday-individual' || hash.startsWith('#/friday-individual/') || hash.startsWith('#/friday-individual?');
+    document.body.classList.toggle('friday-workspace-mode', fridayWorkspace);
     document.body.classList.toggle('personal-workspace-mode', personalWorkspace);
     const individualWorkspace = hash.startsWith('#/individual') || hash.startsWith('#/join/');
     document.body.classList.toggle('individual-join-mode', hash.startsWith('#/join/'));
@@ -245,8 +247,8 @@
     const brandLink = document.querySelector('.brand');
     const brandTitle = document.querySelector('.brand-text');
     const individualDockLabel = document.querySelector('.individual-mobile-link small');
-    if (brandLink) brandLink.href = personalWorkspace ? '#/personal' : individualWorkspace ? '#/individual' : '#/dashboard';
-    if (brandTitle) brandTitle.textContent = personalWorkspace ? 'Personal' : individualWorkspace ? 'Individualtraining' : 'CourtHub';
+    if (brandLink) brandLink.href = personalWorkspace ? '#/personal' : fridayWorkspace ? '#/friday-individual' : individualWorkspace ? '#/individual' : '#/dashboard';
+    if (brandTitle) brandTitle.textContent = personalWorkspace ? 'Personal' : fridayWorkspace ? 'Freitag individual' : individualWorkspace ? 'Individualtraining' : 'CourtHub';
     const manageLink = document.querySelector('.manage-link');
     if (manageLink) {
       manageLink.href = personalWorkspace ? '#/personal/account' : individualWorkspace ? '#/individual/account' : '#/management';
@@ -331,6 +333,8 @@
     } else if (hash.startsWith('#/test/run/')) {
       const id = hash.slice('#/test/run/'.length);
       BT.test.renderRun(app, id);
+    } else if (hash === '#/friday-individual' || hash.startsWith('#/friday-individual/') || hash.startsWith('#/friday-individual?')) {
+      BT.fridayIndividual.render(app, hash);
     } else if (hash === '#/training') {
       BT.trainingPages.renderList(app);
     } else if (hash === '#/training/new') {
@@ -400,6 +404,8 @@
       active = 'dashboard';
     } else if (hash.startsWith('#/personal')) {
       active = 'personal';
+    } else if (hash.startsWith('#/friday-individual')) {
+      active = 'friday-individual';
     } else if (hash.startsWith('#/individual')) {
       active = 'individual';
     } else if (hash.startsWith('#/players') || hash.startsWith('#/player/')) {
