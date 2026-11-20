@@ -13,6 +13,9 @@ window.scrollTo = () => {}; // Actual scroll restoration is covered in navigatio
 
 window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 window.ResizeObserver = class { observe() {} disconnect() {} };
+const viewport = new window.EventTarget();
+Object.assign(viewport, { height: 844, offsetTop: 0, scale: 1 });
+Object.defineProperty(window, 'visualViewport', { value: viewport });
 window.requestAnimationFrame = callback => window.setTimeout(() => callback(Date.now()), 0);
 window.cancelAnimationFrame = id => window.clearTimeout(id);
 window.confirm = () => true;
@@ -84,6 +87,29 @@ assert(viewportMeta.includes('viewport-fit=cover'), 'Safe-Area-Unterstützung im
 assert(viewportMeta.includes('interactive-widget=resizes-content'), 'Viewport reagiert nicht auf Bildschirm und Tastatur');
 assert(!/user-scalable\s*=\s*no|maximum-scale\s*=\s*1/.test(viewportMeta), 'Pinch-to-Zoom darf nicht deaktiviert sein');
 assert(css.includes('position: fixed !important;') && css.includes('-webkit-backdrop-filter: none;'), 'Mobile Dock ist auf iOS nicht stabil verankert');
+const viewportBottom = () => window.document.documentElement.style.getPropertyValue('--app-viewport-bottom');
+const nextViewportFrame = () => new Promise(r => window.setTimeout(r, 20));
+assert(viewportBottom() === '844px', 'Dock starts at the visible bottom');
+viewport.height = 510; viewport.offsetTop = 42;
+viewport.dispatchEvent(new window.Event('resize'));
+await nextViewportFrame();
+assert(viewportBottom() === '552px', 'Keyboard panning is included exactly once');
+Object.defineProperty(window, 'scrollY', { value: 1200, configurable: true });
+window.dispatchEvent(new window.Event('scroll'));
+await nextViewportFrame();
+assert(viewportBottom() === '552px', 'Document scrolling cannot move the fixed dock');
+viewport.height = 844; viewport.offsetTop = 0;
+window.document.dispatchEvent(new window.Event('focusout'));
+await nextViewportFrame();
+assert(viewportBottom() === '844px', 'Dock recovers after keyboard dismissal without a resize event');
+viewport.scale = 2; viewport.height = 422;
+viewport.dispatchEvent(new window.Event('resize'));
+await nextViewportFrame();
+assert(viewportBottom() === '844px' && window.document.documentElement.dataset.viewportZoomed === 'true', 'Pinch zoom retains the layout and native fixed positioning');
+viewport.scale = 1; viewport.height = 844;
+viewport.dispatchEvent(new window.Event('resize'));
+await nextViewportFrame();
+Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
 
 function route(hash) {
   window.location.hash = hash;

@@ -147,3 +147,16 @@ jobs:
           name: training-planning-screenshots
           path: /tmp/courthub-planning-screenshots
           retention-days: 7
+
+  mobile-dock-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: node scripts/mobile-dock-browser.mjs

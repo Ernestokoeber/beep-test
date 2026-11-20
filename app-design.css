@@ -195,3 +195,15 @@ html:root .spot-cat-tab {min-height:44px;border-radius:.75rem;}
 html:root .spot-cat-tab.active {background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);}
 html:root .tablecrew-kpis span {text-transform:none;letter-spacing:0;}
 @media(max-width:650px) {html:root .tablecrew-kpis {grid-template-columns:repeat(2,minmax(0,1fr));}}
+
+/* Keep the document's scroll geometry independent of the soft keyboard. */
+html:root, html:root body { min-height: 100svh; overflow-x: clip; }
+@media (max-width: 900px) {
+  /* iOS may retain a keyboard-sized fixed-bottom viewport after dismissal.
+     Anchor to the visible bottom from the layout viewport's top instead. */
+  html:not([data-viewport-zoomed="true"]) .mobile-dock {
+    inset: var(--app-viewport-bottom, 100dvh) 0 auto 0 !important;
+    transform: translateY(-100%);
+    -webkit-transform: translateY(-100%);
+  }
+}

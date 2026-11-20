@@ -69,6 +69,11 @@
     const root = document.documentElement;
     const viewport = window.visualViewport;
     let frame = 0;
+    let settleTimer = 0;
+    const setPixels = (name, value) => {
+      const next = Math.round(value * 100) / 100 + 'px';
+      if (root.style.getPropertyValue(name) !== next) root.style.setProperty(name, next);
+    };
 
     const apply = () => {
       if (frame) window.cancelAnimationFrame(frame);
@@ -80,16 +85,32 @@
         // Skalierung folgen Vollbildbereiche der tatsächlich sichtbaren Höhe.
         if (scale <= 1.01) {
           const height = viewport && viewport.height ? viewport.height : window.innerHeight;
-          if (height) root.style.setProperty('--app-viewport-height', Math.round(height * 100) / 100 + 'px');
+          if (height) {
+            setPixels('--app-viewport-height', height);
+            // Fixed bottom can retain the keyboard-sized layout viewport in
+            // iOS PWAs. Anchor from its top to the actual visible bottom instead.
+            // offsetTop is viewport panning, never document scrollY/pageTop.
+            setPixels('--app-viewport-bottom', height + Math.max(0, viewport?.offsetTop || 0));
+          }
         }
 
         root.dataset.viewportZoomed = scale > 1.01 ? 'true' : 'false';
       });
     };
 
+    const settle = () => {
+      apply();
+      window.clearTimeout(settleTimer);
+      // iOS may publish the final viewport only after the keyboard animation.
+      settleTimer = window.setTimeout(apply, 350);
+    };
     apply();
     window.addEventListener('resize', apply, { passive: true });
-    window.addEventListener('orientationchange', apply, { passive: true });
+    window.addEventListener('scroll', apply, { passive: true });
+    window.addEventListener('orientationchange', settle, { passive: true });
+    window.addEventListener('pageshow', settle);
+    document.addEventListener('focusout', settle);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) settle(); });
     if (viewport) {
       viewport.addEventListener('resize', apply, { passive: true });
       viewport.addEventListener('scroll', apply, { passive: true });
