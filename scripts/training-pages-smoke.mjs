@@ -48,5 +48,27 @@ host.querySelector('[name="note"]').value='Neue Einheit';host.querySelector('for
 host.replaceChildren();w.BT.trainingPages.renderNew(host);assert.equal(host.querySelector('[name="note"]').value,'Neue Einheit');
 host.querySelector('form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
 assert.equal(w.BT.storage.getTrainings().length,before+1);
+// Single-date planning: draft first, explicit adoption, retained records and stale-write protection.
+w.eval(readFileSync(new URL('../js/seasonplanner.js',import.meta.url),'utf8'));
+const B=w.BT,copy=v=>JSON.parse(JSON.stringify(v));
+let coachScope='coach-a';B.sync={getState:()=>({user:{id:coachScope,role:'coach',organization:{id:'team-a'}},sessionEpoch:1})};
+let apiCalls=0,request,failAI=false,token='test-token';
+B.api={getToken:()=>token,ai:async(action,payload)=>{apiCalls++;request={action,payload};if(failAI)throw Object.assign(new Error('Provider unavailable'),{code:'AI_PROVIDER',requestId:'test-request'});return {data:{trainings:[{date:payload.data.slots[0].date,summary:'Tuesday offense',drills:[{name:'Drive & decision',minutes:30,description:'Main move, counter and exit',intensity:'medium'},{name:'Team transfer',minutes:60,description:'Apply against defense',intensity:'high'}]}]},model:'test-model'};}};
+const tue=B.storage.upsertTraining({date:'2030-01-08',startTime:'20:15',attendance:[{playerId:'keep',status:'present'}],shots:[{category:'Midrange',entries:[{made:3,attempted:5}]}],freethrows:[{playerId:'keep',made:2,attempted:4}],plan:{summary:'Manual Tuesday focus',durationMinutes:105,drills:[{id:'manual',name:'Previous manual exercise',minutes:105}]},planning:{source:'manual',coachEdited:true}});
+const renderTue=()=>{host.replaceChildren();B.trainingPages.render(host,tue.id,'plan');};
+const settle=()=>new Promise(resolve=>w.setTimeout(resolve,0));
+renderTue();assert(host.querySelector('[data-training-ai]'),'A manually created Tuesday has its own AI button');
+const unchanged=JSON.stringify(B.storage.getTraining(tue.id));
+await host.querySelector('[data-training-ai]').onclick();
+assert.equal(apiCalls,1);assert.equal(request.action,'planSeason');assert.equal(request.payload.data.slots.length,1);assert.equal(request.payload.data.slots[0].date,tue.date);assert.equal(request.payload.data.slots[0].weekday,'tue');assert.equal(request.payload.data.coachInput.focus,'Manual Tuesday focus');assert.equal(request.payload.data.durationMinutes,105);
+assert.equal(JSON.stringify(B.storage.getTraining(tue.id)),unchanged,'Generation is a preview, not an overwrite');assert(host.querySelector('[data-training-ai-apply]'));
+host.querySelector('[data-training-ai-discard]').click();assert.equal(JSON.stringify(B.storage.getTraining(tue.id)),unchanged);
+await host.querySelector('[data-training-ai]').onclick();await host.querySelector('[data-training-ai-apply]').onclick();
+const adopted=B.storage.getTraining(tue.id);assert.equal(adopted.plan.summary,'Tuesday offense');assert.equal(adopted.plan.drills.reduce((n,d)=>n+d.minutes,0),105);assert.deepEqual(copy(adopted.attendance),copy(tue.attendance));assert.deepEqual(copy(adopted.freethrows),copy(tue.freethrows));assert.deepEqual(copy(adopted.shots),copy(tue.shots));assert.equal(adopted.startTime,'20:15');
+renderTue();await host.querySelector('[data-training-ai]').onclick();const changed=B.storage.getTraining(tue.id);changed.plan.summary='Changed while reviewing';B.storage.upsertTraining(changed);await host.querySelector('[data-training-ai-apply]').onclick();assert.equal(B.storage.getTraining(tue.id).plan.summary,'Changed while reviewing');assert(host.querySelector('[data-training-ai-status]').textContent.includes('inzwischen geändert'));
+renderTue();failAI=true;await host.querySelector('[data-training-ai]').onclick();assert(host.querySelector('[data-training-ai-status]').textContent.includes('test-request'));assert.equal(host.querySelector('[data-training-ai]').disabled,false);failAI=false;
+renderTue();token='';const callsBefore=apiCalls;await host.querySelector('[data-training-ai]').onclick();assert.equal(apiCalls,callsBefore);assert(host.querySelector('a[href="#/account"]'));token='test-token';
+const stale=await B.seasonplanner.draftTraining(tue.id);const ended=B.storage.getTraining(tue.id);ended.status='completed';ended.endedAt='2030-01-08T22:00:00Z';B.storage.upsertTraining(ended);assert.throws(()=>B.seasonplanner.applyTrainingDraft(stale),/inzwischen geändert/);await assert.rejects(()=>B.seasonplanner.draftTraining(tue.id),/abgeschlossenes/);renderTue();assert(!host.querySelector('[data-training-ai]'));
+console.log('Single Tuesday AI: one-date request, focus/duration, preview/adoption/discard, preserved attendance and records, stale/completed protection, authentication and visible retryable errors passed.');
 dom.window.close();
 console.log('Trainingsseiten: Auswahl, sichere Übersicht, stabile Übungen, Entwürfe und Datenerhalt geprüft.');

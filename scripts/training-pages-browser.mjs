@@ -65,6 +65,12 @@ try {
     });assert(contrast>=4.5,'Trainingsüberschrift braucht ausreichenden Dunkelmodus-Kontrast.');
     await page.goto(base+'/#/training/'+ids.training+'/plan');await wait('plan');await check('dunkel-plan');
   }
+  let aiRequest;
+  await context.route('**/api/ai/gemini',async route=>{aiRequest=route.request().postDataJSON();await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{trainings:[{date:aiRequest.payload.data.slots[0].date,summary:'Tuesday AI offense',drills:[{name:'Drive and counter',minutes:35,description:'Main move, counter, exit',intensity:'medium'},{name:'Offense transfer',minutes:70,description:'Use the trained moves against defense',intensity:'high'}]}]}})});});
+  const aiId=await page.evaluate(async()=>{BT.api.setToken('local-ai-test');const t=BT.storage.upsertTraining({date:'2030-01-08',startTime:'20:15',plan:{summary:'Manual Tuesday',durationMinutes:105,drills:[]},attendance:[{playerId:'test',status:'present'}]});await BT.storage.flush();return t.id;});
+  await page.goto(base+'/#/training/'+aiId+'/plan');await wait('plan');await page.locator('[data-training-ai]').click();await page.locator('[data-training-ai-apply]').waitFor();
+  assert.equal(aiRequest.payload.data.slots.length,1);assert.equal(aiRequest.payload.data.slots[0].weekday,'tue');assert.equal(await page.evaluate(id=>BT.storage.getTraining(id).plan.summary,aiId),'Manual Tuesday');await check('tuesday-ai-preview');
+  await page.locator('[data-training-ai-apply]').click();await page.waitForFunction(id=>BT.storage.getTraining(id).plan.summary==='Tuesday AI offense',aiId);await page.reload();await wait('plan');assert.equal(await page.locator('.tp-drill-link').count(),2);assert.equal(await page.locator('[data-plan-summary]').inputValue(),'Tuesday AI offense');assert.equal(await page.evaluate(id=>BT.storage.getTraining(id).attendance[0].status,aiId),'present');await check('tuesday-ai-saved');
   assert.deepEqual(errors,[]);console.log(width+' px: Trainingsseiten, Übungen, Entwürfe, echte Rückwege, Live-Uhr, Wurferfassung und Timer geprüft.');await context.close();
  }
  console.log('Screenshots: '+shots);

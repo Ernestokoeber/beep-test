@@ -147,6 +147,33 @@ BT.trainingPages = (() => {
       const saved=update(t.id,x=>{const i=x.plan.drills.findIndex(d=>d.id===b.dataset.drill),j=i+(b.dataset.move==='up'?-1:1);if(i<0 || j<0 || j>=x.plan.drills.length)return false;[x.plan.drills[i],x.plan.drills[j]]=[x.plan.drills[j],x.plan.drills[i]];});
       if(saved){const scroll=window.scrollY;root.remove();plan(target,saved);window.scrollTo(0,scroll);const button=[...target.querySelectorAll('[data-move]')].find(el=>el.dataset.drill===b.dataset.drill && el.dataset.move===b.dataset.move && !el.disabled);button?.focus({preventScroll:true});}
     });
+    if (writable() && !finished(t) && !t.cancelled && t.status !== 'cancelled' && !t.liveSession && new Date(t.date+'T12:00:00').getDay() !== 5) {
+      const ai = document.createElement('section');ai.className='tp-ai-plan';
+      ai.innerHTML='<h3>Dieses Training mit KI planen</h3><p>Die KI nutzt den Schwerpunkt, die Dauer und das aktive Teamkonzept für diesen Termin. Prüfe den Entwurf und übernimm ihn anschließend.</p><button type="button" class="btn primary" data-training-ai>Mit KI planen</button><p role="status" aria-live="polite" data-training-ai-status></p><div data-training-ai-preview></div>';
+      root.querySelector('.tp-form-actions').after(ai);
+      const scope=identity(),route=location.hash,active=()=>root.isConnected&&scope===identity()&&route===location.hash&&writable();
+      const button=ai.querySelector('[data-training-ai]'),status=ai.querySelector('[data-training-ai-status]'),preview=ai.querySelector('[data-training-ai-preview]');
+      let busy=false;
+      button.onclick=async()=>{
+        if(busy||!active())return;
+        if(!BT.api?.getToken?.()){status.textContent='Für die KI bitte unter Konto & Sync anmelden.';preview.innerHTML='<a class="btn" href="#/account">Konto & Sync öffnen</a>';return;}
+        busy=true;button.disabled=true;status.textContent='KI erstellt den Entwurf für '+BT.util.formatDate(t.date)+' …';preview.replaceChildren();
+        BT.wake?.acquire?.('single-training-ai');
+        try {
+          const draft=await BT.seasonplanner.draftTraining(t.id);if(!active())return;
+          status.textContent='Entwurf bereit. Mit „Plan übernehmen“ ersetzt du den bisherigen Ablauf dieses Trainings.';
+          preview.innerHTML='<h4>'+esc(draft.plan.summary)+'</h4><p>'+esc(draft.plan.durationMinutes)+' Minuten · '+esc(BT.util.formatDate(t.date))+'</p><ol>'+draft.plan.drills.map(d=>'<li><strong>'+esc(d.name)+' · '+esc(d.minutes)+' Min.</strong><p>'+esc(d.description)+'</p></li>').join('')+'</ol><button type="button" class="btn primary" data-training-ai-apply>Plan übernehmen</button> <button type="button" class="btn" data-training-ai-discard>Entwurf verwerfen</button>';
+          preview.querySelector('[data-training-ai-discard]').onclick=()=>{preview.replaceChildren();status.textContent='Entwurf verworfen.';};
+          preview.querySelector('[data-training-ai-apply]').onclick=async()=>{
+            if(busy||!active())return;busy=true;preview.querySelectorAll('button').forEach(b=>b.disabled=true);button.disabled=true;
+            try{BT.seasonplanner.applyTrainingDraft(draft);await BT.storage.flush();if(active()){root.remove();plan(target,BT.storage.getTraining(t.id));BT.util.toast('KI-Trainingsplan übernommen.');}}
+            catch(error){if(active()){status.textContent=error.message||'Übernehmen fehlgeschlagen.';preview.replaceChildren();}}
+            finally{busy=false;if(active())button.disabled=false;}
+          };
+        } catch(error){if(active())status.textContent=(error.message||'KI-Planung fehlgeschlagen.')+(error.code?' · Code: '+error.code:'')+(error.requestId?' · Request-ID: '+error.requestId:'');}
+        finally{busy=false;BT.wake?.release?.('single-training-ai');if(active())button.disabled=false;}
+      };
+    }
     protect(root);
   }
   function drill(target,t,key) {
