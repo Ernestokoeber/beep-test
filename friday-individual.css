@@ -1,0 +1,23 @@
+.friday-individual { max-width:1040px; }
+.friday-heading h2 { margin-block:8px 18px; }
+.friday-lead { font-size:1.08rem; line-height:1.75; max-width:76ch; }
+.friday-position-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-block:24px; }
+.friday-position { display:grid; align-content:start; gap:9px; padding:18px; border:1px solid var(--border); border-radius:14px; color:var(--text); text-decoration:none; min-width:0; }
+.friday-position span,.friday-position small { color:var(--muted); line-height:1.55; }
+.friday-position.selected { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+.friday-position.selected strong { color:var(--accent); }
+.friday-filters { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-block:24px; }
+.friday-filters label:first-child { grid-column:span 2; }
+.friday-filters button { align-self:end; }
+.friday-task { color:var(--accent); font-weight:650; line-height:1.55; }
+.friday-breadcrumbs,.friday-task-links { display:flex; flex-wrap:wrap; gap:12px; margin-block:16px; }
+.friday-breadcrumbs a,.friday-task-links a { min-height:44px; display:inline-flex; align-items:center; }
+.friday-breadcrumbs span { align-self:center; }
+.friday-guide-section { max-width:76ch; padding-block:8px 14px; border-bottom:1px solid var(--border); }
+.friday-guide-section :is(p,li) { line-height:1.8; }
+.friday-guide-section li { padding-left:5px; margin-block:12px; }
+.friday-guide-section ol { padding-left:24px; }
+.friday-footer { margin-top:32px; padding-top:20px; border-top:1px solid var(--border); line-height:1.75; }
+.friday-individual :is(a,button,input,select):focus-visible { outline:3px solid #e89a35; outline-offset:3px; }
+@media(max-width:700px) { .friday-position-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .friday-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:420px) { .friday-position-grid,.friday-filters { grid-template-columns:minmax(0,1fr); } .friday-filters label:first-child { grid-column:auto; } .friday-position { padding:16px; } }

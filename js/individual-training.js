@@ -248,9 +248,10 @@ BT.individualTraining = (function() {
 
   function renderHub(target) {
     target.innerHTML = `<section class="view individual-start-hub">
-      <div class="individual-hub-head"><div><h3>Arbeitsbereich wechseln</h3><p>Mannschaft, Individualtraining oder Personal</p></div></div>
+      <div class="individual-hub-head"><div><h3>Arbeitsbereich wechseln</h3><p>Mannschaft, Freitag individual, Individualtraining oder Personal</p></div></div>
       <div class="individual-workspaces">
         <a class="individual-workspace-card individual-workspace-team" data-workspace="team" href="#/team"><span class="individual-workspace-icon" aria-hidden="true">M</span><span><small>Arbeitsbereich</small><strong>Mannschaft</strong><em>Teamtraining, Spiele, Kader und Auswertungen</em></span><b aria-hidden="true">→</b></a>
+        <a class="individual-workspace-card" data-workspace="friday-individual" href="#/friday-individual"><span class="individual-workspace-icon" aria-hidden="true">F</span><span><small>Arbeitsbereich</small><strong>Freitag individual</strong><em>500 Positionsübungen · je 100 für Point Guard bis Center</em></span><b aria-hidden="true">→</b></a>
         <a class="individual-workspace-card individual-workspace-one" data-workspace="individual" href="#/individual"><span class="individual-workspace-icon" aria-hidden="true">1</span><span><small>Arbeitsbereich</small><strong>Individualtraining</strong><em>Spieler individuell fördern</em></span><b aria-hidden="true">→</b></a>
         <a class="individual-workspace-card" data-workspace="personal" href="#/personal"><span class="individual-workspace-icon" aria-hidden="true">P</span><span><small>Arbeitsbereich</small><strong>Personal</strong><em>Mein Aufbauplan, eigene Einheiten und Fortschritt</em></span><b aria-hidden="true">→</b></a>
       </div>

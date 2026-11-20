@@ -331,6 +331,8 @@
     } else if (hash.startsWith('#/test/run/')) {
       const id = hash.slice('#/test/run/'.length);
       BT.test.renderRun(app, id);
+    } else if (hash === '#/friday-individual' || hash.startsWith('#/friday-individual/') || hash.startsWith('#/friday-individual?')) {
+      BT.fridayIndividual.render(app, hash);
     } else if (hash === '#/training') {
       BT.trainingPages.renderList(app);
     } else if (hash === '#/training/new') {
@@ -400,6 +402,8 @@
       active = 'dashboard';
     } else if (hash.startsWith('#/personal')) {
       active = 'personal';
+    } else if (hash.startsWith('#/friday-individual')) {
+      active = 'friday-individual';
     } else if (hash.startsWith('#/individual')) {
       active = 'individual';
     } else if (hash.startsWith('#/players') || hash.startsWith('#/player/')) {
