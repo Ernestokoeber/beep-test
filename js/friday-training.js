@@ -95,10 +95,10 @@ BT.fridayTraining=(()=>{
     let busy=false,individualOptions=[];
     const session=t=>{t.fridayIndividual||={};return t.fridayIndividual.session||={};};
     async function save(change){
-      if(busy||!active()||!writable())return;busy=true;root.querySelectorAll('select,button,input').forEach(c=>c.disabled=true);const status=root.querySelector('[data-friday-save]');status.textContent='Speichern …';
-      try{const fresh=BT.storage.getTraining(id);if(!fresh)throw Error('Training wurde inzwischen entfernt.');change(fresh);BT.storage.upsertTraining(fresh);await BT.storage.flush();if(active()){status.textContent='Gespeichert.';draw();}}
+      if(busy||!active()||!writable())return;busy=true;root.querySelectorAll('select,button,input,textarea').forEach(c=>c.disabled=true);const status=root.querySelector('[data-friday-save]');status.textContent='Speichern …';
+      try{const stored=BT.storage.getTraining(id);if(!stored)throw Error('Training wurde inzwischen entfernt.');const fresh=JSON.parse(JSON.stringify(stored));change(fresh);BT.storage.upsertTraining(fresh);await BT.storage.flush();if(active()){status.textContent='Gespeichert.';draw();}}
       catch(error){if(active()){status.textContent=error.message||'Speichern fehlgeschlagen.';draw();}}
-      finally{busy=false;if(active())root.querySelectorAll('select,button,input').forEach(c=>c.disabled=!writable());}
+      finally{busy=false;if(active())root.querySelectorAll('select,button,input,textarea').forEach(c=>c.disabled=!writable());}
     }
     root.addEventListener('change',event=>{
       const key=event.target.dataset.fridayAttendance;if(key){const value=event.target.value;if(!statusOptions.some(([v])=>v===value))return;
@@ -108,29 +108,34 @@ BT.fridayTraining=(()=>{
       const control=event.target,data=control.dataset,value=control.value;
       if(control.matches('[data-friday-duration]')){const n=Number(value);if(!Number.isInteger(n)||n<45||n>180){root.querySelector('[data-friday-save]').textContent='Bitte eine ganze Dauer von 45 bis 180 Minuten wählen.';return;}save(t=>session(t).durationMinutes=n);}
       if(control.matches('[data-friday-courts]')&&['1','2'].includes(value))save(t=>session(t).courts=Number(value));
-      if(control.matches('[data-friday-combination]')&&BT.fridaySessionPlan.combinations[value])save(t=>session(t).combination=value);
       const present=(t,id)=>{const member=assess(t,BT.storage.getPlayers()).members.find(m=>m.id===id);if(!member)throw Error('Spieler ist nicht mehr anwesend. Bitte die Anwesenheiten prüfen.');return member;};
       if(['techniqueGroups','combinationGroups'].includes(data.fridayGroup)&&(!value||/^[1-9]$/.test(value)))save(t=>{present(t,data.player);const config=session(t);config[data.fridayGroup]||={};if(value)config[data.fridayGroup][data.player]=Number(value);else delete config[data.fridayGroup][data.player];});
       if(data.fridayReturn&&/^[0-2]$/.test(value))save(t=>{present(t,data.fridayReturn);const config=session(t);config.returnSets||={};config.returnSets[data.fridayReturn]=Number(value);});
+      if(data.fridayMix&&BT.fridayPersonalSets.mixes[value])save(t=>{present(t,data.fridayMix);const config=session(t);config.playerMix||={};config.playerMix[data.fridayMix]=value;});
       if(data.fridayFocus)save(t=>{present(t,data.fridayFocus);const config=session(t);config.focusNotes||={};config.focusNotes[data.fridayFocus]=value.trim().slice(0,240);});
       if(data.fridaySolo&&/^[0-2]$/.test(data.setIndex))save(t=>{
-        const member=present(t,data.fridaySolo),config=session(t),chosen=(BT.fridayPositionExercises||[]).find(r=>r.id===value&&r.primaryPosition===member.position&&r.playersMin===1)||individualOptions.find(r=>r.id===value&&r.playerId===member.id)||config.importedExercises?.[value]||Array.from({length:3},(_,index)=>BT.fridaySessionPlan.exercise(member,index,{...config,soloSets:{}},0)).find(r=>r.id===value);
+        const member=present(t,data.fridaySolo),config=session(t);config.soloSets||={};config.soloSets[member.id]||=[];
+        if(!value){delete config.soloSets[member.id][Number(data.setIndex)];return;}
+        const chosen=BT.fridayPersonalSets.options(member).find(r=>r.id===value)||(BT.fridayPositionExercises||[]).find(r=>r.id===value&&r.primaryPosition===member.position&&r.playersMin===1)||individualOptions.find(r=>r.id===value&&r.playerId===member.id)||config.importedExercises?.[value];
         if(!chosen||chosen.playerId&&chosen.playerId!==member.id)throw Error('Übung ist für diesen Spieler nicht verfügbar.');
-        config.soloSets||={};config.soloSets[member.id]||=Array.from({length:3},(_,index)=>BT.fridaySessionPlan.exercise(member,index,config,Number(t.fridayIndividual?.rotation)||0).id);
+        const plan=BT.fridaySessionPlan.build(t,assess(t,BT.storage.getPlayers()));
+        if(plan.config.resolvedSets[member.id].some((row,index)=>index!==Number(data.setIndex)&&config.soloSets[member.id][index]===row.id&&BT.fridayPersonalSets.family(row)===BT.fridayPersonalSets.family(chosen)))throw Error('Diese Bewegung ist bereits fest in einem anderen Set ausgewählt. Wähle eine andere vollständige Übung.');
         config.soloSets[member.id][Number(data.setIndex)]=value;
         if(chosen.source==='individual'){config.importedExercises||={};config.importedExercises[value]={...(config.importedExercises[value]||chosen)};}
         const used=new Set(Object.values(config.soloSets).flat());for(const id of Object.keys(config.importedExercises||{}))if(!used.has(id))delete config.importedExercises[id];
       });
+      for(const [attribute,field] of [['fridayCounter','counter'],['fridayExit','exit'],['fridayApplication','action']])if(data[attribute]&&/^[0-2]$/.test(data.setIndex))save(t=>{present(t,data[attribute]);const config=session(t),id=config.soloSets?.[data[attribute]]?.[Number(data.setIndex)],row=config.importedExercises?.[id];if(!row||row.playerId!==data[attribute])throw Error('Übernommenes Set nicht gefunden.');if(field==='action'&&!BT.fridayPersonalSets.actions[value])throw Error('Bitte eine gültige Anwendung wählen.');row[field]=value.trim().slice(0,2000);});
       if(data.fridayRequirement&&/^[0-2]$/.test(data.setIndex)&&value==='1')save(t=>{present(t,data.fridayRequirement);const config=session(t),id=config.soloSets?.[data.fridayRequirement]?.[Number(data.setIndex)],row=config.importedExercises?.[id];if(!row||row.playerId!==data.fridayRequirement)throw Error('Übernommenes Set nicht gefunden.');row.playersMin=Number(value);});
     });
     root.addEventListener('click',async event=>{
+      const vary=event.target.closest('[data-friday-vary]');if(vary)save(t=>{const member=assess(t,BT.storage.getPlayers()).members.find(m=>m.id===vary.dataset.fridayVary);if(!member)throw Error('Spieler ist nicht mehr anwesend.');const plan=BT.fridaySessionPlan.build(t,assess(t,BT.storage.getPlayers())),config=session(t);config.previousAutoSets||={};config.previousAutoSets[member.id]=plan.config.resolvedSets[member.id].map(r=>r.id);config.playerVariation||={};config.playerVariation[member.id]=(Number(config.playerVariation[member.id])||0)+1;});
       if(event.target.closest('[data-friday-auto-groups]'))save(t=>{const config=session(t);delete config.techniqueGroups;delete config.combinationGroups;});
       if(event.target.closest('[data-friday-load-individual]')){
-        if(busy||!active()||!writable())return;busy=true;root.querySelectorAll('select,button,input').forEach(c=>c.disabled=true);
+        if(busy||!active()||!writable())return;busy=true;root.querySelectorAll('select,button,input,textarea').forEach(c=>c.disabled=true);
         const status=()=>root.querySelector('[data-friday-import-status]');status().textContent='Individuelle Pläne werden geladen …';
         try{if(typeof BT.api?.getIndividualOverview!=='function')throw Error('Individualpläne sind hier gerade nicht erreichbar. Die vorhandenen Solo-Sets bleiben verfügbar.');const data=await BT.api.getIndividualOverview();if(!active()||!writable())return;individualOptions=BT.fridaySessionPlan.individualChoices(data,assess(BT.storage.getTraining(id),BT.storage.getPlayers()));draw();status().textContent=individualOptions.length?individualOptions.length+' Übungen aus zugeordneten Individualplänen stehen in „Meine Übung“ zur Auswahl. Beim Übernehmen den Spielerbedarf bestätigen. Bestehende Solo-Sets bleiben bis zur Auswahl erhalten.':'Keine Übungen mit eindeutiger Spielerzuordnung gefunden. Die vorhandenen Solo-Sets bleiben bestehen.';}
         catch(error){if(active())status().textContent=error.message||'Individualpläne konnten nicht geladen werden.';}
-        finally{busy=false;if(active())root.querySelectorAll('select,button,input').forEach(c=>c.disabled=!writable());}
+        finally{busy=false;if(active())root.querySelectorAll('select,button,input,textarea').forEach(c=>c.disabled=!writable());}
       }
     });
     function draw(){

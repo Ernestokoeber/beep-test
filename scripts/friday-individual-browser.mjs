@@ -59,7 +59,7 @@ try {
       }
       // Real workspace storage: the same attendance controls drive the <10 rule.
       const session=await page.evaluate(async()=>{
-        const players=Array.from({length:10},(_,i)=>BT.storage.upsertPlayer({name:'Friday fixture '+i,position:['PG','SG','SF','PF','C'][i%5]}));
+        const players=Array.from({length:10},(_,i)=>BT.storage.upsertPlayer({name:'Friday fixture '+i,position:['PG','SG','SF','PF','C'][i%5],goals:[{title:i===0?'Dribbling und Ballkontrolle':i===5?'Passen und Entscheidungen':i===4?'Post-Fußarbeit und weicher Abschluss':'',status:'active'}]}));
         const existing=BT.storage.getTrainings().find(t=>t.date==='2026-11-20');
         const training=BT.storage.upsertTraining({...existing,date:'2026-11-20',startTime:'20:15',attendance:players.map((p,i)=>({playerId:p.id,status:i<9?'present':'absent',late:false,note:''})),plan:{summary:'Keep the manual plan',drills:[{id:'keep',name:'Unchanged drill',minutes:20}]},freethrows:[]});
         await BT.storage.flush();return {id:training.id,players:players.map(p=>p.id)};
@@ -67,9 +67,14 @@ try {
       await page.goto(base+'/#/friday-individual/training/'+session.id);await page.locator('[data-friday-mode=individual]').waitFor();
       assert.equal(await page.locator('[data-friday-player]').count(),9);await check('attendance-assignments');
       assert((await page.locator('.friday-plan-total').innerText()).includes('20:15–22:00'));assert.equal(await page.locator('[data-friday-phase]').count(),11);assert.equal(await page.locator('[data-friday-solo-set]').count(),27);
-      await page.locator('[data-friday-combination]').selectOption('pnr');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      assert.equal(await page.locator('[data-friday-combination]').count(),0);
       await page.locator('[data-friday-courts]').selectOption('2');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       for(const i of [0,2,4]){await page.locator('[data-friday-player="'+session.players[i]+'"] > details > summary').click();await page.locator('[data-friday-group="combinationGroups"][data-player="'+session.players[i]+'"]').selectOption('9');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');}
+      await page.locator('[data-friday-mix="'+session.players[0]+'"]').selectOption('offense');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      await page.locator('[data-friday-solo="'+session.players[0]+'"][data-set-index="1"]').selectOption('personal:screen-pocket');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      await page.locator('[data-friday-solo="'+session.players[4]+'"][data-set-index="2"]').selectOption('personal:c-roll');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      assert.equal(await page.locator('.friday-solo-set .friday-decision-tree dt').count(),81);
+      assert(await page.evaluate(id=>{const t=BT.storage.getTraining(id),p=BT.fridaySessionPlan.build(t,BT.fridayTraining.assess(t,BT.storage.getPlayers()));return p.phases.filter(p=>p.id==='combination').flatMap(p=>p.rounds.flatMap(r=>r.courts.flatMap(c=>c.turns))).some(t=>t.roles.some(r=>r.row?.id==='personal:screen-pocket'&&r.setIndex===1)&&t.roles.some(r=>r.row?.id==='personal:c-roll'&&r.setIndex===2));},session.id));
       await page.locator('[data-friday-return="'+session.players[0]+'"]').selectOption('2');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.locator('[data-friday-phase=combination] > details > summary').click();await check('solo-to-offense');
       await page.locator('[data-friday-attendance="'+session.players[9]+'"]').selectOption('present');await page.locator('[data-friday-mode=team]').waitFor();assert.equal(await page.locator('[data-friday-player]').count(),0);
@@ -79,7 +84,7 @@ try {
       await page.waitForFunction(id=>BT.storage.getTraining(id).fridayIndividual?.positions && Object.values(BT.storage.getTraining(id).fridayIndividual.positions).includes('sg'),session.id);
       await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.reload();await page.locator('[data-friday-mode=individual]').waitFor();assert.equal(await page.locator('[data-friday-position="'+session.players[0]+'"]').inputValue(),'sg');
-      assert.equal(await page.locator('[data-friday-combination]').inputValue(),'pnr');assert.equal(await page.locator('[data-friday-courts]').inputValue(),'2');assert.equal(await page.locator('[data-friday-return="'+session.players[0]+'"]').inputValue(),'2');
+      assert.equal(await page.locator('[data-friday-mix="'+session.players[0]+'"]').inputValue(),'offense');assert.equal(await page.locator('[data-friday-courts]').inputValue(),'2');assert.equal(await page.locator('[data-friday-return="'+session.players[0]+'"]').inputValue(),'2');
       if(width===390){await context.setOffline(true);await page.reload();await page.locator('[data-friday-mode=individual]').waitFor();assert.equal(await page.locator('[data-friday-player]').count(),9);await check('offline-assignments');await context.setOffline(false);}
       assert.equal(await page.evaluate(id=>BT.storage.getTraining(id).plan.drills[0].name,session.id),'Unchanged drill');
       await page.goto(base+'/#/training/'+session.id+'/attendance');await page.locator('[data-friday-training-entry]').waitFor();
