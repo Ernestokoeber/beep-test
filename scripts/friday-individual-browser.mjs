@@ -69,11 +69,12 @@ try {
       assert((await page.locator('.friday-plan-total').innerText()).includes('20:15–22:00'));assert.equal(await page.locator('[data-friday-phase]').count(),11);assert.equal(await page.locator('[data-friday-solo-set]').count(),27);
       await page.locator('[data-friday-combination]').selectOption('pnr');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.locator('[data-friday-courts]').selectOption('2');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
-      for(const i of [0,2,4]){await page.locator('[data-friday-group="combinationGroups"][data-player="'+session.players[i]+'"]').selectOption('9');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');}
+      for(const i of [0,2,4]){await page.locator('[data-friday-player="'+session.players[i]+'"] > details > summary').click();await page.locator('[data-friday-group="combinationGroups"][data-player="'+session.players[i]+'"]').selectOption('9');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');}
       await page.locator('[data-friday-return="'+session.players[0]+'"]').selectOption('2');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.locator('[data-friday-phase=combination] > details > summary').click();await check('solo-to-offense');
       await page.locator('[data-friday-attendance="'+session.players[9]+'"]').selectOption('present');await page.locator('[data-friday-mode=team]').waitFor();assert.equal(await page.locator('[data-friday-player]').count(),0);
       await page.locator('[data-friday-attendance="'+session.players[9]+'"]').selectOption('absent');await page.locator('[data-friday-mode=individual]').waitFor();
+      await page.locator('[data-friday-player="'+session.players[0]+'"] > details > summary').click();
       await page.locator('[data-friday-position="'+session.players[0]+'"]').selectOption('sg');
       await page.waitForFunction(id=>BT.storage.getTraining(id).fridayIndividual?.positions && Object.values(BT.storage.getTraining(id).fridayIndividual.positions).includes('sg'),session.id);
       await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');

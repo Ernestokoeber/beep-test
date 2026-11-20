@@ -135,12 +135,15 @@ BT.fridayTraining=(()=>{
     });
     function draw(){
       const current=BT.storage.getTraining(id);if(!current)return;const report=assess(current,BT.storage.getPlayers()),host=root.querySelector('[data-friday-assignments]');
+      const openedPlayers=[...host.querySelectorAll('[data-friday-player] > details[open]')].map(d=>d.parentElement.dataset.fridayPlayer),openedPhases=[...host.querySelectorAll('[data-friday-phase] > details[open]')].map(d=>d.parentElement.dataset.fridayPhase);
       root.querySelectorAll('[data-friday-attendance]').forEach(c=>c.value=(current.attendance||[]).find(a=>a.playerId===c.dataset.fridayAttendance)?.status||'');
       host.innerHTML='<h3>2. Trainingsform & Positionsaufgaben</h3><p class="friday-mode" data-friday-mode="'+report.mode+'"><strong>'+report.count+' anwesende Spieler</strong> · '+(report.mode==='pending'?'Anwesenheiten erfassen':report.mode==='team'?'Reguläres Mannschaftstraining ab 10 Spielern':'Freitag individual aktiv')+'</p>'+(report.pending?'<p>'+report.pending+' Teilnahmen noch offen; diese zählen bisher nicht als anwesend.</p>':'');
       if(report.mode==='pending')return;
       if(report.mode==='team'){host.insertAdjacentHTML('beforeend','<p>Die Positionsaufgaben für kleine Gruppen sind bei 10 oder mehr Anwesenden deaktiviert.</p><a class="btn primary" href="#/training/'+encodeURIComponent(id)+'/plan">Regulären Trainingsplan öffnen</a>');return;}
       const plan=BT.fridaySessionPlan.build(current,report);
       host.insertAdjacentHTML('beforeend',BT.fridaySessionPlan.html(plan,{editable:writable(),choices:individualOptions}));
+      host.querySelectorAll('[data-friday-player] > details').forEach(d=>d.open=openedPlayers.includes(d.parentElement.dataset.fridayPlayer));
+      host.querySelectorAll('[data-friday-phase] > details').forEach(d=>d.open=openedPhases.includes(d.parentElement.dataset.fridayPhase));
     }
     draw();
   }
