@@ -12,6 +12,16 @@ BT.fridayTraining=(()=>{
   function positions(player){return [...new Set(String(player?.position||player?.gamePosition||'').split(/[\/,;|+]/).map(normalize).filter(Boolean))];}
   const label=position=>BT.fridayIndividual.positions.find(p=>p[0]===position)?.[1]||'Position offen';
   const hash=value=>[...value].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0);
+  function calendar(trainings,today=BT.util.todayISO()) {
+    const next=new Date(today+'T12:00:00');next.setDate(next.getDate()+(5-next.getDay()+7)%7);
+    const nextDate=[next.getFullYear(),String(next.getMonth()+1).padStart(2,'0'),String(next.getDate()).padStart(2,'0')].join('-');
+    const compare=(a,b)=>a.date.localeCompare(b.date)||String(a.startTime||'').localeCompare(String(b.startTime||''))||String(a.id||'').localeCompare(String(b.id||''));
+    const fridays=trainings.filter(t=>isFriday(t.date));
+    const upcoming=fridays.filter(t=>t.date>=today).sort(compare),past=fridays.filter(t=>t.date<today).sort((a,b)=>compare(b,a));
+    const onDate=upcoming.filter(t=>t.date===nextDate);
+    const current=onDate.find(t=>!t.endedAt&&t.status!=='completed')||onDate[0]||null;
+    return {today,nextDate,upcoming,past,current};
+  }
   function assess(training,players=[]) {
     const byId=new Map(players.map(p=>[p.id,p])), attendance=BT.staff?.playerAttendance(training)||(training?.attendance||[]).filter(a=>!(training.staff||[]).some(s=>s.playerId===a.playerId&&!s.alsoPlayer));
     const present=[...new Set(attendance.filter(a=>a?.status==='present'&&typeof a.playerId==='string'&&a.playerId).map(a=>a.playerId))];
@@ -46,21 +56,27 @@ BT.fridayTraining=(()=>{
     const training=id?BT.storage.getTraining(id):null;
     const heading=title=>'<header class="friday-heading"><span class="section-kicker">Freitagstraining nach Anwesenheit</span><h2>'+title+'</h2></header>';
     if(!id){
-      const trainings=BT.storage.getTrainings().filter(t=>isFriday(t.date)).sort((a,b)=>b.date.localeCompare(a.date));
-      root.innerHTML=heading('Freitag individual')+'<p>Bei 1 bis 9 anwesenden Spielern trainiert ihr mit passenden Positionsaufgaben. Ab 10 Anwesenden bleibt es beim regulären Mannschaftstraining. Trainer zählen nur mit, wenn sie auch als Spieler teilnehmen.</p><a class="btn" href="'+base+'/exercises">500 Übungskarten nach Position ansehen</a><h3>Freitagstraining öffnen</h3><nav class="friday-session-list">'+trainings.map(t=>'<a class="library-link" href="'+url(t.id)+'"><span><strong>'+esc(BT.util.formatDate(t.date))+(t.startTime?' · '+esc(t.startTime):'')+'</strong><small>'+assess(t,BT.storage.getPlayers()).count+' anwesend · '+esc(t.note||'Freitagstraining')+'</small></span><span aria-hidden="true">›</span></a>').join('')+'</nav>';
-      if(!trainings.length)root.insertAdjacentHTML('beforeend','<p>Noch kein Freitagstraining vorhanden.</p>');
+      const days=calendar(BT.storage.getTrainings()),isToday=days.nextDate===days.today;
+      const entry=t=>'<a class="library-link" data-friday-date="'+esc(t.date)+'" href="'+url(t.id)+'"><span><strong>'+(t.date===days.today?'Heute · ':'')+esc(BT.util.formatDate(t.date))+(t.startTime?' · '+esc(t.startTime):'')+'</strong><small>'+assess(t,BT.storage.getPlayers()).count+' anwesend · '+esc(t.note||'Freitagstraining')+'</small></span><span aria-hidden="true">›</span></a>';
+      root.innerHTML=heading('Freitag individual')+'<p>Bei 1 bis 9 anwesenden Spielern trainiert ihr mit passenden Positionsaufgaben. Ab 10 Anwesenden bleibt es beim regulären Mannschaftstraining. Trainer zählen nur mit, wenn sie auch als Spieler teilnehmen.</p><section class="friday-session-entry" data-friday-current><h3>'+(isToday?'Heute: ':'Nächster Freitag: ')+esc(BT.util.formatDate(days.nextDate))+'</h3><p>Die Positionsaufgaben gelten für jedes Freitagstraining ab heute. Die Anwesenheit entscheidet über die Trainingsform.</p>'+(days.current?'<a class="btn primary" href="'+url(days.current.id)+'">'+(isToday?'Heutiges Freitagstraining öffnen':'Nächstes Freitagstraining öffnen')+'</a>':writable()?'<button class="btn primary" type="button" data-friday-open-current>'+(isToday?'Heutiges Freitagstraining anlegen':'Nächstes Freitagstraining anlegen')+'</button>':'<p>Für diesen Freitag ist noch kein Training angelegt.</p>')+'</section><a class="btn" href="'+base+'/exercises">500 Übungskarten nach Position ansehen</a><h3>Heute und nächste Freitage</h3><nav class="friday-session-list" data-friday-upcoming>'+days.upcoming.map(entry).join('')+'</nav>';
+      if(!days.upcoming.length)root.insertAdjacentHTML('beforeend','<p>Es sind noch keine aktuellen oder zukünftigen Freitagstermine angelegt. Du kannst mit dem nächsten Freitag beginnen.</p>');
+      if(days.past.length)root.insertAdjacentHTML('beforeend','<details data-friday-past><summary>Vergangene Freitagstrainings ('+days.past.length+')</summary><nav class="friday-session-list">'+days.past.map(entry).join('')+'</nav></details>');
       if(writable()){
-        const today=BT.util.todayISO(),next=new Date(today+'T12:00:00');next.setDate(next.getDate()+(5-next.getDay()+7)%7);
-        const date=[next.getFullYear(),String(next.getMonth()+1).padStart(2,'0'),String(next.getDate()).padStart(2,'0')].join('-');
-        root.insertAdjacentHTML('beforeend','<form class="friday-create"><h3>Freitagstraining anlegen</h3><label>Freitag<input name="date" type="date" required value="'+date+'"></label><label>Beginn<input name="time" type="time" required value="'+esc(BT.storage.getSetting('trainingStartTime','20:15'))+'"></label><button class="btn primary" type="submit">Training öffnen oder anlegen</button><p role="status" data-friday-save></p></form>');
-        root.querySelector('form').onsubmit=async event=>{
-          event.preventDefault();if(!active()||!writable())return;const form=event.currentTarget,status=form.querySelector('[data-friday-save]');
-          if(!isFriday(form.elements.date.value)){status.textContent='Bitte einen Freitag auswählen.';return;}
-          const button=form.querySelector('button');button.disabled=true;
-          try{let saved=BT.storage.getTrainings().find(t=>t.date===form.elements.date.value&&!t.endedAt&&t.status!=='completed');
-            if(!saved){saved=BT.storage.upsertTraining({date:form.elements.date.value,startTime:form.elements.time.value,note:'Freitagstraining',attendance:BT.storage.attendanceForActivePlayers(form.elements.date.value),freethrows:[],shots:[],plan:{drills:[],durationMinutes:BT.storage.getSetting('trainingDurationMinutes',105),summary:''}});await BT.storage.flush();}
+        root.insertAdjacentHTML('beforeend','<form class="friday-create"><h3>Weiteren Freitag planen</h3><label>Freitag<input name="date" type="date" required min="'+days.today+'" value="'+days.nextDate+'"></label><label>Beginn<input name="time" type="time" required value="'+esc(BT.storage.getSetting('trainingStartTime','20:15'))+'"></label><button class="btn primary" type="submit">Training öffnen oder anlegen</button><p role="status" data-friday-save></p></form>');
+        let opening=false;
+        const openTraining=async(date,time,button)=>{
+          if(opening||!active()||!writable())return;
+          const status=root.querySelector('[data-friday-save]');
+          if(!isFriday(date)||date<BT.util.todayISO()){status.textContent='Bitte heute oder einen zukünftigen Freitag auswählen.';return;}
+          opening=true;button.disabled=true;
+          try{const onDate=BT.storage.getTrainings().filter(t=>t.date===date);let saved=onDate.find(t=>!t.endedAt&&t.status!=='completed')||onDate[0];
+            if(!saved){saved=BT.storage.upsertTraining({date,startTime:time,note:'Freitagstraining',attendance:BT.storage.attendanceForActivePlayers(date),freethrows:[],shots:[],plan:{drills:[],durationMinutes:BT.storage.getSetting('trainingDurationMinutes',105),summary:''}});await BT.storage.flush();}
             if(active())location.hash=url(saved.id);
-          }catch(error){if(active())status.textContent=error.message||'Speichern fehlgeschlagen.';}finally{if(active())button.disabled=false;}
+          }catch(error){if(active())status.textContent=error.message||'Speichern fehlgeschlagen.';}finally{opening=false;if(active())button.disabled=false;}
+        };
+        root.querySelector('[data-friday-open-current]')?.addEventListener('click',event=>openTraining(days.nextDate,root.querySelector('[name=time]').value,event.currentTarget));
+        root.querySelector('form').onsubmit=event=>{
+          event.preventDefault();const form=event.currentTarget;if(form.reportValidity())openTraining(form.elements.date.value,form.elements.time.value,form.querySelector('button'));
         };
       }
       return;
@@ -94,5 +110,5 @@ BT.fridayTraining=(()=>{
     }
     draw();
   }
-  return {render,renderEntry,assess,isFriday,positions,normalize,url};
+  return {render,renderEntry,assess,isFriday,positions,normalize,url,calendar};
 })();
