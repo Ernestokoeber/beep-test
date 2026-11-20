@@ -2,7 +2,8 @@
 .friday-mobile-link { display:none !important; }
 .friday-workspace-mode .primary-navigation,.friday-workspace-mode .mobile-dock [data-team-nav],.friday-workspace-mode .individual-mobile-link { display:none !important; }
 .friday-workspace-mode .friday-mobile-link { display:flex !important; }
-.friday-workspace-mode .mobile-dock { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.friday-workspace-mode .mobile-dock { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+.friday-workspace-mode .mobile-dock [data-role="mobile-more"] { display:flex !important; }
 .friday-heading h2 { margin-block:8px 18px; }
 .friday-lead { font-size:1.08rem; line-height:1.75; max-width:76ch; }
 .friday-position-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-block:24px; }

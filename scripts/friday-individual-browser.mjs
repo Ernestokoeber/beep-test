@@ -21,7 +21,11 @@ try {
       await page.goto(base+'/#/dashboard');await page.locator('[data-workspace="friday-individual"]').click();
       await page.locator('[data-friday-item]').first().waitFor();assert.equal(await page.evaluate(()=>BT.fridayPositionExercises.length),500);
       assert(await page.locator('body').evaluate(el=>el.classList.contains('friday-workspace-mode')));
-      if(width<600){assert(await page.locator('.friday-mobile-link').isVisible());assert(!await page.locator('.mobile-dock [data-team-nav]').first().isVisible());}
+      if(width<600){
+        assert(await page.locator('.friday-mobile-link').isVisible());assert(!await page.locator('.mobile-dock [data-team-nav]').first().isVisible());
+        assert(await page.locator('.mobile-dock [data-role="mobile-more"]').isVisible());
+        assert((await page.locator('.friday-mobile-link').boundingBox()).width>=120,'Friday dock label needs an unclipped column');
+      }
       assert.equal(await page.locator('[data-friday-item]').count(),20);await check('overview');
       for(const position of ['pg','sg','sf','pf','c']) {
         await page.locator('.friday-position[href="#/friday-individual?position='+position+'"]').click();
