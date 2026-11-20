@@ -75,7 +75,10 @@ BT.navigation = (function() {
     }
     if (/^#\/player\/[^/]+\/[^/]+$/.test(hash)) return hash.slice(0, hash.lastIndexOf('/'));
     if (hash.startsWith('#/player/') || hash === '#/players/new') return '#/players';
+    if (hash.startsWith('#/friday-individual/training/')) return '#/friday-individual';
     if (hash.startsWith('#/friday-individual/move/')) {
+      const training=new URLSearchParams(hash.split('?')[1]||'').get('training');
+      if(training)return '#/friday-individual/training/'+encodeURIComponent(training);
       const position=hash.match(/\/move\/friday-(pg|sg|sf|pf|c)-/);
       return '#/friday-individual'+(position?'?position='+position[1]:'');
     }

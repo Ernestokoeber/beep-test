@@ -33,7 +33,7 @@ try {
   assert.equal(F.filter({position:'pg',task:'Konter finden'}).length,20);
   assert(F.filter({search:'fuhrung'}).length>0);assert.equal(F.filter({search:'nichtvorhandenerSuchbegriff'}).length,0);
   assert(F.filter({players:'1'}).every(r=>r.solo));assert(F.filter({position:'c',search:'Drop-Step'}).length>0);
-  F.render(host);assert.equal(host.querySelector('h2').textContent,'Freitag individual');
+  F.render(host,'#/friday-individual/exercises');assert.equal(host.querySelector('h2').textContent,'Freitag individual');
   assert.equal(host.querySelectorAll('[data-friday-item]').length,20);
   assert.equal(host.querySelectorAll('[aria-label="Position auswählen"] a').length,6);
   host.querySelector('[data-friday-more]').click();assert.equal(host.querySelectorAll('[data-friday-item]').length,40);

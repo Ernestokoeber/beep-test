@@ -23,6 +23,17 @@
 .friday-guide-section li { padding-left:5px; margin-block:12px; }
 .friday-guide-section ol { padding-left:24px; }
 .friday-footer { margin-top:32px; padding-top:20px; border-top:1px solid var(--border); line-height:1.75; }
+.friday-create { display:grid; gap:16px; max-width:480px; margin-top:24px; }
+.friday-attendance { display:grid; gap:12px; }
+.friday-attendance label { display:grid; grid-template-columns:minmax(0,1fr) minmax(130px,180px); gap:12px; align-items:center; border-bottom:1px solid var(--border); padding:12px 0; }
+.friday-attendance label span { display:grid; gap:5px; }
+.friday-attendance small { color:var(--muted); }
+.friday-mode,.friday-session-entry { padding:18px; border:1px solid var(--border); border-radius:12px; margin-block:20px; line-height:1.75; }
+.friday-player-tasks { margin-top:20px; }
+.friday-player-tasks :is(p,li,summary) { line-height:1.75; }
+.friday-player-tasks summary { min-height:44px; cursor:pointer; }
+.friday-player-tasks > article > ol { padding-left:24px; }
+.friday-issue { font-weight:650; color:var(--accent); }
 .friday-individual :is(a,button,input,select):focus-visible { outline:3px solid #e89a35; outline-offset:3px; }
 @media(max-width:700px) { .friday-position-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .friday-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:420px) { .friday-position-grid,.friday-filters { grid-template-columns:minmax(0,1fr); } .friday-filters label:first-child { grid-column:auto; } .friday-position { padding:16px; } }

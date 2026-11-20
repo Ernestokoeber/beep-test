@@ -603,6 +603,7 @@ BT.training = (function() {
   }
 
   function renderSummary() {
+    BT.fridayTraining?.renderEntry?.(detailRoot, currentTraining);
     const s = summarize(currentTraining);
     const el = $('[data-role="summary"]', detailRoot);
     const ended = !!currentTraining.endedAt;

@@ -93,7 +93,13 @@ BT.fridayIndividual = (() => {
     if(path.startsWith(route+'/move/')) {
       let id;try{id=decodeURIComponent(path.slice((route+'/move/').length));}catch{id='';}
       renderDetail(target,id);
-    } else renderList(target,query);
+      const training=new URLSearchParams(query).get('training');
+      if(training)target.querySelector('.friday-breadcrumbs')?.insertAdjacentHTML('afterbegin','<a href="'+route+'/training/'+encodeURIComponent(training)+'">Zu den Positionsaufgaben</a>');
+    } else if(path===route+'/exercises'||new URLSearchParams(query).has('position'))renderList(target,query);
+    else if(path.startsWith(route+'/training/')){
+      let id;try{id=decodeURIComponent(path.slice((route+'/training/').length));}catch{id='';}
+      BT.fridayTraining.render(target,id);
+    } else BT.fridayTraining.render(target);
   }
   return {render,filter,positions,tasks};
 })();

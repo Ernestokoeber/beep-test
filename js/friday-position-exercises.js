@@ -1172,6 +1172,21 @@ BT.fridayPositionExercises = (() => {
     ]
   };
   const modes = ['Technikaufbau','Verteidigung lesen','Konter finden','Anschluss verbinden','Spielanwendung'];
+  // Genuine solo technique tasks keep every position trainable with one attendee.
+  // Reactive tasks retain their actual defender/passer requirements.
+  const soloMoves = {
+    'FR-PG01':['Vom Flügel auf ein Hütchen vor der Zone zudribbeln.','Vor dem Hütchen aufrichten und das Dribbling seitlich lebendig halten.','Aus tiefer Hüfte neben dem Hütchen beschleunigen.','Mit der Außenhand weich abschließen und die Startseite wechseln.'],
+    'FR-PG02':['Ein Hütchen am Flügel als Richtungsmarke ansteuern.','Ball und Schulter kurz nach innen führen, die Hand bleibt über dem Ball.','Den Ball mit derselben Hand wieder nach außen lenken und seitlich vorbeiziehen.','Geschützt abschließen und beide Hände im Wechsel nutzen.'],
+    'FR-PG03':['Mit zwei Dribblings schräg auf ein Hütchen an der Zone zulaufen.','Vor der Marke auf dem äußeren Bein kontrolliert bremsen.','Tief zur anderen Hand wechseln und die Gegenrichtung mit neuem Schritt angreifen.','Mit höchstens zwei weiteren Dribblings kontrolliert abschließen.'],
+    'FR-SG11':['Am Flügel einen Eigenpass in Wurfbereitschaft fangen.','Kurze Wurftäuschung zeigen und mit beiden Füßen am Boden bleiben.','Ball vor dem Standbein-Abheben zum seitlichen Dribbling lösen und klar stoppen.','Aus Balance werfen und den eigenen Rebound holen.'],
+    'FR-SG12':['In sicherer Mitteldistanz einen Eigenpass fangen.','Eine Bodenmarke neben der Fangposition als seitliches Zielfenster wählen.','Mit einem seitlichen Dribbling und sauberer Eins-zwei-Fußfolge zur Marke kommen.','Zum Korb ausrichten, senkrecht werfen und stabil landen.'],
+    'FR-SF02':['Am Flügel einen Eigenpass fangen und das Standbein festlegen.','Mit dem freien Fuß einen kurzen Jab zur Außenmarkierung zeigen.','Den Ball vor dem Standbein-Abheben lösen und mit Cross-Step die Gegenseite angreifen.','Kontrolliert abschließen und die andere Startseite nutzen.'],
+    'FR-SF03':['Einen Eigenpass am Flügel mit festem Standbein fangen.','Mit kurzem Jab Gewicht nach vorn verlagern, ohne das Standbein zu verschieben.','Das Gewicht zur Mitte zurücknehmen und den Ball in die Wurflinie bringen.','Aus stabiler Basis werfen und die Landung kurz halten.'],
+    'FR-SF04':['Mit einem Dribbling vom kurzen Flügel zur Grundlinie ziehen.','Den Ball in klarer Fußfolge aufnehmen und den freien gegenüberliegenden Brettwinkel ansehen.','Unter dem Brett kontrolliert zur anderen Seite gehen und ohne Zusatzschritte mit der Außenhand lösen.','Weich gegen das Brett abschließen, stabil landen und danach die Startseite wechseln.'],
+    'FR-PF01':['Am Ellenbogen einen Eigenpass fangen und das Standbein bewusst wählen.','Über dieses Standbein frontal zum Korb öffnen.','Einen kurzen Jab zeigen und den freien Fuß in die Wurfbasis zurücknehmen.','Den kurzen Wurf aus Balance lösen und danach die Seite wechseln.'],
+    'FR-PF02':['Am kurzen Flügel einen Eigenpass mit stabilem Standbein fangen.','Ball eng von der Wurfschulter vor der Hüfte zur freien Seite führen.','Den Ball vor dem Standbein-Abheben zum Dribbeln lösen und einen langen ersten Schritt setzen.','Mit höchstens zwei Dribblings weich abschließen; andere Seite wiederholen.'],
+    'FR-C02':['Seitlich oberhalb des tiefen Blocks einen Eigenpass sicher fangen.','Ein Hütchen als Orientierungsmarke für die äußere Verteidigerschulter setzen.','Mit einem geschützten Dribbling zur freien Mitte gehen und stabil zum Haken ausrichten.','Über die vom Hütchen abgewandte Schulter weich werfen, landen und die andere Hand üben.']
+  };
   return cards.flatMap(base => {
     const [counter, connection, transfer] = tasks[base.primaryPosition][Number(base.code.slice(-2))-1];
     return modes.map((mode, index) => {
@@ -1180,8 +1195,9 @@ BT.fridayPositionExercises = (() => {
       const hasDefender = base.playersMin>1 && base.code!=='FR-SG14';
       const reactivePartner = !hasDefender && (index===1 || index===2);
       const extraPartner = index>=3 || reactivePartner;
-      const players = base.playersMin + Number(extraPartner);
-      const setup = base.setup + (extraPartner ? (index===3
+      const soloSteps=index===0 && soloMoves[base.code];
+      const players = soloSteps ? 1 : base.playersMin + Number(extraPartner);
+      const setup = soloSteps ? '1 Spieler mit Basketball an einem Korb. Hütchen und Bodenmarkierungen ersetzen für den Technikaufbau feste Orientierungspositionen. Eigenzuspiel und eigener Rebound; kein Passgeber oder Verteidiger nötig.' : base.setup + (extraPartner ? (index===3
         ? ' Zusätzlich spielt ein Anschlusspartner an der freien Außenposition mit; er ist in der angegebenen Spielerzahl enthalten.'
         : ' Zusätzlich spielt ein Verteidiger im freien Anschlussraum mit; er ist in der angegebenen Spielerzahl enthalten.') : '')
         + (base.playersMin===2 && hasDefender ? ' Zu zweit zwischen Angriffs- und Verteidigungsrolle wechseln.' : '')
@@ -1200,7 +1216,8 @@ BT.fridayPositionExercises = (() => {
         familyName:base.name, task:mode, name:base.name+' · '+mode,
         goal:base.goal+' Lernaufgabe: '+specific,
         setup, playersMin:players, playersMax:players, solo:players===1,
-        technicalSteps:[...base.steps], learningTask:specific,
+        technicalSteps:[...(soloSteps || base.steps)], learningTask:specific,
+        decisionCue:soloSteps ? 'Ohne Gegenspieler wird die Bewegung technisch geübt. Die Hütchen geben nur Raumorientierung; eine echte Verteidigerentscheidung folgt erst in einer Partneraufgabe.' : base.decisionCue,
         steps:[
           index===0 ? 'Verteidigerstellung beziehungsweise Startwinkel vor dem Versuch festlegen. Den unten erklärten Grundmove zuerst langsam ausführen.'
           : 'Die Startrollen wie im Aufbau besetzen. Der erste Versuch beginnt kontrolliert; Verteidiger dürfen die erlaubten Fenster selbst öffnen oder schließen.',

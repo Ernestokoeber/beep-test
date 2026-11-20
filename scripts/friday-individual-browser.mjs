@@ -18,7 +18,7 @@ try {
     const base='http://127.0.0.1:'+port;
     const check=async name=>{assert(await page.evaluate(()=>Math.max(document.body.scrollWidth,document.documentElement.scrollWidth)<=innerWidth+1),name+' overflows at '+width);assert.deepEqual(errors,[]);await page.screenshot({path:'/tmp/courthub-friday-screenshots/'+name+'-'+width+'.png',fullPage:true});};
     try {
-      await page.goto(base+'/#/dashboard');await page.locator('[data-workspace="friday-individual"]').click();
+      await page.goto(base+'/#/dashboard');await page.locator('[data-workspace="friday-individual"]').click();await page.getByRole('link',{name:'500 Übungskarten nach Position ansehen'}).click();
       await page.locator('[data-friday-item]').first().waitFor();assert.equal(await page.evaluate(()=>BT.fridayPositionExercises.length),500);
       assert(await page.locator('body').evaluate(el=>el.classList.contains('friday-workspace-mode')));
       if(width<600){
@@ -37,7 +37,7 @@ try {
       assert.equal(await page.locator('.friday-task-links a').count(),4);await check('detail');
       await page.goBack();await page.locator('[data-friday-page=list]').waitFor();assert.equal(await page.locator('[name=search]').inputValue(),'Drop-Step');
       await page.locator('[data-friday-reset]').click();await page.locator('[data-friday-more]').click();assert.equal(await page.locator('[data-friday-item]').count(),40);
-      await page.locator('[name=players]').selectOption('1');assert.equal(await page.locator('[data-friday-item]').count(),2);
+      await page.locator('[name=players]').selectOption('1');assert.equal(await page.locator('[data-friday-item]').count(),3);
       const untouched=await page.evaluate(()=>({trainings:BT.storage.getTrainings().length,drills:BT.storage.getDrills().length}));assert.deepEqual(untouched,{trainings:0,drills:0});
       if(width===390) {
         await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));});
@@ -46,7 +46,28 @@ try {
         await page.locator('[data-friday-reset]').click();await page.locator('[data-friday-item] a').first().click();await page.locator('[data-friday-page=detail]').waitFor();await check('offline-detail');
         await page.evaluate(()=>document.documentElement.dataset.theme='dark');await check('dark-detail');await context.setOffline(false);
       }
+      // Real workspace storage: the same attendance controls drive the <10 rule.
+      const session=await page.evaluate(async()=>{
+        const players=Array.from({length:10},(_,i)=>BT.storage.upsertPlayer({name:'Friday fixture '+i,position:['PG','SG','SF','PF','C'][i%5]}));
+        const training=BT.storage.upsertTraining({date:'2026-11-20',startTime:'20:15',attendance:players.map((p,i)=>({playerId:p.id,status:i<9?'present':'absent',late:false,note:''})),plan:{summary:'Keep the manual plan',drills:[{id:'keep',name:'Unchanged drill',minutes:20}]},freethrows:[]});
+        await BT.storage.flush();return {id:training.id,players:players.map(p=>p.id)};
+      });
+      await page.goto(base+'/#/friday-individual/training/'+session.id);await page.locator('[data-friday-mode=individual]').waitFor();
+      assert.equal(await page.locator('[data-friday-player]').count(),9);await check('attendance-assignments');
+      await page.locator('[data-friday-attendance="'+session.players[9]+'"]').selectOption('present');await page.locator('[data-friday-mode=team]').waitFor();assert.equal(await page.locator('[data-friday-player]').count(),0);
+      await page.locator('[data-friday-attendance="'+session.players[9]+'"]').selectOption('absent');await page.locator('[data-friday-mode=individual]').waitFor();
+      await page.locator('[data-friday-position="'+session.players[0]+'"]').selectOption('sg');
+      await page.waitForFunction(id=>BT.storage.getTraining(id).fridayIndividual?.positions && Object.values(BT.storage.getTraining(id).fridayIndividual.positions).includes('sg'),session.id);
+      await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      await page.reload();await page.locator('[data-friday-mode=individual]').waitFor();assert.equal(await page.locator('[data-friday-position="'+session.players[0]+'"]').inputValue(),'sg');
+      if(width===390){await context.setOffline(true);await page.reload();await page.locator('[data-friday-mode=individual]').waitFor();assert.equal(await page.locator('[data-friday-player]').count(),9);await check('offline-assignments');await context.setOffline(false);}
+      assert.equal(await page.evaluate(id=>BT.storage.getTraining(id).plan.drills[0].name,session.id),'Unchanged drill');
+      await page.goto(base+'/#/training/'+session.id+'/attendance');await page.locator('[data-friday-training-entry]').waitFor();
+      await page.locator('.att-card').filter({has:page.getByRole('link',{name:'Friday fixture 9',exact:true})}).locator('[data-status=present]').click();
+      await page.waitForFunction(()=>document.querySelector('[data-friday-training-entry]')?.textContent.includes('10 anwesende Spieler'));
+      await page.locator('[data-friday-training-entry] a').click();await page.locator('[data-friday-mode=team]').waitFor();
       console.log(width+'px: separate workspace, five 100-card positions, task/search/resource filters, details, back state and no plan writes passed.');
+      console.log(width+'px: real Friday attendance, 9/10 mode changes, positional recommendations, persisted day roles, offline assignments and existing attendance-page connection passed.');
     } catch(error) {await page.screenshot({path:'/tmp/courthub-friday-screenshots/failure-'+width+'.png',fullPage:true}).catch(()=>{});throw error;}
     finally {await context.close();}
   }
