@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom';
 const dom = new JSDOM(readFileSync(new URL('../index.html', import.meta.url),'utf8'), {url:'https://coach.example/#/training',runScripts:'outside-only'});
 const w=dom.window;
 w.scrollTo=()=>{}; w.confirm=()=>true;
-for(const name of ['util','development-core','storage','stats','training-pages']) {
+for(const name of ['util','development-core','storage','stats','coach-prepared-training','training-pages']) {
  const file=new URL('../js/'+name+'.js',import.meta.url);
  if(existsSync(file)) w.eval(readFileSync(file,'utf8'));
 }
@@ -70,5 +70,19 @@ renderTue();failAI=true;await host.querySelector('[data-training-ai]').onclick()
 renderTue();token='';const callsBefore=apiCalls;await host.querySelector('[data-training-ai]').onclick();assert.equal(apiCalls,callsBefore);assert(host.querySelector('a[href="#/account"]'));token='test-token';
 const stale=await B.seasonplanner.draftTraining(tue.id);const ended=B.storage.getTraining(tue.id);ended.status='completed';ended.endedAt='2030-01-08T22:00:00Z';B.storage.upsertTraining(ended);assert.throws(()=>B.seasonplanner.applyTrainingDraft(stale),/inzwischen geändert/);await assert.rejects(()=>B.seasonplanner.draftTraining(tue.id),/abgeschlossenes/);renderTue();assert(!host.querySelector('[data-training-ai]'));
 console.log('Single Tuesday AI: one-date request, focus/duration, preview/adoption/discard, preserved attendance and records, stale/completed protection, authentication and visible retryable errors passed.');
+// The deployed coach plan targets one date/team and is applied only once.
+const C=B.coachPreparedTraining;assert.equal(C.plan().drills.reduce((sum,d)=>sum+d.minutes,0),105);assert.equal(C.plan().drills.filter(d=>d.name.startsWith('5 gegen 5')).reduce((sum,d)=>sum+d.minutes,0),75);assert(C.plan().drills[0].name.startsWith('Full-Court'));assert.equal(C.plan().freethrows,null);assert.deepEqual(copy(C.plan().shots),[]);
+B.util.todayISO=()=> '2026-11-21';
+let coachRole='coach',slug='tsv-lindau-basketball',identitySource='server';
+B.sync={getState:()=>({user:{id:'coach',role:coachRole,organization:{id:'team',slug}},identitySource,sessionEpoch:1})};
+const prepared=B.storage.upsertTraining({date:C.date,startTime:'19:30',plan:{summary:'Old plan',drills:[{name:'Freiwurfserie',minutes:10}]},planning:{source:'ai-season'},attendance:[{playerId:'present',status:'present'}],freethrows:[{playerId:'present',made:4,attempted:10}],shots:[{category:'Dreier',entries:[{made:2,attempted:5}]}]});
+const original=JSON.stringify(prepared);
+for(const role of ['viewer','player']){coachRole=role;assert.equal(JSON.stringify(C.apply(prepared)),original);}coachRole='coach';slug='other-team';assert.equal(JSON.stringify(C.apply(prepared)),original);slug='tsv-lindau-basketball';identitySource='cache';assert.equal(JSON.stringify(C.apply(prepared)),original);identitySource='server';
+for(const extra of [{date:'2026-11-27'},{status:'completed'},{endedAt:'2026-11-24T22:00:00Z'},{cancelled:true},{liveSession:{status:'active'}}])assert.equal(C.apply({...prepared,...extra}).coachPreparedPlan,undefined);
+host.replaceChildren();B.trainingPages.render(host,prepared.id,'plan');const ready=B.storage.getTraining(prepared.id);assert.equal(ready.coachPreparedPlan,C.revision);assert.equal(ready.plan.durationMinutes,105);assert.equal(host.querySelectorAll('.tp-drill-link').length,6);assert.equal(host.querySelector('[data-plan-summary]').value,C.plan().summary);assert.equal(ready.startTime,'19:30');assert.deepEqual(copy(ready.attendance),copy(prepared.attendance));assert.deepEqual(copy(ready.freethrows),copy(prepared.freethrows));assert.deepEqual(copy(ready.shots),copy(prepared.shots));
+ready.plan.summary='My later correction';B.storage.upsertTraining(ready);host.replaceChildren();B.trainingPages.render(host,prepared.id,'plan');assert.equal(B.storage.getTraining(prepared.id).plan.summary,'My later correction');
+const freshCopy=copy(prepared);B.util.todayISO=()=> '2026-11-25';assert.equal(C.apply(freshCopy).coachPreparedPlan,undefined);
+for(const file of ['index.html','sw.js'])assert(readFileSync(new URL('../'+file,import.meta.url),'utf8').includes('js/coach-prepared-training.js'));
+console.log('Deployed Tuesday plan: exact date/team, 105 minutes/75 minutes 5v5, full-court warmup, no planned free throws, retained records/time, one-time adoption and later edits protected.');
 dom.window.close();
 console.log('Trainingsseiten: Auswahl, sichere Übersicht, stabile Übungen, Entwürfe und Datenerhalt geprüft.');

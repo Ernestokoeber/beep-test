@@ -78,7 +78,7 @@ BT.trainingPages = (() => {
       remember({trainingSearch:input.value, trainingFilter:filter});
       root.querySelectorAll('[data-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filter === filter)));
       const query = input.value.trim().toLocaleLowerCase('de');
-      const trainings = BT.storage.getTrainings().filter(t => finished(t) === (filter === 'completed'))
+      const trainings = BT.storage.getTrainings().map(t=>BT.coachPreparedTraining?.apply(t)||t).filter(t => finished(t) === (filter === 'completed'))
         .filter(t => [t.date,BT.util.formatDate(t.date),t.note,t.plan?.summary].join(' ').toLocaleLowerCase('de').includes(query))
         .sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')) * (filter === 'completed' ? -1 : 1));
       root.querySelector('.tp-list-count').textContent = trainings.length + (trainings.length === 1 ? ' Training' : ' Trainings');
@@ -232,7 +232,8 @@ BT.trainingPages = (() => {
     protect(root);
   }
   function render(target,id,page='overview',detail,query) {
-    const t=BT.storage.getTraining(id);if(!t)return missing(target);
+    const current=BT.storage.getTraining(id);if(!current)return missing(target);
+    const t=BT.coachPreparedTraining?.apply(current)||current;
     if(page==='overview')return overview(target,t);
     if(page==='plan' && detail==='library')return library(target,t);
     if(page==='plan')return plan(target,t);
