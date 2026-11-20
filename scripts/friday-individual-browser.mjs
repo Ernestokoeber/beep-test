@@ -77,7 +77,7 @@ try {
       await page.locator('[data-friday-phase=solo-a] > details > summary').click();
       await page.locator('[data-friday-attendance="'+session.players[6]+'"]').selectOption('absent');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.locator('[data-friday-phase=transfer] > details > summary').click();
-      const live=page.locator('[data-friday-phase=transfer]');assert((await live.innerText()).includes('3 gegen 3'));assert(!(await live.innerText()).includes('3 gegen 1'));
+      const live=page.locator('[data-friday-phase=transfer]');await live.locator('.friday-rotations > summary').click();assert((await live.innerText()).includes('3 gegen 3'));assert(!(await live.innerText()).includes('3 gegen 1'));
       assert.equal(await live.locator('.friday-court').count(),1);await check('six-players-three-on-three');
       await page.locator('[data-friday-phase=transfer] > details > summary').click();
       await page.locator('[data-friday-attendance="'+session.players[6]+'"]').selectOption('present');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
