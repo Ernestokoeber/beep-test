@@ -92,27 +92,55 @@ BT.fridayTraining=(()=>{
     const people=players.filter(p=>!p.archived&&!staffIds.has(p.id));
     const statusOptions=[['','Offen'],['present','Anwesend'],['absent','Abwesend'],['excused','Entschuldigt'],['injured','Verletzt']];
     root.innerHTML=heading('Freitag individual')+'<p>'+esc(BT.util.formatDate(training.date))+' · '+esc(training.startTime||'')+'</p><nav class="friday-breadcrumbs"><a href="'+base+'">Freitagsübersicht</a><a href="'+base+'/exercises">500 Übungskarten</a><a href="#/training/'+encodeURIComponent(id)+'">Training & Erfassung</a></nav><section><h3>1. Anwesenheiten</h3><p>Nur „Anwesend“ zählt. Verspätete Spieler zählen mit, sobald sie als anwesend erfasst sind.</p><div class="friday-attendance">'+people.map(p=>{const att=(training.attendance||[]).find(a=>a.playerId===p.id);return '<label><span><strong>'+esc(p.name)+'</strong><small>'+esc(p.position||p.gamePosition||'Position offen')+'</small></span><select data-friday-attendance="'+esc(p.id)+'" aria-label="Anwesenheit '+esc(p.name)+'" '+(!writable()?'disabled':'')+'>'+statusOptions.map(([v,l])=>'<option value="'+v+'"'+((att?.status||'')===v?' selected':'')+'>'+l+'</option>').join('')+'</select></label>';}).join('')+'</div></section><p role="status" data-friday-save></p><section data-friday-assignments></section>';
-    let busy=false;
+    let busy=false,individualOptions=[];
+    const session=t=>{t.fridayIndividual||={};return t.fridayIndividual.session||={};};
     async function save(change){
-      if(busy||!active()||!writable())return;busy=true;root.querySelectorAll('select,button').forEach(c=>c.disabled=true);const status=root.querySelector('[data-friday-save]');
+      if(busy||!active()||!writable())return;busy=true;root.querySelectorAll('select,button,input').forEach(c=>c.disabled=true);const status=root.querySelector('[data-friday-save]');status.textContent='Speichern …';
       try{const fresh=BT.storage.getTraining(id);if(!fresh)throw Error('Training wurde inzwischen entfernt.');change(fresh);BT.storage.upsertTraining(fresh);await BT.storage.flush();if(active()){status.textContent='Gespeichert.';draw();}}
       catch(error){if(active()){status.textContent=error.message||'Speichern fehlgeschlagen.';draw();}}
-      finally{busy=false;if(active())root.querySelectorAll('select,button').forEach(c=>c.disabled=!writable());}
+      finally{busy=false;if(active())root.querySelectorAll('select,button,input').forEach(c=>c.disabled=!writable());}
     }
     root.addEventListener('change',event=>{
       const key=event.target.dataset.fridayAttendance;if(key){const value=event.target.value;if(!statusOptions.some(([v])=>v===value))return;
         save(t=>{if((t.staff||[]).some(s=>s.playerId===key&&!s.alsoPlayer))throw Error('Diese Person ist nur als Trainer zugeordnet.');t.attendance||=[];let att=t.attendance.find(a=>a.playerId===key);if(!att){att={playerId:key,late:false,note:''};t.attendance.push(att);}att.status=value||null;if(value!=='present')att.late=false;});
       }
       const playerId=event.target.dataset.fridayPosition;if(playerId){const position=event.target.value;if(position&&!normalize(position))return;save(t=>{t.fridayIndividual||={};t.fridayIndividual.positions||={};if(position)t.fridayIndividual.positions[playerId]=position;else delete t.fridayIndividual.positions[playerId];});}
+      const control=event.target,data=control.dataset,value=control.value;
+      if(control.matches('[data-friday-duration]')){const n=Number(value);if(!Number.isInteger(n)||n<45||n>180){root.querySelector('[data-friday-save]').textContent='Bitte eine ganze Dauer von 45 bis 180 Minuten wählen.';return;}save(t=>session(t).durationMinutes=n);}
+      if(control.matches('[data-friday-courts]')&&['1','2'].includes(value))save(t=>session(t).courts=Number(value));
+      if(control.matches('[data-friday-combination]')&&BT.fridaySessionPlan.combinations[value])save(t=>session(t).combination=value);
+      const present=(t,id)=>{const member=assess(t,BT.storage.getPlayers()).members.find(m=>m.id===id);if(!member)throw Error('Spieler ist nicht mehr anwesend. Bitte die Anwesenheiten prüfen.');return member;};
+      if(['techniqueGroups','combinationGroups'].includes(data.fridayGroup)&&(!value||/^[1-9]$/.test(value)))save(t=>{present(t,data.player);const config=session(t);config[data.fridayGroup]||={};if(value)config[data.fridayGroup][data.player]=Number(value);else delete config[data.fridayGroup][data.player];});
+      if(data.fridayReturn&&/^[0-2]$/.test(value))save(t=>{present(t,data.fridayReturn);const config=session(t);config.returnSets||={};config.returnSets[data.fridayReturn]=Number(value);});
+      if(data.fridayFocus)save(t=>{present(t,data.fridayFocus);const config=session(t);config.focusNotes||={};config.focusNotes[data.fridayFocus]=value.trim().slice(0,240);});
+      if(data.fridaySolo&&/^[0-2]$/.test(data.setIndex))save(t=>{
+        const member=present(t,data.fridaySolo),config=session(t),chosen=(BT.fridayPositionExercises||[]).find(r=>r.id===value&&r.primaryPosition===member.position&&r.playersMin===1)||individualOptions.find(r=>r.id===value&&r.playerId===member.id)||config.importedExercises?.[value]||Array.from({length:3},(_,index)=>BT.fridaySessionPlan.exercise(member,index,{...config,soloSets:{}},0)).find(r=>r.id===value);
+        if(!chosen||chosen.playerId&&chosen.playerId!==member.id)throw Error('Übung ist für diesen Spieler nicht verfügbar.');
+        config.soloSets||={};config.soloSets[member.id]||=Array.from({length:3},(_,index)=>BT.fridaySessionPlan.exercise(member,index,config,Number(t.fridayIndividual?.rotation)||0).id);
+        config.soloSets[member.id][Number(data.setIndex)]=value;
+        if(chosen.source==='individual'){config.importedExercises||={};config.importedExercises[value]={...(config.importedExercises[value]||chosen)};}
+        const used=new Set(Object.values(config.soloSets).flat());for(const id of Object.keys(config.importedExercises||{}))if(!used.has(id))delete config.importedExercises[id];
+      });
+      if(data.fridayRequirement&&/^[0-2]$/.test(data.setIndex)&&value==='1')save(t=>{present(t,data.fridayRequirement);const config=session(t),id=config.soloSets?.[data.fridayRequirement]?.[Number(data.setIndex)],row=config.importedExercises?.[id];if(!row||row.playerId!==data.fridayRequirement)throw Error('Übernommenes Set nicht gefunden.');row.playersMin=Number(value);});
     });
-    root.addEventListener('click',event=>{if(event.target.closest('[data-friday-rotate]'))save(t=>{t.fridayIndividual||={};t.fridayIndividual.rotation=(Number(t.fridayIndividual.rotation)||0)+1;});});
+    root.addEventListener('click',async event=>{
+      if(event.target.closest('[data-friday-auto-groups]'))save(t=>{const config=session(t);delete config.techniqueGroups;delete config.combinationGroups;});
+      if(event.target.closest('[data-friday-load-individual]')){
+        if(busy||!active()||!writable())return;busy=true;root.querySelectorAll('select,button,input').forEach(c=>c.disabled=true);
+        const status=()=>root.querySelector('[data-friday-import-status]');status().textContent='Individuelle Pläne werden geladen …';
+        try{if(typeof BT.api?.getIndividualOverview!=='function')throw Error('Individualpläne sind hier gerade nicht erreichbar. Die vorhandenen Solo-Sets bleiben verfügbar.');const data=await BT.api.getIndividualOverview();if(!active()||!writable())return;individualOptions=BT.fridaySessionPlan.individualChoices(data,assess(BT.storage.getTraining(id),BT.storage.getPlayers()));draw();status().textContent=individualOptions.length?individualOptions.length+' Übungen aus zugeordneten Individualplänen stehen in „Meine Übung“ zur Auswahl. Beim Übernehmen den Spielerbedarf bestätigen. Bestehende Solo-Sets bleiben bis zur Auswahl erhalten.':'Keine Übungen mit eindeutiger Spielerzuordnung gefunden. Die vorhandenen Solo-Sets bleiben bestehen.';}
+        catch(error){if(active())status().textContent=error.message||'Individualpläne konnten nicht geladen werden.';}
+        finally{busy=false;if(active())root.querySelectorAll('select,button,input').forEach(c=>c.disabled=!writable());}
+      }
+    });
     function draw(){
       const current=BT.storage.getTraining(id);if(!current)return;const report=assess(current,BT.storage.getPlayers()),host=root.querySelector('[data-friday-assignments]');
       root.querySelectorAll('[data-friday-attendance]').forEach(c=>c.value=(current.attendance||[]).find(a=>a.playerId===c.dataset.fridayAttendance)?.status||'');
       host.innerHTML='<h3>2. Trainingsform & Positionsaufgaben</h3><p class="friday-mode" data-friday-mode="'+report.mode+'"><strong>'+report.count+' anwesende Spieler</strong> · '+(report.mode==='pending'?'Anwesenheiten erfassen':report.mode==='team'?'Reguläres Mannschaftstraining ab 10 Spielern':'Freitag individual aktiv')+'</p>'+(report.pending?'<p>'+report.pending+' Teilnahmen noch offen; diese zählen bisher nicht als anwesend.</p>':'');
       if(report.mode==='pending')return;
       if(report.mode==='team'){host.insertAdjacentHTML('beforeend','<p>Die Positionsaufgaben für kleine Gruppen sind bei 10 oder mehr Anwesenden deaktiviert.</p><a class="btn primary" href="#/training/'+encodeURIComponent(id)+'/plan">Regulären Trainingsplan öffnen</a>');return;}
-      host.insertAdjacentHTML('beforeend','<p>Je Spieler drei Aufgaben aus unterschiedlichen Moves. Der Mitspielerbedarf umfasst Passgeber und Verteidiger; Partner können aus der gesamten anwesenden Gruppe helfen. Körbe und Gruppen nacheinander einteilen. Die Aufgaben sind Vorschläge für einen Technikblock.</p>'+(writable()?'<button class="btn" type="button" data-friday-rotate>Andere Positionsaufgaben vorschlagen</button>':'')+'<div class="friday-player-tasks">'+report.members.map(member=>'<article class="exercise-card" data-friday-player="'+esc(member.id)+'"><h4>'+esc(member.player?.name||'Unbekanntes Spielerprofil')+'</h4><p><strong>'+esc(label(member.position))+'</strong> · '+(member.override?'Tagesrolle':member.options.length===1?'Aus Spielerprofil':'Zuordnung offen')+'</p>'+(writable()?'<label>Position für dieses Training<select data-friday-position="'+esc(member.id)+'"><option value="">Profilposition verwenden</option>'+BT.fridayIndividual.positions.map(([v,l])=>'<option value="'+v+'"'+(member.override===v?' selected':'')+'>'+l+'</option>').join('')+'</select></label>':'')+(member.issue?'<p class="friday-issue">'+esc(member.issue)+'</p>':'')+'<ol>'+member.exercises.map(row=>'<li><a href="'+base+'/move/'+encodeURIComponent(row.id)+'?training='+encodeURIComponent(id)+'"><strong>'+esc(row.familyName)+'</strong></a><p>'+esc(row.task)+' · '+row.minutes+' Min. · '+row.playersMin+' Spieler insgesamt</p><p>'+esc(row.learningTask)+'</p><details><summary>Grundmove erklären</summary><ol>'+row.technicalSteps.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ol><p><b>Coaching:</b> '+esc(row.coachingPoints.join(' · '))+'</p></details></li>').join('')+'</ol></article>').join('')+'</div>');
+      const plan=BT.fridaySessionPlan.build(current,report);
+      host.insertAdjacentHTML('beforeend',BT.fridaySessionPlan.html(plan,{editable:writable(),choices:individualOptions}));
     }
     draw();
   }

@@ -32,6 +32,24 @@
 .friday-session-slot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:18px 4px; border-bottom:1px solid var(--border); }
 .friday-session-slot > div { display:grid; gap:8px; min-width:0; }
 .friday-session-slot small { color:var(--muted); line-height:1.55; }
+.friday-plan-settings { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-block:20px; }
+.friday-plan-settings label,.friday-player-tasks label { display:grid; gap:8px; min-width:0; margin-block:12px; }
+.friday-plan-settings :is(input,select),.friday-player-tasks :is(input,select) { min-width:0; max-width:100%; width:100%; box-sizing:border-box; }
+.friday-group-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.friday-plan-total { padding:16px; border-radius:12px; border:1px solid var(--accent); }
+.friday-timeline { padding-left:22px; }
+.friday-timeline > li { padding-block:12px; border-bottom:1px solid var(--border); }
+.friday-timeline summary { min-height:44px; cursor:pointer; line-height:1.7; }
+.friday-timeline :is(p,li) { line-height:1.75; overflow-wrap:anywhere; }
+.friday-plan-round { padding-block:12px; }
+.friday-court { padding:12px; margin-block:12px; border:1px solid var(--border); border-radius:12px; }
+.friday-court h5 { font-size:1rem; line-height:1.6; margin-block:4px 12px; }
+.friday-court > ol { padding-left:20px; }
+.friday-solo-set { min-width:0; margin-block:16px; border:1px solid var(--border); border-radius:12px; padding:14px; }
+.friday-solo-set legend { padding-inline:8px; font-weight:700; }
+.friday-plan-actions { display:flex; flex-wrap:wrap; gap:12px; }
+.friday-plan-warnings { padding:16px; border:1px solid var(--accent); border-radius:12px; }
+@media(max-width:700px) { .friday-plan-settings,.friday-group-fields { grid-template-columns:minmax(0,1fr); } }
 .friday-player-tasks { margin-top:20px; }
 .friday-player-tasks :is(p,li,summary) { line-height:1.75; }
 .friday-player-tasks summary { min-height:44px; cursor:pointer; }
