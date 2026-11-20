@@ -35,7 +35,7 @@ BT.fridayTraining=(()=>{
   function renderEntry(root,training) {
     if(!root||!isFriday(training?.date))return;
     let host=root.querySelector('[data-friday-training-entry]');
-    if(!host){host=document.createElement('section');host.dataset.fridayTrainingEntry='';host.className='friday-session-entry';(root.querySelector('[data-pane="attendance"]')||root).append(host);}
+    if(!host){host=document.createElement('section');host.dataset.fridayTrainingEntry='';host.className='friday-session-entry';(root.querySelector('.pane[data-pane="attendance"]')||root).append(host);}
     const result=assess(training,BT.storage.getPlayers());
     host.innerHTML='<h3>Freitag individual</h3><p>'+result.count+' anwesende Spieler · '+(result.mode==='team'?'Ab 10 Anwesenden: reguläres Mannschaftstraining.':result.mode==='pending'?'Zuerst Anwesenheiten erfassen.':'Positionsaufgaben für die kleine Trainingsgruppe.')+'</p><a class="btn" href="'+url(training.id)+'">Anwesenheiten & Positionsaufgaben öffnen</a>';
   }

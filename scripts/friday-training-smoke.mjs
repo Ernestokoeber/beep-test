@@ -32,6 +32,8 @@ try {
   const people=fixturePlayers.slice(0,10).map(p=>B.storage.upsertPlayer({name:p.name,position:p.position}));
   const training=B.storage.upsertTraining({date:'2026-11-20',attendance:people.map((p,i)=>({playerId:p.id,status:i<9?'present':'absent',late:false,note:'Keep note'})),plan:{summary:'Manual plan',drills:[{id:'manual',name:'Keep this',minutes:20}]},freethrows:[{playerId:people[0].id,made:3,attempts:5}]});
   await B.storage.flush();const originalPlan=JSON.stringify(training.plan),originalStats=JSON.stringify(training.freethrows);
+  const entryRoot=w.document.createElement('section');entryRoot.innerHTML='<nav hidden><button data-pane="attendance">Attendance tab</button></nav><div class="pane" data-pane="attendance"></div>';host.append(entryRoot);
+  F.renderEntry(entryRoot,training);assert(entryRoot.querySelector('.pane > [data-friday-training-entry]'),'The entry belongs in the visible attendance pane, not the hidden tab button');
   w.location.hash=F.url(training.id);F.render(host,training.id);assert.equal(host.querySelectorAll('[data-friday-player]').length,9);
   const change=async(selector,value)=>{const control=host.querySelector(selector);control.value=value;control.dispatchEvent(new w.Event('change',{bubbles:true}));await B.storage.flush();await tick();};
   await change('[data-friday-attendance="'+people[9].id+'"]','present');
