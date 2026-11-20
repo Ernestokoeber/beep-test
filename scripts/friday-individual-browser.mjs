@@ -69,7 +69,23 @@ try {
       assert((await page.locator('.friday-plan-total').innerText()).includes('20:15–22:00'));assert.equal(await page.locator('[data-friday-phase]').count(),11);assert.equal(await page.locator('[data-friday-solo-set]').count(),27);
       assert.equal(await page.locator('[data-friday-combination]').count(),0);
       await page.locator('[data-friday-courts]').selectOption('2');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      for(const i of [7,8]){await page.locator('[data-friday-attendance="'+session.players[i]+'"]').selectOption('absent');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');}
+      await page.locator('[data-friday-phase=solo-a] > details > summary').click();
+      const shared=page.locator('[data-friday-phase=solo-a] [data-friday-shared-court]');assert.equal(await shared.count(),2);assert.equal(await page.locator('[data-friday-phase=solo-a] [data-friday-station]').count(),7);
+      assert.deepEqual(await shared.evaluateAll(cs=>cs.map(c=>c.querySelectorAll('[data-friday-station]').length).sort()),[3,4]);
+      await check('seven-players-shared-baskets');
+      await page.locator('[data-friday-phase=solo-a] > details > summary').click();
+      await page.locator('[data-friday-attendance="'+session.players[6]+'"]').selectOption('absent');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      await page.locator('[data-friday-phase=transfer] > details > summary').click();
+      const live=page.locator('[data-friday-phase=transfer]');assert((await live.innerText()).includes('3 gegen 3'));assert(!(await live.innerText()).includes('3 gegen 1'));
+      assert.equal(await live.locator('.friday-court').count(),1);await check('six-players-three-on-three');
+      await page.locator('[data-friday-phase=transfer] > details > summary').click();
+      await page.locator('[data-friday-attendance="'+session.players[6]+'"]').selectOption('present');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      for(const i of [7,8]){await page.locator('[data-friday-attendance="'+session.players[i]+'"]').selectOption('present');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');}
       for(const i of [0,2,4]){await page.locator('[data-friday-player="'+session.players[i]+'"] > details > summary').click();await page.locator('[data-friday-group="combinationGroups"][data-player="'+session.players[i]+'"]').selectOption('9');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');}
+      await page.locator('[data-friday-solo-court="'+session.players[0]+'"]').selectOption('2');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      await page.locator('[data-friday-solo-capacity]').selectOption('3');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
+      await page.locator('[data-friday-play-mode]').selectOption('groups');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.locator('[data-friday-mix="'+session.players[0]+'"]').selectOption('offense');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.locator('[data-friday-solo="'+session.players[0]+'"][data-set-index="1"]').selectOption('personal:screen-pocket');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.locator('[data-friday-solo="'+session.players[4]+'"][data-set-index="2"]').selectOption('personal:c-roll');await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
@@ -84,6 +100,7 @@ try {
       await page.waitForFunction(id=>BT.storage.getTraining(id).fridayIndividual?.positions && Object.values(BT.storage.getTraining(id).fridayIndividual.positions).includes('sg'),session.id);
       await page.waitForFunction(()=>document.querySelector('[data-friday-save]')?.textContent==='Gespeichert.');
       await page.reload();await page.locator('[data-friday-mode=individual]').waitFor();assert.equal(await page.locator('[data-friday-position="'+session.players[0]+'"]').inputValue(),'sg');
+      assert.equal(await page.locator('[data-friday-solo-court="'+session.players[0]+'"]').inputValue(),'2');assert.equal(await page.locator('[data-friday-solo-capacity]').inputValue(),'3');assert.equal(await page.locator('[data-friday-play-mode]').inputValue(),'groups');
       assert.equal(await page.locator('[data-friday-mix="'+session.players[0]+'"]').inputValue(),'offense');assert.equal(await page.locator('[data-friday-courts]').inputValue(),'2');assert.equal(await page.locator('[data-friday-return="'+session.players[0]+'"]').inputValue(),'2');
       if(width===390){await context.setOffline(true);await page.reload();await page.locator('[data-friday-mode=individual]').waitFor();assert.equal(await page.locator('[data-friday-player]').count(),9);await check('offline-assignments');await context.setOffline(false);}
       assert.equal(await page.evaluate(id=>BT.storage.getTraining(id).plan.drills[0].name,session.id),'Unchanged drill');
