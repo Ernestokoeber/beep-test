@@ -49,6 +49,11 @@
 .friday-court { padding:12px; margin-block:12px; border:1px solid var(--border); border-radius:12px; }
 .friday-court h5 { font-size:1rem; line-height:1.6; margin-block:4px 12px; }
 .friday-court > ol { padding-left:20px; }
+.friday-court-stations { display:grid; gap:14px; }
+.friday-court-stations > li { border-top:1px solid var(--border); padding-top:12px; }
+.friday-court-stations p { margin-block:6px; }
+.friday-release-order { padding:12px; background:var(--surface); border-radius:8px; }
+.friday-solo-instructions { margin-block:12px; }
 .friday-solo-set { min-width:0; margin-block:16px; border:1px solid var(--border); border-radius:12px; padding:14px; }
 .friday-solo-set legend { padding-inline:8px; font-weight:700; }
 .friday-plan-actions { display:flex; flex-wrap:wrap; gap:12px; }

@@ -108,7 +108,10 @@ BT.fridayTraining=(()=>{
       const control=event.target,data=control.dataset,value=control.value;
       if(control.matches('[data-friday-duration]')){const n=Number(value);if(!Number.isInteger(n)||n<45||n>180){root.querySelector('[data-friday-save]').textContent='Bitte eine ganze Dauer von 45 bis 180 Minuten wählen.';return;}save(t=>session(t).durationMinutes=n);}
       if(control.matches('[data-friday-courts]')&&['1','2'].includes(value))save(t=>session(t).courts=Number(value));
+      if(control.matches('[data-friday-play-mode]')&&['together','groups'].includes(value))save(t=>session(t).combinationMode=value);
+      if(control.matches('[data-friday-solo-capacity]')&&['2','3','4'].includes(value))save(t=>session(t).soloCapacity=Number(value));
       const present=(t,id)=>{const member=assess(t,BT.storage.getPlayers()).members.find(m=>m.id===id);if(!member)throw Error('Spieler ist nicht mehr anwesend. Bitte die Anwesenheiten prüfen.');return member;};
+      if(data.fridaySoloCourt&&(!value||['1','2'].includes(value)))save(t=>{present(t,data.fridaySoloCourt);const config=session(t);if(value&&Number(value)>BT.fridaySessionPlan.settings(t).courts)throw Error('Dieser Korb ist aktuell nicht verfügbar.');config.soloCourts||={};if(value)config.soloCourts[data.fridaySoloCourt]=Number(value);else delete config.soloCourts[data.fridaySoloCourt];});
       if(['techniqueGroups','combinationGroups'].includes(data.fridayGroup)&&(!value||/^[1-9]$/.test(value)))save(t=>{present(t,data.player);const config=session(t);config[data.fridayGroup]||={};if(value)config[data.fridayGroup][data.player]=Number(value);else delete config[data.fridayGroup][data.player];});
       if(data.fridayReturn&&/^[0-2]$/.test(value))save(t=>{present(t,data.fridayReturn);const config=session(t);config.returnSets||={};config.returnSets[data.fridayReturn]=Number(value);});
       if(data.fridayMix&&BT.fridayPersonalSets.mixes[value])save(t=>{present(t,data.fridayMix);const config=session(t);config.playerMix||={};config.playerMix[data.fridayMix]=value;});
@@ -129,7 +132,7 @@ BT.fridayTraining=(()=>{
     });
     root.addEventListener('click',async event=>{
       const vary=event.target.closest('[data-friday-vary]');if(vary)save(t=>{const member=assess(t,BT.storage.getPlayers()).members.find(m=>m.id===vary.dataset.fridayVary);if(!member)throw Error('Spieler ist nicht mehr anwesend.');const plan=BT.fridaySessionPlan.build(t,assess(t,BT.storage.getPlayers())),config=session(t);config.previousAutoSets||={};config.previousAutoSets[member.id]=plan.config.resolvedSets[member.id].map(r=>r.id);config.playerVariation||={};config.playerVariation[member.id]=(Number(config.playerVariation[member.id])||0)+1;});
-      if(event.target.closest('[data-friday-auto-groups]'))save(t=>{const config=session(t);delete config.techniqueGroups;delete config.combinationGroups;});
+      if(event.target.closest('[data-friday-auto-groups]'))save(t=>{const config=session(t);delete config.techniqueGroups;delete config.combinationGroups;delete config.soloCourts;});
       if(event.target.closest('[data-friday-load-individual]')){
         if(busy||!active()||!writable())return;busy=true;root.querySelectorAll('select,button,input,textarea').forEach(c=>c.disabled=true);
         const status=()=>root.querySelector('[data-friday-import-status]');status().textContent='Individuelle Pläne werden geladen …';

@@ -119,32 +119,53 @@ BT.fridayPersonalSets=(()=>{
     }
     return {packs,reasons,warnings};
   }
+  // Keep both sides on one basket. Pair consecutive windows so the same teams
+  // exchange offense/defense before the next player rotates out.
+  function opposingSides(members,index){
+    const size=Math.floor(members.length/2),pair=Math.floor(index/2),bench=members.length%2?[members[pair%members.length]]:[],active=members.filter(m=>!bench.includes(m));
+    const count=(team,positions)=>team.filter(m=>positions.includes(m.position)).length;
+    const candidates=[];let best=Infinity;
+    for(let mask=1;mask<(1<<active.length);mask+=2){
+      const a=active.filter((m,i)=>mask&(1<<i));if(a.length!==size)continue;
+      const b=active.filter(m=>!a.includes(m));
+      let score=0;for(const team of [a,b])score+=(!count(team,['pg','sg','sf'])*100)+(!count(team,['pf','c'])*60)+(!count(team,['sg','sf'])*20);
+      for(const positions of [['pg'],['pf','c'],['sg','sf']])score+=Math.abs(count(a,positions)-count(b,positions));
+      if(score<best){best=score;candidates.length=0;}if(score===best)candidates.push([a,b]);
+    }
+    const teams=candidates[pair%candidates.length],attack=index%2;
+    return {attack:teams[attack],defense:teams[1-attack],bench,team:attack===0?'A':'B'};
+  }
   function compose(group,index,transfer,config,seen=new Map()){
     const members=group.members,n=members.length,used=new Set(),roles=[],steps=[],gaps=[];
+    const sides=n>=6?opposingSides(members,index):null,attackers=sides?.attack||members;
     const rows=(m,side)=>config.resolvedSets[m.id].map((row,setIndex)=>({row,setIndex})).filter(r=>r.row.side===side&&r.row.playersMin===1&&r.row.counter&&r.row.exit&&r.row.action);
     const use=(member,role,predicate=null)=>{if(!member)return null;used.add(member.id);const pool=(role==='Eigenanwendung'?config.resolvedSets[member.id].map((row,setIndex)=>({row,setIndex})):rows(member,role==='Verteidigung'?'defense':'offense')).filter(r=>!predicate||predicate(r.row));pool.sort((a,b)=>(seen.get(member.id+':'+a.setIndex)||0)-(seen.get(member.id+':'+b.setIndex)||0)||a.setIndex-b.setIndex);const chosen=pool[0];if(chosen)seen.set(member.id+':'+chosen.setIndex,(seen.get(member.id+':'+chosen.setIndex)||0)+1);const ref={playerId:member.id,role,setIndex:chosen?.setIndex??null,row:chosen?.row||null};roles.push(ref);return ref;};
     const choose=pool=>pool.length?pool[index%pool.length]:null;
-    const guards=members.filter(m=>['pg','sg','sf'].includes(m.position)&&rows(m,'offense').length),pgs=guards.filter(m=>m.position==='pg');let handler=use(n===2?members[index%n]:choose(transfer&&n===3?guards:pgs.length?pgs:guards)||members[index%n],n===1?'Eigenanwendung':'Ballhandler');
+    const guards=attackers.filter(m=>['pg','sg','sf'].includes(m.position)&&rows(m,'offense').length),pgs=guards.filter(m=>m.position==='pg');let handler=use(n===2?members[index%n]:choose(transfer&&n===3?guards:pgs.length?pgs:guards)||attackers[index%attackers.length],n===1?'Eigenanwendung':'Ballhandler');
     let handlerPnR=handler?.row?.action==='screen-handler',forcedBig=null;
     if(n===2&&['pf','c'].includes(members.find(m=>m.id===handler.playerId)?.position)&&['screen-roll','screen-pop'].includes(handler.row?.action)){const guard=members.find(m=>!used.has(m.id)&&['pg','sg','sf'].includes(m.position));if(guard){forcedBig=handler;handler=use(guard,'Ballhandler');handlerPnR=true;}}
-    const bigPool=members.filter(m=>!used.has(m.id)&&['pf','c'].includes(m.position));
+    const bigPool=attackers.filter(m=>!used.has(m.id)&&['pf','c'].includes(m.position));
     const compatible=bigPool.filter(m=>rows(m,'offense').some(r=>['screen-roll','screen-pop'].includes(r.row.action))),big=forcedBig||(n>=3||handlerPnR?use(choose(handlerPnR&&compatible.length?compatible:bigPool),'Innenspieler',handlerPnR?r=>['screen-roll','screen-pop'].includes(r.action):null):null);
-    const offense=n>=4||!transfer&&n>=3?3:n===2&&!handlerPnR&&handler?.row?.action!=='passing'?1:n>=2?2:1;
-    let wing=null;if(offense>=3){const pool=members.filter(m=>!used.has(m.id)&&['sg','sf'].includes(m.position));wing=use(choose(pool)||members.find(m=>!used.has(m.id)),'Flügel / Anschluss');}
-    if(offense>=2&&!big){const receiver=members.find(m=>!used.has(m.id));wing=use(receiver,'Anschluss / Fang');}
-    const rest=members.filter(m=>!used.has(m.id)),shift=rest.length?index%rest.length:0;rest.slice(shift).concat(rest.slice(0,shift)).forEach((m,i)=>{if(i<3)use(m,'Verteidigung');else{used.add(m.id);roles.push({playerId:m.id,role:'Rebound / Beobachtung',setIndex:null,row:null});}});
+    const offense=sides?attackers.length:n>=4||!transfer&&n>=3?3:n===2&&!handlerPnR&&handler?.row?.action!=='passing'?1:n>=2?2:1;
+    let wing=null;if(offense>=3){const pool=attackers.filter(m=>!used.has(m.id)&&['sg','sf'].includes(m.position));wing=use(choose(pool)||attackers.find(m=>!used.has(m.id)),'Flügel / Anschluss');}
+    if(offense>=2&&!big){const receiver=attackers.find(m=>!used.has(m.id));wing=use(receiver,'Anschluss / Fang')||wing;}
+    while(roles.length<offense){const next=attackers.find(m=>!used.has(m.id));if(!next)break;use(next,'Weiterer Anschluss');}
+    const rest=sides?sides.defense:members.filter(m=>!used.has(m.id)),shift=rest.length?index%rest.length:0;rest.slice(shift).concat(rest.slice(0,shift)).forEach(m=>use(m,'Verteidigung'));
+    for(const m of sides?.bench||[])roles.push({playerId:m.id,role:'Rebound / Beobachtung',setIndex:null,row:null});
     const label=ref=>ref?(members.find(m=>m.id===ref.playerId)?.player?.name||'Spieler')+(ref.setIndex!==null?' · Set '+['A','B','C'][ref.setIndex]+' „'+ref.row.familyName+'“':' · Partneraufgabe'):'';
     if(n===1)steps.push('Ohne Partner keine gemeinsame Offense vorspielen. '+label(handler)+' als komplette Hauptmove–Konter–Exit-Folge wiederholen.');
     else if(handlerPnR){
       if(big?.row&&['pf','c'].includes(members.find(m=>m.id===big.playerId)?.position)&&['screen-roll','screen-pop'].includes(big.row.action)){big.role='Blocksteller / '+(big.row.action==='screen-pop'?'Pop':'Roll');steps.push(label(big)+' stellt den Block vollständig still. '+label(handler)+' nutzt ihn und liest freie eigene Linie oder Pass zum Blocksteller.');}
       else{gaps.push('Zu '+label(handler)+' fehlt ein passendes PF-/Center-Set für Block & Roll oder Pop.');steps.push(label(handler)+': Blockverbindung noch offen. Nur eigenen Dribbelwinkel technisch üben, bis ein PF-/Center-Baustein zugeordnet wurde.');}
-    }else if(handler?.row)steps.push(label(handler)+' eröffnet den Angriff mit genau seiner geübten vollständigen Bewegung. Die Abwehr lässt den Hauptweg zunächst frei und schließt ihn dann gezielt.');
+    }else if(handler?.row)steps.push(label(handler)+' eröffnet den Angriff mit genau seiner geübten vollständigen Bewegung. '+(transfer?'Die Abwehr entscheidet frei; Hauptmove, Konter oder Exit passend zur wirklichen Reaktion wählen.':'Die Abwehr lässt den Hauptweg zunächst frei und schließt ihn dann gezielt.'));
     if(big?.row&&!handlerPnR)steps.push(label(big)+(['post','finish'].includes(big.row.action)?' bietet sich im inneren Fangfenster an. Schließt die Hilfe den Drive, Post-Pass spielen und diesen Move mit eigener Konter-/Exit-Entscheidung vollenden.':['screen-roll','screen-pop'].includes(big.row.action)?' ist der PF-/Center-Baustein: stehenden Block setzen, dann in sein Roll-/Pop-Fenster lösen; Ballhandler setzt seine geübte Bewegung aus diesem neuen Winkel ein.':' bietet einen sichtbaren kurzen Passwinkel und führt seine Pass-/Abschlussentscheidung aus.'));
     if(wing?.row)steps.push(label(wing)+' hält Abstand zu Drive- und Rollspur. Bei Hilfe sichtbar ins freie Fangfenster versetzen und die eigene Fang-/Drive-/Wurfbewegung ausführen; bei geschlossener erster Lösung ihren geübten Konter nutzen.');
-    const defenders=roles.filter(r=>r.role==='Verteidigung');if(defenders.length)steps.push(defenders.map(label).join('; ')+(transfer?' verteidigen innerhalb ihrer geübten Aufgaben frei: ersten Weg oder Konter schließen.':' begleiten zunächst geführt und zeigen vor dem Start, welcher Weg geschlossen wird.')+' Wird ihr erster Verteidigungsweg geschlagen, die eigene Recovery-/Hilfealternative aus dem genannten Defense-Set nutzen. Ohne eigenes Defense-Set ist dies eine geführte Partnerrolle.');
+    for(const ref of roles.filter(r=>r.role==='Weiterer Anschluss'&&r.row))steps.push(label(ref)+' besetzt ein freies Anschlussfenster außerhalb der Drive- und Rollspur und setzt nach dem Pass seinen eigenen Move, Konter oder Exit ein.');
+    const defenders=roles.filter(r=>r.role==='Verteidigung');if(defenders.length)steps.push(defenders.map(label).join('; ')+(transfer?' verteidigen frei: ersten Weg oder Konter schließen, helfen und zum eigenen Gegenspieler zurückkehren.':' begleiten zunächst geführt und zeigen vor dem Start, welcher Weg geschlossen wird.')+' Wird ihr erster Verteidigungsweg geschlagen, die eigene Recovery-/Hilfealternative aus dem genannten Defense-Set nutzen. '+(transfer?'Auch ohne eigenes Defense-Set einen Angreifer übernehmen und aktiv verteidigen.':'Ohne eigenes Defense-Set ist dies eine geführte Partnerrolle.'));
     else if(n>1)steps.push('Ohne Verteidiger werden nur Wege, Timing, Kontertechnik und Passfenster gespielt; keine echte Abwehrentscheidung bewerten.');
     if(n===2&&offense===1)steps.push('Im 1-gegen-1 steht kein zusätzlicher Passempfänger zur Verfügung: den Exit als Ball sichern und kontrolliertes Abbrechen zur Startmarke üben. Einen Außenpass nur technisch auf ein freies Bodenziel demonstrieren; keinen zusätzlichen Mitspieler annehmen.');
     if(n>1)steps.push('Ist auch der Konter geschlossen, den eigenen Exit ausführen: Ball sichern, sichtbaren Mitspieler im neuen Winkel finden und daraus einen neuen Angriff starten. Keine festgelegte Passfolge gegen eine geschlossene Linie erzwingen.');
+    if(sides){steps.unshift('Team '+sides.team+' greift an, Team '+(sides.team==='A'?'B':'A')+' verteidigt. '+(index%2===0?'Im nächsten Zeitfenster tauschen dieselben Teams Angriff und Verteidigung.':'Beide Teams haben angegriffen; danach werden die Rollen neu verteilt.'));if(sides.bench.length)steps.push('Der zusätzliche Spieler beobachtet die Entscheidung und sichert freie Bälle außerhalb des Spielwegs; nach beiden Angriffsfenstern wechselt der Rotationsplatz.');}
     return {format:(roles.filter(r=>!['Verteidigung','Rebound / Beobachtung'].includes(r.role)).length)+' gegen '+defenders.length+(roles.some(r=>r.role==='Rebound / Beobachtung')?' · '+roles.filter(r=>r.role==='Rebound / Beobachtung').length+' in Rotation':''),roles,steps,gaps};
   }
   return {bank,actions,mixes,mix,options,resolve,enrich,family,targets,compose};

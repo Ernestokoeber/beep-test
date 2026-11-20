@@ -79,6 +79,12 @@ try {
   assert(host.querySelector('[data-friday-full-session]').textContent.includes('20:15–22:00'));assert.equal(host.querySelectorAll('[data-friday-solo-set]').length,27);
   await change('[data-friday-duration]','90');assert.equal(host.querySelector('[data-friday-full-session]').dataset.totalMinutes,'90');
   await change('[data-friday-duration]','105');await change('[data-friday-courts]','2');await change('[data-friday-mix="'+people[0].id+'"]','offense');assert(!host.querySelector('[data-friday-combination]'));
+  await change('[data-friday-solo-capacity]','3');await change('[data-friday-solo-court="'+people[0].id+'"]','2');
+  assert.equal(B.storage.getTraining(training.id).fridayIndividual.session.soloCapacity,3);assert.equal(B.storage.getTraining(training.id).fridayIndividual.session.soloCourts[people[0].id],2);
+  F.render(host,training.id);assert.equal(host.querySelector('[data-friday-solo-court="'+people[0].id+'"]').value,'2');
+  await change('[data-friday-solo-capacity]','4');
+  await change('[data-friday-play-mode]','groups');F.render(host,training.id);assert.equal(host.querySelector('[data-friday-play-mode]').value,'groups');assert.equal(B.storage.getTraining(training.id).fridayIndividual.session.combinationMode,'groups');
+  await change('[data-friday-play-mode]','together');
   for(const i of [0,2,4])await change('[data-friday-group="combinationGroups"][data-player="'+people[i].id+'"]','9');
   await change('[data-friday-focus="'+people[0].id+'"]','Ball schützen und vor dem Pass stoppen');await change('[data-friday-return="'+people[0].id+'"]','2');
   const solo=B.fridayPositionExercises.find(r=>r.primaryPosition==='pg'&&r.playersMin===1);await change('[data-friday-solo="'+people[0].id+'"][data-set-index="0"]',solo.id);
