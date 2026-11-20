@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {JSDOM} from 'jsdom';
+const dom=new JSDOM('<main></main>',{runScripts:'outside-only',url:'https://coach.test/'}),w=dom.window;
+for(const file of ['util','friday-position-exercises','friday-individual','friday-personal-sets','friday-session-plan','friday-training'])w.eval(readFileSync('js/'+file+'.js','utf8'));
+const B=w.BT,M=B.fridayPersonalSets,P=B.fridaySessionPlan,F=B.fridayTraining,copy=value=>JSON.parse(JSON.stringify(value));
+const member=(id,position,goals=[])=>({id,position,player:{id,name:id,position,goals}});
+const config={selectionDate:'2026-11-20'};
+function planFor(members,session={}){const t={date:'2026-11-20',startTime:'20:15',attendance:members.map(m=>({playerId:m.id,status:'present'})),fridayIndividual:{session}};return P.build(t,F.assess(t,members.map(m=>m.player)));}
+try{
+  for(const row of M.bank){assert(row.mainMove.length>50);assert(row.counter.length>50);assert(row.exit.length>50);assert.equal(row.playersMin,1);assert(row.technicalSteps.includes(row.mainMove));assert(row.technicalSteps.some(s=>s.includes(row.counter)));assert(row.technicalSteps.some(s=>s.includes(row.exit)));}
+  const roster=[member('guard','pg'),member('wing1','sf'),member('wing2','sf'),member('power','pf'),member('center1','c'),member('center2','c')];
+  const before=JSON.stringify(roster),sets=M.resolve(roster,config);assert.equal(JSON.stringify(roster),before);
+  for(const m of roster){const rows=sets.packs[m.id];assert.equal(rows.length,3);assert.equal(new Set(rows.map(M.family)).size,3,'A/B/C must be three different movements, not three stages');assert.equal(new Set(rows.map(r=>r.mainMove)).size,3);assert(rows.every(r=>!r.id.startsWith('programme:')));}
+  for(const id of ['power','center1','center2'])assert(sets.packs[id].every(r=>r.side==='offense'));
+  for(const id of ['wing1','wing2'])assert.deepEqual(copy(sets.packs[id].map(r=>r.action)),['drive','drive','midrange']);
+  assert.notDeepEqual(copy(sets.packs.wing1.map(r=>r.id)),copy(sets.packs.wing2.map(r=>r.id)),'Same-position players need real variety');assert.notDeepEqual(copy(sets.packs.center1.map(r=>r.id)),copy(sets.packs.center2.map(r=>r.id)));assert.notDeepEqual(copy(sets.packs.power.map(r=>r.mainMove)),copy(sets.packs.center1.map(r=>r.mainMove)));
+  for(const role of ['pg','sg','sf','pf','c']){const many=Array.from({length:9},(_,index)=>member(role+index,role)),r=M.resolve(many,config);assert.equal(new Set(many.map(m=>r.packs[m.id].map(M.family).sort().join('|'))).size,9,'Even nine players of one position need different complete packages: '+role);}
+  assert.deepEqual(copy(sets.packs.guard.map(r=>r.side)),['offense','offense','defense']);
+  const shooting=member('same-player','pg',[{title:'Mitteldistanzwurf aus Balance verbessern',status:'active'}]),handling=member('same-player','pg',[{title:'Dribbling und Ballkontrolle verbessern',status:'active'}]);
+  const shootingSets=M.resolve([shooting],config),handlingSets=M.resolve([handling],config);assert(shootingSets.packs['same-player'].some(r=>r.action==='midrange'));assert(handlingSets.packs['same-player'].filter(r=>r.side==='offense').every(r=>r.tags.includes('dribbling')));assert.notDeepEqual(copy(shootingSets.packs['same-player'].map(r=>r.id)),copy(handlingSets.packs['same-player'].map(r=>r.id)));
+  const first=M.resolve([handling],config),again=M.resolve([handling],config);assert.deepEqual(copy(first),copy(again),'Repeated rendering is stable');const varied=M.resolve([handling],{...config,previousAutoSets:{'same-player':first.packs['same-player'].map(r=>r.id)},playerVariation:{'same-player':1}});assert.notDeepEqual(copy(first.packs['same-player'].map(r=>r.id)),copy(varied.packs['same-player'].map(r=>r.id)));
+  const locked=M.resolve([handling],{...config,soloSets:{'same-player':['personal:hesitation']},previousAutoSets:{'same-player':['personal:hesitation']},playerVariation:{'same-player':5}});assert.equal(locked.packs['same-player'][0].id,'personal:hesitation','Manual choices survive variation');
+  const three=[member('g','pg'),member('c','c'),member('s','sf')],session={soloSets:{g:['personal:hesitation','personal:screen-pocket','personal:closeout-slide'],c:['personal:jump-hook','personal:c-dropstep','personal:c-roll'],s:['personal:jab-cross','personal:sf-pullup','personal:help-recover']}};
+  const linked=planFor(three,session),turns=linked.phases.filter(p=>['combination','transfer'].includes(p.id)).flatMap(p=>p.rounds.flatMap(r=>r.courts.flatMap(c=>c.turns)));
+  const pnr=turns.find(t=>t.roles.some(r=>r.playerId==='g'&&r.setIndex===1)&&t.roles.some(r=>r.playerId==='c'&&r.setIndex===2));assert(pnr,'The guard’s actual set B must pair with the center’s actual set C');assert(pnr.steps.some(s=>s.includes('Set B')&&s.includes('Set C')));assert(pnr.roles.some(r=>r.playerId==='c'&&r.role.startsWith('Blocksteller')));
+  for(const t of turns)for(const role of t.roles)if(role.role.startsWith('Blocksteller'))assert(['c','pf'].includes(three.find(m=>m.id===role.playerId).position));
+  for(const m of three)for(const [index,row] of linked.config.resolvedSets[m.id].entries())if(row.side==='offense')assert(turns.some(t=>t.roles.some(r=>r.playerId===m.id&&r.setIndex===index)),'Every selected offense set must appear in the shared application');
+  const orphan=planFor([member('g','pg'),member('s','sf')],{soloSets:{g:[null,'personal:screen-pocket']}});assert(orphan.warnings.some(s=>s.includes('Power Forward oder Center')));assert(orphan.phases.flatMap(p=>p.rounds.flatMap(r=>r.courts.flatMap(c=>c.turns))).every(t=>!(t.roles||[]).some(r=>r.role.startsWith('Blocksteller'))));
+  const field=w.document.querySelector('main');field.innerHTML=P.html(linked,{editable:true});assert.equal(field.querySelectorAll('[data-friday-combination]').length,0);assert.equal(field.querySelectorAll('[data-friday-mix]').length,3);assert.equal(field.querySelectorAll('.friday-solo-set .friday-decision-tree dt').length,27);assert(field.textContent.includes('Hauptmove'));assert(field.textContent.includes('Konter'));assert(field.textContent.includes('Exit'));
+  console.log('Friday personal sets: three different complete exercises with main/counter/exit; individual goals, same-position variety, stable recommendations, selectable O/D mixes, retained manual edits, actual guard-B/center-C linkage, PF/C-only screen setters, missing-role warnings and shared practice of every offensive set passed.');
+}finally{w.close();}

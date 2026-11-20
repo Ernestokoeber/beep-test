@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scripts = [
-  'js/friday-position-exercises.js', 'js/friday-individual.js', 'js/friday-session-plan.js', 'js/friday-training.js',
+  'js/friday-position-exercises.js', 'js/friday-individual.js', 'js/friday-personal-sets.js', 'js/friday-session-plan.js', 'js/friday-training.js',
   'js/training-proposals.js', 'js/individual-plan-browser.js', 'js/exercise-library-core.js',
   'api/_handlers/individual/plan-proposals.js', 'api/_lib/training-proposals.js', 'api/_lib/training-regeneration-contract.js',
   'js/individual-plan-editor.js', 'api/_lib/individual-plan-review.js',
