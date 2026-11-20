@@ -1205,13 +1205,13 @@ BT.fridayPositionExercises = (() => {
           index===0 ? 'Verteidigerstellung beziehungsweise Startwinkel vor dem Versuch festlegen. Den unten erklärten Grundmove zuerst langsam ausführen.'
           : 'Die Startrollen wie im Aufbau besetzen. Der erste Versuch beginnt kontrolliert; Verteidiger dürfen die erlaubten Fenster selbst öffnen oder schließen.',
           specific,
-          'Die Grundbewegung unten erklärt die Technik. Den dort genannten Abschluss nur bei freiem Fenster ausführen; die Lernaufgabe bestimmt, wann ein Konter, Pass oder Abbruch richtig ist.',
+          'Die vier Schritte des Grundmoves erklären die Technik. Den dort genannten Abschluss nur bei freiem Fenster ausführen; die Lernaufgabe bestimmt, wann ein Konter, Pass oder Abbruch richtig ist.',
           index===4 ? 'Ein Versuch endet nach freiem Abschluss, sicherem Ausstieg oder Ballverlust. Einen Punkt für eine passende Entscheidung und einen zweiten für saubere Technik geben. Nach sechs Ballbesitzen auswerten.'
           : 'Nach der Aktion Rollen wechseln und kurz benennen, welches Fenster offen war. Erst dann den nächsten Versuch beginnen.'
         ],
         coachingPoints:[...base.coachingPoints,index===0?'Saubere Bewegung vor zusätzlichem Tempo.':index===1?'Erst sehen und dann handeln; Entscheidung laut benennen.':index===2?'Den Konter nur auf eine tatsächlich geschlossene erste Lösung nutzen.':index===3?'Nach der Erstaktion den zusätzlichen Partner wirklich sehen.':'Entscheidung und technische Ausführung getrennt bewerten.'],
         commonMistakes:[...base.commonMistakes,index===2?'Den Konter unabhängig von der Verteidigerreaktion vorwegnehmen.':index===3?'Nach der ersten Aktion stehen bleiben und den Anschluss vergessen.':'Die Zusatzaufgabe erfüllen wollen, obwohl das nötige Fenster geschlossen ist.'],
-        successIndicator:base.successIndicator+' '+(index===4?'Zusätzlich Entscheidungs- und Technikpunkte aus sechs Ballbesitzen getrennt notieren.':'Zusätzlich von sechs Aktionen die passend gelösten Lernaufgaben zählen.'),
+        successIndicator:base.successIndicator.replace(/\b12\b/g,'6').replace(/\b6\b(?= (?:Versuche pro Seite|Aktionen je Hand|Durchgänge je Angriffsseite))/g,'3').replace(/((?:Je Seite|Je Hand|Je Richtung|je Seite|pro Seite) )6\b/g,'$13')+' '+(index===4?'Zusätzlich Entscheidungs- und Technikpunkte aus sechs Ballbesitzen getrennt notieren.':'Zusätzlich von sechs Aktionen die passend gelösten Lernaufgaben zählen.'),
         repetitions:'8 Minuten einschließlich Erklärung, Rollenwechsel und Pausen. Zunächst je Spieler 6 Aktionen, dann bei verbleibender Zeit eine zweite Serie. Nach 3 Aktionen 30 Sekunden Pause. Beide Seiten innerhalb der Serien nutzen; bei großen Gruppen weniger Versuche.',
         easier:base.easier+' Die Zusatzaufgabe vor dem Start ankündigen und nur ein offenes Fenster anbieten.',
         harder:base.harder+' Erst bei sicherer Technik die Entscheidung später zeigen; keinen zusätzlichen Ermüdungsblock anhängen.',
