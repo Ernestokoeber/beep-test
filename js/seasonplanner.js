@@ -693,6 +693,41 @@ BT.seasonplanner = (function() {
     return allTitlesNew && newPrimaryFocuses >= 3;
   }
 
+  async function draftTraining(id) {
+    const training = BT.storage.getTraining(id);
+    if (!training) throw new Error('Training nicht gefunden.');
+    if (training.endedAt || training.status === 'completed' || training.cancelled || training.status === 'cancelled' || training.liveSession) throw new Error('Ein abgeschlossenes, abgesagtes oder bereits gestartetes Training kann nicht neu geplant werden.');
+    const date = training.date, parsed = dateAtNoon(date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !Number.isFinite(parsed.getTime()) || isoDate(parsed) !== date || date < BT.util.todayISO()) throw new Error('Bitte einen aktuellen oder zukünftigen Trainingstermin wählen.');
+    if (parsed.getDay() === 5) throw new Error('Bitte für Freitag die Freitagsplanung verwenden.');
+    const duration = Number(training.plan?.durationMinutes || BT.storage.getSetting('trainingDurationMinutes', 105));
+    if (!Number.isInteger(duration) || duration < 30 || duration > 240) throw new Error('Für die KI bitte eine Dauer von 30 bis 240 Minuten wählen.');
+    const baseline = JSON.stringify(training);
+    const games = BT.storage.getGames().filter(g => g.date && !g.cancelled && g.team !== 'u18').sort((a,b) => a.date.localeCompare(b.date));
+    const previousGame = games.filter(g => g.date < date).at(-1) || null, nextGame = games.find(g => g.date > date) || null;
+    const weekday = Object.keys(DAY_NUMBERS).find(key => DAY_NUMBERS[key] === parsed.getDay()), load = loadTarget(date, previousGame, nextGame, weekday);
+    const slot = {date, weekday, time:training.startTime || '20:15', durationMinutes:duration, load:load.level, loadReason:load.reason, fridayStationMode:false,
+      previousGame:gameSummary(previousGame), nextGame:gameSummary(nextGame),
+      daysAfterPreviousGame:previousGame ? daysBetween(previousGame.date,date) : null, daysBeforeNextGame:nextGame ? daysBetween(date,nextGame.date) : null,
+      opponentContext:nextGame && BT.opponents?.contextForGame ? BT.opponents.contextForGame(nextGame) : null};
+    const payload = buildAIPayload([slot], {...BT.storage.getSetting('seasonCoachInput', {}), focus:training.plan?.summary || BT.storage.getSetting('seasonCoachInput', {}).focus || ''});
+    payload.durationMinutes = duration;
+    const response = await BT.api.ai('planSeason', {data:payload});
+    const [entry] = validateBatchResponse(response, [slot]);
+    if (!entry.drills?.length) throw new Error('Die KI hat keine Übungen geliefert. Bitte erneut versuchen.');
+    return {trainingId:id, baseline, plan:normalizePlan(entry, slot, duration), model:response.model, requestId:response.requestId};
+  }
+
+  function applyTrainingDraft(draft) {
+    const current = BT.storage.getTraining(draft.trainingId);
+    if (!current || JSON.stringify(current) !== draft.baseline) throw new Error('Das Training wurde inzwischen geändert. Bitte einen neuen KI-Entwurf erstellen.');
+    const training = JSON.parse(JSON.stringify(current));
+    training.plan = JSON.parse(JSON.stringify(draft.plan));
+    training.planning = {...training.planning, source:'ai-season', status:'draft', coachEdited:false, generatedAt:new Date().toISOString(), strategyRevision:BT.teamStrategy?.current?.().revision || null};
+    BT.trainingShots?.sync(training);
+    return BT.storage.upsertTraining(training);
+  }
+
   async function generateFridayTraining(friday, game, existing = null) {
     if (!game || !BT.stationTraining) throw new Error('Das Wochenendspiel für das Freitagstraining fehlt.');
     const previousPlan = previousFridayPlan(existing);
@@ -742,7 +777,7 @@ BT.seasonplanner = (function() {
   return {
     BAVARIA_SCHOOL_BREAKS, parseLeagueId, scheduleConfig, saveScheduleConfig,
     closureFor, buildSlots, buildAIPayload, performanceContext, playerDevelopmentContext, splitAIPayload, validateBatchResponse, planInBatches, applyAIPlan,
-    generateFridayTraining
+    generateFridayTraining, draftTraining, applyTrainingDraft
   };
 })();
 
