@@ -7,6 +7,7 @@ w.indexedDB=new IDBFactory();let user={id:'coach',role:'coach',organization:{id:
 w.BT={sync:{getState:()=>({user})},navigation:{getState:()=>({}),setState(){}}};
 for(const file of ['util','storage','coaching-staff','friday-position-exercises','friday-individual','friday-training'])w.eval(readFileSync('js/'+file+'.js','utf8'));
 const B=w.BT,F=B.fridayTraining,host=w.document.querySelector('main'),clone=x=>JSON.parse(JSON.stringify(x));
+B.util.todayISO=()=>'2026-11-20';
 const fixturePlayers=Array.from({length:11},(_,i)=>({id:'p'+i,name:'Spieler '+i,position:['PG','Shooting Guard','SF','Power Forward','Center'][i%5]}));
 const fixture=count=>({id:'friday',date:'2026-11-20',attendance:fixturePlayers.map((p,i)=>({playerId:p.id,status:i<count?'present':'absent'}))});
 const tick=()=>new Promise(resolve=>setTimeout(resolve,20));
@@ -14,6 +15,12 @@ try {
   for(const [count,mode]of [[0,'pending'],[1,'individual'],[9,'individual'],[10,'team'],[11,'team']])assert.equal(F.assess(fixture(count),fixturePlayers).mode,mode);
   assert.equal(F.assess({...fixture(9),date:'2026-11-19'},fixturePlayers).mode,'other-day');
   assert(!F.isFriday('invalid'));assert(F.isFriday('2026-11-20'));
+  const dates=[{id:'march',date:'2027-03-05'},{id:'next',date:'2026-11-27'},{id:'today',date:'2026-11-20'},{id:'past',date:'2026-11-13'},{id:'thursday',date:'2026-11-19'}],datesBefore=JSON.stringify(dates);
+  const calendar=F.calendar(dates,'2026-11-20');
+  assert.deepEqual(clone(calendar.upcoming.map(t=>t.date)),['2026-11-20','2026-11-27','2027-03-05'],'Today must precede March, with future Fridays in chronological order');
+  assert.equal(calendar.current.id,'today');assert.equal(calendar.nextDate,'2026-11-20');assert.deepEqual(clone(calendar.past.map(t=>t.id)),['past']);assert.equal(JSON.stringify(dates),datesBefore);
+  assert.equal(F.calendar(dates,'2026-11-21').nextDate,'2026-11-27');assert.equal(F.calendar([], '2026-12-31').nextDate,'2027-01-01');
+  for(const date of ['2026-11-20','2026-11-27','2027-01-01','2027-03-05','2028-01-07'])assert.equal(F.assess({...fixture(1),date},fixturePlayers).mode,'individual','No delayed activation date: '+date);
   for(const position of ['PG','SG','SF','PF','C']){
     const t={date:'2026-11-20',attendance:[{playerId:'solo',status:'present'}]};
     const report=F.assess(t,[{id:'solo',position}]);assert.equal(report.members[0].exercises.length,3,position+' must have three genuinely solo tasks');
@@ -29,6 +36,16 @@ try {
   assert.equal(F.assess(fixture(1),[{id:'p0',position:'Power Forward'}]).members[0].position,'pf');
   const late=fixture(1);late.attendance[0].late=true;assert.equal(F.assess(late,fixturePlayers).count,1);
   await B.storage.ready();
+  const march=B.storage.upsertTraining({date:'2027-03-05',attendance:[],plan:{summary:'Keep March plan',drills:[]}});
+  B.storage.upsertTraining({date:'2026-11-13',attendance:[],plan:{drills:[]}});await B.storage.flush();
+  F.render(host);assert(host.querySelector('[data-friday-current]').textContent.includes('20.11.2026'));assert(host.querySelector('[data-friday-open-current]'));
+  assert.deepEqual([...host.querySelectorAll('[data-friday-upcoming] [data-friday-date]')].map(a=>a.dataset.fridayDate),['2027-03-05']);
+  assert.equal(host.querySelector('[data-friday-past]').open,false);assert.equal(host.querySelector('[name=date]').value,'2026-11-20');
+  host.querySelector('[data-friday-open-current]').click();await B.storage.flush();await tick();
+  const todays=()=>B.storage.getTrainings().filter(t=>t.date==='2026-11-20');assert.equal(todays().length,1);assert.equal(w.location.hash,F.url(todays()[0].id));
+  assert.equal(B.storage.getTraining(march.id).plan.summary,'Keep March plan');
+  w.location.hash='#/friday-individual';F.render(host);assert.equal(host.querySelector('[data-friday-current] a').getAttribute('href'),F.url(todays()[0].id));
+  host.querySelector('form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await B.storage.flush();await tick();assert.equal(todays().length,1,'Opening today again must reuse the existing training');
   const people=fixturePlayers.slice(0,10).map(p=>B.storage.upsertPlayer({name:p.name,position:p.position}));
   const training=B.storage.upsertTraining({date:'2026-11-20',attendance:people.map((p,i)=>({playerId:p.id,status:i<9?'present':'absent',late:false,note:'Keep note'})),plan:{summary:'Manual plan',drills:[{id:'manual',name:'Keep this',minutes:20}]},freethrows:[{playerId:people[0].id,made:3,attempts:5}]});
   await B.storage.flush();const originalPlan=JSON.stringify(training.plan),originalStats=JSON.stringify(training.freethrows);
