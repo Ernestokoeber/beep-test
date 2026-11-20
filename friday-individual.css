@@ -29,6 +29,9 @@
 .friday-attendance label span { display:grid; gap:5px; }
 .friday-attendance small { color:var(--muted); }
 .friday-mode,.friday-session-entry { padding:18px; border:1px solid var(--border); border-radius:12px; margin-block:20px; line-height:1.75; }
+.friday-session-slot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:18px 4px; border-bottom:1px solid var(--border); }
+.friday-session-slot > div { display:grid; gap:8px; min-width:0; }
+.friday-session-slot small { color:var(--muted); line-height:1.55; }
 .friday-player-tasks { margin-top:20px; }
 .friday-player-tasks :is(p,li,summary) { line-height:1.75; }
 .friday-player-tasks summary { min-height:44px; cursor:pointer; }

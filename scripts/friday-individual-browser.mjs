@@ -18,8 +18,15 @@ try {
     const base='http://127.0.0.1:'+port;
     const check=async name=>{assert(await page.evaluate(()=>Math.max(document.body.scrollWidth,document.documentElement.scrollWidth)<=innerWidth+1),name+' overflows at '+width);assert.deepEqual(errors,[]);await page.screenshot({path:'/tmp/courthub-friday-screenshots/'+name+'-'+width+'.png',fullPage:true});};
     try {
-      await page.goto(base+'/#/dashboard');await page.locator('[data-workspace="friday-individual"]').click();
+      await page.goto(base+'/#/dashboard');
+      await page.evaluate(async()=>{for(const date of ['2027-01-15','2027-01-22'])BT.storage.upsertTraining({date,startTime:'20:15',attendance:[],plan:{summary:'Existing January plan',drills:[]}});await BT.storage.flush();});
+      await page.locator('[data-workspace="friday-individual"]').click();
       assert((await page.locator('[data-friday-current]').innerText()).includes('20.11.2026'));assert.equal(await page.locator('[name=date]').inputValue(),'2026-11-20');
+      const firstWeeks=['2026-11-20','2026-11-27','2026-12-04','2026-12-11','2026-12-18','2026-12-25','2027-01-01','2027-01-08','2027-01-15','2027-01-22','2027-01-29','2027-02-05'];
+      const listedDates=()=>page.locator('[data-friday-upcoming] [data-friday-date]').evaluateAll(nodes=>nodes.map(n=>n.dataset.fridayDate));
+      assert.deepEqual(await listedDates(),firstWeeks);assert.equal(await page.locator('[data-friday-open-date="2026-11-27"]').count(),1);
+      assert.equal(await page.evaluate(()=>BT.storage.getTrainings().length),2,'Showing missing weeks must not write training records');
+      await check('missing-fridays-before-january');
       await page.locator('[data-friday-open-current]').click();await page.locator('[data-friday-mode=pending]').waitFor();
       assert.equal(await page.evaluate(()=>BT.storage.getTrainings().filter(t=>t.date==='2026-11-20').length),1);
       await page.goto(base+'/#/friday-individual');await page.getByRole('link',{name:'500 Übungskarten nach Position ansehen'}).click();
@@ -42,7 +49,7 @@ try {
       await page.goBack();await page.locator('[data-friday-page=list]').waitFor();assert.equal(await page.locator('[name=search]').inputValue(),'Drop-Step');
       await page.locator('[data-friday-reset]').click();await page.locator('[data-friday-more]').click();assert.equal(await page.locator('[data-friday-item]').count(),40);
       await page.locator('[name=players]').selectOption('1');assert.equal(await page.locator('[data-friday-item]').count(),3);
-      const untouched=await page.evaluate(()=>({trainings:BT.storage.getTrainings().length,drills:BT.storage.getDrills().length}));assert.deepEqual(untouched,{trainings:1,drills:0});
+      const untouched=await page.evaluate(()=>({trainings:BT.storage.getTrainings().length,drills:BT.storage.getDrills().length}));assert.deepEqual(untouched,{trainings:3,drills:0});
       if(width===390) {
         await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));});
         await context.setOffline(true);await page.reload();await page.locator('[data-friday-page=list]').waitFor();
@@ -73,10 +80,20 @@ try {
       await page.locator('[data-friday-training-entry] a').click();await page.locator('[data-friday-mode=team]').waitFor();
       await page.evaluate(async()=>{for(const date of ['2027-03-05','2026-11-27','2026-11-13'])BT.storage.upsertTraining({date,attendance:[],plan:{drills:[]}});await BT.storage.flush();});
       await page.goto(base+'/#/friday-individual');await page.locator('[data-friday-upcoming]').waitFor();
-      assert.deepEqual(await page.locator('[data-friday-upcoming] [data-friday-date]').evaluateAll(nodes=>nodes.map(n=>n.dataset.fridayDate)),['2026-11-20','2026-11-27','2027-03-05']);
+      assert.deepEqual(await listedDates(),firstWeeks);
+      const beforeMore=await page.evaluate(()=>JSON.stringify(BT.storage.getTrainings()));
+      await page.locator('[data-friday-more-weeks]').click();const expanded=await listedDates();assert.equal(expanded.length,24);
+      for(let i=1;i<expanded.length;i++)assert.equal((Date.parse(expanded[i])-Date.parse(expanded[i-1]))/86400000,7,'No missing Fridays after expanding');
+      assert(await page.locator('[data-friday-date="2027-03-05"]').getAttribute('href'));
+      assert.equal(await page.evaluate(()=>JSON.stringify(BT.storage.getTrainings())),beforeMore);
       assert(!await page.locator('[data-friday-past] nav').isVisible());
       assert.equal(await page.locator('[data-friday-current] a').getAttribute('href'),'#/friday-individual/training/'+session.id);
-      await check('today-first');
+      await check('every-friday');
+      await page.locator('[data-friday-open-date="2026-12-04"]').click();await page.locator('[data-friday-mode=pending]').waitFor();
+      const created=await page.evaluate(()=>BT.storage.getTrainings().filter(t=>t.date==='2026-12-04').map(t=>({id:t.id,count:t.attendance.length})));
+      assert.equal(created.length,1);assert.equal(created[0].count,10,'An unsaved Friday opens with the real player attendance list');
+      await page.goto(base+'/#/friday-individual');assert.equal(await page.locator('[data-friday-date="2026-12-04"]').getAttribute('href'),'#/friday-individual/training/'+created[0].id);
+      assert.equal(await page.evaluate(()=>BT.storage.getTrainings().find(t=>t.date==='2027-01-15').plan.summary),'Existing January plan');
       console.log(width+'px: separate workspace, five 100-card positions, task/search/resource filters, details, back state and no plan writes passed.');
       console.log(width+'px: real Friday attendance, 9/10 mode changes, positional recommendations, persisted day roles, offline assignments and existing attendance-page connection passed.');
     } catch(error) {await page.screenshot({path:'/tmp/courthub-friday-screenshots/failure-'+width+'.png',fullPage:true}).catch(()=>{});throw error;}
