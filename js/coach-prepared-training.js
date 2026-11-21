@@ -3,15 +3,15 @@ window.BT = window.BT || {};
 // Ernesto's explicitly requested replacement for this one TSV Tuesday.
 // Materialize through ordinary workspace storage, once; subsequent coach edits win.
 BT.coachPreparedTraining = (() => {
-  const date = '2026-11-24', revision = 'tsv-2026-11-24-zusammenspiel-v2';
+  const date = '2026-11-24', revision = 'tsv-2026-11-24-zusammenspiel-v3';
   const summary = 'Zusammenspiel in der Offense · Full Court zum Aufwärmen · 75 Minuten 5 gegen 5 · Freiwürfe aus Spielsituationen';
   const foulRules = 'Fouls nach normalen Basketballregeln: Wurffoul bei erfolglosem Zweier: zwei Freiwürfe; bei erfolglosem Dreier: drei. Treffer trotz Wurffoul: Korb zählt plus ein Freiwurf. Teamfouls je Viertel erfassen und die normale Mannschaftsfoulstrafe beachten; ein gewöhnliches Foul außerhalb der Wurfaktion gibt davor Einwurf. Für Offensivfouls und besondere Fouls gelten die normalen Regeln. Keine pauschalen Ersatzpunkte für Fouls. Bei Freiwürfen reguläre Aufstellung einnehmen, Ausboxen und Rebound beachten und nach dem letzten Wurf regelgerecht weiterspielen. Keine isolierten Freiwurfserien.';
   const legacyFoulRules = 'Foulregel ohne Freiwürfe: Foul unterbricht den Angriff, danach Einwurf für den Angriff. Ein Wurffoul gibt zusätzlich einen Punkt; ein erzielter Korb zählt regulär, bei zusätzlichem Foul ebenfalls ein Bonuspunkt. Keine Wurfserie an der Linie.';
   const legacyReferences = ['Es gilt dieselbe Einwurf-/Bonuspunkteregel ohne Freiwürfe.','Fouls nach der zuvor erklärten Einwurf-/Bonuspunkteregel, ohne Freiwürfe.'];
   const foulReference = 'Es gelten dieselben normalen Foul- und Freiwurfregeln mit regulärer Aufstellung, Ausboxen, Rebound und anschließendem Weiterspielen.';
   const blocks = [
-    ['Full-Court-Passlauf in drei Bahnen',15,'medium',
-      'Aufbau: Drei Angreifer mit einem Ball in drei breiten Bahnen an der Grundlinie. Weitere Dreiergruppen warten dahinter. Rückweg außerhalb der markierten Laufbahnen; bei Gegenverkehr erst den Rückweg freigeben.\nAblauf: Im Laufen vom mittleren Spieler nach außen und zurück passen, ohne Dribbling. Der letzte Pass führt zum Korbleger; Abschlussseiten wechseln. Ball sichern und außen zurückgehen. Die nächste Gruppe startet erst, wenn die vorausgehende Gruppe den Abschluss- und Rückwegbereich freigegeben hat. Zunächst vier Minuten locker anlaufen, anschließend Tempo steigern und die Fußarbeit vor dem Fang aktivieren.\nCoaching: Blick vor dem Pass heben, in den Lauf passen, Zielhand zeigen, Ball vor dem Körper fangen und kontrolliert abschließen. Kein Wettrennen und keine kreuzenden Rückwege. Kurze Mobilisation und Trinkpause gehören in dieses Fenster.'],
+    ['Full-Court-Aufwärmen: 3v3v3 / 4v4v4',15,'medium',
+      'Aufbau: Drei Teams A, B und C mit unterschiedlichen Leibchen. Bei neun Spielern 3v3v3, bei zwölf 4v4v4. A startet mit Ball gegen B an einem Korb; C verteidigt am anderen Korb. Bei zehn oder elf Spielern 3v3v3 mit ein bis zwei Wechselspielern; vor dem nächsten Einsatz des wartenden Teams wechseln. Mit weniger als neun Spielern zwei Teams in gleicher Spielerzahl über das ganze Feld spielen lassen.\nRotation: Nach Korb, defensivem Rebound oder Ballverlust mit Ballbesitzwechsel übernimmt B den Ball und greift C am gegenüberliegenden Korb an. Nach einem Korb spielt B regulär von der Grundlinie ein. A bleibt am bisherigen Korb und wird dort Verteidigung. Danach greift C gegen A an. Ein Offensivrebound verlängert den laufenden Angriff; Ausball und Foul führen nicht automatisch zum Wechsel der Teams. Für Fouls gelten die normalen Regeln mit Freiwurfaufstellung und Rebound.\nSteigerung: Erste drei Minuten locker anlaufen, Pass- und Fangbewegungen aktivieren und ohne Druck abschließen. Bis Minute acht kontrollierte Verteidigung und flüssige Rotation, danach auf mittleres Tempo steigern. Kein maximaler Sprint aus dem Stand; Laufwege freihalten und Kontakte kontrollieren. Kurze Mobilisation und Trinkpause liegen innerhalb der 15 Minuten.\nZiel: Ausdaueraktivierung, Passspiel in Bewegung, kontrollierter Abschluss und Spielverständnis verbinden. Früh den Kopf heben, Mitspieler und Verteidigung wahrnehmen, freie Bahnen besetzen und nach Ballgewinn zügig die passende Entscheidung treffen.'],
     ['Offense-Verbindungen im 5 gegen 0',10,'medium',
       'Aufbau: Fünf Spieler im Halbfeld. PG/SG/SF übernehmen Ball- und Flügelrollen, PF/Center stellen Blocks und besetzen innere Fangfenster. Zusätzliche Spieler wechseln nach zwei Abläufen ein.\nAblauf: Flügelpass, Cut des Passgebers und Nachbesetzen des freien Außenplatzes. Danach Einstieg ins Pick-and-Roll: stehender Block, enges Nutzen, Roll oder passendes Pop und ballferner Anschluss. Beide Seiten üben.\nAlternativen: Vorgestellte Hilfe schließt den Drive: Roll-Pass oder Kick-out. Erste Verbindung zu: Ball umkehren und neu aufbauen.\nCoaching: Paint freihalten, nicht gleichzeitig in dieselbe Spur cutten und rollen, nach dem Pass weiterarbeiten. Kurz erklären und Wege verstehen; keine festgelegte Passfolge später gegen geschlossene Linien erzwingen.'],
     ['5 gegen 5 – Zusammenspiel aufbauen',20,'medium',
@@ -46,7 +46,10 @@ BT.coachPreparedTraining = (() => {
         }
         return updated;
       });
-    } else {copy.plan=plan();copy.note=summary;}
+    } else if (training.coachPreparedPlan!=='tsv-2026-11-24-zusammenspiel-v2') {copy.plan=plan();copy.note=summary;}
+    if (['tsv-2026-11-24-zusammenspiel-v1','tsv-2026-11-24-zusammenspiel-v2'].includes(training.coachPreparedPlan)) {
+      copy.plan.drills=(copy.plan.drills||[]).map(drill=>/^tsv-2026-11-24-zusammenspiel-v[12]-0$/.test(drill.id||'')?{...drill,name:blocks[0][0],description:blocks[0][3],intensity:blocks[0][2]}:drill);
+    }
     copy.planning={...copy.planning,source:'coach',status:'coach-edited',coachEdited:true,editedAt:new Date().toISOString()};
     copy.coachPreparedPlan=revision;
     // Existing captured results stay intact; only the planned targets are replaced.
